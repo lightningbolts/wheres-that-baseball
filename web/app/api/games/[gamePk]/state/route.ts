@@ -1,0 +1,63 @@
+import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+
+import { parseStoredGameState } from "@/lib/games/gameState";
+import { isReplayableGame } from "@/lib/games/format";
+import { fetchLiveGameState } from "@/lib/mlb/liveFeed";
+import type { Game } from "@/types/database";
+import { createClient } from "@/utils/supabase/server";
+
+export const dynamic = "force-dynamic";
+
+interface RouteParams {
+  params: Promise<{ gamePk: string }>;
+}
+
+export async function GET(_request: Request, { params }: RouteParams) {
+  const { gamePk: gamePkParam } = await params;
+  const gamePk = Number(gamePkParam);
+
+  if (!Number.isFinite(gamePk) || gamePk <= 0) {
+    return NextResponse.json({ error: "Invalid game PK" }, { status: 400 });
+  }
+
+  try {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+
+    const { data, error } = await supabase
+      .from("games")
+      .select("game_pk, game_state, feed_synced_at, status")
+      .eq("game_pk", gamePk)
+      .maybeSingle();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 502 });
+    }
+
+    const row = data as Pick<Game, "game_pk" | "game_state" | "feed_synced_at" | "status"> | null;
+
+    if (row && !isReplayableGame(row)) {
+      return NextResponse.json({ error: "Game has not started" }, { status: 404 });
+    }
+
+    const stored = parseStoredGameState(row?.game_state, gamePk);
+    if (stored) {
+      return NextResponse.json({
+        state: stored,
+        source: "supabase",
+        feedSyncedAt: row?.feed_synced_at ?? null,
+      });
+    }
+
+    const state = await fetchLiveGameState(gamePk);
+    return NextResponse.json({
+      state,
+      source: "mlb",
+      feedSyncedAt: null,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to load game state";
+    return NextResponse.json({ error: message }, { status: 502 });
+  }
+}

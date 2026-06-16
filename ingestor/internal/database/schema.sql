@@ -25,3 +25,40 @@ CREATE INDEX IF NOT EXISTS idx_predictions_game_pk_timestamp
 
 COMMENT ON TABLE predictions IS 'Live at-bat outcome probabilities produced by the ingestor.';
 COMMENT ON COLUMN predictions.outcome_probabilities IS 'Map of outcome -> probability; keys: strikeout, walk, single, double, triple, home_run, field_out';
+
+-- Season game history synced by scripts/fetch-season-games.mjs
+CREATE TABLE IF NOT EXISTS games (
+    game_pk             INTEGER PRIMARY KEY,
+    game_date           DATE NOT NULL,
+    season              INTEGER NOT NULL,
+    game_type           TEXT NOT NULL DEFAULT 'R',
+    status              TEXT NOT NULL,
+    status_detail       TEXT,
+    away_team_id        INTEGER NOT NULL,
+    away_team_name      TEXT NOT NULL,
+    away_team_abbrev    TEXT NOT NULL,
+    home_team_id        INTEGER NOT NULL,
+    home_team_name      TEXT NOT NULL,
+    home_team_abbrev    TEXT NOT NULL,
+    away_score          INTEGER,
+    home_score          INTEGER,
+    venue_id            INTEGER,
+    venue_name          TEXT,
+    official_date       DATE,
+    game_state          JSONB,
+    feed_synced_at      TIMESTAMPTZ,
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_games_game_date ON games (game_date);
+CREATE INDEX IF NOT EXISTS idx_games_away_team ON games (away_team_id, game_date DESC);
+CREATE INDEX IF NOT EXISTS idx_games_home_team ON games (home_team_id, game_date DESC);
+CREATE INDEX IF NOT EXISTS idx_games_season ON games (season, game_date DESC);
+
+COMMENT ON TABLE games IS 'Regular-season MLB games synced from the Stats API schedule endpoint.';
+COMMENT ON COLUMN games.game_state IS 'Parsed live feed (play-by-play, pitches, hit data) from MLB feed/live endpoint.';
+
+-- RLS (run in Supabase SQL editor after creating the table):
+-- ALTER TABLE games ENABLE ROW LEVEL SECURITY;
+-- CREATE POLICY "anon read games" ON games FOR SELECT TO anon USING (true);
+-- CREATE POLICY "service role full access games" ON games FOR ALL TO service_role USING (true);

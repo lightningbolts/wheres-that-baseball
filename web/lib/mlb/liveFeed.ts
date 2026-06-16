@@ -354,6 +354,7 @@ function parsePlayDetail(
     batterHits: batterLine.hits,
     batterAtBats: batterLine.atBats,
     pitcherName: play.matchup?.pitcher?.fullName ?? "Unknown",
+    pitcherId: play.matchup?.pitcher?.id ?? null,
     event,
     description: desc,
     inning: play.about.inning,
@@ -436,9 +437,9 @@ export function parseLiveFeed(gamePk: number, feed: MLBLiveFeedResponse): LiveGa
   const awayRuns = lineTeams?.away?.runs ?? 0;
   const homeRuns = lineTeams?.home?.runs ?? 0;
 
-  const inning = play.about.inning ?? linescore.currentInning ?? 1;
+  const inning = play?.about?.inning ?? linescore.currentInning ?? 1;
   const inningHalf =
-    play.about.halfInning ?? linescore.inningState?.replace(" ", "") ?? "";
+    play?.about?.halfInning ?? linescore.inningState?.replace(" ", "") ?? "";
 
   return {
     gamePk,
@@ -451,21 +452,21 @@ export function parseLiveFeed(gamePk: number, feed: MLBLiveFeedResponse): LiveGa
     homeAbbrev: teams.home.abbreviation ?? teams.home.name.slice(0, 3).toUpperCase(),
     awayRuns,
     homeRuns,
-    batterId: play.matchup.batter.id ?? null,
-    batterName: play.matchup.batter.fullName || "—",
-    pitcherId: play.matchup.pitcher.id ?? null,
-    pitcherName: play.matchup.pitcher.fullName || "—",
+    batterId: play?.matchup?.batter?.id ?? null,
+    batterName: play?.matchup?.batter?.fullName || "—",
+    pitcherId: play?.matchup?.pitcher?.id ?? null,
+    pitcherName: play?.matchup?.pitcher?.fullName || "—",
     inning,
     inningHalf,
-    balls: play.count.balls ?? 0,
-    strikes: play.count.strikes ?? 0,
-    outs: play.count.outs ?? 0,
+    balls: play?.count?.balls ?? 0,
+    strikes: play?.count?.strikes ?? 0,
+    outs: play?.count?.outs ?? 0,
     onFirst: offense.first != null,
     onSecond: offense.second != null,
     onThird: offense.third != null,
     atBatPitches: parsePitchesFromEvents(
-      play.playEvents,
-      feed.liveData.plays.currentPlay.result?.description,
+      play?.playEvents,
+      play?.result?.description,
     ),
     plays: parsePlayByPlay(feed.liveData.plays.allPlays),
     observedAt: new Date().toISOString(),

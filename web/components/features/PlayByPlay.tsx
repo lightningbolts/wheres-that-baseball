@@ -19,6 +19,9 @@ interface PlayByPlayProps {
   homeAbbrev: string;
   venueId?: number | null;
   className?: string;
+  selectedAtBatIndex?: number | null;
+  onSelectAtBat?: (play: PlayByPlayEntry) => void;
+  autoScrollToLatest?: boolean;
 }
 
 interface InningGroup {
@@ -127,6 +130,9 @@ export function PlayByPlay({
   homeAbbrev,
   venueId,
   className,
+  selectedAtBatIndex = null,
+  onSelectAtBat,
+  autoScrollToLatest = true,
 }: PlayByPlayProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const prevCountRef = useRef(plays.length);
@@ -146,11 +152,12 @@ export function PlayByPlay({
   }, [plays]);
 
   useEffect(() => {
+    if (!autoScrollToLatest || plays.length === 0) return;
     if (plays.length > prevCountRef.current) {
       bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
     }
     prevCountRef.current = plays.length;
-  }, [plays.length]);
+  }, [plays.length, autoScrollToLatest]);
 
   const toggleInning = (key: string) => {
     setExpanded((prev) => {
@@ -202,10 +209,15 @@ export function PlayByPlay({
                           />
                           <button
                             type="button"
-                            onClick={() => setSelectedPlay(play.detail)}
+                            onClick={() => {
+                              onSelectAtBat?.(play);
+                              setSelectedPlay(play.detail);
+                            }}
                             className={cn(
                               "w-full border-t border-neutral-800/50 px-3 py-2.5 text-left hover:bg-neutral-900/80",
                               play.isScoringPlay && "border-l-2 border-l-amber-600/60",
+                              selectedAtBatIndex === play.atBatIndex &&
+                                "bg-neutral-900/90 ring-1 ring-inset ring-neutral-600",
                             )}
                           >
                             <div className="mb-1 flex items-baseline justify-between gap-2">

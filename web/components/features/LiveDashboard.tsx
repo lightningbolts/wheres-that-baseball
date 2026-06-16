@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { AppNav } from "@/components/features/AppNav";
 import { BatterRispRecord } from "@/components/features/BatterRispRecord";
 import { BatterVsPitcherRecord } from "@/components/features/BatterVsPitcherRecord";
 import { ConnectionIndicator } from "@/components/features/ConnectionIndicator";
@@ -183,11 +184,14 @@ function Panel({
 
 function NoGamesState({ scheduleError }: { scheduleError?: string | null }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#0f0f0f] px-6">
-      <div className="max-w-sm text-center">
-        <h1 className="text-lg font-medium text-neutral-200">No games on the board</h1>
-        <p className="mt-2 text-sm text-neutral-500">Nothing live or upcoming today.</p>
-        {scheduleError && <p className="mt-4 text-sm text-red-400/80">{scheduleError}</p>}
+    <div className="flex min-h-screen flex-col bg-[#0f0f0f]">
+      <AppNav />
+      <div className="flex flex-1 items-center justify-center px-6">
+        <div className="max-w-sm text-center">
+          <h1 className="text-lg font-medium text-neutral-200">No games on the board</h1>
+          <p className="mt-2 text-sm text-neutral-500">Nothing live or upcoming today.</p>
+          {scheduleError && <p className="mt-4 text-sm text-red-400/80">{scheduleError}</p>}
+        </div>
       </div>
     </div>
   );
@@ -226,21 +230,24 @@ export function LiveDashboard({ initialGames, scheduleError }: LiveDashboardProp
   }
 
   return (
-    <div className="flex h-screen min-h-0 bg-[#0f0f0f] text-neutral-200">
-      <div className="hidden h-full w-52 shrink-0 border-r border-neutral-800 lg:block">
-        <GameSidebar
+    <div className="flex h-screen min-h-0 flex-col bg-[#0f0f0f] text-neutral-200">
+      <AppNav />
+      <div className="flex min-h-0 flex-1">
+        <div className="hidden h-full w-52 shrink-0 border-r border-neutral-800 lg:block">
+          <GameSidebar
+            games={games}
+            selectedGamePk={selectedGamePk}
+            onSelectGame={setSelectedGamePk}
+          />
+        </div>
+
+        <DashboardContent
+          key={selectedGamePk}
           games={games}
           selectedGamePk={selectedGamePk}
           onSelectGame={setSelectedGamePk}
         />
       </div>
-
-      <DashboardContent
-        key={selectedGamePk}
-        games={games}
-        selectedGamePk={selectedGamePk}
-        onSelectGame={setSelectedGamePk}
-      />
     </div>
   );
 }

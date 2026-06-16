@@ -6,7 +6,7 @@ import type { Database } from "@/types/database";
  * Supabase Realtime + RLS (configure in Supabase Dashboard)
  * ---------------------------------------------------------
  * 1. Enable Realtime: ALTER PUBLICATION supabase_realtime ADD TABLE predictions;
- * 2. Enable RLS + anon SELECT policy on `predictions` (see lib docs / schema.sql).
+ * 2. Enable RLS + anon SELECT on `predictions` and `games` (see ingestor/internal/database/schema.sql).
  * 3. Env: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
  */
 

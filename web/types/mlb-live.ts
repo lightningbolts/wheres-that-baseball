@@ -74,6 +74,7 @@ export interface PlayDetail {
   batterHits: number;
   batterAtBats: number;
   pitcherName: string;
+  pitcherId: number | null;
   event: string;
   description: string;
   inning: number;
@@ -229,7 +230,7 @@ export interface AllPlayRaw {
   };
   matchup?: {
     batter?: { id?: number; fullName?: string };
-    pitcher?: { fullName?: string };
+    pitcher?: { id?: number; fullName?: string };
   };
   playEvents?: PitchEventRaw[];
   count?: { balls?: number; strikes?: number; outs?: number };

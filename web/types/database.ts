@@ -31,6 +31,34 @@ export interface Prediction {
   outcome_probabilities: OutcomeProbabilities;
 }
 
+/** A single row from the `games` table. */
+export interface Game {
+  game_pk: number;
+  game_date: string;
+  season: number;
+  game_type: string;
+  status: string;
+  status_detail: string | null;
+  away_team_id: number;
+  away_team_name: string;
+  away_team_abbrev: string;
+  home_team_id: number;
+  home_team_name: string;
+  home_team_abbrev: string;
+  away_score: number | null;
+  home_score: number | null;
+  venue_id: number | null;
+  venue_name: string | null;
+  official_date: string | null;
+  game_state: unknown | null;
+  feed_synced_at: string | null;
+  updated_at: string;
+}
+
+/** Columns for list/browse queries — excludes heavy game_state JSONB. */
+export const GAME_LIST_COLUMNS =
+  "game_pk,game_date,season,game_type,status,status_detail,away_team_id,away_team_name,away_team_abbrev,home_team_id,home_team_name,home_team_abbrev,away_score,home_score,venue_id,venue_name,official_date,feed_synced_at,updated_at" as const;
+
 /** Supabase Database type map for typed client usage. */
 export interface Database {
   public: {
@@ -42,6 +70,12 @@ export interface Database {
           timestamp?: string;
         };
         Update: Partial<Prediction>;
+        Relationships: [];
+      };
+      games: {
+        Row: Game;
+        Insert: Omit<Game, "updated_at"> & { updated_at?: string };
+        Update: Partial<Game>;
         Relationships: [];
       };
     };
