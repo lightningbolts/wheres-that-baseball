@@ -248,6 +248,13 @@ function parsePitchEvent(event: PitchEventRaw, pitchNumber: number): PlayPitch |
     strikeZoneTop: event.pitchData.strikeZoneTop ?? 3.5,
     strikeZoneBottom: event.pitchData.strikeZoneBottom ?? 1.5,
     review: parseReview(event),
+    endSpeed: event.pitchData.endSpeed,
+    extension: event.pitchData.extension,
+    plateTime: event.pitchData.plateTime,
+    zone: event.pitchData.zone,
+    spinRate: event.pitchData.breaks?.spinRate,
+    breakHorizontal: event.pitchData.breaks?.breakHorizontal,
+    breakVerticalInduced: event.pitchData.breaks?.breakVerticalInduced,
   };
 }
 

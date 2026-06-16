@@ -23,6 +23,13 @@ export interface PlayPitch {
   strikeZoneTop: number;
   strikeZoneBottom: number;
   review?: PitchReview;
+  endSpeed?: number;
+  extension?: number;
+  plateTime?: number;
+  zone?: number;
+  spinRate?: number;
+  breakHorizontal?: number;
+  breakVerticalInduced?: number;
 }
 
 export interface HitData {

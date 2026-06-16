@@ -3,7 +3,7 @@
 import { Dialog } from "@/components/ui/Dialog";
 import { PitchSequence } from "@/components/features/PitchSequence";
 import { SprayChart } from "@/components/features/SprayChart";
-import type { HitData, PlayDetail } from "@/types/mlb-live";
+import type { HitData, PlayDetail, PlayPitch } from "@/types/mlb-live";
 
 interface PlayDetailDialogProps {
   play: PlayDetail | null;
@@ -44,6 +44,78 @@ function fieldZoneLabel(zone: string): string {
   return zones[zone] ?? (zone || "—");
 }
 
+function getFinalPitch(pitches: PlayPitch[]): PlayPitch | null {
+  for (let i = pitches.length - 1; i >= 0; i -= 1) {
+    if (pitches[i].isPitch) return pitches[i];
+  }
+  return null;
+}
+
+function endingSectionTitle(event: string): string {
+  switch (event) {
+    case "Strikeout":
+      return "Strikeout";
+    case "Walk":
+      return "Walk";
+    case "Hit By Pitch":
+      return "Hit by pitch";
+    case "Intent Walk":
+      return "Intentional walk";
+    default:
+      return "At-bat result";
+  }
+}
+
+
+function PitchMetricsGrid({ pitch }: { pitch: PlayPitch | HitData }) {
+  const pitchType = "typeDescription" in pitch ? pitch.typeDescription : pitch.pitchType;
+  const pitchTypeCode = "typeCode" in pitch ? pitch.typeCode : pitch.pitchTypeCode;
+  const pitchSpeed = "startSpeed" in pitch ? pitch.startSpeed : pitch.pitchSpeed;
+
+  return (
+    <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
+      {"callDescription" in pitch && (
+        <Stat label="Result" value={pitch.callDescription} />
+      )}
+      {pitchType && (
+        <Stat
+          label="Pitch"
+          value={
+            pitchTypeCode && pitchTypeCode !== "—"
+              ? `${pitchTypeCode} · ${pitchType}`
+              : pitchType
+          }
+        />
+      )}
+      {pitchSpeed != null && pitchSpeed > 0 && (
+        <Stat label="Velo" value={`${fmtNum(pitchSpeed)} mph`} />
+      )}
+      {"endSpeed" in pitch && pitch.endSpeed != null && (
+        <Stat label="Velo (plate)" value={`${fmtNum(pitch.endSpeed)} mph`} />
+      )}
+      {pitch.spinRate != null && (
+        <Stat label="Spin" value={`${Math.round(pitch.spinRate)} rpm`} />
+      )}
+      {pitch.breakHorizontal != null && (
+        <Stat label="H-break" value={`${fmtNum(pitch.breakHorizontal, 1)} in`} />
+      )}
+      {pitch.breakVerticalInduced != null && (
+        <Stat label="V-break" value={`${fmtNum(pitch.breakVerticalInduced, 1)} in`} />
+      )}
+      {pitch.extension != null && (
+        <Stat label="Extension" value={`${fmtNum(pitch.extension, 1)} ft`} />
+      )}
+      {pitch.plateTime != null && (
+        <Stat label="Plate time" value={`${fmtNum(pitch.plateTime, 3)} s`} />
+      )}
+      {pitch.zone != null && <Stat label="Strike zone" value={`Zone ${pitch.zone}`} />}
+      {"balls" in pitch && (
+        <Stat label="Count" value={`${pitch.balls}-${pitch.strikes}`} />
+      )}
+    </dl>
+  );
+}
+
 function ContactMetrics({ hit, venueId }: { hit: HitData; venueId?: number | null }) {
   return (
     <div className="border-t border-border pt-4">
@@ -67,45 +139,38 @@ function ContactMetrics({ hit, venueId }: { hit: HitData; venueId?: number | nul
               <p className="text-[10px] font-medium uppercase tracking-wide text-subtle">
                 Pitch at contact
               </p>
-              <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
-                {hit.pitchType && (
-                  <Stat
-                    label="Pitch"
-                    value={
-                      hit.pitchTypeCode
-                        ? `${hit.pitchTypeCode} · ${hit.pitchType}`
-                        : hit.pitchType
-                    }
-                  />
-                )}
-                {hit.pitchSpeed != null && (
-                  <Stat label="Velo" value={`${fmtNum(hit.pitchSpeed)} mph`} />
-                )}
-                {hit.endSpeed != null && (
-                  <Stat label="Velo (plate)" value={`${fmtNum(hit.endSpeed)} mph`} />
-                )}
-                {hit.spinRate != null && (
-                  <Stat label="Spin" value={`${Math.round(hit.spinRate)} rpm`} />
-                )}
-                {hit.breakHorizontal != null && (
-                  <Stat label="H-break" value={`${fmtNum(hit.breakHorizontal, 1)} in`} />
-                )}
-                {hit.breakVerticalInduced != null && (
-                  <Stat label="V-break" value={`${fmtNum(hit.breakVerticalInduced, 1)} in`} />
-                )}
-                {hit.extension != null && (
-                  <Stat label="Extension" value={`${fmtNum(hit.extension, 1)} ft`} />
-                )}
-                {hit.plateTime != null && (
-                  <Stat label="Plate time" value={`${fmtNum(hit.plateTime, 3)} s`} />
-                )}
-                {hit.zone != null && (
-                  <Stat label="Strike zone" value={`Zone ${hit.zone}`} />
-                )}
-              </dl>
+              <PitchMetricsGrid pitch={hit} />
             </>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function AtBatResultSection({
+  play,
+  finalPitch,
+}: {
+  play: PlayDetail;
+  finalPitch: PlayPitch;
+}) {
+  return (
+    <div className="border-t border-border pt-4">
+      <p className="mb-3 text-[10px] font-medium uppercase tracking-wide text-muted">
+        {endingSectionTitle(play.event)}
+      </p>
+      <div className="space-y-3">
+        <p className="text-sm text-secondary">
+          Pitch {finalPitch.pitchNumber}: {finalPitch.callDescription}
+          {finalPitch.startSpeed > 0 && (
+            <span className="text-muted">
+              {" "}
+              · {finalPitch.startSpeed.toFixed(1)} mph {finalPitch.typeDescription}
+            </span>
+          )}
+        </p>
+        <PitchMetricsGrid pitch={finalPitch} />
       </div>
     </div>
   );
@@ -115,6 +180,7 @@ export function PlayDetailDialog({ play, venueId, onClose }: PlayDetailDialogPro
   if (!play) return null;
 
   const hit = play.hit;
+  const finalPitch = getFinalPitch(play.pitches);
 
   return (
     <Dialog
@@ -124,29 +190,33 @@ export function PlayDetailDialog({ play, venueId, onClose }: PlayDetailDialogPro
       className="w-[min(100%,760px)]"
     >
       <div className="space-y-4">
-          <div className="flex items-baseline justify-between gap-2 text-[11px] text-subtle">
-            <span>
-              {play.inning} {play.halfInning}
-            </span>
-            <span className="font-mono tabular-nums">
-              {play.awayScore}–{play.homeScore}
-            </span>
-          </div>
+        <div className="flex items-baseline justify-between gap-2 text-[11px] text-subtle">
+          <span>
+            {play.inning} {play.halfInning}
+          </span>
+          <span className="font-mono tabular-nums">
+            {play.awayScore}–{play.homeScore}
+          </span>
+        </div>
 
-          <p className="text-[14px] leading-relaxed text-secondary">{play.description}</p>
+        <p className="text-[14px] leading-relaxed text-secondary">{play.description}</p>
 
-          {play.pitches.length > 0 && (
-            <PitchSequence
-              pitches={play.pitches}
-              layout="split"
-              size="default"
-              contained={false}
-            />
-          )}
+        {play.pitches.length > 0 && (
+          <PitchSequence
+            pitches={play.pitches}
+            layout="split"
+            size="default"
+            contained={false}
+          />
+        )}
 
-          {hit && <ContactMetrics hit={hit} venueId={venueId} />}
+        {hit && <ContactMetrics hit={hit} venueId={venueId} />}
 
-        {!hit && play.pitches.length === 0 && (
+        {!hit && finalPitch && (
+          <AtBatResultSection play={play} finalPitch={finalPitch} />
+        )}
+
+        {!hit && !finalPitch && play.pitches.length === 0 && (
           <p className="text-sm text-subtle">No pitch data.</p>
         )}
       </div>
