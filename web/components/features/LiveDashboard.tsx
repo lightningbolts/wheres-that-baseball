@@ -149,6 +149,7 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
                       layout="split"
                       scrollToLatest
                       contained
+                      animateEntrance
                       className="min-h-0 flex-1"
                     />
                   )}

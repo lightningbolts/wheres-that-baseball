@@ -34,8 +34,15 @@ const config: Config = {
         sans: ["var(--font-inter)", "system-ui", "sans-serif"],
         mono: ["var(--font-jetbrains)", "ui-monospace", "monospace"],
       },
+      keyframes: {
+        pitchIn: {
+          from: { opacity: "0", transform: "translateY(4px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+      },
       animation: {
         pulse_slow: "pulse 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        pitch_in: "pitchIn 0.35s ease-out forwards",
       },
     },
   },

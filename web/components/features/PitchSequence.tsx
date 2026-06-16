@@ -20,6 +20,31 @@ interface PitchSequenceProps {
   scrollToLatest?: boolean;
   /** When true, pitch list scrolls inside its column (dashboard). When false, expands (dialog). */
   contained?: boolean;
+  /** Fade in newly arrived pitches (live at-bat). */
+  animateEntrance?: boolean;
+}
+
+function usePitchEntranceIndex(pitches: PlayPitch[], enabled: boolean): number {
+  const seenLengthRef = useRef(enabled ? pitches.length : 0);
+  const prevLengthRef = useRef(pitches.length);
+
+  if (!enabled) return pitches.length;
+
+  if (pitches.length === 0) {
+    seenLengthRef.current = 0;
+  } else if (pitches.length < prevLengthRef.current) {
+    seenLengthRef.current = 0;
+  }
+
+  const entranceFromIndex = seenLengthRef.current;
+  prevLengthRef.current = pitches.length;
+
+  useEffect(() => {
+    if (!enabled) return;
+    seenLengthRef.current = pitches.length;
+  }, [enabled, pitches.length]);
+
+  return entranceFromIndex;
 }
 
 function reviewBadge(review: NonNullable<PlayPitch["review"]>): string {
@@ -61,11 +86,13 @@ function StrikeZoneChart({
   className,
   size,
   fill,
+  entranceFromIndex = pitches.length,
 }: {
   pitches: PlayPitch[];
   className?: string;
   size: keyof typeof SIZE_STYLES;
   fill?: boolean;
+  entranceFromIndex?: number;
 }) {
   const styles = SIZE_STYLES[size];
   const plotted = pitches.filter((p) => p.isPitch);
@@ -124,11 +151,15 @@ function StrikeZoneChart({
           opacity="0.8"
         />
       ))}
-      {plotted.map((pitch) => {
+      {plotted.map((pitch, index) => {
         const dot = toSvgPercent(pitch.plateX, pitch.plateZ, szTop, szBottom);
         const color = pitchResultColor(pitch);
+        const animate = index >= entranceFromIndex;
         return (
-          <g key={`${pitch.pitchNumber}-${pitch.callCode}`}>
+          <g
+            key={`${pitch.pitchNumber}-${pitch.callCode}`}
+            className={animate ? "animate-pitch_in opacity-0" : undefined}
+          >
             <circle cx={dot.x} cy={dot.y} r={styles.dotR + 0.35} fill="rgb(0 0 0 / 0.2)" />
             <circle cx={dot.x} cy={dot.y} r={styles.dotR} fill={color} />
             <text
@@ -153,20 +184,27 @@ function StrikeZoneChart({
 function PitchFeed({
   pitches,
   size,
+  entranceFromIndex = pitches.length,
 }: {
   pitches: PlayPitch[];
   size: keyof typeof SIZE_STYLES;
+  entranceFromIndex?: number;
 }) {
   const styles = SIZE_STYLES[size];
 
   return (
     <ul className={cn("divide-y divide-border", styles.feed)} role="list">
-      {pitches.map((p) => {
+      {pitches.map((p, index) => {
         const color = pitchResultColor(p);
+        const animate = index >= entranceFromIndex;
         return (
           <li
             key={`${p.pitchNumber}-${p.callCode}-${p.balls}-${p.strikes}`}
-            className={cn("flex items-start gap-3", styles.rowPy)}
+            className={cn(
+              "flex items-start gap-3",
+              styles.rowPy,
+              animate && "animate-pitch_in opacity-0",
+            )}
           >
             {p.isPitch ? (
               <span
@@ -207,12 +245,14 @@ function PitchFeedColumn({
   resolvedSize,
   contained,
   scrollToLatest,
+  entranceFromIndex,
   className,
 }: {
   pitches: PlayPitch[];
   resolvedSize: keyof typeof SIZE_STYLES;
   contained: boolean;
   scrollToLatest?: boolean;
+  entranceFromIndex: number;
   className?: string;
 }) {
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -229,7 +269,11 @@ function PitchFeedColumn({
   if (!contained) {
     return (
       <div className={className}>
-        <PitchFeed pitches={pitches} size={resolvedSize} />
+        <PitchFeed
+          pitches={pitches}
+          size={resolvedSize}
+          entranceFromIndex={entranceFromIndex}
+        />
         <div ref={bottomRef} className="h-px" aria-hidden />
       </div>
     );
@@ -239,7 +283,11 @@ function PitchFeedColumn({
     <div className={cn("flex min-h-0 flex-col overflow-hidden", className)}>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [scrollbar-gutter:stable]">
         <div className="pr-2">
-          <PitchFeed pitches={pitches} size={resolvedSize} />
+          <PitchFeed
+            pitches={pitches}
+            size={resolvedSize}
+            entranceFromIndex={entranceFromIndex}
+          />
           <div ref={bottomRef} className="h-px shrink-0" aria-hidden />
         </div>
       </div>
@@ -253,12 +301,14 @@ function SplitLayout({
   contained,
   className,
   scrollToLatest,
+  entranceFromIndex,
 }: {
   pitches: PlayPitch[];
   resolvedSize: keyof typeof SIZE_STYLES;
   contained: boolean;
   className?: string;
   scrollToLatest?: boolean;
+  entranceFromIndex: number;
 }) {
   const styles = SIZE_STYLES[resolvedSize];
 
@@ -275,6 +325,7 @@ function SplitLayout({
         resolvedSize={resolvedSize}
         contained={contained}
         scrollToLatest={scrollToLatest}
+        entranceFromIndex={entranceFromIndex}
         className={cn(
           "min-w-0 flex-[1]",
           contained && "min-h-0",
@@ -289,7 +340,13 @@ function SplitLayout({
           styles.chartMinH,
         )}
       >
-        <StrikeZoneChart pitches={pitches} size={resolvedSize} fill className="flex-1" />
+        <StrikeZoneChart
+          pitches={pitches}
+          size={resolvedSize}
+          fill
+          entranceFromIndex={entranceFromIndex}
+          className="flex-1"
+        />
       </div>
     </div>
   );
@@ -304,8 +361,10 @@ export function PitchSequence({
   layout = "split",
   scrollToLatest,
   contained = true,
+  animateEntrance = false,
 }: PitchSequenceProps) {
   const resolvedSize = size ?? (compact ? "compact" : "default");
+  const entranceFromIndex = usePitchEntranceIndex(pitches, animateEntrance);
 
   if (pitches.length === 0) {
     return <p className="text-sm text-subtle">No pitches yet.</p>;
@@ -319,6 +378,7 @@ export function PitchSequence({
         contained={contained}
         className={className}
         scrollToLatest={scrollToLatest}
+        entranceFromIndex={entranceFromIndex}
       />
     );
   }
