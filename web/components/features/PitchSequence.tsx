@@ -73,7 +73,7 @@ function StrikeZoneChart({
     <svg
       viewBox="0 0 100 100"
       className={cn(
-        "border border-neutral-800 bg-neutral-950",
+        "border border-border bg-scorebug",
         stacked ? cn("w-full shrink-0", styles.chartStacked) : cn("shrink-0", styles.chart),
         className,
       )}
@@ -155,8 +155,8 @@ function PitchTable({
 
   return (
     <table className={cn("w-full text-left", styles.table)}>
-      <thead className="sticky top-0 bg-[#141414]">
-        <tr className={cn("border-b border-neutral-800 text-neutral-600", styles.head)}>
+      <thead className="sticky top-0 bg-panel">
+        <tr className={cn("border-b border-border text-subtle", styles.head)}>
           <th className="pb-2 pr-4 font-normal">#</th>
           <th className="pb-2 pr-4 font-normal">Cnt</th>
           <th className="pb-2 pr-4 font-normal">Result</th>
@@ -170,9 +170,9 @@ function PitchTable({
           return (
             <tr
               key={`${p.pitchNumber}-${p.callCode}-${p.balls}-${p.strikes}`}
-              className="border-b border-neutral-800/50"
+              className="border-b border-border/50"
             >
-              <td className={cn("pr-4 font-mono text-neutral-500", styles.rowPy)}>
+              <td className={cn("pr-4 font-mono text-muted", styles.rowPy)}>
                 {p.isPitch ? (
                   <span className="inline-flex items-center gap-2">
                     <span
@@ -185,10 +185,10 @@ function PitchTable({
                   "—"
                 )}
               </td>
-              <td className={cn("pr-4 font-mono tabular-nums text-neutral-400", styles.rowPy)}>
+              <td className={cn("pr-4 font-mono tabular-nums text-secondary", styles.rowPy)}>
                 {p.balls}-{p.strikes}
               </td>
-              <td className={cn("pr-4 text-neutral-200", styles.rowPy)}>
+              <td className={cn("pr-4 text-foreground", styles.rowPy)}>
                 <span>{p.callDescription}</span>
                 {p.review && (
                   <span className="ml-2 text-[12px] font-medium text-amber-500">
@@ -197,13 +197,13 @@ function PitchTable({
                 )}
               </td>
               {showPitchType && (
-                <td className={cn("pr-4 text-neutral-500", styles.rowPy)}>
+                <td className={cn("pr-4 text-muted", styles.rowPy)}>
                   {p.typeDescription}
                 </td>
               )}
               <td
                 className={cn(
-                  "text-right font-mono tabular-nums text-neutral-300",
+                  "text-right font-mono tabular-nums text-secondary",
                   styles.rowPy,
                 )}
               >
@@ -241,7 +241,7 @@ export function PitchSequence({
   }, [pitches.length, scrollToLatest]);
 
   if (pitches.length === 0) {
-    return <p className="text-sm text-neutral-600">No pitches yet.</p>;
+    return <p className="text-sm text-subtle">No pitches yet.</p>;
   }
 
   if (layout === "stacked") {

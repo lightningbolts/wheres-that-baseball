@@ -34,11 +34,11 @@ export function BatterVsPitcherRecord({
     return (
       <div
         className={cn(
-          "mb-3 rounded border border-neutral-800/60 bg-neutral-900/30 px-3 py-2",
+          "mb-3 rounded border border-border/60 bg-overlay px-3 py-2",
           className,
         )}
       >
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-muted">
           {batterLast} has no MLB history vs {pitcherLast}
         </p>
       </div>
@@ -48,12 +48,12 @@ export function BatterVsPitcherRecord({
   return (
     <div
       className={cn(
-        "mb-3 rounded border border-neutral-800 bg-neutral-900/40 px-3 py-2.5",
+        "mb-3 rounded border border-border bg-overlay px-3 py-2.5",
         className,
       )}
     >
       <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-        <span className="text-[11px] font-medium uppercase tracking-wide text-neutral-400">
+        <span className="text-[11px] font-medium uppercase tracking-wide text-secondary">
           Lifetime vs {pitcherLast}
         </span>
         <HittingLineSummary line={record} />

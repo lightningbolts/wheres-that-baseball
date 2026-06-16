@@ -48,12 +48,12 @@ export function ProbabilityChart({ probabilities }: ProbabilityChartProps) {
         return (
           <li key={key}>
             <div className="mb-1 flex justify-between text-[13px]">
-              <span className="text-neutral-400">{OUTCOME_LABELS[key]}</span>
-              <span className="font-mono tabular-nums text-neutral-500">
+              <span className="text-secondary">{OUTCOME_LABELS[key]}</span>
+              <span className="font-mono tabular-nums text-muted">
                 {formatProbability(value)}
               </span>
             </div>
-            <div className="h-1.5 bg-neutral-800">
+            <div className="h-1.5 bg-surface-elevated">
               <motion.div
                 className={`h-full ${barColor(key)}`}
                 initial={{ width: 0 }}

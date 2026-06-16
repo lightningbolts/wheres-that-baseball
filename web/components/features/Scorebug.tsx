@@ -19,8 +19,8 @@ function inningLabel(inning: number, halfInning: string): string {
 export function Scorebug({ gameState, className }: ScorebugProps) {
   if (!gameState) {
     return (
-      <div className={cn("h-14 border-b border-neutral-800 bg-[#0a0a0a]", className)}>
-        <div className="h-full animate-pulse bg-neutral-800/40" />
+      <div className={cn("h-14 border-b border-border bg-scorebug", className)}>
+        <div className="h-full animate-pulse bg-overlay" />
       </div>
     );
   }
@@ -47,35 +47,35 @@ export function Scorebug({ gameState, className }: ScorebugProps) {
   return (
     <div
       className={cn(
-        "flex h-14 shrink-0 items-stretch border-b border-neutral-800 bg-[#0a0a0a] text-white",
+        "flex h-14 shrink-0 items-stretch border-b border-border bg-scorebug text-white",
         className,
       )}
     >
       {/* Away */}
-      <div className="flex min-w-[72px] flex-col items-center justify-center border-r border-neutral-800/80 px-3">
-        <span className="text-[10px] font-semibold tracking-wide text-neutral-500">
+      <div className="flex min-w-[72px] flex-col items-center justify-center border-r border-border/80 px-3">
+        <span className="text-[10px] font-semibold tracking-wide text-neutral-400">
           {awayAbbrev}
         </span>
         <span className="font-mono text-2xl font-bold leading-none tabular-nums">{awayRuns}</span>
       </div>
 
       {/* Home */}
-      <div className="flex min-w-[72px] flex-col items-center justify-center border-r border-neutral-800/80 px-3">
-        <span className="text-[10px] font-semibold tracking-wide text-neutral-500">
+      <div className="flex min-w-[72px] flex-col items-center justify-center border-r border-border/80 px-3">
+        <span className="text-[10px] font-semibold tracking-wide text-neutral-400">
           {homeAbbrev}
         </span>
         <span className="font-mono text-2xl font-bold leading-none tabular-nums">{homeRuns}</span>
       </div>
 
       {/* Inning */}
-      <div className="flex min-w-[64px] items-center justify-center border-r border-neutral-800/80 px-3">
+      <div className="flex min-w-[64px] items-center justify-center border-r border-border/80 px-3">
         <span className="font-mono text-sm font-semibold tracking-wide text-neutral-200">
           {inningLabel(inning, inningHalf)}
         </span>
       </div>
 
       {/* Count */}
-      <div className="flex items-center gap-2 border-r border-neutral-800/80 px-3">
+      <div className="flex items-center gap-2 border-r border-border/80 px-3">
         <div className="flex flex-col items-center gap-0.5">
           <span className="text-[9px] font-semibold text-green-500">B</span>
           <span className="flex h-7 w-7 items-center justify-center rounded bg-green-600/20 font-mono text-lg font-bold tabular-nums text-green-400">
@@ -92,10 +92,10 @@ export function Scorebug({ gameState, className }: ScorebugProps) {
 
       {/* Outs */}
       <div
-        className="flex flex-col items-center justify-center border-r border-neutral-800/80 px-3"
+        className="flex flex-col items-center justify-center border-r border-border/80 px-3"
         aria-label={`${safeOuts} outs`}
       >
-        <span className="mb-1 text-[9px] font-semibold text-neutral-500">OUT</span>
+        <span className="mb-1 text-[9px] font-semibold text-neutral-400">OUT</span>
         <div className="flex gap-1">
           {[0, 1, 2].map((i) => (
             <span
@@ -110,7 +110,7 @@ export function Scorebug({ gameState, className }: ScorebugProps) {
       </div>
 
       {/* Bases */}
-      <div className="flex items-center border-r border-neutral-800/80 px-3">
+      <div className="flex items-center border-r border-border/80 px-3">
         <BaseDiamond
           onFirst={onFirst}
           onSecond={onSecond}
@@ -122,8 +122,8 @@ export function Scorebug({ gameState, className }: ScorebugProps) {
       {/* Matchup */}
       <div className="flex min-w-0 flex-1 flex-col justify-center px-4">
         <span className="truncate text-[15px] font-medium text-white">{batterName}</span>
-        <span className="truncate text-[12px] text-neutral-500">
-          vs <span className="text-neutral-400">{pitcherName}</span>
+        <span className="truncate text-[12px] text-neutral-400">
+          vs <span className="text-neutral-300">{pitcherName}</span>
         </span>
       </div>
     </div>

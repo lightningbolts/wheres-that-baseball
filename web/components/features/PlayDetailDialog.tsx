@@ -14,8 +14,8 @@ interface PlayDetailDialogProps {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-[10px] text-neutral-600">{label}</dt>
-      <dd className="font-mono text-[13px] tabular-nums text-neutral-200">{value}</dd>
+      <dt className="text-[10px] text-subtle">{label}</dt>
+      <dd className="font-mono text-[13px] tabular-nums text-foreground">{value}</dd>
     </div>
   );
 }
@@ -46,8 +46,8 @@ function fieldZoneLabel(zone: string): string {
 
 function ContactMetrics({ hit, venueId }: { hit: HitData; venueId?: number | null }) {
   return (
-    <div className="border-t border-neutral-800 pt-3">
-      <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-neutral-500">
+    <div className="border-t border-border pt-3">
+      <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted">
         Ball in play
       </p>
       <div className="flex gap-4">
@@ -64,7 +64,7 @@ function ContactMetrics({ hit, venueId }: { hit: HitData; venueId?: number | nul
 
           {(hit.pitchSpeed || hit.spinRate) && (
             <>
-              <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-600">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-subtle">
                 Pitch at contact
               </p>
               <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
@@ -123,11 +123,11 @@ export function PlayDetailDialog({ play, venueId, onClose }: PlayDetailDialogPro
           ? `${play.batterName} — ${play.event} (${play.batterHits}-${play.batterAtBats})`
           : "Play detail"
       }
-      className="w-[min(100%,480px)]"
+      className="w-[min(100%,680px)]"
     >
       {play && (
         <div className="space-y-3">
-          <div className="flex items-baseline justify-between gap-2 text-[11px] text-neutral-600">
+          <div className="flex items-baseline justify-between gap-2 text-[11px] text-subtle">
             <span>
               {play.inning} {play.halfInning}
             </span>
@@ -136,14 +136,14 @@ export function PlayDetailDialog({ play, venueId, onClose }: PlayDetailDialogPro
             </span>
           </div>
 
-          <p className="text-[13px] leading-snug text-neutral-400">{play.description}</p>
+          <p className="text-[14px] leading-relaxed text-secondary">{play.description}</p>
 
           {play.pitches.length > 0 && <PitchSequence pitches={play.pitches} />}
 
           {hit && <ContactMetrics hit={hit} venueId={venueId} />}
 
           {!hit && play.pitches.length === 0 && (
-            <p className="text-sm text-neutral-600">No pitch data.</p>
+            <p className="text-sm text-subtle">No pitch data.</p>
           )}
         </div>
       )}

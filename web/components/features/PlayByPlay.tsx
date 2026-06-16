@@ -99,7 +99,7 @@ function SituationMarker({
   const runners = formatRunnerBases(situation.bases);
 
   return (
-    <div className="flex items-center gap-2 border-t border-neutral-800/40 bg-neutral-900/40 px-3 py-1.5">
+    <div className="flex items-center gap-2 border-t border-border/40 bg-overlay px-3 py-2">
       <BaseDiamond
         onFirst={situation.onFirst}
         onSecond={situation.onSecond}
@@ -107,15 +107,15 @@ function SituationMarker({
         size="tiny"
         className="shrink-0"
       />
-      <div className="min-w-0 flex-1 text-[11px] leading-snug text-neutral-500">
-        <span className="font-mono tabular-nums text-neutral-400">
+      <div className="min-w-0 flex-1 text-[11px] leading-snug text-muted">
+        <span className="font-mono tabular-nums text-secondary">
           {awayAbbrev} {formatGameScore(situation.awayScore, situation.homeScore)} {homeAbbrev}
         </span>
-        <span className="mx-1.5 text-neutral-700">·</span>
+        <span className="mx-1.5 text-faint">·</span>
         <span>{formatOuts(situation.outs)}</span>
         {runners && (
           <>
-            <span className="mx-1.5 text-neutral-700">·</span>
+            <span className="mx-1.5 text-faint">·</span>
             <span>{runners}</span>
           </>
         )}
@@ -170,32 +170,32 @@ export function PlayByPlay({
 
   return (
     <>
-      <div className={cn("flex h-full min-h-0 flex-col bg-[#111]", className)}>
-        <div className="shrink-0 border-b border-neutral-800 px-3 py-2">
-          <h2 className="text-xs text-neutral-500">Play-by-play</h2>
+      <div className={cn("flex h-full min-h-0 flex-col bg-surface", className)}>
+        <div className="shrink-0 border-b border-border px-3 py-2">
+          <h2 className="text-xs font-medium text-muted">Play-by-play</h2>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           {plays.length === 0 ? (
-            <p className="px-3 py-6 text-sm text-neutral-600">No plays yet.</p>
+            <p className="px-3 py-6 text-sm text-subtle">No plays yet.</p>
           ) : (
             <div>
               {groups.map((group) => {
                 const isOpen = expanded.has(group.key);
 
                 return (
-                  <div key={group.key} className="border-b border-neutral-800/80">
+                  <div key={group.key} className="border-b border-border/80">
                     <button
                       type="button"
                       onClick={() => toggleInning(group.key)}
-                      className="flex w-full items-center justify-between bg-[#1a1a1a] px-3 py-2 text-left hover:bg-neutral-900"
+                      className="flex w-full items-center justify-between bg-surface-elevated px-3 py-2.5 text-left hover:bg-hover"
                     >
-                      <span className="text-[11px] font-medium text-neutral-400">
+                      <span className="text-[11px] font-medium text-secondary">
                         {group.label}
                       </span>
-                      <span className="flex items-center gap-2 text-[10px] text-neutral-600">
+                      <span className="flex items-center gap-2 text-[10px] text-subtle">
                         {group.plays.length} plays
-                        <span className="text-neutral-500">{isOpen ? "−" : "+"}</span>
+                        <span className="text-muted">{isOpen ? "−" : "+"}</span>
                       </span>
                     </button>
 
@@ -214,32 +214,32 @@ export function PlayByPlay({
                               setSelectedPlay(play.detail);
                             }}
                             className={cn(
-                              "w-full border-t border-neutral-800/50 px-3 py-2.5 text-left hover:bg-neutral-900/80",
+                              "min-h-[88px] w-full border-t border-border/50 px-3 py-4 text-left hover:bg-hover",
                               play.isScoringPlay && "border-l-2 border-l-amber-600/60",
                               selectedAtBatIndex === play.atBatIndex &&
-                                "bg-neutral-900/90 ring-1 ring-inset ring-neutral-600",
+                                "bg-overlay ring-1 ring-inset ring-border-strong",
                             )}
                           >
-                            <div className="mb-1 flex items-baseline justify-between gap-2">
+                            <div className="mb-1.5 flex items-baseline justify-between gap-2">
                               <div className="flex min-w-0 items-baseline gap-2">
-                                <span className="shrink-0 font-mono text-[11px] text-neutral-500">
+                                <span className="shrink-0 font-mono text-[11px] text-muted">
                                   {eventAbbrev(play.event)}
                                 </span>
-                                <span className="truncate text-[13px] text-neutral-200">
+                                <span className="truncate text-[14px] font-medium text-foreground">
                                   {play.batterName}
                                 </span>
                               </div>
-                              <span className="shrink-0 font-mono text-[11px] tabular-nums text-neutral-600">
+                              <span className="shrink-0 font-mono text-[11px] tabular-nums text-subtle">
                                 {formatBatterLine(play.batterHits, play.batterAtBats)}
                               </span>
                             </div>
-                            <p className="line-clamp-2 text-[12px] leading-snug text-neutral-500">
+                            <p className="line-clamp-2 text-[13px] leading-relaxed text-muted">
                               {play.description}
                             </p>
                             {(() => {
                               const contact = compactContactLine(play.detail.hit);
                               return contact ? (
-                                <p className="mt-0.5 font-mono text-[10px] text-neutral-600">
+                                <p className="mt-1 font-mono text-[11px] text-subtle">
                                   {contact}
                                 </p>
                               ) : null;

@@ -31,16 +31,16 @@ export function Dialog({ open, onClose, title, children, className }: DialogProp
       ref={dialogRef}
       onClose={onClose}
       className={cn(
-        "fixed inset-0 z-50 m-auto max-h-[90vh] w-[min(100%,560px)] border border-neutral-700 bg-[#141414] p-0 text-neutral-200 shadow-2xl backdrop:bg-black/70",
+        "fixed inset-0 z-50 m-auto max-h-[90vh] w-[min(100%,560px)] border border-border-strong bg-panel p-0 text-foreground shadow-2xl",
         className,
       )}
     >
-      <div className="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
-        <h2 className="text-sm font-medium text-neutral-200">{title}</h2>
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <h2 className="text-sm font-medium text-foreground">{title}</h2>
         <button
           type="button"
           onClick={onClose}
-          className="px-2 py-1 text-neutral-500 hover:text-neutral-300"
+          className="px-2 py-1 text-muted hover:text-foreground"
           aria-label="Close"
         >
           ✕

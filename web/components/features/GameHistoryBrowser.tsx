@@ -34,34 +34,34 @@ function GameRow({ game }: { game: Game }) {
   return (
     <Link
       href={`/games/${game.game_pk}`}
-      className="flex items-center justify-between gap-4 border-b border-neutral-800/60 px-4 py-3 transition-colors hover:bg-neutral-900/50"
+      className="flex items-center justify-between gap-4 border-b border-border/60 px-4 py-3 transition-colors hover:bg-hover"
     >
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-sm font-medium text-neutral-100">{formatMatchup(game)}</h3>
+          <h3 className="text-sm font-medium text-foreground">{formatMatchup(game)}</h3>
           {live && (
             <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-400">
               Live
             </span>
           )}
           {game.feed_synced_at && (
-            <span className="rounded bg-neutral-800 px-1.5 py-0.5 text-[10px] text-neutral-500">
+            <span className="rounded bg-surface-elevated px-1.5 py-0.5 text-[10px] text-muted">
               Full feed
             </span>
           )}
         </div>
-        <p className="mt-1 text-xs text-neutral-500">
+        <p className="mt-1 text-xs text-muted">
           {game.venue_name ?? "TBD"} · {gameStatusLabel(game)}
         </p>
       </div>
 
       <div className="flex shrink-0 items-center gap-4">
         {score ? (
-          <span className="font-mono text-sm tabular-nums text-neutral-200">{score}</span>
+          <span className="font-mono text-sm tabular-nums text-foreground">{score}</span>
         ) : (
-          <span className="text-xs text-neutral-600">—</span>
+          <span className="text-xs text-subtle">—</span>
         )}
-        <span className="text-xs text-neutral-500">View →</span>
+        <span className="text-xs text-muted">View →</span>
       </div>
     </Link>
   );
@@ -80,7 +80,7 @@ function GamesList({
 }) {
   if (isLoading) {
     return (
-      <div className="divide-y divide-neutral-800/60">
+      <div className="divide-y divide-border/60">
         {Array.from({ length: 6 }).map((_, index) => (
           <div key={index} className="px-4 py-3">
             <Skeleton className="h-4 w-40" />
@@ -95,7 +95,7 @@ function GamesList({
     return (
       <div className="px-4 py-10 text-center">
         <p className="text-sm text-red-400">{error}</p>
-        <p className="mt-2 text-xs text-neutral-500">
+        <p className="mt-2 text-xs text-muted">
           Ensure the games table exists and anon SELECT is enabled in Supabase.
         </p>
       </div>
@@ -105,7 +105,7 @@ function GamesList({
   if (games.length === 0) {
     return (
       <div className="px-4 py-10 text-center">
-        <p className="text-sm text-neutral-400">{emptyMessage}</p>
+        <p className="text-sm text-secondary">{emptyMessage}</p>
       </div>
     );
   }
@@ -170,19 +170,19 @@ export function GameHistoryBrowser({
   }, [view, selectedTeamId, teamQuery.games]);
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#0f0f0f] text-neutral-200">
+    <div className="flex min-h-screen flex-col bg-background text-foreground">
       <AppNav />
 
       <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 py-6">
         <div className="mb-6">
-          <h1 className="text-xl font-medium text-neutral-100">Season History</h1>
-          <p className="mt-1 text-sm text-neutral-500">
+          <h1 className="text-xl font-medium text-foreground">Season History</h1>
+          <p className="mt-1 text-sm text-muted">
             Browse games by date or team, then open any game for full play-by-play replay.
           </p>
         </div>
 
         <div className="mb-4 flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-lg border border-neutral-800 bg-[#111] p-1">
+          <div className="inline-flex rounded-lg border border-border bg-surface p-1">
             {(["date", "team"] as const).map((mode) => (
               <button
                 key={mode}
@@ -191,8 +191,8 @@ export function GameHistoryBrowser({
                 className={cn(
                   "rounded-md px-3 py-1.5 text-sm transition-colors",
                   view === mode
-                    ? "bg-neutral-800 text-white"
-                    : "text-neutral-400 hover:text-neutral-200",
+                    ? "bg-surface-elevated text-foreground"
+                    : "text-secondary hover:text-foreground",
                 )}
               >
                 {mode === "date" ? "By Date" : "By Team"}
@@ -201,28 +201,28 @@ export function GameHistoryBrowser({
           </div>
         </div>
 
-        <div className="mb-4 rounded-xl border border-neutral-800 bg-[#111] p-4">
+        <div className="mb-4 rounded-xl border border-border bg-surface p-4">
           {view === "date" ? (
             <label className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <span className="text-sm text-neutral-400">Calendar date</span>
+              <span className="text-sm text-secondary">Calendar date</span>
               <input
                 type="date"
                 value={selectedDate}
                 max={today}
                 onChange={(event) => setSelectedDate(event.target.value)}
-                className="rounded-md border border-neutral-700 bg-[#0f0f0f] px-3 py-2 text-sm text-neutral-100 outline-none focus:border-neutral-500"
+                className="rounded-md border border-border-strong bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-muted"
               />
             </label>
           ) : (
             <label className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <span className="text-sm text-neutral-400">Team</span>
+              <span className="text-sm text-secondary">Team</span>
               <select
                 value={selectedTeamId ?? ""}
                 onChange={(event) => {
                   const value = event.target.value;
                   setSelectedTeamId(value ? Number.parseInt(value, 10) : null);
                 }}
-                className="min-w-[240px] rounded-md border border-neutral-700 bg-[#0f0f0f] px-3 py-2 text-sm text-neutral-100 outline-none focus:border-neutral-500"
+                className="min-w-[240px] rounded-md border border-border-strong bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-muted"
               >
                 <option value="">Choose a team…</option>
                 {MLB_TEAMS.map((team) => (
@@ -235,16 +235,16 @@ export function GameHistoryBrowser({
           )}
         </div>
 
-        <section className="overflow-hidden rounded-xl border border-neutral-800 bg-[#111]">
-          <div className="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
+        <section className="overflow-hidden rounded-xl border border-border bg-surface">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <div>
-              <h2 className="text-sm font-medium text-neutral-200">{summary}</h2>
+              <h2 className="text-sm font-medium text-foreground">{summary}</h2>
               {recordSummary && (
-                <p className="mt-0.5 text-xs text-neutral-500">{recordSummary}</p>
+                <p className="mt-0.5 text-xs text-muted">{recordSummary}</p>
               )}
             </div>
             {!activeQuery.isLoading && replayableGames.length > 0 && (
-              <span className="text-xs text-neutral-500">
+              <span className="text-xs text-muted">
                 {replayableGames.length} game{replayableGames.length === 1 ? "" : "s"}
               </span>
             )}

@@ -19,11 +19,11 @@ export function StatPill({
         ? "text-amber-400"
         : accent === "k"
           ? "text-red-400"
-          : "text-neutral-200";
+          : "text-foreground";
 
   return (
-    <div className="flex min-w-[52px] flex-col items-center rounded border border-neutral-800 bg-neutral-900/60 px-3 py-1.5">
-      <span className="text-[9px] font-semibold uppercase tracking-wide text-neutral-500">
+    <div className="flex min-w-[52px] flex-col items-center rounded border border-border bg-overlay px-3 py-1.5">
+      <span className="text-[9px] font-semibold uppercase tracking-wide text-muted">
         {label}
       </span>
       <span className={cn("font-mono text-base font-bold tabular-nums leading-none", accentClass)}>
@@ -46,7 +46,7 @@ export function HittingStatPills({ line }: { line: BatterHittingLine }) {
 
 export function HittingLineSummary({ line }: { line: BatterHittingLine }) {
   return (
-    <span className="text-[11px] text-neutral-600">
+    <span className="text-[11px] text-subtle">
       {line.plateAppearances} PA · {line.atBats} AB · {line.avg} AVG · {line.ops} OPS
     </span>
   );
@@ -56,14 +56,14 @@ export function StatBlockSkeleton({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "mb-3 animate-pulse rounded border border-neutral-800 bg-neutral-900/40 p-3",
+        "mb-3 animate-pulse rounded border border-border bg-overlay p-3",
         className,
       )}
     >
-      <div className="h-3 w-40 rounded bg-neutral-800" />
+      <div className="h-3 w-40 rounded bg-surface-elevated" />
       <div className="mt-2 flex gap-2">
         {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="h-10 w-12 rounded bg-neutral-800" />
+          <div key={i} className="h-10 w-12 rounded bg-surface-elevated" />
         ))}
       </div>
     </div>

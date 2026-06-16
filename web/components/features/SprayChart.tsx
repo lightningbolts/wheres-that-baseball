@@ -48,7 +48,7 @@ export function SprayChart({ hit, venueId, className }: SprayChartProps) {
     return (
       <div
         className={cn(
-          "flex aspect-square w-full max-w-[220px] items-center justify-center border border-neutral-800 bg-neutral-950 text-xs text-neutral-600",
+          "flex aspect-square w-full max-w-[220px] items-center justify-center border border-border bg-scorebug text-xs text-subtle",
           className,
         )}
       >
@@ -64,7 +64,7 @@ export function SprayChart({ hit, venueId, className }: SprayChartProps) {
 
   return (
     <div className={cn("w-full max-w-[220px]", className)}>
-      <svg viewBox="0 0 100 100" className="w-full border border-neutral-800 bg-[#1a2e1a]">
+      <svg viewBox="0 0 100 100" className="w-full border border-border bg-[#1a2e1a]">
         <FieldBackground venueId={venueId} />
         <circle cx={x} cy={y} r="2.5" fill="#fbbf24" stroke="#fff" strokeWidth="0.5" />
         <line
@@ -77,7 +77,7 @@ export function SprayChart({ hit, venueId, className }: SprayChartProps) {
           opacity="0.5"
         />
       </svg>
-      <p className="mt-1 text-center text-[10px] text-neutral-600">
+      <p className="mt-1 text-center text-[10px] text-subtle">
         {hit.totalDistance > 0 ? `${Math.round(hit.totalDistance)} ft` : "In play"}
         {park ? ` · ${park.venueName}` : ""}
       </p>

@@ -18,17 +18,17 @@ export function ConnectionIndicator({ status, error }: ConnectionIndicatorProps)
 
   return (
     <div
-      className="absolute right-2 top-10 z-10 border border-neutral-700 bg-neutral-900 px-2 py-0.5 text-[11px] text-neutral-400"
+      className="absolute right-2 top-10 z-10 border border-border-strong bg-surface px-2 py-0.5 text-[11px] text-secondary"
       role="status"
     >
       <span
         className={cn(
           "mr-1.5 inline-block h-1.5 w-1.5 rounded-full",
-          status === "connected" ? "bg-neutral-500" : "bg-red-500",
+          status === "connected" ? "bg-muted" : "bg-red-500",
         )}
       />
       {label}
-      {error && <span className="ml-1 text-neutral-600">— {error}</span>}
+      {error && <span className="ml-1 text-subtle">— {error}</span>}
     </div>
   );
 }

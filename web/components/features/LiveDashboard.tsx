@@ -72,7 +72,7 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
       />
 
       <div className="flex min-h-0 flex-1">
-        <div className="hidden w-[300px] shrink-0 border-r border-neutral-800 md:flex lg:w-[320px]">
+        <div className="hidden w-[300px] shrink-0 border-r border-border md:flex lg:w-[320px]">
           <PlayByPlay
             plays={gameState?.plays ?? []}
             awayAbbrev={gameState?.awayAbbrev ?? "AWY"}
@@ -83,11 +83,11 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
         </div>
 
         <main className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <div className="border-b border-neutral-800 p-2 lg:hidden">
+          <div className="border-b border-border p-2 lg:hidden">
             <select
               value={selectedGamePk}
               onChange={(e) => onSelectGame(Number(e.target.value))}
-              className="w-full border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-sm"
+              className="w-full border border-border-strong bg-surface-elevated px-2 py-1.5 text-sm text-foreground"
             >
               {games.map((game) => (
                 <option key={game.gamePk} value={game.gamePk}>
@@ -101,7 +101,7 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
             <DashboardSkeleton />
           ) : (
             <>
-              <div className="h-44 shrink-0 border-b border-neutral-800 md:hidden">
+              <div className="h-56 shrink-0 border-b border-border md:hidden">
                 <PlayByPlay
                   plays={gameState?.plays ?? []}
                   awayAbbrev={gameState?.awayAbbrev ?? "AWY"}
@@ -111,7 +111,7 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
                 />
               </div>
 
-              <div className="flex min-h-0 flex-1 flex-col gap-px bg-neutral-800">
+              <div className="flex min-h-0 flex-1 flex-col gap-px bg-border">
                 <Panel title="Current at-bat" className="min-h-0 flex-[3]">
                   {gameState && (
                     <>
@@ -131,7 +131,7 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
                     </>
                   )}
                   {(gameState?.atBatPitches.length ?? 0) === 0 ? (
-                    <p className="text-sm text-neutral-600">Waiting for first pitch…</p>
+                    <p className="text-sm text-subtle">Waiting for first pitch…</p>
                   ) : (
                     <PitchSequence
                       pitches={gameState?.atBatPitches ?? []}
@@ -148,7 +148,7 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
                     {latestPrediction ? (
                       <ProbabilityChart probabilities={probabilities} />
                     ) : (
-                      <p className="py-4 text-center text-sm text-neutral-500">
+                      <p className="py-4 text-center text-sm text-muted">
                         {LIVE_GAME_STATUSES.has(selectedGame?.status ?? "")
                           ? "Waiting on ingestor."
                           : "Available when live."}
@@ -175,8 +175,8 @@ function Panel({
   className?: string;
 }) {
   return (
-    <section className={cn("flex min-h-[180px] flex-col bg-[#141414] p-3 lg:min-h-0", className)}>
-      <h3 className="mb-2 shrink-0 text-xs text-neutral-500">{title}</h3>
+    <section className={cn("flex min-h-[180px] flex-col bg-panel p-3 lg:min-h-0", className)}>
+      <h3 className="mb-2 shrink-0 text-xs font-medium text-muted">{title}</h3>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
     </section>
   );
@@ -184,12 +184,12 @@ function Panel({
 
 function NoGamesState({ scheduleError }: { scheduleError?: string | null }) {
   return (
-    <div className="flex min-h-screen flex-col bg-[#0f0f0f]">
+    <div className="flex min-h-screen flex-col bg-background">
       <AppNav />
       <div className="flex flex-1 items-center justify-center px-6">
         <div className="max-w-sm text-center">
-          <h1 className="text-lg font-medium text-neutral-200">No games on the board</h1>
-          <p className="mt-2 text-sm text-neutral-500">Nothing live or upcoming today.</p>
+          <h1 className="text-lg font-medium text-foreground">No games on the board</h1>
+          <p className="mt-2 text-sm text-muted">Nothing live or upcoming today.</p>
           {scheduleError && <p className="mt-4 text-sm text-red-400/80">{scheduleError}</p>}
         </div>
       </div>
@@ -230,10 +230,10 @@ export function LiveDashboard({ initialGames, scheduleError }: LiveDashboardProp
   }
 
   return (
-    <div className="flex h-screen min-h-0 flex-col bg-[#0f0f0f] text-neutral-200">
+    <div className="flex h-screen min-h-0 flex-col bg-background text-foreground">
       <AppNav />
       <div className="flex min-h-0 flex-1">
-        <div className="hidden h-full w-52 shrink-0 border-r border-neutral-800 lg:block">
+        <div className="hidden h-full w-52 shrink-0 border-r border-border lg:block">
           <GameSidebar
             games={games}
             selectedGamePk={selectedGamePk}

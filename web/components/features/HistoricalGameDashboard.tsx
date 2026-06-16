@@ -37,8 +37,8 @@ function Panel({
   className?: string;
 }) {
   return (
-    <section className={cn("flex min-h-[180px] flex-col bg-[#141414] p-3 lg:min-h-0", className)}>
-      <h3 className="mb-2 shrink-0 text-xs text-neutral-500">{title}</h3>
+    <section className={cn("flex min-h-[180px] flex-col bg-panel p-3 lg:min-h-0", className)}>
+      <h3 className="mb-2 shrink-0 text-xs font-medium text-muted">{title}</h3>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
     </section>
   );
@@ -106,26 +106,26 @@ export function HistoricalGameDashboard({ game }: HistoricalGameDashboardProps) 
   const score = formatScore(game);
 
   return (
-    <div className="flex h-screen min-h-0 flex-col bg-[#0f0f0f] text-neutral-200">
+    <div className="flex h-screen min-h-0 flex-col bg-background text-foreground">
       <AppNav />
 
-      <div className="border-b border-neutral-800 bg-[#111] px-4 py-3">
+      <div className="border-b border-border bg-surface px-4 py-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <Link
               href="/games"
-              className="text-xs text-neutral-500 transition-colors hover:text-neutral-300"
+              className="text-xs text-muted transition-colors hover:text-secondary"
             >
               ← Season history
             </Link>
-            <h1 className="mt-1 text-lg font-medium text-neutral-100">{formatMatchup(game)}</h1>
-            <p className="mt-0.5 text-sm text-neutral-500">
+            <h1 className="mt-1 text-lg font-medium text-foreground">{formatMatchup(game)}</h1>
+            <p className="mt-0.5 text-sm text-muted">
               {formatGameDate(game.game_date)}
               {game.venue_name ? ` · ${game.venue_name}` : ""}
               {score ? ` · Final ${score}` : ""}
             </p>
           </div>
-          <div className="text-right text-xs text-neutral-600">
+          <div className="text-right text-xs text-subtle">
             {feedSyncedAt ? (
               <span>Feed synced {new Date(feedSyncedAt).toLocaleString()}</span>
             ) : source === "mlb" ? (
@@ -151,9 +151,9 @@ export function HistoricalGameDashboard({ game }: HistoricalGameDashboardProps) 
       ) : !gameState ? (
         <div className="flex flex-1 items-center justify-center px-6 text-center">
           <div>
-            <p className="text-sm text-neutral-400">No play-by-play data for this game.</p>
-            <p className="mt-2 text-xs text-neutral-600">
-              Run <code className="text-neutral-400">npm run sync-game-feeds</code> to backfill feeds.
+            <p className="text-sm text-secondary">No play-by-play data for this game.</p>
+            <p className="mt-2 text-xs text-subtle">
+              Run <code className="text-secondary">npm run sync-game-feeds</code> to backfill feeds.
             </p>
           </div>
         </div>
@@ -162,7 +162,7 @@ export function HistoricalGameDashboard({ game }: HistoricalGameDashboardProps) 
           <Scorebug gameState={displayState} />
 
           <div className="flex min-h-0 flex-1">
-            <div className="hidden w-[300px] shrink-0 border-r border-neutral-800 md:flex lg:w-[320px]">
+            <div className="hidden w-[300px] shrink-0 border-r border-border md:flex lg:w-[320px]">
               <PlayByPlay
                 plays={gameState.plays}
                 awayAbbrev={gameState.awayAbbrev}
@@ -176,15 +176,15 @@ export function HistoricalGameDashboard({ game }: HistoricalGameDashboardProps) 
             </div>
 
             <main className="flex min-h-0 min-w-0 flex-1 flex-col">
-              <div className="border-b border-neutral-800 p-2 md:hidden">
+              <div className="border-b border-border p-2 md:hidden">
                 <label className="flex flex-col gap-1">
-                  <span className="text-[10px] text-neutral-500">At-bat</span>
+                  <span className="text-[10px] text-muted">At-bat</span>
                   <select
                     value={selectedAtBatIndex ?? ""}
                     onChange={(event) =>
                       setSelectedAtBatIndex(Number.parseInt(event.target.value, 10))
                     }
-                    className="w-full border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-sm"
+                    className="w-full border border-border-strong bg-surface-elevated px-2 py-1.5 text-sm text-foreground"
                   >
                     {gameState.plays.map((play) => (
                       <option key={play.atBatIndex} value={play.atBatIndex}>
@@ -195,7 +195,7 @@ export function HistoricalGameDashboard({ game }: HistoricalGameDashboardProps) 
                 </label>
               </div>
 
-              <div className="h-44 shrink-0 border-b border-neutral-800 md:hidden">
+              <div className="h-56 shrink-0 border-b border-border md:hidden">
                 <PlayByPlay
                   plays={gameState.plays}
                   awayAbbrev={gameState.awayAbbrev}
@@ -208,7 +208,7 @@ export function HistoricalGameDashboard({ game }: HistoricalGameDashboardProps) 
                 />
               </div>
 
-              <div className="flex min-h-0 flex-1 flex-col gap-px bg-neutral-800">
+              <div className="flex min-h-0 flex-1 flex-col gap-px bg-border">
                 <Panel title="Selected at-bat" className="min-h-0 flex-[3]">
                   {displayState && (
                     <>
@@ -228,7 +228,7 @@ export function HistoricalGameDashboard({ game }: HistoricalGameDashboardProps) 
                     </>
                   )}
                   {(displayState?.atBatPitches.length ?? 0) === 0 ? (
-                    <p className="text-sm text-neutral-600">No pitch data for this at-bat.</p>
+                    <p className="text-sm text-subtle">No pitch data for this at-bat.</p>
                   ) : (
                     <PitchSequence
                       pitches={displayState?.atBatPitches ?? []}
@@ -244,13 +244,13 @@ export function HistoricalGameDashboard({ game }: HistoricalGameDashboardProps) 
                     {predictionForAtBat ? (
                       <ProbabilityChart probabilities={probabilities} />
                     ) : predictionsLoading ? (
-                      <p className="py-4 text-center text-sm text-neutral-500">Loading predictions…</p>
+                      <p className="py-4 text-center text-sm text-muted">Loading predictions…</p>
                     ) : predictions.length > 0 ? (
-                      <p className="py-4 text-center text-sm text-neutral-500">
+                      <p className="py-4 text-center text-sm text-muted">
                         No model snapshot matched this exact at-bat count.
                       </p>
                     ) : (
-                      <p className="py-4 text-center text-sm text-neutral-500">
+                      <p className="py-4 text-center text-sm text-muted">
                         {isLive
                           ? "Waiting on ingestor for live predictions."
                           : "No ingestor predictions were stored for this game."}
