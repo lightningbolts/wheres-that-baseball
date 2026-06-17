@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { isGameOver } from "@/lib/mlb/gameOver";
 import { buildDueUpContext, type DueUpContext } from "@/lib/mlb/lineup";
 import type { GameBoxScore } from "@/types/mlb-boxscore";
 import type { LiveGameState } from "@/types/mlb-live";
@@ -12,6 +13,7 @@ export interface LiveGameOverlays {
   dismissDueUp: () => void;
   showFinal: boolean;
   dismissFinal: () => void;
+  gameOver: boolean;
 }
 
 export function useLiveGameOverlays(
@@ -22,11 +24,15 @@ export function useLiveGameOverlays(
   const [dismissedBreaks, setDismissedBreaks] = useState<Set<string>>(() => new Set());
   const [finalDismissed, setFinalDismissed] = useState(false);
 
+  const gameOver = gameState != null && isGameOver(gameState);
+
   const dueUp = useMemo(() => {
-    if (!gameState || !boxScore || gameState.gameStatus === "Final") return null;
+    if (!gameState || !boxScore || gameOver) return null;
     return buildDueUpContext(
       gameState.inning,
       gameState.inningState,
+      gameState.awayRuns,
+      gameState.homeRuns,
       gameState.awayTeam,
       gameState.homeTeam,
       gameState.awayAbbrev,
@@ -35,9 +41,7 @@ export function useLiveGameOverlays(
       boxScore.home.batters,
       gameState.plays,
     );
-  }, [gameState, boxScore]);
-
-  const isFinal = gameState?.gameStatus === "Final";
+  }, [gameState, boxScore, gameOver]);
 
   useEffect(() => {
     setDismissedBreaks(new Set());
@@ -45,10 +49,10 @@ export function useLiveGameOverlays(
   }, [gameState?.gamePk]);
 
   useEffect(() => {
-    if (!isFinal) {
+    if (!gameOver) {
       setFinalDismissed(false);
     }
-  }, [isFinal]);
+  }, [gameOver]);
 
   const dismissDueUp = useCallback(() => {
     if (!dueUp) return;
@@ -60,7 +64,7 @@ export function useLiveGameOverlays(
   }, []);
 
   const showDueUp = dueUp != null && showBreakUI && !dismissedBreaks.has(dueUp.breakKey);
-  const showFinal = isFinal && !finalDismissed;
+  const showFinal = gameOver && !finalDismissed;
 
   return {
     dueUp,
@@ -68,5 +72,6 @@ export function useLiveGameOverlays(
     dismissDueUp,
     showFinal,
     dismissFinal,
+    gameOver,
   };
 }

@@ -1,7 +1,8 @@
 "use client";
 
 import { BaseDiamond } from "@/components/features/BaseDiamond";
-import { isHalfInningBreak, type DueUpBatter } from "@/lib/mlb/lineup";
+import { isGameOver, isBetweenHalfInnings } from "@/lib/mlb/gameOver";
+import type { DueUpBatter } from "@/lib/mlb/lineup";
 import { cn } from "@/lib/utils";
 import type { LiveGameState } from "@/types/mlb-live";
 
@@ -34,7 +35,6 @@ export function Scorebug({ gameState, dueUpBatters, className }: ScorebugProps) 
     homeRuns,
     inning,
     inningHalf,
-    inningState,
     balls,
     strikes,
     outs,
@@ -47,7 +47,8 @@ export function Scorebug({ gameState, dueUpBatters, className }: ScorebugProps) 
     onThird,
   } = gameState;
 
-  const isBreak = isHalfInningBreak(inningState);
+  const isBreak = isBetweenHalfInnings(gameState);
+  const gameEnded = isGameOver(gameState);
   const safeOuts = Math.min(3, Math.max(0, outs));
 
   return (
@@ -72,7 +73,9 @@ export function Scorebug({ gameState, dueUpBatters, className }: ScorebugProps) 
       </div>
 
       <div className="flex min-w-[64px] items-center justify-center border-r border-border px-3">
-        <span className="font-mono text-sm font-semibold tracking-wide">{inningLabel(inning, inningHalf)}</span>
+        <span className="font-mono text-sm font-semibold tracking-wide">
+          {gameEnded ? "FINAL" : inningLabel(inning, inningHalf)}
+        </span>
       </div>
 
       <div className="flex items-center gap-2 border-r border-border px-3">
@@ -118,7 +121,16 @@ export function Scorebug({ gameState, dueUpBatters, className }: ScorebugProps) 
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col justify-center px-4">
-        {isBreak ? (
+        {gameEnded ? (
+          <>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-scorebug-muted">
+              Final
+            </span>
+            <span className="truncate text-[15px] font-medium">
+              {awayAbbrev} {awayRuns} – {homeRuns} {homeAbbrev}
+            </span>
+          </>
+        ) : isBreak ? (
           <>
             <span className="text-[10px] font-semibold uppercase tracking-wide text-scorebug-muted">
               Due up

@@ -48,11 +48,8 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
   const { gameState, isLoading: isFeedLoading } = useLiveGameState(selectedGamePk);
   const { boxScore, isLoading: isBoxScoreLoading } = useGameBoxScore(selectedGamePk, { poll: true });
   const { atBatViewState, showBreakUI } = useBreakLinger(gameState);
-  const { dueUp, showDueUp, dismissDueUp, showFinal, dismissFinal } = useLiveGameOverlays(
-    gameState,
-    boxScore,
-    showBreakUI,
-  );
+  const { dueUp, showDueUp, dismissDueUp, showFinal, dismissFinal, gameOver } =
+    useLiveGameOverlays(gameState, boxScore, showBreakUI);
   const { latestPrediction, isLoading: isPredictionsLoading, error, connectionStatus } =
     useLivePredictions(selectedGamePk);
 
@@ -103,7 +100,9 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
             : null
         }
         dueUpBatters={
-          gameState && isHalfInningBreak(gameState.inningState) ? dueUp?.batters : undefined
+          gameState && !gameOver && isHalfInningBreak(gameState.inningState)
+            ? dueUp?.batters
+            : undefined
         }
       />
 
@@ -148,7 +147,29 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
               </div>
 
               <div className="flex min-h-0 flex-1 flex-col gap-px bg-border">
-                <Panel title={showBreakUI ? "Due up" : "Current at-bat"} className="min-h-[380px] flex-[3]">
+                <Panel
+                  title={gameOver ? "Final" : showBreakUI ? "Due up" : "Current at-bat"}
+                  className="min-h-[380px] flex-[3]"
+                >
+                  {gameOver && gameState ? (
+                    <div className="flex flex-1 flex-col items-center justify-center gap-3 py-8 text-center">
+                      <p className="text-sm text-secondary">
+                        {gameState.awayTeam} @ {gameState.homeTeam}
+                      </p>
+                      <div className="flex items-center gap-6">
+                        <div>
+                          <p className="text-xs font-semibold text-muted">{gameState.awayAbbrev}</p>
+                          <p className="font-mono text-4xl font-bold tabular-nums">{gameState.awayRuns}</p>
+                        </div>
+                        <span className="text-lg text-faint">–</span>
+                        <div>
+                          <p className="text-xs font-semibold text-muted">{gameState.homeAbbrev}</p>
+                          <p className="font-mono text-4xl font-bold tabular-nums">{gameState.homeRuns}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
                   {atBatViewState && !showBreakUI && (
                     <>
                       <BatterVsPitcherRecord
@@ -200,6 +221,8 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
                       animateEntrance
                       className="min-h-0 flex-1"
                     />
+                  )}
+                    </>
                   )}
                 </Panel>
 

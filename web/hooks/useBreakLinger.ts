@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { isGameOver } from "@/lib/mlb/gameOver";
 import { isHalfInningBreak } from "@/lib/mlb/lineup";
 import type { LiveGameState } from "@/types/mlb-live";
 
@@ -99,7 +100,8 @@ export function useBreakLinger(gameState: LiveGameState | null): BreakLingerResu
     lingerStartedAtRef.current = 0;
   }, [gameState?.gamePk]);
 
-  const showBreakUI = isBreak && !isLingering;
+  const showBreakUI =
+    isBreak && !isLingering && !(gameState != null && isGameOver(gameState));
   const atBatViewState =
     isLingering && lingerSnapshotRef.current ? lingerSnapshotRef.current : gameState;
 

@@ -114,6 +114,8 @@ export function getDueUpBatters(
 export function buildDueUpContext(
   inning: number,
   inningState: string,
+  awayRuns: number,
+  homeRuns: number,
   awayTeam: string,
   homeTeam: string,
   awayAbbrev: string,
@@ -125,6 +127,10 @@ export function buildDueUpContext(
   if (!isHalfInningBreak(inningState)) return null;
 
   const normalized = inningState.toLowerCase();
+  if (normalized === "end" && inning >= 9 && awayRuns !== homeRuns) {
+    return null;
+  }
+
   const side: "away" | "home" = normalized === "middle" ? "home" : "away";
   const teamBatters = side === "home" ? homeBatters : awayBatters;
   const batters = getDueUpBatters(teamBatters, plays, side);

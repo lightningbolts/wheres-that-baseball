@@ -548,7 +548,11 @@ function parsePlayByPlay(allPlays: AllPlayRaw[] | undefined): PlayByPlayEntry[] 
   return entries;
 }
 
-export function parseLiveFeed(gamePk: number, feed: MLBLiveFeedResponse): LiveGameState {
+export function parseLiveFeed(
+  gamePk: number,
+  feed: MLBLiveFeedResponse,
+  plays?: PlayByPlayEntry[],
+): LiveGameState {
   const play = feed.liveData.plays.currentPlay;
   const linescore = feed.liveData.linescore;
   const offense = linescore.offense ?? {};
@@ -608,7 +612,7 @@ export function parseLiveFeed(gamePk: number, feed: MLBLiveFeedResponse): LiveGa
     atBatPitches: isBreak
       ? []
       : parsePitchesFromEvents(play?.playEvents, play?.result?.description),
-    plays: parsePlayByPlay(feed.liveData.plays.allPlays),
+    plays: plays ?? parsePlayByPlay(feed.liveData.plays.allPlays),
     observedAt: new Date().toISOString(),
   };
 }
@@ -640,10 +644,10 @@ export function liveStateFingerprint(state: LiveGameState): string {
 }
 
 /** Browser-side MLB live feed fetch (CORS-enabled, skips the Next.js proxy hop). */
-export async function fetchClientLiveGameState(
+export async function fetchMLBLiveFeed(
   gamePk: number,
   signal?: AbortSignal,
-): Promise<LiveGameState> {
+): Promise<MLBLiveFeedResponse> {
   const response = await fetch(`${MLB_FEED_BASE}/game/${gamePk}/feed/live`, {
     cache: "no-store",
     signal,
@@ -653,7 +657,24 @@ export async function fetchClientLiveGameState(
     throw new Error(`MLB live feed failed: ${response.status}`);
   }
 
-  const feed = (await response.json()) as MLBLiveFeedResponse;
+  return (await response.json()) as MLBLiveFeedResponse;
+}
+
+/** Parse a live snapshot while reusing an existing play-by-play list (fast path). */
+export function parseLiveFeedSnapshot(
+  gamePk: number,
+  feed: MLBLiveFeedResponse,
+  existingPlays: PlayByPlayEntry[],
+): LiveGameState {
+  return parseLiveFeed(gamePk, feed, existingPlays);
+}
+
+/** Full live game state from the browser (includes play-by-play parse). */
+export async function fetchClientLiveGameState(
+  gamePk: number,
+  signal?: AbortSignal,
+): Promise<LiveGameState> {
+  const feed = await fetchMLBLiveFeed(gamePk, signal);
   return parseLiveFeed(gamePk, feed);
 }
 
