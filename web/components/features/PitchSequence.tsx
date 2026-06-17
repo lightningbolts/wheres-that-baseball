@@ -99,7 +99,7 @@ function StrikeZoneChart({
   const szTop = plotted[plotted.length - 1]?.strikeZoneTop ?? 3.5;
   const szBottom = plotted[plotted.length - 1]?.strikeZoneBottom ?? 1.5;
   const zone = zoneRectPercent(szTop, szBottom);
-  const plate = homePlatePath(zone);
+  const plate = homePlatePath(zone, szTop, szBottom);
 
   return (
     <svg
