@@ -259,9 +259,10 @@ export interface MLBLiveFeedResponse {
     status: { abstractGameState: string };
     venue?: { id?: number; name?: string };
     teams: {
-      away: { name: string; abbreviation?: string };
-      home: { name: string; abbreviation?: string };
+      away: { id?: number; name: string; abbreviation?: string };
+      home: { id?: number; name: string; abbreviation?: string };
     };
+    players?: Record<string, { id?: number; teamId?: number }>;
   };
   liveData: {
     linescore: {
@@ -281,6 +282,12 @@ export interface MLBLiveFeedResponse {
         first?: { id: number } | null;
         second?: { id: number } | null;
         third?: { id: number } | null;
+      };
+    };
+    boxscore?: {
+      teams?: {
+        away?: { team?: { id?: number }; pitchers?: number[]; players?: Record<string, { person?: { id?: number; fullName?: string } }> };
+        home?: { team?: { id?: number }; pitchers?: number[]; players?: Record<string, { person?: { id?: number; fullName?: string } }> };
       };
     };
     plays: {

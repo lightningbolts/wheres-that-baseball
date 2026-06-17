@@ -159,26 +159,28 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
                       )}
                     </>
                   )}
-                  {isBreak && gameState ? (
+                  {isBreak && dueUp ? (
                     <ul className="space-y-2">
-                      {[
-                        { label: "1", name: gameState.batterName },
-                        { label: "2", name: gameState.onDeckName },
-                        { label: "3", name: gameState.inHoleName },
-                      ]
-                        .filter((slot) => slot.name && slot.name !== "—")
-                        .map((slot) => (
-                          <li
-                            key={slot.label}
-                            className="flex items-center gap-3 border border-border bg-surface-elevated px-3 py-2.5"
-                          >
-                            <span className="flex h-7 w-7 shrink-0 items-center justify-center bg-overlay font-mono text-xs font-semibold tabular-nums text-muted">
-                              {slot.label}
-                            </span>
-                            <span className="text-sm font-medium text-foreground">{slot.name}</span>
-                          </li>
-                        ))}
+                      {dueUp.batters.map((batter) => (
+                        <li
+                          key={batter.playerId}
+                          className="flex items-center gap-3 border border-border bg-surface-elevated px-3 py-2.5"
+                        >
+                          <span className="flex h-7 w-7 shrink-0 items-center justify-center bg-overlay font-mono text-xs font-semibold tabular-nums text-muted">
+                            {batter.order}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-foreground">{batter.name}</p>
+                            <p className="text-[11px] text-subtle">
+                              {batter.positions ? `${batter.positions} · ` : ""}
+                              {batter.seasonAvg} AVG
+                            </p>
+                          </div>
+                        </li>
+                      ))}
                     </ul>
+                  ) : isBreak ? (
+                    <p className="text-sm text-subtle">Loading due up…</p>
                   ) : (gameState?.atBatPitches.length ?? 0) === 0 ? (
                     <p className="text-sm text-subtle">Waiting for first pitch…</p>
                   ) : (

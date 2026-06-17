@@ -56,6 +56,24 @@ function isLineupPitcher(batter: BatterBoxLine): boolean {
   return parts.length > 0 && parts.every((part) => part === "P");
 }
 
+function lineupSlot(batters: BatterBoxLine[], playerId: number): number | null {
+  const index = batters.findIndex((batter) => batter.playerId === playerId);
+  return index >= 0 ? index + 1 : null;
+}
+
+/** 1-based batting order slot offset from a starting slot (wraps 9 → 1). */
+export function lineupSlotAfter(startSlot: number, offset: number): number {
+  return ((startSlot - 1 + offset) % 9) + 1;
+}
+
+export function lineupSlotForPlayer(
+  batters: BatterBoxLine[],
+  playerId: number | null,
+): number | null {
+  if (playerId == null) return null;
+  return lineupSlot(batters, playerId);
+}
+
 /** Next three batters due up for a team, based on play-by-play and box order. */
 export function getDueUpBatters(
   batters: BatterBoxLine[],
@@ -75,13 +93,14 @@ export function getDueUpBatters(
   let index = startIndex;
 
   while (dueUp.length < count && scanned < batters.length) {
-    const batter = batters[index % batters.length];
+    const lineupIndex = index % batters.length;
+    const batter = batters[lineupIndex];
     index += 1;
     scanned += 1;
     if (isLineupPitcher(batter)) continue;
 
     dueUp.push({
-      order: dueUp.length + 1,
+      order: lineupIndex + 1,
       playerId: batter.playerId,
       name: batter.name,
       positions: batter.positions,

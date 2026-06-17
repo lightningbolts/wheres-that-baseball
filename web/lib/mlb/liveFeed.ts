@@ -45,6 +45,100 @@ const SKIP_ACTION_EVENT_TYPES = new Set([
 
 type PitchEventRaw = NonNullable<AllPlayRaw["playEvents"]>[number];
 
+interface PitcherRef {
+  id?: number;
+  fullName?: string;
+}
+
+function pitcherTeamId(feed: MLBLiveFeedResponse, pitcherId: number): number | null {
+  const boxTeams = feed.liveData.boxscore?.teams;
+  if (boxTeams) {
+    for (const side of ["away", "home"] as const) {
+      const team = boxTeams[side];
+      if (team?.pitchers?.includes(pitcherId)) {
+        return team.team?.id ?? null;
+      }
+    }
+  }
+
+  const player = feed.gameData.players?.[`ID${pitcherId}`];
+  return player?.teamId ?? null;
+}
+
+function pitcherNameFromBoxScore(feed: MLBLiveFeedResponse, pitcherId: number): string | null {
+  const boxTeams = feed.liveData.boxscore?.teams;
+  if (!boxTeams) return null;
+
+  for (const side of ["away", "home"] as const) {
+    const team = boxTeams[side];
+    const player = team?.players?.[`ID${pitcherId}`]?.person;
+    if (player?.fullName) return player.fullName;
+  }
+
+  return null;
+}
+
+function defensivePitcherFromBoxScore(
+  feed: MLBLiveFeedResponse,
+  battingTeamId: number | null,
+): PitcherRef | null {
+  const boxTeams = feed.liveData.boxscore?.teams;
+  if (!boxTeams || battingTeamId == null) return null;
+
+  for (const side of ["away", "home"] as const) {
+    const team = boxTeams[side];
+    if (team?.team?.id === battingTeamId) continue;
+
+    const pitcherIds = team?.pitchers ?? [];
+    const activePitcherId = pitcherIds[pitcherIds.length - 1];
+    if (!activePitcherId) continue;
+
+    return {
+      id: activePitcherId,
+      fullName: pitcherNameFromBoxScore(feed, activePitcherId) ?? undefined,
+    };
+  }
+
+  return null;
+}
+
+/** Pick the pitcher facing the batter — never the batting team's own pitcher. */
+function resolveDefensePitcher(
+  feed: MLBLiveFeedResponse,
+  battingTeamId: number | null,
+  currentPlayPitcher?: PitcherRef,
+  offensePitcher?: PitcherRef,
+): { id: number | null; name: string } {
+  const candidates = [currentPlayPitcher, offensePitcher].filter(
+    (pitcher): pitcher is PitcherRef => pitcher?.id != null,
+  );
+
+  for (const pitcher of candidates) {
+    const teamId = pitcherTeamId(feed, pitcher.id!);
+    const onDefense =
+      battingTeamId == null || teamId == null || teamId !== battingTeamId;
+    if (onDefense) {
+      return {
+        id: pitcher.id ?? null,
+        name: pitcher.fullName ?? pitcherNameFromBoxScore(feed, pitcher.id!) ?? "—",
+      };
+    }
+  }
+
+  const fallback = defensivePitcherFromBoxScore(feed, battingTeamId);
+  if (fallback?.id) {
+    return {
+      id: fallback.id,
+      name: fallback.fullName ?? pitcherNameFromBoxScore(feed, fallback.id) ?? "—",
+    };
+  }
+
+  return {
+    id: currentPlayPitcher?.id ?? null,
+    name: currentPlayPitcher?.fullName ?? "—",
+  };
+}
+
 interface BatterLine {
   hits: number;
   atBats: number;
@@ -472,7 +566,13 @@ export function parseLiveFeed(gamePk: number, feed: MLBLiveFeedResponse): LiveGa
   const batter = offense.batter;
   const onDeck = offense.onDeck;
   const inHole = offense.inHole;
-  const defensePitcher = offense.pitcher;
+  const battingTeamId = offense.team?.id ?? null;
+  const defensePitcher = resolveDefensePitcher(
+    feed,
+    battingTeamId,
+    play?.matchup?.pitcher,
+    offense.pitcher,
+  );
 
   return {
     gamePk,
@@ -491,10 +591,10 @@ export function parseLiveFeed(gamePk: number, feed: MLBLiveFeedResponse): LiveGa
     onDeckName: onDeck?.fullName ?? "—",
     inHoleId: inHole?.id ?? null,
     inHoleName: inHole?.fullName ?? "—",
-    offenseTeamId: offense.team?.id ?? null,
+    offenseTeamId: battingTeamId,
     battingOrderSlot: offense.battingOrder ?? null,
-    pitcherId: defensePitcher?.id ?? play?.matchup?.pitcher?.id ?? null,
-    pitcherName: defensePitcher?.fullName ?? play?.matchup?.pitcher?.fullName ?? "—",
+    pitcherId: defensePitcher.id,
+    pitcherName: defensePitcher.name,
     inning,
     inningHalf,
     inningState,

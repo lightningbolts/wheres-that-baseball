@@ -1,7 +1,7 @@
 "use client";
 
 import { BaseDiamond } from "@/components/features/BaseDiamond";
-import { isHalfInningBreak } from "@/lib/mlb/lineup";
+import { isHalfInningBreak, lineupSlotAfter } from "@/lib/mlb/lineup";
 import { cn } from "@/lib/utils";
 import type { LiveGameState } from "@/types/mlb-live";
 
@@ -41,6 +41,7 @@ export function Scorebug({ gameState, className }: ScorebugProps) {
     pitcherName,
     onDeckName,
     inHoleName,
+    battingOrderSlot,
     onFirst,
     onSecond,
     onThird,
@@ -122,10 +123,24 @@ export function Scorebug({ gameState, className }: ScorebugProps) {
             <span className="text-[10px] font-semibold uppercase tracking-wide text-scorebug-muted">
               Due up
             </span>
-            <span className="truncate text-[15px] font-medium">{batterName}</span>
+            <span className="truncate text-[15px] font-medium">
+              {battingOrderSlot != null ? `${battingOrderSlot}. ` : ""}
+              {batterName}
+            </span>
             <span className="truncate text-[12px] text-scorebug-muted">
-              {onDeckName}
-              {inHoleName && inHoleName !== "—" ? ` · ${inHoleName}` : ""}
+              {onDeckName && onDeckName !== "—" ? (
+                <>
+                  {battingOrderSlot != null ? `${lineupSlotAfter(battingOrderSlot, 1)}. ` : ""}
+                  {onDeckName}
+                </>
+              ) : null}
+              {inHoleName && inHoleName !== "—" ? (
+                <>
+                  {onDeckName && onDeckName !== "—" ? " · " : ""}
+                  {battingOrderSlot != null ? `${lineupSlotAfter(battingOrderSlot, 2)}. ` : ""}
+                  {inHoleName}
+                </>
+              ) : null}
             </span>
           </>
         ) : (
