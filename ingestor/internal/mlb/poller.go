@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 )
 
@@ -12,22 +13,36 @@ import (
 // the worker; production systems may plug in metrics/alerts here.
 type OnStateChange func(ctx context.Context, state GameState) error
 
+// OnGameEnd is invoked once when a polled game transitions out of live play.
+type OnGameEnd func(ctx context.Context, gamePK int, status string, awayScore, homeScore int) error
+
+// GameStore persists schedule metadata and live score/status updates.
+type GameStore interface {
+	UpdateGameFromPoll(ctx context.Context, gamePK int, status string, awayScore, homeScore int) error
+}
+
 // Worker polls a single game's live feed until context cancellation.
 type Worker struct {
-	client   *Client
-	tracker  *StateTracker
-	interval time.Duration
-	onChange OnStateChange
-	logger   *slog.Logger
+	client    *Client
+	tracker   *StateTracker
+	interval  time.Duration
+	onChange  OnStateChange
+	onGameEnd OnGameEnd
+	games     GameStore
+	logger    *slog.Logger
+	liveMu    sync.Mutex
+	wasLive   map[int]bool
 }
 
 // WorkerConfig wires dependencies for a game polling goroutine.
 type WorkerConfig struct {
-	Client   *Client
-	Tracker  *StateTracker
-	Interval time.Duration
-	OnChange OnStateChange
-	Logger   *slog.Logger
+	Client    *Client
+	Tracker   *StateTracker
+	Interval  time.Duration
+	OnChange  OnStateChange
+	OnGameEnd OnGameEnd
+	Games     GameStore
+	Logger    *slog.Logger
 }
 
 // NewWorker constructs a polling worker with required collaborators.
@@ -42,11 +57,14 @@ func NewWorker(cfg WorkerConfig) (*Worker, error) {
 	}
 
 	return &Worker{
-		client:   cfg.Client,
-		tracker:  cfg.Tracker,
-		interval: cfg.Interval,
-		onChange: cfg.OnChange,
-		logger:   logger,
+		client:    cfg.Client,
+		tracker:   cfg.Tracker,
+		interval:  cfg.Interval,
+		onChange:  cfg.OnChange,
+		onGameEnd: cfg.OnGameEnd,
+		games:     cfg.Games,
+		logger:    logger,
+		wasLive:   make(map[int]bool),
 	}, nil
 }
 
@@ -87,8 +105,31 @@ func (w *Worker) pollOnce(ctx context.Context, gamePK int, log *slog.Logger) err
 	}
 
 	state := ToGameState(gamePK, feed)
+	awayScore := feed.LiveData.Linescore.Teams.Away.Runs
+	homeScore := feed.LiveData.Linescore.Teams.Home.Runs
 
-	if !state.IsLive() {
+	if w.games != nil {
+		if err := w.games.UpdateGameFromPoll(ctx, gamePK, state.GameStatus, awayScore, homeScore); err != nil {
+			log.Error("failed to update game from poll", "error", err)
+		}
+	}
+
+	isLive := state.IsLive()
+
+	w.liveMu.Lock()
+	prevLive := w.wasLive[gamePK]
+	if prevLive && !isLive {
+		log.Info("game ended", "status", state.GameStatus, "away_score", awayScore, "home_score", homeScore)
+		if w.onGameEnd != nil {
+			if err := w.onGameEnd(ctx, gamePK, state.GameStatus, awayScore, homeScore); err != nil {
+				log.Error("game end handler failed", "error", err)
+			}
+		}
+	}
+	w.wasLive[gamePK] = isLive
+	w.liveMu.Unlock()
+
+	if !isLive {
 		log.Debug("game not live, skipping prediction", "status", state.GameStatus)
 		return nil
 	}

@@ -14,7 +14,7 @@ import {
   isLiveStatus,
   isReplayableGame,
 } from "@/lib/games/format";
-import { getMLBScheduleDate } from "@/lib/mlb/schedule";
+import { getLocalCalendarDate, getMLBScheduleDate } from "@/lib/mlb/schedule";
 import { MLB_TEAMS } from "@/lib/mlb/teams";
 import { cn } from "@/lib/utils";
 import type { Game } from "@/types/database";
@@ -124,7 +124,8 @@ export function GameHistoryBrowser({
   initialTeamId = null,
   initialView = "date",
 }: GameHistoryBrowserProps) {
-  const today = getMLBScheduleDate();
+  const today = getLocalCalendarDate();
+  const maxDate = getMLBScheduleDate();
   const [view, setView] = useState<ViewMode>(initialView);
   const [selectedDate, setSelectedDate] = useState(initialDate ?? today);
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(initialTeamId);
@@ -208,7 +209,7 @@ export function GameHistoryBrowser({
               <input
                 type="date"
                 value={selectedDate}
-                max={today}
+                max={maxDate}
                 onChange={(event) => setSelectedDate(event.target.value)}
                 className="rounded-md border border-border-strong bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-muted"
               />

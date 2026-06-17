@@ -32,6 +32,12 @@ type Config struct {
 	// DatabaseURL is the Supabase/PostgreSQL connection string (postgres://...).
 	DatabaseURL string
 
+	// SupabaseURL is the project URL for REST fallback (https://xxx.supabase.co).
+	SupabaseURL string
+
+	// SupabaseServiceKey is the service role key for REST fallback writes.
+	SupabaseServiceKey string
+
 	// HTTPClientTimeout bounds a single request including TLS and body read.
 	HTTPClientTimeout time.Duration
 
@@ -45,10 +51,14 @@ type Config struct {
 // Load reads configuration from the process environment and applies sensible
 // defaults where variables are omitted.
 func Load() (*Config, error) {
+	loadEnvFiles()
+
 	cfg := &Config{
 		MLBAPIBaseURL:      envOrDefault("MLB_API_BASE_URL", "https://statsapi.mlb.com/api/v1.1"),
 		PollInterval:       durationFromEnv("POLL_INTERVAL", 1*time.Second),
 		DatabaseURL:        os.Getenv("DATABASE_URL"),
+		SupabaseURL:        firstEnv("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"),
+		SupabaseServiceKey: os.Getenv("SUPABASE_SERVICE_ROLE_KEY"),
 		HTTPClientTimeout:  durationFromEnv("HTTP_CLIENT_TIMEOUT", 10*time.Second),
 		HTTPMaxRetries:     intFromEnv("HTTP_MAX_RETRIES", 3),
 		HTTPRetryBaseDelay: durationFromEnv("HTTP_RETRY_BASE_DELAY", 500*time.Millisecond),
@@ -63,8 +73,8 @@ func Load() (*Config, error) {
 	cfg.AutoDiscoverGames = boolFromEnv("AUTO_DISCOVER_GAMES", len(cfg.GamePKs) == 0)
 	cfg.ScheduleRefreshInterval = durationFromEnv("SCHEDULE_REFRESH_INTERVAL", 5*time.Minute)
 
-	if cfg.DatabaseURL == "" {
-		return nil, fmt.Errorf("DATABASE_URL is required")
+	if cfg.DatabaseURL == "" && (cfg.SupabaseURL == "" || cfg.SupabaseServiceKey == "") {
+		return nil, fmt.Errorf("DATABASE_URL or SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY is required")
 	}
 	if !cfg.AutoDiscoverGames && len(cfg.GamePKs) == 0 {
 		return nil, fmt.Errorf("GAME_PKS is required unless AUTO_DISCOVER_GAMES=true")
@@ -81,6 +91,15 @@ func envOrDefault(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func firstEnv(keys ...string) string {
+	for _, key := range keys {
+		if v := os.Getenv(key); v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func durationFromEnv(key string, fallback time.Duration) time.Duration {

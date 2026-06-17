@@ -133,8 +133,8 @@ export async function upsertGames(creds, root, rows, batchSize) {
   );
 }
 
-/** @param {{ mode: "postgres", databaseUrl: string }} creds @param {string} webPackageJson @param {number | null} onlyGamePk */
-export async function listGamesForFeedSync(creds, webPackageJson, onlyGamePk) {
+/** @param {{ mode: "postgres", databaseUrl: string }} creds @param {string} webPackageJson @param {number | null} onlyGamePk @param {boolean} force */
+export async function listGamesForFeedSync(creds, webPackageJson, onlyGamePk, force = false) {
   if (creds.mode !== "postgres") return null;
 
   const Pool = loadPg(webPackageJson);
@@ -143,11 +143,20 @@ export async function listGamesForFeedSync(creds, webPackageJson, onlyGamePk) {
   try {
     const params = [];
     let sql =
-      "SELECT game_pk, status, feed_synced_at FROM games ORDER BY game_date ASC";
+      "SELECT game_pk, status, feed_synced_at FROM games";
+    const conditions = [];
+
     if (onlyGamePk != null) {
-      sql = "SELECT game_pk, status, feed_synced_at FROM games WHERE game_pk = $1";
       params.push(onlyGamePk);
+      conditions.push(`game_pk = $${params.length}`);
+    } else if (!force) {
+      conditions.push("(feed_synced_at IS NULL OR status IN ('Live', 'In Progress'))");
     }
+
+    if (conditions.length > 0) {
+      sql += ` WHERE ${conditions.join(" AND ")}`;
+    }
+    sql += " ORDER BY game_date ASC";
 
     const result = await pool.query(sql, params);
     return result.rows;

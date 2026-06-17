@@ -202,9 +202,13 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
                 </Panel>
 
                 <Panel title="Outcome odds" className="min-h-[160px] shrink-0 lg:flex-1">
-                  <div className="flex flex-1 flex-col justify-center">
+                  <div className="flex min-h-0 flex-1 flex-col">
                     {latestPrediction ? (
-                      <ProbabilityChart probabilities={probabilities} />
+                      <ProbabilityChart
+                        probabilities={probabilities}
+                        contained
+                        className="min-h-0 flex-1"
+                      />
                     ) : (
                       <p className="py-4 text-center text-sm text-muted">
                         {LIVE_GAME_STATUSES.has(selectedGame?.status ?? "")

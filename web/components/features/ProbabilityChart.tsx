@@ -8,10 +8,13 @@ import {
   type OutcomeKey,
   type OutcomeProbabilities,
 } from "@/types/database";
-import { formatProbability } from "@/lib/utils";
+import { cn, formatProbability } from "@/lib/utils";
 
 interface ProbabilityChartProps {
   probabilities: OutcomeProbabilities;
+  /** When true, outcome list scrolls inside its panel instead of overflowing. */
+  contained?: boolean;
+  className?: string;
 }
 
 function barColor(key: OutcomeKey): string {
@@ -38,8 +41,12 @@ const barSpring = {
   mass: 0.9,
 };
 
-export function ProbabilityChart({ probabilities }: ProbabilityChartProps) {
-  return (
+export function ProbabilityChart({
+  probabilities,
+  contained = false,
+  className,
+}: ProbabilityChartProps) {
+  const chart = (
     <ul className="space-y-2.5" role="list">
       {OUTCOME_DISPLAY_ORDER.map((key) => {
         const value = probabilities?.[key] ?? 0;
@@ -65,5 +72,17 @@ export function ProbabilityChart({ probabilities }: ProbabilityChartProps) {
         );
       })}
     </ul>
+  );
+
+  if (!contained) {
+    return <div className={className}>{chart}</div>;
+  }
+
+  return (
+    <div className={cn("flex min-h-0 flex-col overflow-hidden", className)}>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [scrollbar-gutter:stable]">
+        <div className="pr-2">{chart}</div>
+      </div>
+    </div>
   );
 }

@@ -85,20 +85,39 @@ async function listGamesRest(
   supabaseUrl: string,
   serviceRoleKey: string,
   onlyGamePk: number | null,
+  force: boolean,
 ): Promise<GameTarget[]> {
   const supabase = createClient(supabaseUrl, serviceRoleKey);
-  let query = supabase
-    .from("games")
-    .select("game_pk, status, feed_synced_at")
-    .order("game_date", { ascending: true });
+  const pageSize = 1000;
+  const games: GameTarget[] = [];
+  let from = 0;
 
-  if (onlyGamePk != null) {
-    query = query.eq("game_pk", onlyGamePk);
+  while (true) {
+    let query = supabase
+      .from("games")
+      .select("game_pk, status, feed_synced_at")
+      .order("game_date", { ascending: true })
+      .range(from, from + pageSize - 1);
+
+    if (onlyGamePk != null) {
+      query = query.eq("game_pk", onlyGamePk);
+    } else if (!force) {
+      query = query.or("feed_synced_at.is.null,status.eq.Live,status.eq.In Progress");
+    }
+
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+
+    const batch = (data ?? []) as GameTarget[];
+    games.push(...batch);
+
+    if (onlyGamePk != null || batch.length < pageSize) {
+      break;
+    }
+    from += pageSize;
   }
 
-  const { data, error } = await query;
-  if (error) throw new Error(error.message);
-  return (data ?? []) as GameTarget[];
+  return games;
 }
 
 async function updateGameFeedRest(
@@ -146,8 +165,8 @@ async function main() {
 
   const games: GameTarget[] =
     creds.mode === "postgres"
-      ? ((await listGamesForFeedSync(creds, WEB_PKG, onlyGamePk)) ?? [])
-      : await listGamesRest(creds.supabaseUrl, creds.serviceRoleKey, onlyGamePk);
+      ? ((await listGamesForFeedSync(creds, WEB_PKG, onlyGamePk, force)) ?? [])
+      : await listGamesRest(creds.supabaseUrl, creds.serviceRoleKey, onlyGamePk, force);
 
   const targets = games.filter((game) => {
     if (force) return true;

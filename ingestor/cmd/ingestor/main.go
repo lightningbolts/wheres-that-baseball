@@ -107,11 +107,12 @@ func run(logger *slog.Logger) error {
 		cancel()
 	}()
 
-	repo, err := database.NewRepository(ctx, cfg.DatabaseURL)
+	repo, mode, err := database.OpenStore(ctx, cfg.DatabaseURL, cfg.SupabaseURL, cfg.SupabaseServiceKey)
 	if err != nil {
 		return fmt.Errorf("init database: %w", err)
 	}
 	defer repo.Close()
+	logger.Info("database connected", "mode", mode)
 
 	mlbClient := mlb.NewClient(mlb.ClientOptions{
 		BaseURL:    cfg.MLBAPIBaseURL,
@@ -124,12 +125,24 @@ func run(logger *slog.Logger) error {
 	tracker := mlb.NewStateTracker()
 	onChange := pipeline.StateChangeHandler(pred, repo, logger.With("component", "pipeline"))
 
+	onGameEnd := func(ctx context.Context, gamePK int, status string, awayScore, homeScore int) error {
+		logger.Info("game finished; run sync-game-feeds to cache play-by-play",
+			"game_pk", gamePK,
+			"status", status,
+			"away_score", awayScore,
+			"home_score", homeScore,
+		)
+		return nil
+	}
+
 	worker, err := mlb.NewWorker(mlb.WorkerConfig{
-		Client:   mlbClient,
-		Tracker:  tracker,
-		Interval: cfg.PollInterval,
-		OnChange: onChange,
-		Logger:   logger.With("component", "poller"),
+		Client:    mlbClient,
+		Tracker:   tracker,
+		Interval:  cfg.PollInterval,
+		OnChange:  onChange,
+		OnGameEnd: onGameEnd,
+		Games:     repo,
+		Logger:    logger.With("component", "poller"),
 	})
 	if err != nil {
 		return fmt.Errorf("create worker: %w", err)
@@ -148,25 +161,48 @@ func run(logger *slog.Logger) error {
 		}
 	}
 
-	discoverLiveGames := func() ([]int, error) {
+	syncSchedule := func() error {
 		date := mlb.ScheduleDateET(time.Now())
-		pks, err := mlbClient.DiscoverLiveGamePKs(ctx, date)
-		if err != nil {
-			return nil, err
+		dates := []string{mlb.PreviousScheduleDate(date), date}
+		seen := make(map[int]mlb.ScheduleGame)
+
+		for _, scheduleDate := range dates {
+			games, err := mlbClient.FetchScheduleGames(ctx, scheduleDate)
+			if err != nil {
+				return fmt.Errorf("fetch schedule %s: %w", scheduleDate, err)
+			}
+			for _, game := range games {
+				seen[game.GamePK] = game
+			}
 		}
-		logger.Info("discovered live games from MLB schedule", "date", date, "count", len(pks), "game_pks", pks)
-		return pks, nil
+
+		allGames := make([]mlb.ScheduleGame, 0, len(seen))
+		for _, game := range seen {
+			allGames = append(allGames, game)
+		}
+
+		if len(allGames) > 0 {
+			rows := scheduleGamesToRows(allGames)
+			if err := repo.UpsertGames(ctx, rows); err != nil {
+				return fmt.Errorf("upsert games: %w", err)
+			}
+			logger.Info("synced schedule to database", "dates", dates, "count", len(allGames))
+		}
+
+		var livePKs []int
+		for _, game := range allGames {
+			if mlb.IsLiveStatus(game.Status) {
+				livePKs = append(livePKs, game.GamePK)
+			}
+		}
+		logger.Info("discovered live games from MLB schedule", "date", date, "count", len(livePKs), "game_pks", livePKs)
+		return nil
 	}
 
 	if cfg.AutoDiscoverGames {
-		pks, err := discoverLiveGames()
-		if err != nil {
-			return fmt.Errorf("discover live games: %w", err)
+		if err := syncSchedule(); err != nil {
+			return fmt.Errorf("sync schedule: %w", err)
 		}
-		if len(pks) == 0 {
-			logger.Info("no live games on schedule yet; will re-check periodically")
-		}
-		startGames(pks)
 
 		wg.Add(1)
 		go func() {
@@ -179,16 +215,31 @@ func run(logger *slog.Logger) error {
 				case <-ctx.Done():
 					return
 				case <-ticker.C:
-					pks, err := discoverLiveGames()
-					if err != nil {
+					if err := syncSchedule(); err != nil {
 						logger.Error("schedule refresh failed", "error", err)
+						continue
+					}
+					date := mlb.ScheduleDateET(time.Now())
+					pks, err := mlbClient.DiscoverLiveGamePKs(ctx, date)
+					if err != nil {
+						logger.Error("discover live games failed", "error", err)
 						continue
 					}
 					startGames(pks)
 				}
 			}
 		}()
+
+		date := mlb.ScheduleDateET(time.Now())
+		pks, err := mlbClient.DiscoverLiveGamePKs(ctx, date)
+		if err != nil {
+			return fmt.Errorf("discover live games: %w", err)
+		}
+		startGames(pks)
 	} else {
+		if err := syncSchedule(); err != nil {
+			logger.Warn("schedule sync failed; games may be missing from database", "error", err)
+		}
 		startGames(cfg.GamePKs)
 	}
 
@@ -197,4 +248,30 @@ func run(logger *slog.Logger) error {
 	logger.Info("all workers stopped; ingestor shutdown complete")
 
 	return nil
+}
+
+func scheduleGamesToRows(games []mlb.ScheduleGame) []database.GameRow {
+	rows := make([]database.GameRow, 0, len(games))
+	for _, game := range games {
+		rows = append(rows, database.GameRow{
+			GamePK:         game.GamePK,
+			GameDate:       game.GameDate,
+			Season:         game.Season,
+			GameType:       game.GameType,
+			Status:         game.Status,
+			StatusDetail:   game.StatusDetail,
+			AwayTeamID:     game.AwayTeamID,
+			AwayTeamName:   game.AwayTeamName,
+			AwayTeamAbbrev: game.AwayTeamAbbrev,
+			HomeTeamID:     game.HomeTeamID,
+			HomeTeamName:   game.HomeTeamName,
+			HomeTeamAbbrev: game.HomeTeamAbbrev,
+			AwayScore:      game.AwayScore,
+			HomeScore:      game.HomeScore,
+			VenueID:        game.VenueID,
+			VenueName:      game.VenueName,
+			OfficialDate:   game.OfficialDate,
+		})
+	}
+	return rows
 }

@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { getSeasonStartDate } from "@/lib/games/format";
-import { getMLBScheduleDate } from "@/lib/mlb/schedule";
+import {
+  ACTIVE_CARRYOVER_STATUSES,
+  getMLBScheduleDate,
+  previousScheduleDate,
+} from "@/lib/mlb/schedule";
 import { GAME_LIST_COLUMNS, type Game } from "@/types/database";
 import { createClient } from "@/utils/supabase/client";
 
@@ -12,6 +16,19 @@ export interface UseGamesByDateResult {
   isLoading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
+}
+
+function mergeGamesByPk(primary: Game[], secondary: Game[]): Game[] {
+  const byPk = new Map<number, Game>();
+  for (const game of secondary) {
+    byPk.set(game.game_pk, game);
+  }
+  for (const game of primary) {
+    byPk.set(game.game_pk, game);
+  }
+  return [...byPk.values()].sort((a, b) =>
+    a.away_team_name.localeCompare(b.away_team_name),
+  );
 }
 
 export function useGamesByDate(date: string): UseGamesByDateResult {
@@ -25,20 +42,36 @@ export function useGamesByDate(date: string): UseGamesByDateResult {
 
     try {
       const supabase = createClient();
-      const { data, error: fetchError } = await supabase
-        .from("games")
-        .select(GAME_LIST_COLUMNS)
-        .eq("game_date", date)
-        .order("game_date", { ascending: true })
-        .order("away_team_name", { ascending: true });
+      const carryoverStatuses = [...ACTIVE_CARRYOVER_STATUSES];
+      const prevDate = previousScheduleDate(date);
 
+      const [primaryResult, carryoverResult] = await Promise.all([
+        supabase
+          .from("games")
+          .select(GAME_LIST_COLUMNS)
+          .eq("game_date", date)
+          .order("away_team_name", { ascending: true }),
+        supabase
+          .from("games")
+          .select(GAME_LIST_COLUMNS)
+          .eq("game_date", prevDate)
+          .in("status", carryoverStatuses)
+          .order("away_team_name", { ascending: true }),
+      ]);
+
+      const fetchError = primaryResult.error ?? carryoverResult.error;
       if (fetchError) {
         setError(fetchError.message);
         setGames([]);
         return;
       }
 
-      setGames((data ?? []) as Game[]);
+      setGames(
+        mergeGamesByPk(
+          (primaryResult.data ?? []) as Game[],
+          (carryoverResult.data ?? []) as Game[],
+        ),
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load games");
       setGames([]);

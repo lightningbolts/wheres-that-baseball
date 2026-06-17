@@ -14,7 +14,7 @@ import (
 )
 
 // StateChangeHandler returns an mlb.OnStateChange callback that predicts and saves.
-func StateChangeHandler(pred predictor.Predictor, repo *database.Repository, logger *slog.Logger) mlb.OnStateChange {
+func StateChangeHandler(pred predictor.Predictor, repo database.Store, logger *slog.Logger) mlb.OnStateChange {
 	return func(ctx context.Context, state mlb.GameState) error {
 		result, err := pred.Predict(ctx, state)
 		if err != nil {

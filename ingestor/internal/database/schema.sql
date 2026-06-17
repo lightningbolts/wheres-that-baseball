@@ -26,7 +26,7 @@ CREATE INDEX IF NOT EXISTS idx_predictions_game_pk_timestamp
 COMMENT ON TABLE predictions IS 'Live at-bat outcome probabilities produced by the ingestor.';
 COMMENT ON COLUMN predictions.outcome_probabilities IS 'Map of outcome -> probability; keys: strikeout, walk, single, double, triple, home_run, field_out';
 
--- Season game history synced by scripts/fetch-season-games.mjs
+-- Season game history synced by the ingestor (live schedule) and scripts/fetch-season-games.mjs
 CREATE TABLE IF NOT EXISTS games (
     game_pk             INTEGER PRIMARY KEY,
     game_date           DATE NOT NULL,

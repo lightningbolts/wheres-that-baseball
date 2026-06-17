@@ -36,10 +36,22 @@ type LiveData struct {
 	Linescore Linescore `json:"linescore"`
 }
 
-// Linescore provides the current inning context.
+// Linescore provides the current inning context and team totals.
 type Linescore struct {
-	CurrentInning int    `json:"currentInning"`
-	InningState   string `json:"inningState"` // Top, Bottom, Middle, End
+	CurrentInning int             `json:"currentInning"`
+	InningState   string          `json:"inningState"` // Top, Bottom, Middle, End
+	Teams         LinescoreTeams  `json:"teams"`
+}
+
+// LinescoreTeams holds runs (and other totals) for each side.
+type LinescoreTeams struct {
+	Away TeamLine `json:"away"`
+	Home TeamLine `json:"home"`
+}
+
+// TeamLine is one team's line in the linescore.
+type TeamLine struct {
+	Runs int `json:"runs"`
 }
 
 // Plays contains the active at-bat and historical plays.
