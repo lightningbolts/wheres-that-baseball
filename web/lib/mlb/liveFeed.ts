@@ -593,20 +593,22 @@ function parsePlayEntry(
     situation = resetHalfInningSituation(situation);
   }
 
+  const event = play.result?.event ?? "";
+
+  if (isLast && !event && isIncompletePlay(play)) {
+    return { ...state, situation, currentHalf };
+  }
+
   const situationBefore = cloneSituation(situation);
   const postSituation = parsePostSituation(play, situation.bases);
   situation = postSituation;
 
-  const event = play.result?.event ?? "";
   const batterId = play.matchup?.batter?.id ?? 0;
   const batterLine =
-    batterId > 0 ? applyBatterLine(state.batterStats, batterId, event) : { hits: 0, atBats: 0 };
+    batterId > 0 && event ? applyBatterLine(state.batterStats, batterId, event) : { hits: 0, atBats: 0 };
 
   const detail = parsePlayDetail(play, batterLine, batterId);
   if (!detail) {
-    if (isLast && isIncompletePlay(play)) {
-      return { ...state, situation, currentHalf };
-    }
     return {
       ...state,
       situation,
