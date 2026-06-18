@@ -18,6 +18,29 @@ export interface GameFeed {
   boxScore: GameBoxScore | null;
 }
 
+/** Lightweight live payload for fast pitch polling (no allPlays / boxscore). */
+export interface LiveFeedSnapshot {
+  gamePk: number;
+  gameStatus: string;
+  awayTeam: string;
+  homeTeam: string;
+  awayAbbrev: string;
+  homeAbbrev: string;
+  venueId: number | null;
+  venueName: string | null;
+  linescore: MLBLiveFeedResponse["liveData"]["linescore"];
+  currentPlay: MLBLiveFeedResponse["liveData"]["plays"]["currentPlay"];
+  allPlaysCount: number;
+}
+
+export interface PlayByPlayParseState {
+  entries: PlayByPlayEntry[];
+  batterStats: Map<number, BatterLine>;
+  situation: GameSituation;
+  currentHalf: string;
+  rawPlayCount: number;
+}
+
 const MLB_FEED_BASE = "https://statsapi.mlb.com/api/v1.1";
 
 const HIT_EVENTS = new Set(["Single", "Double", "Triple", "Home Run"]);
@@ -527,12 +550,8 @@ function parsePlayDetail(
   };
 }
 
-function parsePlayByPlay(allPlays: AllPlayRaw[] | undefined): PlayByPlayEntry[] {
-  if (!allPlays?.length) return [];
-
-  const entries: PlayByPlayEntry[] = [];
-  const batterStats = new Map<number, BatterLine>();
-  let situation: GameSituation = {
+function initialGameSituation(): GameSituation {
+  return {
     awayScore: 0,
     homeScore: 0,
     outs: 0,
@@ -541,51 +560,95 @@ function parsePlayByPlay(allPlays: AllPlayRaw[] | undefined): PlayByPlayEntry[] 
     onSecond: false,
     onThird: false,
   };
-  let currentHalf = "";
+}
 
-  for (const play of allPlays) {
-    const halfKey = `${play.about?.inning ?? 0}-${play.about?.halfInning ?? ""}`;
-    if (halfKey !== currentHalf) {
-      currentHalf = halfKey;
-      situation = resetHalfInningSituation(situation);
-    }
+export function createPlayByPlayParseState(): PlayByPlayParseState {
+  return {
+    entries: [],
+    batterStats: new Map(),
+    situation: initialGameSituation(),
+    currentHalf: "",
+    rawPlayCount: 0,
+  };
+}
 
-    const situationBefore = cloneSituation(situation);
-    const postSituation = parsePostSituation(play, situation.bases);
-    situation = postSituation;
+function parsePlayEntry(
+  play: AllPlayRaw,
+  state: PlayByPlayParseState,
+): PlayByPlayParseState {
+  const halfKey = `${play.about?.inning ?? 0}-${play.about?.halfInning ?? ""}`;
+  let situation = state.situation;
+  let currentHalf = state.currentHalf;
 
-    const event = play.result?.event ?? "";
-    const batterId = play.matchup?.batter?.id ?? 0;
-    const batterLine =
-      batterId > 0 ? applyBatterLine(batterStats, batterId, event) : { hits: 0, atBats: 0 };
-
-    const detail = parsePlayDetail(play, batterLine, batterId);
-    if (!detail) continue;
-
-    entries.push({
-      atBatIndex: detail.atBatIndex,
-      inning: detail.inning,
-      halfInning: detail.halfInning,
-      batterId: detail.batterId,
-      batterName: detail.batterName,
-      batterHits: detail.batterHits,
-      batterAtBats: detail.batterAtBats,
-      event: detail.event,
-      description: detail.description,
-      awayScore: postSituation.awayScore,
-      homeScore: postSituation.homeScore,
-      outs: postSituation.outs,
-      bases: postSituation.bases,
-      onFirst: postSituation.onFirst,
-      onSecond: postSituation.onSecond,
-      onThird: postSituation.onThird,
-      situationBefore,
-      isScoringPlay: detail.isScoringPlay,
-      detail,
-    });
+  if (halfKey !== currentHalf) {
+    currentHalf = halfKey;
+    situation = resetHalfInningSituation(situation);
   }
 
-  return entries;
+  const situationBefore = cloneSituation(situation);
+  const postSituation = parsePostSituation(play, situation.bases);
+  situation = postSituation;
+
+  const event = play.result?.event ?? "";
+  const batterId = play.matchup?.batter?.id ?? 0;
+  const batterLine =
+    batterId > 0 ? applyBatterLine(state.batterStats, batterId, event) : { hits: 0, atBats: 0 };
+
+  const detail = parsePlayDetail(play, batterLine, batterId);
+  if (!detail) {
+    return {
+      ...state,
+      situation,
+      currentHalf,
+      rawPlayCount: state.rawPlayCount + 1,
+    };
+  }
+
+  const entry: PlayByPlayEntry = {
+    atBatIndex: detail.atBatIndex,
+    inning: detail.inning,
+    halfInning: detail.halfInning,
+    batterId: detail.batterId,
+    batterName: detail.batterName,
+    batterHits: detail.batterHits,
+    batterAtBats: detail.batterAtBats,
+    event: detail.event,
+    description: detail.description,
+    awayScore: postSituation.awayScore,
+    homeScore: postSituation.homeScore,
+    outs: postSituation.outs,
+    bases: postSituation.bases,
+    onFirst: postSituation.onFirst,
+    onSecond: postSituation.onSecond,
+    onThird: postSituation.onThird,
+    situationBefore,
+    isScoringPlay: detail.isScoringPlay,
+    detail,
+  };
+
+  return {
+    entries: [...state.entries, entry],
+    batterStats: state.batterStats,
+    situation,
+    currentHalf,
+    rawPlayCount: state.rawPlayCount + 1,
+  };
+}
+
+export function appendPlayByPlay(
+  state: PlayByPlayParseState,
+  rawPlays: AllPlayRaw[],
+): PlayByPlayParseState {
+  let next = state;
+  for (const play of rawPlays) {
+    next = parsePlayEntry(play, next);
+  }
+  return next;
+}
+
+function parsePlayByPlay(allPlays: AllPlayRaw[] | undefined): PlayByPlayEntry[] {
+  if (!allPlays?.length) return [];
+  return appendPlayByPlay(createPlayByPlayParseState(), allPlays).entries;
 }
 
 export function parseLiveFeed(
@@ -702,7 +765,98 @@ export async function fetchMLBLiveFeed(
   return (await response.json()) as MLBLiveFeedResponse;
 }
 
-/** Parse a live snapshot while reusing an existing play-by-play list (fast path). */
+/** Small live snapshot for fast pitch polling (served from cached MLB feed). */
+export async function fetchLiveSnapshot(
+  gamePk: number,
+  signal?: AbortSignal,
+): Promise<LiveFeedSnapshot> {
+  const response = await fetch(`/api/game/${gamePk}/live/snapshot`, {
+    cache: "no-store",
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Live snapshot failed: ${response.status}`);
+  }
+
+  return (await response.json()) as LiveFeedSnapshot;
+}
+
+export interface LivePlayChunk {
+  from: number;
+  total: number;
+  plays: AllPlayRaw[];
+}
+
+/** Fetch only new raw plays since `from` (incremental play-by-play). */
+export async function fetchLivePlayChunk(
+  gamePk: number,
+  from: number,
+  signal?: AbortSignal,
+): Promise<LivePlayChunk> {
+  const response = await fetch(`/api/game/${gamePk}/live/plays?from=${from}`, {
+    cache: "no-store",
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Live plays chunk failed: ${response.status}`);
+  }
+
+  return (await response.json()) as LivePlayChunk;
+}
+
+/** Build a compact snapshot from a full MLB feed. */
+export function buildLiveFeedSnapshot(
+  gamePk: number,
+  feed: MLBLiveFeedResponse,
+): LiveFeedSnapshot {
+  const teams = feed.gameData.teams;
+  return {
+    gamePk,
+    gameStatus: feed.gameData.status.abstractGameState,
+    awayTeam: teams.away.name,
+    homeTeam: teams.home.name,
+    awayAbbrev: teams.away.abbreviation ?? teams.away.name.slice(0, 3).toUpperCase(),
+    homeAbbrev: teams.home.abbreviation ?? teams.home.name.slice(0, 3).toUpperCase(),
+    venueId: feed.gameData.venue?.id ?? null,
+    venueName: feed.gameData.venue?.name ?? null,
+    linescore: feed.liveData.linescore,
+    currentPlay: feed.liveData.plays.currentPlay,
+    allPlaysCount: feed.liveData.plays.allPlays?.length ?? 0,
+  };
+}
+
+function feedFromSnapshot(snapshot: LiveFeedSnapshot): MLBLiveFeedResponse {
+  return {
+    gameData: {
+      status: { abstractGameState: snapshot.gameStatus },
+      venue:
+        snapshot.venueId != null
+          ? { id: snapshot.venueId, name: snapshot.venueName ?? undefined }
+          : undefined,
+      teams: {
+        away: { name: snapshot.awayTeam, abbreviation: snapshot.awayAbbrev },
+        home: { name: snapshot.homeTeam, abbreviation: snapshot.homeAbbrev },
+      },
+    },
+    liveData: {
+      linescore: snapshot.linescore,
+      plays: {
+        currentPlay: snapshot.currentPlay,
+      },
+    },
+  };
+}
+
+export function parseStateFromSnapshot(
+  snapshot: LiveFeedSnapshot,
+  existingPlays: PlayByPlayEntry[],
+): LiveGameState {
+  return parseLiveFeed(snapshot.gamePk, feedFromSnapshot(snapshot), existingPlays);
+}
+
+/** Parse a full feed while reusing an existing play-by-play list. */
 export function parseLiveFeedSnapshot(
   gamePk: number,
   feed: MLBLiveFeedResponse,

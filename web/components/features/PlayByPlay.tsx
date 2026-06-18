@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 
 import { PlayDetailDialog } from "@/components/features/PlayDetailDialog";
 import { BaseDiamond } from "@/components/features/BaseDiamond";
@@ -244,7 +244,7 @@ function PlayOutcomeCard({
   );
 }
 
-export function PlayByPlay({
+export const PlayByPlay = memo(function PlayByPlay({
   plays,
   awayAbbrev,
   homeAbbrev,
@@ -257,7 +257,14 @@ export function PlayByPlay({
 }: PlayByPlayProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const prevCountRef = useRef(plays.length);
-  const groups = groupByInning(plays);
+  const groups = useMemo(() => groupByInning(plays), [plays]);
+  const playIndexByAtBat = useMemo(() => {
+    const map = new Map<number, number>();
+    plays.forEach((play, index) => {
+      map.set(play.atBatIndex, index);
+    });
+    return map;
+  }, [plays]);
   const entranceFromIndex = useEntranceIndex(plays.length, animateEntrance);
 
   const [expanded, setExpanded] = useState<Set<string>>(() => {
@@ -326,9 +333,7 @@ export function PlayByPlay({
                     {isOpen && (
                       <>
                         {group.plays.map((play) => {
-                          const globalIndex = plays.findIndex(
-                            (p) => p.atBatIndex === play.atBatIndex,
-                          );
+                          const globalIndex = playIndexByAtBat.get(play.atBatIndex) ?? 0;
                           const animate =
                             animateEntrance && globalIndex >= entranceFromIndex;
 
@@ -360,7 +365,7 @@ export function PlayByPlay({
                             homeAbbrev={homeAbbrev}
                             animate={
                               animateEntrance &&
-                              plays.findIndex((p) => p.atBatIndex === lastPlay.atBatIndex) >=
+                              (playIndexByAtBat.get(lastPlay.atBatIndex) ?? 0) >=
                                 entranceFromIndex
                             }
                           />
@@ -383,4 +388,4 @@ export function PlayByPlay({
       />
     </>
   );
-}
+});
