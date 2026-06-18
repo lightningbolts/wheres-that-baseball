@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
 import { parseStoredGameState } from "@/lib/games/gameState";
-import { isReplayableGame } from "@/lib/games/format";
+import { isExplicitlyNotStarted } from "@/lib/games/format";
 import { fetchLiveGameState } from "@/lib/mlb/liveFeed";
 import type { Game } from "@/types/database";
 import { createClient } from "@/utils/supabase/server";
@@ -37,10 +37,6 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
     const row = data as Pick<Game, "game_pk" | "game_state" | "feed_synced_at" | "status"> | null;
 
-    if (row && !isReplayableGame(row)) {
-      return NextResponse.json({ error: "Game has not started" }, { status: 404 });
-    }
-
     const stored = parseStoredGameState(row?.game_state, gamePk);
     if (stored) {
       return NextResponse.json({
@@ -48,6 +44,10 @@ export async function GET(_request: Request, { params }: RouteParams) {
         source: "supabase",
         feedSyncedAt: row?.feed_synced_at ?? null,
       });
+    }
+
+    if (row && isExplicitlyNotStarted(row.status)) {
+      return NextResponse.json({ error: "Game has not started" }, { status: 404 });
     }
 
     const state = await fetchLiveGameState(gamePk);

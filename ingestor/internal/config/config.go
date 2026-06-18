@@ -58,7 +58,7 @@ func Load() (*Config, error) {
 		PollInterval:       durationFromEnv("POLL_INTERVAL", 500*time.Millisecond),
 		DatabaseURL:        os.Getenv("DATABASE_URL"),
 		SupabaseURL:        firstEnv("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"),
-		SupabaseServiceKey: os.Getenv("SUPABASE_SERVICE_ROLE_KEY"),
+		SupabaseServiceKey: firstEnv("SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SECRET_KEY"),
 		HTTPClientTimeout:  durationFromEnv("HTTP_CLIENT_TIMEOUT", 10*time.Second),
 		HTTPMaxRetries:     intFromEnv("HTTP_MAX_RETRIES", 3),
 		HTTPRetryBaseDelay: durationFromEnv("HTTP_RETRY_BASE_DELAY", 500*time.Millisecond),

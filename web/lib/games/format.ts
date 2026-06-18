@@ -30,9 +30,23 @@ export function isLiveStatus(status: string): boolean {
   return status === "Live" || status === "In Progress";
 }
 
+/** MLB statuses that mean the game definitely has not begun yet. */
+export function isExplicitlyNotStarted(status: string | null | undefined): boolean {
+  const normalized = (status ?? "").trim().toLowerCase();
+  return (
+    normalized === "preview" ||
+    normalized === "scheduled" ||
+    normalized === "pre-game" ||
+    normalized === "pregame" ||
+    normalized === "warmup"
+  );
+}
+
 /** Games with play-by-play replay (completed or in progress). */
 export function isReplayableGame(game: Pick<Game, "status">): boolean {
-  return game.status === "Final" || isLiveStatus(game.status);
+  const status = (game.status ?? "").trim();
+  if (!status) return false;
+  return status === "Final" || isLiveStatus(status);
 }
 
 export function gameStatusLabel(game: Game): string {

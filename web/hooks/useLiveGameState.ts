@@ -17,8 +17,6 @@ import { useChainedPoll } from "./useChainedPoll";
 const LIVE_FEED_MIN_GAP_MS = 100;
 /** Refresh the full play-by-play log on this cadence; at-bat data polls faster. */
 const FULL_PLAY_BY_PLAY_MS = 3_000;
-/** Re-fetch the unfiltered feed (allPlays) on this cadence for play-by-play accuracy. */
-const FULL_FEED_MS = 12_000;
 
 export interface UseLiveGameStateResult {
   gameState: LiveGameState | null;
@@ -48,18 +46,15 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
   const generationRef = useRef(0);
   const playsRef = useRef<PlayByPlayEntry[]>([]);
   const lastFullParseAtRef = useRef(0);
-  const lastFullFeedAtRef = useRef(0);
 
   const fetchState = useCallback(async () => {
     const generation = generationRef.current;
 
     try {
-      const now = Date.now();
-      const needsFullFeed =
-        playsRef.current.length === 0 || now - lastFullFeedAtRef.current >= FULL_FEED_MS;
-      const feed = await fetchMLBLiveFeed(gamePk, undefined, { full: needsFullFeed });
+      const feed = await fetchMLBLiveFeed(gamePk);
       if (generation !== generationRef.current) return;
 
+      const now = Date.now();
       const needsFullParse =
         playsRef.current.length === 0 || now - lastFullParseAtRef.current >= FULL_PLAY_BY_PLAY_MS;
 
@@ -70,9 +65,6 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
       if (needsFullParse) {
         playsRef.current = next.plays;
         lastFullParseAtRef.current = now;
-      }
-      if (needsFullFeed) {
-        lastFullFeedAtRef.current = now;
       }
 
       if (generation !== generationRef.current) return;
@@ -98,7 +90,6 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
     generationRef.current += 1;
     playsRef.current = [];
     lastFullParseAtRef.current = 0;
-    lastFullFeedAtRef.current = 0;
     setGameState(null);
     setIsLoading(true);
     setError(null);

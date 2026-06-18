@@ -232,10 +232,10 @@ func (r *Repository) UpsertGames(ctx context.Context, rows []GameRow) error {
 
 const updateGameFromPollSQL = `
 UPDATE games SET
-    status = $2,
     away_score = $3,
     home_score = $4,
-    updated_at = $5
+    updated_at = $5,
+    status = COALESCE(NULLIF($2, ''), status)
 WHERE game_pk = $1;
 `
 
@@ -266,11 +266,11 @@ func (r *Repository) UpdateGameFromPoll(
 
 const updateLiveGameStateSQL = `
 UPDATE games SET
-    status = $2,
     away_score = $3,
     home_score = $4,
     game_state = $5::jsonb,
-    updated_at = $6
+    updated_at = $6,
+    status = COALESCE(NULLIF($2, ''), status)
 WHERE game_pk = $1;
 `
 

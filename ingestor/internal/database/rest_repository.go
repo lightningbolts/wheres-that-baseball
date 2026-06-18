@@ -131,10 +131,12 @@ func (r *RestRepository) UpdateGameFromPoll(
 	}
 
 	payload := map[string]any{
-		"status":      status,
 		"away_score":  awayScore,
 		"home_score":  homeScore,
 		"updated_at":  time.Now().UTC().Format(time.RFC3339Nano),
+	}
+	if status != "" {
+		payload["status"] = status
 	}
 	path := fmt.Sprintf("/rest/v1/games?game_pk=eq.%d", gamePK)
 	return r.do(ctx, http.MethodPatch, path, payload, "return=minimal", nil)
@@ -152,11 +154,13 @@ func (r *RestRepository) UpdateLiveGameState(
 	}
 
 	payload := map[string]any{
-		"status":     status,
 		"away_score": awayScore,
 		"home_score": homeScore,
 		"game_state": json.RawMessage(gameState),
 		"updated_at": time.Now().UTC().Format(time.RFC3339Nano),
+	}
+	if status != "" {
+		payload["status"] = status
 	}
 
 	path := fmt.Sprintf("/rest/v1/games?game_pk=eq.%d", gamePK)

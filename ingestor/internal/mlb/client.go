@@ -56,9 +56,6 @@ func NewClient(opts ClientOptions) *Client {
 	}
 }
 
-// LiveFeedFields limits the JSON payload for high-frequency polling (~30× smaller).
-const LiveFeedFields = "gameData,status,liveData,linescore,plays,currentPlay"
-
 // FetchLiveFeed retrieves and unmarshals the live feed for a single game.
 func (c *Client) FetchLiveFeed(ctx context.Context, gamePK int) (*LiveFeed, error) {
 	raw, err := c.FetchLiveFeedRaw(ctx, gamePK)
@@ -89,16 +86,9 @@ func (c *Client) FetchLiveFeedFull(ctx context.Context, gamePK int) (*LiveFeed, 
 	return &feed, nil
 }
 
-// FetchLiveFeedRaw returns a field-filtered JSON body optimized for polling.
+// FetchLiveFeedRaw returns the full JSON body from the live feed endpoint.
 func (c *Client) FetchLiveFeedRaw(ctx context.Context, gamePK int) (json.RawMessage, error) {
-	url := fmt.Sprintf("%s/game/%d/feed/live?fields=%s", c.baseURL, gamePK, LiveFeedFields)
-
-	body, err := c.getWithRetry(ctx, url)
-	if err != nil {
-		return nil, fmt.Errorf("fetch live feed gamePk=%d: %w", gamePK, err)
-	}
-
-	return json.RawMessage(body), nil
+	return c.FetchLiveFeedRawFull(ctx, gamePK)
 }
 
 // FetchLiveFeedRawFull returns the untouched full JSON body from the live feed endpoint.

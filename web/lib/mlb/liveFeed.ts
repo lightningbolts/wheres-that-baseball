@@ -20,21 +20,6 @@ export interface GameFeed {
 
 const MLB_FEED_BASE = "https://statsapi.mlb.com/api/v1.1";
 
-/** Slim field mask for at-bat polling — ~30× smaller than the full live feed. */
-export const LIVE_FEED_FIELDS = [
-  "gameData",
-  "status",
-  "teams",
-  "venue",
-  "liveData",
-  "linescore",
-  "offense",
-  "plays",
-  "currentPlay",
-  "allPlays",
-  "boxscore",
-].join(",");
-
 const HIT_EVENTS = new Set(["Single", "Double", "Triple", "Home Run"]);
 
 const NON_AB_EVENTS = new Set([
@@ -664,16 +649,8 @@ export function liveStateFingerprint(state: LiveGameState): string {
 export async function fetchMLBLiveFeed(
   gamePk: number,
   signal?: AbortSignal,
-  options?: { full?: boolean },
 ): Promise<MLBLiveFeedResponse> {
-  const params = new URLSearchParams();
-  if (!options?.full) {
-    params.set("fields", LIVE_FEED_FIELDS);
-  }
-
-  const query = params.toString();
-  const url = `${MLB_FEED_BASE}/game/${gamePk}/feed/live${query ? `?${query}` : ""}`;
-  const response = await fetch(url, {
+  const response = await fetch(`${MLB_FEED_BASE}/game/${gamePk}/feed/live`, {
     cache: "no-store",
     signal,
   });
