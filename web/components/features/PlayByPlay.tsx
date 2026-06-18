@@ -97,55 +97,49 @@ function eventAbbrev(event: string): string {
   return map[event] ?? event.slice(0, 3).toUpperCase();
 }
 
-interface GameEventStyle {
-  icon: string;
-  color: string;
+function gameEventAbbrev(event: string, description: string): string {
+  const text = `${event} ${description}`.toLowerCase();
+
+  if (/stolen base/i.test(text) || /\bsteals?\b/i.test(text)) return "SB";
+  if (/caught stealing/i.test(text)) return "CS";
+  if (/pickoff/i.test(text)) return "PK";
+  if (/wild pitch/i.test(text)) return "WP";
+  if (/passed ball/i.test(text)) return "PB";
+  if (/balk/i.test(text)) return "BK";
+  if (/pitching substitution|pitcher substitution|new pitcher/i.test(text)) return "PR";
+  if (/defensive substitution|offensive substitution|defensive switch/i.test(text)) return "SUB";
+  if (/mound visit/i.test(text)) return "MV";
+  if (/batter timeout/i.test(text)) return "TO";
+  if (/runner.*advance|advances/i.test(text)) return "ADV";
+  if (/ejection/i.test(text)) return "EJ";
+  if (/challenge|review/i.test(text)) return "REV";
+  if (/error/i.test(text)) return "E";
+
+  return eventAbbrev(event);
 }
 
-function gameEventStyle(event: string): GameEventStyle {
-  const lower = event.toLowerCase();
+function GameEventRow({
+  play,
+  animate,
+}: {
+  play: PlayByPlayEntry;
+  animate: boolean;
+}) {
+  const abbrev = gameEventAbbrev(play.event, play.description);
 
-  if (/stolen base/i.test(event) || /steals/i.test(event)) {
-    return { icon: "⇢", color: "text-emerald-400" };
-  }
-  if (/caught stealing/i.test(event)) {
-    return { icon: "✗", color: "text-red-400" };
-  }
-  if (/pickoff/i.test(event)) {
-    return { icon: "↩", color: "text-orange-400" };
-  }
-  if (/wild pitch/i.test(event)) {
-    return { icon: "⚡", color: "text-amber-400" };
-  }
-  if (/passed ball/i.test(event)) {
-    return { icon: "○", color: "text-amber-400" };
-  }
-  if (/balk/i.test(event)) {
-    return { icon: "⊘", color: "text-amber-400" };
-  }
-  if (/pitching/i.test(lower) || /pitcher/i.test(lower)) {
-    return { icon: "⟳", color: "text-blue-400" };
-  }
-  if (/defensive/i.test(lower) || /offensive/i.test(lower)) {
-    return { icon: "⇄", color: "text-blue-300" };
-  }
-  if (/mound/i.test(lower)) {
-    return { icon: "◉", color: "text-slate-400" };
-  }
-  if (/runner/i.test(lower) || /advance/i.test(lower)) {
-    return { icon: "→", color: "text-emerald-300" };
-  }
-  if (/ejection/i.test(lower)) {
-    return { icon: "✕", color: "text-red-500" };
-  }
-  if (/error/i.test(lower)) {
-    return { icon: "!", color: "text-red-300" };
-  }
-  if (/review|challenge/i.test(lower)) {
-    return { icon: "⊙", color: "text-yellow-400" };
-  }
-
-  return { icon: "·", color: "text-subtle" };
+  return (
+    <div
+      className={cn(
+        "flex items-start gap-2 border-t border-border/30 px-3 py-2",
+        animate && "animate-play_in",
+      )}
+    >
+      <span className="shrink-0 font-mono text-[11px] text-muted">{abbrev}</span>
+      <p className="min-w-0 flex-1 text-[12px] leading-snug text-muted">
+        {play.description}
+      </p>
+    </div>
+  );
 }
 
 function SituationMarker({
@@ -233,32 +227,6 @@ function shouldShowThreeOuts(
   if (!isLatestGroup) return true;
 
   return lastPlay.outs === 3;
-}
-
-function GameEventRow({
-  play,
-  animate,
-}: {
-  play: PlayByPlayEntry;
-  animate: boolean;
-}) {
-  const style = gameEventStyle(play.event || play.description);
-
-  return (
-    <div
-      className={cn(
-        "flex items-center gap-2.5 border-t border-border/20 bg-surface px-3 py-1.5",
-        animate && "animate-play_in",
-      )}
-    >
-      <span className={cn("shrink-0 text-[13px] leading-none", style.color)}>
-        {style.icon}
-      </span>
-      <p className="min-w-0 flex-1 text-[12px] leading-snug text-muted">
-        {play.description}
-      </p>
-    </div>
-  );
 }
 
 function PlayOutcomeCard({
