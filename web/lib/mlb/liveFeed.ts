@@ -103,6 +103,115 @@ const SKIP_ACTION_EVENT_TYPES = new Set([
   "umpire_substitution",
 ]);
 
+/** Action types omitted from the play-by-play log (pitches are handled separately). */
+const PLAY_LOG_SKIP_ACTION_TYPES = new Set(["game_advisory"]);
+
+function shouldLogPlayEvent(event: PitchEventRaw): boolean {
+  if (event.isPitch) return false;
+  const eventType = event.details?.eventType ?? "";
+  if (PLAY_LOG_SKIP_ACTION_TYPES.has(eventType)) return false;
+
+  const description = event.details?.description ?? event.details?.event ?? "";
+  if (!description) return false;
+
+  return (
+    event.type === "action" ||
+    event.type === "pickoff" ||
+    event.type === "stepoff" ||
+    event.type === "runner_event"
+  );
+}
+
+function terminalCoveredByPlayEvents(play: AllPlayRaw): boolean {
+  const resultEvent = (play.result?.event ?? "").toLowerCase();
+  if (!resultEvent) return false;
+
+  for (const playEvent of play.playEvents ?? []) {
+    if (!shouldLogPlayEvent(playEvent)) continue;
+    const playEventText = `${playEvent.details?.event ?? ""} ${playEvent.details?.description ?? ""} ${playEvent.type ?? ""}`.toLowerCase();
+    if (resultEvent.includes("pickoff") && playEventText.includes("pickoff")) return true;
+    if (/stolen base/.test(resultEvent) && /steal/.test(playEventText)) return true;
+    if (/caught stealing/.test(resultEvent) && /caught stealing/.test(playEventText)) return true;
+  }
+
+  return false;
+}
+
+function buildGameEventFromPlayEvent(
+  event: PitchEventRaw,
+  play: AllPlayRaw,
+  situationBefore: GameSituation,
+): PlayByPlayEntry | null {
+  if (!play.about?.inning) return null;
+
+  const eventName = event.details?.event ?? event.type ?? "Game Event";
+  const description = event.details?.description ?? eventName;
+  const count = event.count ?? play.count;
+  const awayScore =
+    event.details?.awayScore ?? play.result?.awayScore ?? situationBefore.awayScore;
+  const homeScore =
+    event.details?.homeScore ?? play.result?.homeScore ?? situationBefore.homeScore;
+  const outs = count?.outs ?? situationBefore.outs;
+  const batterId = play.matchup?.batter?.id ?? 0;
+
+  const detail: PlayDetail = {
+    atBatIndex: play.about.atBatIndex ?? 0,
+    batterId,
+    batterName: play.matchup?.batter?.fullName ?? "—",
+    batterHits: 0,
+    batterAtBats: 0,
+    pitcherName: play.matchup?.pitcher?.fullName ?? "—",
+    pitcherId: play.matchup?.pitcher?.id ?? null,
+    event: eventName,
+    description,
+    inning: play.about.inning,
+    halfInning: play.about.halfInning ?? "top",
+    awayScore,
+    homeScore,
+    isScoringPlay: Boolean(event.details?.isScoringPlay),
+    pitches: [],
+    hit: null,
+  };
+
+  return {
+    atBatIndex: detail.atBatIndex,
+    inning: detail.inning,
+    halfInning: detail.halfInning,
+    batterId: detail.batterId,
+    batterName: detail.batterName,
+    batterHits: 0,
+    batterAtBats: 0,
+    event: eventName,
+    description,
+    awayScore,
+    homeScore,
+    outs,
+    bases: { ...situationBefore.bases },
+    onFirst: situationBefore.onFirst,
+    onSecond: situationBefore.onSecond,
+    onThird: situationBefore.onThird,
+    situationBefore,
+    isScoringPlay: detail.isScoringPlay,
+    isAtBat: false,
+    detail,
+  };
+}
+
+function extractGameEventsFromPlay(
+  play: AllPlayRaw,
+  situationBefore: GameSituation,
+): PlayByPlayEntry[] {
+  const entries: PlayByPlayEntry[] = [];
+
+  for (const playEvent of play.playEvents ?? []) {
+    if (!shouldLogPlayEvent(playEvent)) continue;
+    const entry = buildGameEventFromPlayEvent(playEvent, play, situationBefore);
+    if (entry) entries.push(entry);
+  }
+
+  return entries;
+}
+
 type PitchEventRaw = NonNullable<AllPlayRaw["playEvents"]>[number];
 
 interface PitcherRef {
@@ -662,10 +771,21 @@ function parsePlayEntry(
   }
 
   const situationBefore = cloneSituation(situation);
+  const gameEventEntries = extractGameEventsFromPlay(play, situationBefore);
   const postSituation = parsePostSituation(play, situation.bases);
   situation = postSituation;
 
   const isAtBat = isPlateAppearanceEvent(event);
+
+  if (!isAtBat && event && terminalCoveredByPlayEvents(play)) {
+    return {
+      entries: [...state.entries, ...gameEventEntries],
+      batterStats: state.batterStats,
+      situation,
+      currentHalf,
+      rawPlayCount: state.rawPlayCount + 1,
+    };
+  }
 
   const batterId = play.matchup?.batter?.id ?? 0;
   const batterLine =
@@ -674,7 +794,8 @@ function parsePlayEntry(
   const detail = parsePlayDetail(play, batterLine, batterId);
   if (!detail) {
     return {
-      ...state,
+      entries: [...state.entries, ...gameEventEntries],
+      batterStats: state.batterStats,
       situation,
       currentHalf,
       rawPlayCount: state.rawPlayCount + 1,
@@ -705,7 +826,7 @@ function parsePlayEntry(
   };
 
   return {
-    entries: [...state.entries, entry],
+    entries: [...state.entries, ...gameEventEntries, entry],
     batterStats: state.batterStats,
     situation,
     currentHalf,

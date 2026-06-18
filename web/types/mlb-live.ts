@@ -176,6 +176,7 @@ export interface LiveGameState {
 
 interface PitchEventRaw {
   isPitch?: boolean;
+  type?: string;
   index?: number;
   pitchNumber?: number;
   reviewDetails?: {
@@ -188,6 +189,9 @@ interface PitchEventRaw {
     description?: string;
     event?: string;
     eventType?: string;
+    awayScore?: number;
+    homeScore?: number;
+    isScoringPlay?: boolean;
     isStrike?: boolean;
     isBall?: boolean;
     isInPlay?: boolean;
