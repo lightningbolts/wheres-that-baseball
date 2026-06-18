@@ -572,11 +572,9 @@ export function createPlayByPlayParseState(): PlayByPlayParseState {
   };
 }
 
-/** Returns true if a play is clearly incomplete (no result yet, still in-progress). */
+/** Returns true if a play has no terminal outcome yet (may have interim descriptions). */
 function isIncompletePlay(play: AllPlayRaw): boolean {
-  const event = play.result?.event;
-  const desc = play.result?.description;
-  return !event && !desc && play.about?.isComplete !== true;
+  return !play.result?.event && play.about?.isComplete !== true;
 }
 
 function parsePlayEntry(
