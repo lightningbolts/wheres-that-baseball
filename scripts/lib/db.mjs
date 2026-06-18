@@ -185,8 +185,15 @@ export async function listGamesForFeedSync(
   }
 }
 
-/** @param {{ mode: "postgres", databaseUrl: string }} creds @param {string} webPackageJson @param {number} gamePk @param {object} state @param {object | null} boxScore */
-export async function updateGameFeedViaPostgres(creds, webPackageJson, gamePk, state, boxScore) {
+/** @param {{ mode: "postgres", databaseUrl: string }} creds @param {string} webPackageJson @param {number} gamePk @param {object} feed @param {object} gameState @param {object | null} boxScore */
+export async function updateGameFeedViaPostgres(
+  creds,
+  webPackageJson,
+  gamePk,
+  feed,
+  gameState,
+  boxScore,
+) {
   const Pool = loadPg(webPackageJson);
   const pool = new Pool({ connectionString: creds.databaseUrl });
 
@@ -205,14 +212,14 @@ export async function updateGameFeedViaPostgres(creds, webPackageJson, gamePk, s
        WHERE game_pk = $1`,
       [
         gamePk,
-        JSON.stringify(state),
+        JSON.stringify({ mlbFeed: feed }),
         boxScore ? JSON.stringify(boxScore) : null,
         new Date().toISOString(),
-        state.awayRuns,
-        state.homeRuns,
-        state.gameStatus,
-        state.venueId,
-        state.venueName,
+        gameState.awayRuns,
+        gameState.homeRuns,
+        gameState.gameStatus,
+        gameState.venueId,
+        gameState.venueName,
       ],
     );
   } finally {

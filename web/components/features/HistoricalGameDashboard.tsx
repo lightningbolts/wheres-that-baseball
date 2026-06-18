@@ -27,6 +27,7 @@ import { formatGameDate, formatMatchup, formatScore, isLiveStatus } from "@/lib/
 import { buildSeasonHistoryHref } from "@/lib/mlb/schedule";
 import { gameStateForAtBat } from "@/lib/games/replay";
 import { isHalfInningBreak } from "@/lib/mlb/lineup";
+import { isPlayByPlayAtBat } from "@/lib/mlb/liveFeed";
 import { cn } from "@/lib/utils";
 import { DEFAULT_OUTCOME_PROBABILITIES } from "@/types/database";
 import type { Game } from "@/types/database";
@@ -79,19 +80,26 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
   const [activeTab, setActiveTab] = useState<GameDetailTab>("plays");
   const [selectedAtBatIndex, setSelectedAtBatIndex] = useState<number | null>(null);
 
+  const atBatPlays = useMemo(
+    () => gameState?.plays.filter(isPlayByPlayAtBat) ?? [],
+    [gameState],
+  );
+
   useEffect(() => {
-    if (!gameState?.plays.length) return;
+    if (!atBatPlays.length) return;
     setSelectedAtBatIndex((current) => {
-      if (current != null && gameState.plays.some((play) => play.atBatIndex === current)) {
+      if (current != null && atBatPlays.some((play) => play.atBatIndex === current)) {
         return current;
       }
-      return gameState.plays[gameState.plays.length - 1]?.atBatIndex ?? null;
+      return atBatPlays[atBatPlays.length - 1]?.atBatIndex ?? null;
     });
-  }, [gameState]);
+  }, [atBatPlays]);
 
   const selectedPlay = useMemo<PlayByPlayEntry | null>(() => {
     if (!gameState || selectedAtBatIndex == null) return null;
-    return gameState.plays.find((play) => play.atBatIndex === selectedAtBatIndex) ?? null;
+    const play = gameState.plays.find((p) => p.atBatIndex === selectedAtBatIndex);
+    if (!play || !isPlayByPlayAtBat(play)) return null;
+    return play;
   }, [gameState, selectedAtBatIndex]);
 
   const displayState = useMemo(() => {
@@ -236,7 +244,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
                     }
                     className="w-full border border-border-strong bg-surface-elevated px-2 py-1.5 text-sm text-foreground"
                   >
-                    {gameState.plays.map((play) => (
+                    {atBatPlays.map((play) => (
                       <option key={play.atBatIndex} value={play.atBatIndex}>
                         {play.inning} {play.halfInning} — {play.batterName} ({play.event})
                       </option>

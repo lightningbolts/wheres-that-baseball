@@ -420,10 +420,10 @@ export const PlayByPlay = memo(function PlayByPlay({
                           const animate =
                             animateEntrance && globalIndex >= entranceFromIndex;
 
-                          if (!play.isAtBat) {
+                          if (play.isAtBat === false) {
                             return (
                               <GameEventRow
-                                key={`evt-${play.atBatIndex}`}
+                                key={`evt-${play.atBatIndex}-${globalIndex}`}
                                 play={play}
                                 animate={animate}
                               />

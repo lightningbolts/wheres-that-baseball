@@ -1,7 +1,7 @@
 import { isGameBoxScore, parseBoxScore } from "@/lib/mlb/boxScore";
-import { parseLiveFeed } from "@/lib/mlb/liveFeed";
+import { normalizePlayByPlay, parseLiveFeed } from "@/lib/mlb/liveFeed";
 import type { GameBoxScore } from "@/types/mlb-boxscore";
-import type { LiveGameState, MLBLiveFeedResponse } from "@/types/mlb-live";
+import type { LiveGameState, MLBLiveFeedResponse, PlayByPlayEntry } from "@/types/mlb-live";
 
 function isMlbFeedWrapper(raw: unknown): raw is { mlbFeed: MLBLiveFeedResponse } {
   return (
@@ -28,7 +28,17 @@ export function parseStoredGameState(raw: unknown, gamePk: number): LiveGameStat
 
   if (!Array.isArray(state.plays)) return null;
 
-  return state as unknown as LiveGameState;
+  const plays = state.plays as PlayByPlayEntry[];
+  const isLegacyCache = plays.some((play) => play != null && !("isAtBat" in play));
+  if (isLegacyCache) {
+    // Parsed-only cache from before game-event support — re-fetch from MLB.
+    return null;
+  }
+
+  return {
+    ...(state as unknown as LiveGameState),
+    plays: normalizePlayByPlay(plays),
+  };
 }
 
 /** Validates and normalizes box_score JSON from Supabase. */

@@ -556,16 +556,43 @@ function applyBatterLine(
   return line;
 }
 
+export function isPlateAppearanceEvent(event: string): boolean {
+  return Boolean(event) && PLATE_APPEARANCE_EVENTS.has(event);
+}
+
+/** Ensure legacy cached plays have a correct isAtBat flag. */
+export function normalizePlayByPlayEntry(play: PlayByPlayEntry): PlayByPlayEntry {
+  if (play.isAtBat === false) return play;
+  const isAtBat = isPlateAppearanceEvent(play.event);
+  if (play.isAtBat === isAtBat) return play;
+  return { ...play, isAtBat };
+}
+
+export function normalizePlayByPlay(plays: PlayByPlayEntry[]): PlayByPlayEntry[] {
+  return plays.map(normalizePlayByPlayEntry);
+}
+
+/** True for plate appearances — false for steals, mound visits, subs, etc. */
+export function isPlayByPlayAtBat(play: PlayByPlayEntry): boolean {
+  return play.isAtBat !== false;
+}
+
+export function wrapMlbFeedForStorage(feed: MLBLiveFeedResponse): { mlbFeed: MLBLiveFeedResponse } {
+  return { mlbFeed: feed };
+}
+
 function parsePlayDetail(
   play: AllPlayRaw,
   batterLine: BatterLine,
   batterId: number,
 ): PlayDetail | null {
-  const desc = play.result?.description;
-  const event = play.result?.event;
-  if (!desc || !event || !play.about?.inning) return null;
+  const desc = play.result?.description?.trim();
+  const rawEvent = play.result?.event?.trim();
+  if ((!desc && !rawEvent) || !play.about?.inning) return null;
 
-  const pitches = parsePitchesFromEvents(play.playEvents, desc);
+  const event = rawEvent ?? desc ?? "";
+  const description = desc ?? rawEvent ?? event;
+  const pitches = parsePitchesFromEvents(play.playEvents, description);
 
   return {
     atBatIndex: play.about.atBatIndex ?? 0,
@@ -576,7 +603,7 @@ function parsePlayDetail(
     pitcherName: play.matchup?.pitcher?.fullName ?? "Unknown",
     pitcherId: play.matchup?.pitcher?.id ?? null,
     event,
-    description: desc,
+    description,
     inning: play.about.inning,
     halfInning: play.about.halfInning ?? "top",
     awayScore: play.result?.awayScore ?? 0,
@@ -638,7 +665,7 @@ function parsePlayEntry(
   const postSituation = parsePostSituation(play, situation.bases);
   situation = postSituation;
 
-  const isAtBat = Boolean(event) && PLATE_APPEARANCE_EVENTS.has(event);
+  const isAtBat = isPlateAppearanceEvent(event);
 
   const batterId = play.matchup?.batter?.id ?? 0;
   const batterLine =
@@ -699,7 +726,9 @@ export function appendPlayByPlay(
 
 function parsePlayByPlay(allPlays: AllPlayRaw[] | undefined): PlayByPlayEntry[] {
   if (!allPlays?.length) return [];
-  return appendPlayByPlay(createPlayByPlayParseState(), allPlays).entries;
+  return normalizePlayByPlay(
+    appendPlayByPlay(createPlayByPlayParseState(), allPlays).entries,
+  );
 }
 
 export function parseLiveFeed(

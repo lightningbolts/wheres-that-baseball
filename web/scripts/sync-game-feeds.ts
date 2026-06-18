@@ -13,9 +13,14 @@ import { createRequire } from "node:module";
 
 import { createClient } from "@supabase/supabase-js";
 
-import { fetchGameFeed } from "../lib/mlb/liveFeed";
+import { parseBoxScore } from "../lib/mlb/boxScore";
+import {
+  fetchMLBLiveFeed,
+  parseLiveFeed,
+  wrapMlbFeedForStorage,
+} from "../lib/mlb/liveFeed";
 import type { GameBoxScore } from "../types/mlb-boxscore";
-import type { LiveGameState } from "../types/mlb-live";
+import type { LiveGameState, MLBLiveFeedResponse } from "../types/mlb-live";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const WEB_PKG = join(ROOT, "web/package.json");
@@ -146,21 +151,22 @@ async function updateGameFeedRest(
   supabaseUrl: string,
   serviceRoleKey: string,
   gamePk: number,
-  state: LiveGameState,
+  feed: MLBLiveFeedResponse,
+  gameState: LiveGameState,
   boxScore: GameBoxScore | null,
 ): Promise<void> {
   const supabase = createClient(supabaseUrl, serviceRoleKey);
   const { error } = await supabase
     .from("games")
     .update({
-      game_state: state,
+      game_state: wrapMlbFeedForStorage(feed),
       box_score: boxScore,
       feed_synced_at: new Date().toISOString(),
-      away_score: state.awayRuns,
-      home_score: state.homeRuns,
-      status: state.gameStatus,
-      venue_id: state.venueId,
-      venue_name: state.venueName,
+      away_score: gameState.awayRuns,
+      home_score: gameState.homeRuns,
+      status: gameState.gameStatus,
+      venue_id: gameState.venueId,
+      venue_name: gameState.venueName,
     })
     .eq("game_pk", gamePk);
 
@@ -219,12 +225,28 @@ async function main() {
 
   await mapPool(targets, CONCURRENCY, async (game) => {
     try {
-      const { gameState, boxScore } = await fetchGameFeed(game.game_pk);
+      const feed = await fetchMLBLiveFeed(game.game_pk);
+      const gameState = parseLiveFeed(game.game_pk, feed);
+      const boxScore = parseBoxScore(game.game_pk, feed);
 
       if (creds.mode === "postgres") {
-        await updateGameFeedViaPostgres(creds, WEB_PKG, game.game_pk, gameState, boxScore);
+        await updateGameFeedViaPostgres(
+          creds,
+          WEB_PKG,
+          game.game_pk,
+          feed,
+          gameState,
+          boxScore,
+        );
       } else {
-        await updateGameFeedRest(creds.supabaseUrl, creds.serviceRoleKey, game.game_pk, gameState, boxScore);
+        await updateGameFeedRest(
+          creds.supabaseUrl,
+          creds.serviceRoleKey,
+          game.game_pk,
+          feed,
+          gameState,
+          boxScore,
+        );
       }
 
       synced += 1;
