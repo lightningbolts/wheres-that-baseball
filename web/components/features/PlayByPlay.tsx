@@ -77,6 +77,8 @@ function eventAbbrev(event: string): string {
     Triple: "3B",
     "Home Run": "HR",
     Walk: "BB",
+    "Intent Walk": "IBB",
+    "Intentional Walk": "IBB",
     Strikeout: "K",
     Groundout: "GO",
     Flyout: "FO",
@@ -87,8 +89,63 @@ function eventAbbrev(event: string): string {
     "Sacrifice Fly": "SF",
     "Sacrifice Bunt": "SAC",
     "Hit By Pitch": "HBP",
+    "Grounded Into DP": "GDP",
+    "Double Play": "DP",
+    "Triple Play": "TP",
+    "Field Error": "E",
   };
   return map[event] ?? event.slice(0, 3).toUpperCase();
+}
+
+interface GameEventStyle {
+  icon: string;
+  color: string;
+}
+
+function gameEventStyle(event: string): GameEventStyle {
+  const lower = event.toLowerCase();
+
+  if (/stolen base/i.test(event) || /steals/i.test(event)) {
+    return { icon: "⇢", color: "text-emerald-400" };
+  }
+  if (/caught stealing/i.test(event)) {
+    return { icon: "✗", color: "text-red-400" };
+  }
+  if (/pickoff/i.test(event)) {
+    return { icon: "↩", color: "text-orange-400" };
+  }
+  if (/wild pitch/i.test(event)) {
+    return { icon: "⚡", color: "text-amber-400" };
+  }
+  if (/passed ball/i.test(event)) {
+    return { icon: "○", color: "text-amber-400" };
+  }
+  if (/balk/i.test(event)) {
+    return { icon: "⊘", color: "text-amber-400" };
+  }
+  if (/pitching/i.test(lower) || /pitcher/i.test(lower)) {
+    return { icon: "⟳", color: "text-blue-400" };
+  }
+  if (/defensive/i.test(lower) || /offensive/i.test(lower)) {
+    return { icon: "⇄", color: "text-blue-300" };
+  }
+  if (/mound/i.test(lower)) {
+    return { icon: "◉", color: "text-slate-400" };
+  }
+  if (/runner/i.test(lower) || /advance/i.test(lower)) {
+    return { icon: "→", color: "text-emerald-300" };
+  }
+  if (/ejection/i.test(lower)) {
+    return { icon: "✕", color: "text-red-500" };
+  }
+  if (/error/i.test(lower)) {
+    return { icon: "!", color: "text-red-300" };
+  }
+  if (/review|challenge/i.test(lower)) {
+    return { icon: "⊙", color: "text-yellow-400" };
+  }
+
+  return { icon: "·", color: "text-subtle" };
 }
 
 function SituationMarker({
@@ -185,17 +242,19 @@ function GameEventRow({
   play: PlayByPlayEntry;
   animate: boolean;
 }) {
+  const style = gameEventStyle(play.event || play.description);
+
   return (
     <div
       className={cn(
-        "flex items-center gap-2 border-t border-border/30 px-3 py-2",
+        "flex items-center gap-2.5 border-t border-border/20 bg-surface px-3 py-1.5",
         animate && "animate-play_in",
       )}
     >
-      <span className="shrink-0 font-mono text-[10px] font-medium uppercase text-subtle">
-        {eventAbbrev(play.event)}
+      <span className={cn("shrink-0 text-[13px] leading-none", style.color)}>
+        {style.icon}
       </span>
-      <p className="min-w-0 flex-1 truncate text-[12px] text-muted">
+      <p className="min-w-0 flex-1 text-[12px] leading-snug text-muted">
         {play.description}
       </p>
     </div>
