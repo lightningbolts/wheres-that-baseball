@@ -54,11 +54,25 @@ function loadEnvFile(path: string) {
   }
 }
 
-function parseArgs() {
+interface SyncArgs {
+  force: boolean;
+  gamePk: number | null;
+  since: string | null;
+  until: string | null;
+}
+
+function parseArgs(): SyncArgs {
   const force = process.argv.includes("--force");
   const gamePkArg = process.argv.find((arg) => arg.startsWith("--game-pk="));
+  const sinceArg = process.argv.find((arg) => arg.startsWith("--since="));
+  const untilArg = process.argv.find((arg) => arg.startsWith("--until="));
   const gamePk = gamePkArg ? Number.parseInt(gamePkArg.split("=")[1] ?? "", 10) : null;
-  return { force, gamePk: Number.isFinite(gamePk) ? gamePk : null };
+  return {
+    force,
+    gamePk: Number.isFinite(gamePk) ? gamePk : null,
+    since: sinceArg?.split("=")[1] ?? null,
+    until: untilArg?.split("=")[1] ?? null,
+  };
 }
 
 async function mapPool<T>(
@@ -86,6 +100,7 @@ async function listGamesRest(
   serviceRoleKey: string,
   onlyGamePk: number | null,
   force: boolean,
+  dateRange: { since?: string; until?: string },
 ): Promise<GameTarget[]> {
   const supabase = createClient(supabaseUrl, serviceRoleKey);
   const pageSize = 1000;
@@ -103,6 +118,13 @@ async function listGamesRest(
       query = query.eq("game_pk", onlyGamePk);
     } else if (!force) {
       query = query.or("feed_synced_at.is.null,status.eq.Live,status.eq.In Progress");
+    }
+
+    if (dateRange.since) {
+      query = query.gte("game_date", dateRange.since);
+    }
+    if (dateRange.until) {
+      query = query.lte("game_date", dateRange.until);
     }
 
     const { data, error } = await query;
@@ -149,7 +171,8 @@ async function main() {
   loadEnvFile(join(ROOT, "web", ".env.local"));
   loadEnvFile(join(ROOT, "ingestor", ".env"));
 
-  const { force, gamePk: onlyGamePk } = parseArgs();
+  const { force, gamePk: onlyGamePk, since, until } = parseArgs();
+  const dateRange = { since: since ?? undefined, until: until ?? undefined };
 
   let creds;
   try {
@@ -163,10 +186,20 @@ async function main() {
     `Using ${creds.mode === "postgres" ? "DATABASE_URL (Postgres)" : "Supabase REST"} for writes.`,
   );
 
+  if (since || until) {
+    console.log(`Date range: ${since ?? "…"} → ${until ?? "…"}`);
+  }
+
   const games: GameTarget[] =
     creds.mode === "postgres"
-      ? ((await listGamesForFeedSync(creds, WEB_PKG, onlyGamePk, force)) ?? [])
-      : await listGamesRest(creds.supabaseUrl, creds.serviceRoleKey, onlyGamePk, force);
+      ? ((await listGamesForFeedSync(creds, WEB_PKG, onlyGamePk, force, dateRange)) ?? [])
+      : await listGamesRest(
+          creds.supabaseUrl,
+          creds.serviceRoleKey,
+          onlyGamePk,
+          force,
+          dateRange,
+        );
 
   const targets = games.filter((game) => {
     if (force) return true;

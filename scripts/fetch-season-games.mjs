@@ -9,6 +9,7 @@
  *
  * Usage:
  *   node scripts/fetch-season-games.mjs
+ *   node scripts/fetch-season-games.mjs --with-feeds
  *   npm run fetch-season-games   (from web/)
  *
  * Env (loaded from web/.env.local and ingestor/.env):
@@ -19,6 +20,7 @@
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { spawn } from "node:child_process";
 
 import { resolveDbCredentials, upsertGames } from "./lib/db.mjs";
 
@@ -118,6 +120,8 @@ function dedupeByGamePk(rows) {
 
 /** @param {string} supabaseUrl @param {string} serviceRoleKey @param {object[]} rows */
 async function main() {
+  const withFeeds = process.argv.includes("--with-feeds");
+
   await loadEnvFile(join(ROOT, "web", ".env.local"));
   await loadEnvFile(join(ROOT, "ingestor", ".env"));
 
@@ -153,7 +157,24 @@ async function main() {
   console.log(
     `\nDone. ${rows.length} games synced (${finalCount} final, ${liveCount} live/in progress).`,
   );
-  console.log("\nNext: npm run sync-game-feeds  (from web/) to store play-by-play and box scores in Supabase.");
+
+  if (withFeeds) {
+    console.log(`\nSyncing play-by-play and box scores for ${startDate} → ${endDate}…`);
+    await new Promise((resolve, reject) => {
+      const child = spawn(
+        "npm",
+        ["run", "sync-game-feeds", "--", `--since=${startDate}`, `--until=${endDate}`, "--force"],
+        { cwd: join(ROOT, "web"), stdio: "inherit", shell: true },
+      );
+      child.on("exit", (code) => (code === 0 ? resolve() : reject(new Error(`sync-game-feeds exited ${code}`))));
+    });
+    return;
+  }
+
+  console.log(
+    "\nNext: npm run sync-game-feeds  (from web/) to store play-by-play and box scores in Supabase.",
+  );
+  console.log("     Or re-run with --with-feeds to sync feeds automatically.");
 }
 
 main().catch((err) => {

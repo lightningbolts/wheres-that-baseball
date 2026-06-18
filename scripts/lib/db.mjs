@@ -133,8 +133,20 @@ export async function upsertGames(creds, root, rows, batchSize) {
   );
 }
 
-/** @param {{ mode: "postgres", databaseUrl: string }} creds @param {string} webPackageJson @param {number | null} onlyGamePk @param {boolean} force */
-export async function listGamesForFeedSync(creds, webPackageJson, onlyGamePk, force = false) {
+/**
+ * @param {{ mode: "postgres", databaseUrl: string }} creds
+ * @param {string} webPackageJson
+ * @param {number | null} onlyGamePk
+ * @param {boolean} force
+ * @param {{ since?: string, until?: string }} dateRange
+ */
+export async function listGamesForFeedSync(
+  creds,
+  webPackageJson,
+  onlyGamePk,
+  force = false,
+  dateRange = {},
+) {
   if (creds.mode !== "postgres") return null;
 
   const Pool = loadPg(webPackageJson);
@@ -142,8 +154,7 @@ export async function listGamesForFeedSync(creds, webPackageJson, onlyGamePk, fo
 
   try {
     const params = [];
-    let sql =
-      "SELECT game_pk, status, feed_synced_at FROM games";
+    let sql = "SELECT game_pk, status, feed_synced_at FROM games";
     const conditions = [];
 
     if (onlyGamePk != null) {
@@ -151,6 +162,15 @@ export async function listGamesForFeedSync(creds, webPackageJson, onlyGamePk, fo
       conditions.push(`game_pk = $${params.length}`);
     } else if (!force) {
       conditions.push("(feed_synced_at IS NULL OR status IN ('Live', 'In Progress'))");
+    }
+
+    if (dateRange.since) {
+      params.push(dateRange.since);
+      conditions.push(`game_date >= $${params.length}`);
+    }
+    if (dateRange.until) {
+      params.push(dateRange.until);
+      conditions.push(`game_date <= $${params.length}`);
     }
 
     if (conditions.length > 0) {
