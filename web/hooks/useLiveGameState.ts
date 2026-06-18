@@ -46,6 +46,7 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
   const generationRef = useRef(0);
   const playsRef = useRef<PlayByPlayEntry[]>([]);
   const lastFullParseAtRef = useRef(0);
+  const lastAllPlaysCountRef = useRef(0);
 
   const fetchState = useCallback(async () => {
     const generation = generationRef.current;
@@ -55,8 +56,12 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
       if (generation !== generationRef.current) return;
 
       const now = Date.now();
+      const allPlaysCount = feed.liveData.plays.allPlays?.length ?? 0;
+      const newAtBatCompleted = allPlaysCount > lastAllPlaysCountRef.current;
       const needsFullParse =
-        playsRef.current.length === 0 || now - lastFullParseAtRef.current >= FULL_PLAY_BY_PLAY_MS;
+        playsRef.current.length === 0 ||
+        newAtBatCompleted ||
+        now - lastFullParseAtRef.current >= FULL_PLAY_BY_PLAY_MS;
 
       const next = needsFullParse
         ? parseLiveFeed(gamePk, feed)
@@ -65,6 +70,7 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
       if (needsFullParse) {
         playsRef.current = next.plays;
         lastFullParseAtRef.current = now;
+        lastAllPlaysCountRef.current = allPlaysCount;
       }
 
       if (generation !== generationRef.current) return;
@@ -90,6 +96,7 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
     generationRef.current += 1;
     playsRef.current = [];
     lastFullParseAtRef.current = 0;
+    lastAllPlaysCountRef.current = 0;
     setGameState(null);
     setIsLoading(true);
     setError(null);

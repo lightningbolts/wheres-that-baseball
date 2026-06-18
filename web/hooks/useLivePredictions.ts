@@ -1,8 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
+import {
+  selectPredictionForAtBat,
+  type AtBatPredictionMatch,
+} from "@/lib/predictions/matchAtBat";
 import { createClient } from "@/utils/supabase/client";
 import {
   DEFAULT_OUTCOME_PROBABILITIES,
@@ -10,16 +14,22 @@ import {
   type Prediction,
 } from "@/types/database";
 
+import { useChainedPoll } from "./useChainedPoll";
+
 export type ConnectionStatus = "connecting" | "connected" | "disconnected" | "error";
 
 export interface UseLivePredictionsResult {
+  predictions: Prediction[];
   latestPrediction: Prediction | null;
   isLoading: boolean;
   error: string | null;
   connectionStatus: ConnectionStatus;
 }
 
-const PREDICTION_POLL_MS = 500;
+/** Independent of pitch polling — only refreshes Supabase reads. */
+const PREDICTION_POLL_MS = 250;
+
+const RECENT_PREDICTION_LIMIT = 80;
 
 function normalizePrediction(row: Record<string, unknown>): Prediction {
   const rawProbs = row.outcome_probabilities;
@@ -55,18 +65,66 @@ function normalizePrediction(row: Record<string, unknown>): Prediction {
   };
 }
 
-export function useLivePredictions(gamePk: number): UseLivePredictionsResult {
-  const [latestPrediction, setLatestPrediction] = useState<Prediction | null>(null);
+function sortPredictionsChronologically(rows: Prediction[]): Prediction[] {
+  return [...rows].sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+  );
+}
+
+function upsertPrediction(rows: Prediction[], row: Prediction): Prediction[] {
+  if (rows.some((existing) => existing.id === row.id)) {
+    return rows;
+  }
+  return sortPredictionsChronologically([...rows, row]);
+}
+
+export function useLivePredictions(
+  gamePk: number,
+  match?: AtBatPredictionMatch | null,
+): UseLivePredictionsResult {
+  const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("connecting");
   const channelRef = useRef<RealtimeChannel | null>(null);
 
+  const activePrediction = useMemo(
+    () => selectPredictionForAtBat(predictions, match),
+    [predictions, match],
+  );
+
   const applyPrediction = useCallback((row: Record<string, unknown>) => {
-    setLatestPrediction(normalizePrediction(row));
+    const normalized = normalizePrediction(row);
+    setPredictions((prev) => upsertPrediction(prev, normalized));
     setIsLoading(false);
     setError(null);
   }, []);
+
+  const fetchRecent = useCallback(async () => {
+    if (!gamePk) return;
+
+    const supabase = createClient();
+    const { data, error: fetchError } = await supabase
+      .from("predictions")
+      .select("*")
+      .eq("game_pk", gamePk)
+      .order("timestamp", { ascending: false })
+      .limit(RECENT_PREDICTION_LIMIT);
+
+    if (fetchError) {
+      setError(fetchError.message);
+      setConnectionStatus("error");
+      setIsLoading(false);
+      return;
+    }
+
+    const rows = sortPredictionsChronologically(
+      (data ?? []).map((row) => normalizePrediction(row as Record<string, unknown>)),
+    );
+    setPredictions(rows);
+    setError(null);
+    setIsLoading(false);
+  }, [gamePk]);
 
   useEffect(() => {
     if (!gamePk) {
@@ -76,7 +134,7 @@ export function useLivePredictions(gamePk: number): UseLivePredictionsResult {
     }
 
     let cancelled = false;
-    setLatestPrediction(null);
+    setPredictions([]);
     setIsLoading(true);
     setError(null);
     setConnectionStatus("connecting");
@@ -84,37 +142,7 @@ export function useLivePredictions(gamePk: number): UseLivePredictionsResult {
     const supabase = createClient();
     const channelName = `predictions:game_pk=${gamePk}`;
 
-    const fetchLatest = async (): Promise<void> => {
-      const { data, error: fetchError } = await supabase
-        .from("predictions")
-        .select("*")
-        .eq("game_pk", gamePk)
-        .order("timestamp", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (cancelled) return;
-
-      if (fetchError) {
-        setError(fetchError.message);
-        setConnectionStatus("error");
-        setIsLoading(false);
-        return;
-      }
-
-      if (data) {
-        applyPrediction(data as Record<string, unknown>);
-      } else {
-        // No rows yet — leave UI to MLB live feed; stop blocking on skeleton.
-        setIsLoading(false);
-      }
-    };
-
-    void fetchLatest();
-
-    const pollId = window.setInterval(() => {
-      void fetchLatest();
-    }, PREDICTION_POLL_MS);
+    void fetchRecent();
 
     const channel = supabase
       .channel(channelName)
@@ -156,16 +184,18 @@ export function useLivePredictions(gamePk: number): UseLivePredictionsResult {
 
     return () => {
       cancelled = true;
-      window.clearInterval(pollId);
       if (channelRef.current) {
         void supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }
     };
-  }, [gamePk, applyPrediction]);
+  }, [gamePk, applyPrediction, fetchRecent]);
+
+  useChainedPoll(fetchRecent, PREDICTION_POLL_MS, Boolean(gamePk), gamePk);
 
   return {
-    latestPrediction,
+    predictions,
+    latestPrediction: activePrediction,
     isLoading,
     error,
     connectionStatus,

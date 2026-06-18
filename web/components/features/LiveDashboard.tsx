@@ -23,9 +23,9 @@ import { useLiveGameOverlays } from "@/hooks/useLiveGameOverlays";
 import { useLiveGameState } from "@/hooks/useLiveGameState";
 import { useGameBoxScore } from "@/hooks/useGameBoxScore";
 import { useLivePredictions } from "@/hooks/useLivePredictions";
+import { useOutcomeOdds } from "@/hooks/useOutcomeOdds";
 import { isHalfInningBreak } from "@/lib/mlb/lineup";
 import { cn } from "@/lib/utils";
-import { DEFAULT_OUTCOME_PROBABILITIES } from "@/types/database";
 import { LIVE_GAME_STATUSES, type ActiveGame } from "@/types/mlb";
 
 const GAMES_REFRESH_MS = 10_000;
@@ -50,17 +50,22 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
   const { atBatViewState, showBreakUI } = useBreakLinger(gameState);
   const { dueUp, showDueUp, dismissDueUp, showFinal, dismissFinal, gameOver } =
     useLiveGameOverlays(gameState, boxScore, showBreakUI);
-  const { latestPrediction, isLoading: isPredictionsLoading, error, connectionStatus } =
-    useLivePredictions(selectedGamePk);
+  const { predictions, isLoading: isPredictionsLoading, error, connectionStatus } =
+    useLivePredictions(selectedGamePk, {
+      batterName: atBatViewState?.batterName,
+      inning: atBatViewState?.inning,
+      balls: atBatViewState?.balls,
+      strikes: atBatViewState?.strikes,
+      pitchCount: atBatViewState?.atBatPitches.length,
+    });
+
+  const { probabilities, oddsKey, matchedPrediction } = useOutcomeOdds(atBatViewState, predictions);
 
   const [activeTab, setActiveTab] = useState<GameDetailTab>("plays");
 
-  const probabilities =
-    latestPrediction?.outcome_probabilities ?? DEFAULT_OUTCOME_PROBABILITIES;
-
-  const onFirst = latestPrediction?.on_first ?? gameState?.onFirst ?? false;
-  const onSecond = latestPrediction?.on_second ?? gameState?.onSecond ?? false;
-  const onThird = latestPrediction?.on_third ?? gameState?.onThird ?? false;
+  const onFirst = matchedPrediction?.on_first ?? gameState?.onFirst ?? false;
+  const onSecond = matchedPrediction?.on_second ?? gameState?.onSecond ?? false;
+  const onThird = matchedPrediction?.on_third ?? gameState?.onThird ?? false;
   const runnersInScoringPosition = onSecond || onThird;
 
   const { record: matchupRecord, isLoading: isMatchupLoading } = useBatterVsPitcher(
@@ -72,7 +77,7 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
     runnersInScoringPosition,
   );
 
-  const showSkeleton = isFeedLoading && !gameState && isPredictionsLoading && !latestPrediction;
+  const showSkeleton = isFeedLoading && !gameState && isPredictionsLoading && predictions.length === 0;
   const showBatterHighlights =
     gameState != null &&
     gameState.gameStatus === "Live" &&
@@ -228,8 +233,9 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
 
                 <Panel title="Outcome odds" className="min-h-[160px] shrink-0 lg:flex-1">
                   <div className="flex min-h-0 flex-1 flex-col">
-                    {latestPrediction ? (
+                    {atBatViewState && (atBatViewState.atBatPitches.length > 0 || atBatViewState.balls > 0 || atBatViewState.strikes > 0) ? (
                       <ProbabilityChart
+                        key={oddsKey}
                         probabilities={probabilities}
                         contained
                         className="min-h-0 flex-1"
@@ -237,7 +243,7 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
                     ) : (
                       <p className="py-4 text-center text-sm text-muted">
                         {LIVE_GAME_STATUSES.has(selectedGame?.status ?? "")
-                          ? "Waiting on ingestor."
+                          ? "Waiting for first pitch…"
                           : "Available when live."}
                       </p>
                     )}

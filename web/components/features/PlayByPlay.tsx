@@ -4,11 +4,13 @@ import { useEffect, useRef, useState } from "react";
 
 import { PlayDetailDialog } from "@/components/features/PlayDetailDialog";
 import { BaseDiamond } from "@/components/features/BaseDiamond";
+import { useEntranceIndex } from "@/hooks/useEntranceIndex";
 import { cn } from "@/lib/utils";
 import {
   formatGameScore,
   formatOuts,
   formatRunnerBases,
+  isHalfInningStart,
 } from "@/lib/mlb/situationFormat";
 import type { GameSituation, PlayByPlayEntry, PlayDetail } from "@/types/mlb-live";
 import { formatInningHalf } from "@/lib/utils";
@@ -22,6 +24,8 @@ interface PlayByPlayProps {
   selectedAtBatIndex?: number | null;
   onSelectAtBat?: (play: PlayByPlayEntry) => void;
   autoScrollToLatest?: boolean;
+  /** Fade in newly completed at-bats (live feed). */
+  animateEntrance?: boolean;
 }
 
 interface InningGroup {
@@ -124,6 +128,122 @@ function SituationMarker({
   );
 }
 
+function ThreeOutsBlurb({
+  situation,
+  awayAbbrev,
+  homeAbbrev,
+  animate,
+}: {
+  situation: GameSituation;
+  awayAbbrev: string;
+  homeAbbrev: string;
+  animate?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-2 border-t border-border/40 bg-overlay px-3 py-2",
+        animate && "animate-pitch_in",
+      )}
+    >
+      <BaseDiamond
+        onFirst={false}
+        onSecond={false}
+        onThird={false}
+        size="tiny"
+        className="shrink-0 opacity-40"
+      />
+      <div className="min-w-0 flex-1 text-[11px] leading-snug text-muted">
+        <span className="font-mono tabular-nums text-secondary">
+          {awayAbbrev} {formatGameScore(situation.awayScore, situation.homeScore)} {homeAbbrev}
+        </span>
+        <span className="mx-1.5 text-faint">·</span>
+        <span className="font-medium text-secondary">3 outs</span>
+      </div>
+    </div>
+  );
+}
+
+function shouldShowThreeOuts(
+  group: InningGroup,
+  groupIndex: number,
+  groups: InningGroup[],
+): boolean {
+  const lastPlay = group.plays[group.plays.length - 1];
+  if (!lastPlay) return false;
+
+  const isLatestGroup = groupIndex === groups.length - 1;
+  if (!isLatestGroup) return true;
+
+  return lastPlay.outs === 3;
+}
+
+function PlayOutcomeCard({
+  play,
+  awayAbbrev,
+  homeAbbrev,
+  selectedAtBatIndex,
+  onSelectAtBat,
+  setSelectedPlay,
+  animate,
+}: {
+  play: PlayByPlayEntry;
+  awayAbbrev: string;
+  homeAbbrev: string;
+  selectedAtBatIndex: number | null;
+  onSelectAtBat?: (play: PlayByPlayEntry) => void;
+  setSelectedPlay: (play: PlayDetail | null) => void;
+  animate: boolean;
+}) {
+  const showSituation = !isHalfInningStart(play.situationBefore);
+  const contact = compactContactLine(play.detail.hit);
+
+  return (
+    <div className={cn(animate && "animate-pitch_in")}>
+      {showSituation && (
+        <SituationMarker
+          situation={play.situationBefore}
+          awayAbbrev={awayAbbrev}
+          homeAbbrev={homeAbbrev}
+        />
+      )}
+      <button
+        type="button"
+        onClick={() => {
+          onSelectAtBat?.(play);
+          setSelectedPlay(play.detail);
+        }}
+        className={cn(
+          "min-h-[88px] w-full border-t border-border/50 px-3 py-4 text-left hover:bg-hover",
+          play.isScoringPlay && "border-l-2 border-l-amber-600/60",
+          selectedAtBatIndex === play.atBatIndex &&
+            "bg-overlay ring-1 ring-inset ring-border-strong",
+        )}
+      >
+        <div className="mb-1.5 flex items-baseline justify-between gap-2">
+          <div className="flex min-w-0 items-baseline gap-2">
+            <span className="shrink-0 font-mono text-[11px] text-muted">
+              {eventAbbrev(play.event)}
+            </span>
+            <span className="truncate text-[14px] font-medium text-foreground">
+              {play.batterName}
+            </span>
+          </div>
+          <span className="shrink-0 font-mono text-[11px] tabular-nums text-subtle">
+            {formatBatterLine(play.batterHits, play.batterAtBats)}
+          </span>
+        </div>
+        <p className="line-clamp-2 text-[13px] leading-relaxed text-muted">
+          {play.description}
+        </p>
+        {contact && (
+          <p className="mt-1 font-mono text-[11px] text-subtle">{contact}</p>
+        )}
+      </button>
+    </div>
+  );
+}
+
 export function PlayByPlay({
   plays,
   awayAbbrev,
@@ -133,10 +253,12 @@ export function PlayByPlay({
   selectedAtBatIndex = null,
   onSelectAtBat,
   autoScrollToLatest = true,
+  animateEntrance = true,
 }: PlayByPlayProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const prevCountRef = useRef(plays.length);
   const groups = groupByInning(plays);
+  const entranceFromIndex = useEntranceIndex(plays.length, animateEntrance);
 
   const [expanded, setExpanded] = useState<Set<string>>(() => {
     const latest = groups[groups.length - 1]?.key;
@@ -180,8 +302,10 @@ export function PlayByPlay({
             <p className="px-3 py-6 text-sm text-subtle">No plays yet.</p>
           ) : (
             <div>
-              {groups.map((group) => {
+              {groups.map((group, groupIndex) => {
                 const isOpen = expanded.has(group.key);
+                const showThreeOuts = shouldShowThreeOuts(group, groupIndex, groups);
+                const lastPlay = group.plays[group.plays.length - 1];
 
                 return (
                   <div key={group.key} className="border-b border-border/80">
@@ -199,54 +323,50 @@ export function PlayByPlay({
                       </span>
                     </button>
 
-                    {isOpen &&
-                      group.plays.map((play) => (
-                        <div key={play.atBatIndex}>
-                          <SituationMarker
-                            situation={play.situationBefore}
+                    {isOpen && (
+                      <>
+                        {group.plays.map((play) => {
+                          const globalIndex = plays.findIndex(
+                            (p) => p.atBatIndex === play.atBatIndex,
+                          );
+                          const animate =
+                            animateEntrance && globalIndex >= entranceFromIndex;
+
+                          return (
+                            <PlayOutcomeCard
+                              key={play.atBatIndex}
+                              play={play}
+                              awayAbbrev={awayAbbrev}
+                              homeAbbrev={homeAbbrev}
+                              selectedAtBatIndex={selectedAtBatIndex}
+                              onSelectAtBat={onSelectAtBat}
+                              setSelectedPlay={setSelectedPlay}
+                              animate={animate}
+                            />
+                          );
+                        })}
+                        {showThreeOuts && lastPlay && (
+                          <ThreeOutsBlurb
+                            situation={{
+                              awayScore: lastPlay.awayScore,
+                              homeScore: lastPlay.homeScore,
+                              outs: 3,
+                              bases: lastPlay.bases,
+                              onFirst: lastPlay.onFirst,
+                              onSecond: lastPlay.onSecond,
+                              onThird: lastPlay.onThird,
+                            }}
                             awayAbbrev={awayAbbrev}
                             homeAbbrev={homeAbbrev}
+                            animate={
+                              animateEntrance &&
+                              plays.findIndex((p) => p.atBatIndex === lastPlay.atBatIndex) >=
+                                entranceFromIndex
+                            }
                           />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              onSelectAtBat?.(play);
-                              setSelectedPlay(play.detail);
-                            }}
-                            className={cn(
-                              "min-h-[88px] w-full border-t border-border/50 px-3 py-4 text-left hover:bg-hover",
-                              play.isScoringPlay && "border-l-2 border-l-amber-600/60",
-                              selectedAtBatIndex === play.atBatIndex &&
-                                "bg-overlay ring-1 ring-inset ring-border-strong",
-                            )}
-                          >
-                            <div className="mb-1.5 flex items-baseline justify-between gap-2">
-                              <div className="flex min-w-0 items-baseline gap-2">
-                                <span className="shrink-0 font-mono text-[11px] text-muted">
-                                  {eventAbbrev(play.event)}
-                                </span>
-                                <span className="truncate text-[14px] font-medium text-foreground">
-                                  {play.batterName}
-                                </span>
-                              </div>
-                              <span className="shrink-0 font-mono text-[11px] tabular-nums text-subtle">
-                                {formatBatterLine(play.batterHits, play.batterAtBats)}
-                              </span>
-                            </div>
-                            <p className="line-clamp-2 text-[13px] leading-relaxed text-muted">
-                              {play.description}
-                            </p>
-                            {(() => {
-                              const contact = compactContactLine(play.detail.hit);
-                              return contact ? (
-                                <p className="mt-1 font-mono text-[11px] text-subtle">
-                                  {contact}
-                                </p>
-                              ) : null;
-                            })()}
-                          </button>
-                        </div>
-                      ))}
+                        )}
+                      </>
+                    )}
                   </div>
                 );
               })}

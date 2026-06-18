@@ -55,7 +55,7 @@ func Load() (*Config, error) {
 
 	cfg := &Config{
 		MLBAPIBaseURL:      envOrDefault("MLB_API_BASE_URL", "https://statsapi.mlb.com/api/v1.1"),
-		PollInterval:       durationFromEnv("POLL_INTERVAL", 500*time.Millisecond),
+		PollInterval:       durationFromEnv("POLL_INTERVAL", 250*time.Millisecond),
 		DatabaseURL:        os.Getenv("DATABASE_URL"),
 		SupabaseURL:        firstEnv("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"),
 		SupabaseServiceKey: firstEnv("SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SECRET_KEY"),

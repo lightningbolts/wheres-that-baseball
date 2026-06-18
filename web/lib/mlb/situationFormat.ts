@@ -22,6 +22,16 @@ export function formatOuts(outs: number): string {
   return `${safe} out${safe === 1 ? "" : "s"}`;
 }
 
+/** True when a half-inning begins: no outs and empty bases. */
+export function isHalfInningStart(situation: GameSituation): boolean {
+  return (
+    situation.outs === 0 &&
+    !situation.onFirst &&
+    !situation.onSecond &&
+    !situation.onThird
+  );
+}
+
 export function hasSituationContent(situation: GameSituation): boolean {
   return (
     situation.onFirst ||

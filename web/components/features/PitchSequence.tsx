@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 
 import { cn } from "@/lib/utils";
+import { useEntranceIndex } from "@/hooks/useEntranceIndex";
 import type { PlayPitch } from "@/types/mlb-live";
 import {
   homePlatePath,
@@ -25,26 +26,7 @@ interface PitchSequenceProps {
 }
 
 function usePitchEntranceIndex(pitches: PlayPitch[], enabled: boolean): number {
-  const seenLengthRef = useRef(enabled ? pitches.length : 0);
-  const prevLengthRef = useRef(pitches.length);
-
-  if (!enabled) return pitches.length;
-
-  if (pitches.length === 0) {
-    seenLengthRef.current = 0;
-  } else if (pitches.length < prevLengthRef.current) {
-    seenLengthRef.current = 0;
-  }
-
-  const entranceFromIndex = seenLengthRef.current;
-  prevLengthRef.current = pitches.length;
-
-  useEffect(() => {
-    if (!enabled) return;
-    seenLengthRef.current = pitches.length;
-  }, [enabled, pitches.length]);
-
-  return entranceFromIndex;
+  return useEntranceIndex(pitches.length, enabled);
 }
 
 function reviewBadge(review: NonNullable<PlayPitch["review"]>): string {
