@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
-import { parseStoredGameState } from "@/lib/games/gameState";
+import { persistGameFeedCache } from "@/lib/games/feedCache";
+import { isMlbFeedWrapper, parseStoredGameState } from "@/lib/games/gameState";
 import { isExplicitlyNotStarted } from "@/lib/games/format";
-import { fetchLiveGameState } from "@/lib/mlb/liveFeed";
+import { parseLiveFeed } from "@/lib/mlb/liveFeed";
+import { getCachedLiveFeed } from "@/lib/mlb/liveFeedServer";
 import type { Game } from "@/types/database";
 import { createClient } from "@/utils/supabase/server";
 
@@ -50,7 +52,13 @@ export async function GET(_request: Request, { params }: RouteParams) {
       return NextResponse.json({ error: "Game has not started" }, { status: 404 });
     }
 
-    const state = await fetchLiveGameState(gamePk);
+    const feed = await getCachedLiveFeed(gamePk);
+    const state = parseLiveFeed(gamePk, feed);
+
+    if (row?.game_state != null && !isMlbFeedWrapper(row.game_state)) {
+      void persistGameFeedCache(gamePk, feed);
+    }
+
     return NextResponse.json({
       state,
       source: "mlb",
