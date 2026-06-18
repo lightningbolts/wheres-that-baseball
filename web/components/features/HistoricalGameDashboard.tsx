@@ -19,6 +19,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { useGameBoxScore } from "@/hooks/useGameBoxScore";
 import { useGamePredictions } from "@/hooks/useGamePredictions";
 import { useGameState } from "@/hooks/useGameState";
+import { useArchiveFinishedGame } from "@/hooks/useArchiveFinishedGame";
 import { useBatterRisp } from "@/hooks/useBatterRisp";
 import { useBatterVsPitcher } from "@/hooks/useBatterVsPitcher";
 import { useBreakLinger } from "@/hooks/useBreakLinger";
@@ -71,11 +72,12 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
   } = useGameBoxScore(game.game_pk, { poll: isLive });
 
   const { showBreakUI } = useBreakLinger(isLive ? gameState : null);
-  const { dueUp, showDueUp, dismissDueUp, showFinal, dismissFinal } = useLiveGameOverlays(
+  const { dueUp, showDueUp, dismissDueUp, showFinal, dismissFinal, gameOver } = useLiveGameOverlays(
     isLive ? gameState : null,
     isLive ? boxScore : null,
     showBreakUI,
   );
+  useArchiveFinishedGame(game.game_pk, isLive && gameOver);
 
   const [activeTab, setActiveTab] = useState<GameDetailTab>("plays");
   const [selectedAtBatIndex, setSelectedAtBatIndex] = useState<number | null>(null);

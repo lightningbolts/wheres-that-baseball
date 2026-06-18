@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
+import { enqueueArchiveFinishedGame } from "@/lib/games/archiveGame";
 import { persistGameFeedCache } from "@/lib/games/feedCache";
 import { isMlbFeedWrapper, parseStoredGameState } from "@/lib/games/gameState";
 import { isExplicitlyNotStarted } from "@/lib/games/format";
@@ -57,6 +58,11 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
     if (row?.game_state != null && !isMlbFeedWrapper(row.game_state)) {
       void persistGameFeedCache(gamePk, feed);
+    } else if (
+      state.gameStatus === "Final" &&
+      (!row?.feed_synced_at || !isMlbFeedWrapper(row?.game_state))
+    ) {
+      enqueueArchiveFinishedGame(gamePk);
     }
 
     return NextResponse.json({

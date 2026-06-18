@@ -16,6 +16,7 @@ import { PlayByPlay } from "@/components/features/PlayByPlay";
 import { ProbabilityChart } from "@/components/features/ProbabilityChart";
 import { Scorebug } from "@/components/features/Scorebug";
 import { PitchSequence } from "@/components/features/PitchSequence";
+import { useArchiveFinishedGame } from "@/hooks/useArchiveFinishedGame";
 import { useBatterRisp } from "@/hooks/useBatterRisp";
 import { useBatterVsPitcher } from "@/hooks/useBatterVsPitcher";
 import { useBreakLinger } from "@/hooks/useBreakLinger";
@@ -50,6 +51,7 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
   const { atBatViewState, showBreakUI } = useBreakLinger(gameState);
   const { dueUp, showDueUp, dismissDueUp, showFinal, dismissFinal, gameOver } =
     useLiveGameOverlays(gameState, boxScore, showBreakUI);
+  useArchiveFinishedGame(selectedGamePk, gameOver);
   const { predictions, isLoading: isPredictionsLoading, error, connectionStatus } =
     useLivePredictions(selectedGamePk, {
       batterName: atBatViewState?.batterName,
