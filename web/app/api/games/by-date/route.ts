@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 
-import { loadGamesForDate, syncScheduleDates } from "@/lib/games/scheduleSync";
 import { reconcileFinalFeedsForGames } from "@/lib/games/reconcileFeeds";
+import {
+  isLiveScheduleDate,
+  loadGamesForDate,
+  syncScheduleDates,
+} from "@/lib/games/scheduleSync";
 
 export const dynamic = "force-dynamic";
 
-/** Season History game list — MLB schedule is source of truth for scores/status. */
+/** Today's slate — MLB schedule is source of truth for scores/status. */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const date = searchParams.get("date");
@@ -14,10 +18,16 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "date query param required (YYYY-MM-DD)" }, { status: 400 });
   }
 
+  if (!isLiveScheduleDate(date)) {
+    return NextResponse.json(
+      { error: "Live MLB schedule fetch is only used for today's slate" },
+      { status: 400 },
+    );
+  }
+
   try {
     const games = await loadGamesForDate(date);
 
-    // Keep Supabase schedule + play-by-play in sync without blocking the response.
     void (async () => {
       try {
         await syncScheduleDates([date]);

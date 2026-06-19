@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
 import { archiveFinishedGame } from "@/lib/games/archiveGame";
-import { isStoredFeedComplete } from "@/lib/games/feedComplete";
+import { isSettledArchiveDate, isStoredFeedComplete } from "@/lib/games/feedComplete";
 import { parseStoredBoxScore } from "@/lib/games/gameState";
 import { isExplicitlyNotStarted, isLiveStatus } from "@/lib/games/format";
 import { parseBoxScore } from "@/lib/mlb/boxScore";
@@ -19,7 +19,14 @@ interface RouteParams {
 
 type BoxScoreRow = Pick<
   Game,
-  "game_pk" | "box_score" | "feed_synced_at" | "status" | "away_score" | "home_score" | "game_state"
+  | "game_pk"
+  | "game_date"
+  | "box_score"
+  | "feed_synced_at"
+  | "status"
+  | "away_score"
+  | "home_score"
+  | "game_state"
 >;
 
 function shouldFetchLiveBoxScore(
@@ -44,7 +51,7 @@ export async function GET(request: Request, { params }: RouteParams) {
 
     const { data, error } = await supabase
       .from("games")
-      .select("game_pk, box_score, feed_synced_at, status, away_score, home_score, game_state")
+      .select("game_pk, game_date, box_score, feed_synced_at, status, away_score, home_score, game_state")
       .eq("game_pk", gamePk)
       .maybeSingle();
 
@@ -65,6 +72,19 @@ export async function GET(request: Request, { params }: RouteParams) {
     }
 
     const stored = parseStoredBoxScore(row?.box_score, gamePk);
+    if (
+      stored &&
+      row?.feed_synced_at &&
+      row.status === "Final" &&
+      isSettledArchiveDate(row.game_date)
+    ) {
+      return NextResponse.json({
+        boxScore: stored,
+        source: "supabase",
+        feedSyncedAt: row.feed_synced_at,
+      });
+    }
+
     if (stored && isStoredFeedComplete(row)) {
       return NextResponse.json({
         boxScore: stored,

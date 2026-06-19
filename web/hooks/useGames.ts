@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getSeasonStartDate } from "@/lib/games/format";
-import { getMLBScheduleDate } from "@/lib/mlb/schedule";
+import {
+  ACTIVE_CARRYOVER_STATUSES,
+  getMLBScheduleDate,
+  previousScheduleDate,
+} from "@/lib/mlb/schedule";
 import { GAME_LIST_COLUMNS, type Game } from "@/types/database";
 import { createClient } from "@/utils/supabase/client";
 
@@ -15,6 +19,49 @@ export interface UseGamesByDateResult {
 }
 
 const DATE_GAMES_POLL_MS = 30_000;
+
+function mergeGamesByPk(primary: Game[], secondary: Game[]): Game[] {
+  const byPk = new Map<number, Game>();
+  for (const game of secondary) {
+    byPk.set(game.game_pk, game);
+  }
+  for (const game of primary) {
+    byPk.set(game.game_pk, game);
+  }
+  return [...byPk.values()].sort((a, b) =>
+    a.away_team_name.localeCompare(b.away_team_name),
+  );
+}
+
+async function fetchGamesFromDb(date: string): Promise<Game[]> {
+  const supabase = createClient();
+  const carryoverStatuses = [...ACTIVE_CARRYOVER_STATUSES];
+  const prevDate = previousScheduleDate(date);
+
+  const [primaryResult, carryoverResult] = await Promise.all([
+    supabase
+      .from("games")
+      .select(GAME_LIST_COLUMNS)
+      .eq("game_date", date)
+      .order("away_team_name", { ascending: true }),
+    supabase
+      .from("games")
+      .select(GAME_LIST_COLUMNS)
+      .eq("game_date", prevDate)
+      .in("status", carryoverStatuses)
+      .order("away_team_name", { ascending: true }),
+  ]);
+
+  const fetchError = primaryResult.error ?? carryoverResult.error;
+  if (fetchError) {
+    throw new Error(fetchError.message);
+  }
+
+  return mergeGamesByPk(
+    (primaryResult.data ?? []) as Game[],
+    (carryoverResult.data ?? []) as Game[],
+  );
+}
 
 export function useGamesByDate(date: string): UseGamesByDateResult {
   const [games, setGames] = useState<Game[]>([]);
@@ -31,20 +78,24 @@ export function useGamesByDate(date: string): UseGamesByDateResult {
     setError(null);
 
     try {
-      const response = await fetch(`/api/games/by-date?date=${encodeURIComponent(date)}`, {
-        cache: "no-store",
-      });
+      const result = isToday
+        ? await (async () => {
+            const response = await fetch(`/api/games/by-date?date=${encodeURIComponent(date)}`, {
+              cache: "no-store",
+            });
+            if (!response.ok) {
+              const body = (await response.json().catch(() => ({}))) as { error?: string };
+              throw new Error(body.error ?? `Failed to load games (${response.status})`);
+            }
+            const data = (await response.json()) as { games?: Game[] };
+            return data.games ?? [];
+          })()
+        : await fetchGamesFromDb(date);
 
-      if (!response.ok) {
-        const body = (await response.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body.error ?? `Failed to load games (${response.status})`);
-      }
-
-      const data = (await response.json()) as { games?: Game[] };
       if (requestId !== requestIdRef.current) return;
 
       hasLoadedRef.current = true;
-      setGames(data.games ?? []);
+      setGames(result);
     } catch (err) {
       if (requestId !== requestIdRef.current) return;
       setError(err instanceof Error ? err.message : "Failed to load games");
@@ -54,7 +105,7 @@ export function useGamesByDate(date: string): UseGamesByDateResult {
         setIsLoading(false);
       }
     }
-  }, [date]);
+  }, [date, isToday]);
 
   useEffect(() => {
     hasLoadedRef.current = false;

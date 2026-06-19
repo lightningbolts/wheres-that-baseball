@@ -2,15 +2,11 @@ import {
   fetchScheduleGamesForDate,
   type GameScheduleRow,
 } from "@/lib/games/scheduleRow";
-import { isStoredFeedComplete } from "@/lib/games/feedComplete";
 import { getServiceSupabase } from "@/lib/games/supabaseAdmin";
-import { ACTIVE_CARRYOVER_STATUSES, previousScheduleDate } from "@/lib/mlb/schedule";
-import type { Game } from "@/types/database";
+import { ACTIVE_CARRYOVER_STATUSES, getMLBScheduleDate, previousScheduleDate } from "@/lib/mlb/schedule";
+import { GAME_LIST_COLUMNS, type Game } from "@/types/database";
 
-type DbOverlay = Pick<
-  Game,
-  "game_pk" | "feed_synced_at" | "updated_at" | "status" | "away_score" | "home_score" | "game_state"
->;
+type DbOverlay = Pick<Game, "game_pk" | "feed_synced_at" | "updated_at">;
 
 function mergeGamesByPk(primary: GameScheduleRow[], secondary: GameScheduleRow[]): GameScheduleRow[] {
   const byPk = new Map<number, GameScheduleRow>();
@@ -27,21 +23,12 @@ function mergeGamesByPk(primary: GameScheduleRow[], secondary: GameScheduleRow[]
 
 function toListGame(row: GameScheduleRow, overlay?: DbOverlay): Game {
   const now = new Date().toISOString();
-  const merged: Game = {
+  return {
     ...row,
-    game_state: overlay?.game_state ?? null,
+    game_state: null,
     box_score: null,
     feed_synced_at: overlay?.feed_synced_at ?? null,
     updated_at: overlay?.updated_at ?? now,
-  };
-
-  if (!isStoredFeedComplete(merged)) {
-    merged.feed_synced_at = null;
-  }
-
-  return {
-    ...merged,
-    game_state: null,
   };
 }
 
@@ -54,7 +41,7 @@ async function fetchDbOverlays(gamePks: number[]): Promise<Map<number, DbOverlay
 
   const { data, error } = await supabase
     .from("games")
-    .select("game_pk, feed_synced_at, updated_at, status, away_score, home_score, game_state")
+    .select("game_pk, feed_synced_at, updated_at")
     .in("game_pk", gamePks);
 
   if (error) {
@@ -82,11 +69,55 @@ export async function fetchMlbGamesForBrowseDate(date: string): Promise<GameSche
   return mergeGamesByPk(todayGames, carryover);
 }
 
-/** Source-of-truth game list for Season History — MLB scores/status + DB replay metadata. */
+/** Fast path — historical dates served entirely from Supabase. */
+export async function loadHistoricalGamesFromDb(date: string): Promise<Game[]> {
+  const supabase = getServiceSupabase();
+  if (!supabase) return [];
+
+  const carryoverStatuses = [...ACTIVE_CARRYOVER_STATUSES];
+  const prevDate = previousScheduleDate(date);
+
+  const [primaryResult, carryoverResult] = await Promise.all([
+    supabase
+      .from("games")
+      .select(GAME_LIST_COLUMNS)
+      .eq("game_date", date)
+      .order("away_team_name", { ascending: true }),
+    supabase
+      .from("games")
+      .select(GAME_LIST_COLUMNS)
+      .eq("game_date", prevDate)
+      .in("status", carryoverStatuses)
+      .order("away_team_name", { ascending: true }),
+  ]);
+
+  const fetchError = primaryResult.error ?? carryoverResult.error;
+  if (fetchError) {
+    throw new Error(fetchError.message);
+  }
+
+  const byPk = new Map<number, Game>();
+  for (const game of (carryoverResult.data ?? []) as Game[]) {
+    byPk.set(game.game_pk, game);
+  }
+  for (const game of (primaryResult.data ?? []) as Game[]) {
+    byPk.set(game.game_pk, game);
+  }
+
+  return [...byPk.values()].sort((a, b) =>
+    a.away_team_name.localeCompare(b.away_team_name),
+  );
+}
+
+/** Live slate — MLB scores/status merged with lightweight Supabase feed metadata. */
 export async function loadGamesForDate(date: string): Promise<Game[]> {
   const mlbGames = await fetchMlbGamesForBrowseDate(date);
   const overlays = await fetchDbOverlays(mlbGames.map((game) => game.game_pk));
   return mlbGames.map((game) => toListGame(game, overlays.get(game.game_pk)));
+}
+
+export function isLiveScheduleDate(date: string): boolean {
+  return date === getMLBScheduleDate();
 }
 
 /** Upsert schedule metadata without overwriting stored play-by-play or box scores. */

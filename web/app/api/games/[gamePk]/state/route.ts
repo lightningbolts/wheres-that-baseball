@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
 import { archiveFinishedGame } from "@/lib/games/archiveGame";
-import { isStoredFeedComplete } from "@/lib/games/feedComplete";
+import { isSettledArchiveDate, isStoredFeedComplete } from "@/lib/games/feedComplete";
 import { parseStoredGameState } from "@/lib/games/gameState";
 import { isExplicitlyNotStarted } from "@/lib/games/format";
 import { parseLiveFeed } from "@/lib/mlb/liveFeed";
@@ -19,7 +19,13 @@ interface RouteParams {
 
 type GameStateRow = Pick<
   Game,
-  "game_pk" | "game_state" | "feed_synced_at" | "status" | "away_score" | "home_score"
+  | "game_pk"
+  | "game_date"
+  | "game_state"
+  | "feed_synced_at"
+  | "status"
+  | "away_score"
+  | "home_score"
 >;
 
 export async function GET(_request: Request, { params }: RouteParams) {
@@ -36,7 +42,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
     const { data, error } = await supabase
       .from("games")
-      .select("game_pk, game_state, feed_synced_at, status, away_score, home_score")
+      .select("game_pk, game_date, game_state, feed_synced_at, status, away_score, home_score")
       .eq("game_pk", gamePk)
       .maybeSingle();
 
@@ -46,6 +52,19 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
     const row = data as GameStateRow | null;
     const stored = parseStoredGameState(row?.game_state, gamePk);
+
+    if (
+      stored &&
+      row?.feed_synced_at &&
+      row.status === "Final" &&
+      isSettledArchiveDate(row.game_date)
+    ) {
+      return NextResponse.json({
+        state: stored,
+        source: "supabase",
+        feedSyncedAt: row.feed_synced_at,
+      });
+    }
 
     if (stored && isStoredFeedComplete(row)) {
       return NextResponse.json({

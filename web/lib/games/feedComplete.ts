@@ -1,13 +1,19 @@
 import { isMlbFeedWrapper } from "@/lib/games/gameState";
 import type { Game } from "@/types/database";
+import { getMLBScheduleDate } from "@/lib/mlb/schedule";
 
 /** Minimum play count expected in a completed nine-inning game feed. */
 const MIN_FINAL_PLAYS = 15;
 
 export type FeedCheckRow = Pick<
   Game,
-  "status" | "away_score" | "home_score" | "feed_synced_at" | "game_state"
+  "status" | "away_score" | "home_score" | "feed_synced_at" | "game_state" | "game_date"
 >;
+
+/** Past slates with a cached feed can be served without re-validating against MLB. */
+export function isSettledArchiveDate(gameDate: string): boolean {
+  return gameDate < getMLBScheduleDate();
+}
 
 /** True when Supabase holds a complete final-game MLB feed suitable for replay. */
 export function isStoredFeedComplete(row: FeedCheckRow | null | undefined): boolean {
