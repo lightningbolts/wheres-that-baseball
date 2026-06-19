@@ -27,6 +27,14 @@
     --field-line-stroke: #6b9a6b;
     --field-home-plate-fill: #d4d4d4;
     --field-home-plate-stroke: #737373;
+
+    --spray-hit-single: #0369a1;
+    --spray-hit-double: #047857;
+    --spray-hit-triple: #b45309;
+    --spray-hit-hr: #b91c1c;
+    --spray-hit-contact: #b45309;
+    --spray-hit-shadow: rgb(15 23 42 / 0.72);
+    --spray-hit-ball-outline: #ffffff;
     --hover: #f0f0f0;
     --overlay: rgb(0 0 0 / 0.04);
 
@@ -68,6 +76,14 @@
     --field-line-stroke: #4a6b4a;
     --field-home-plate-fill: #e5e5e5;
     --field-home-plate-stroke: #ffffff;
+
+    --spray-hit-single: #38bdf8;
+    --spray-hit-double: #4ade80;
+    --spray-hit-triple: #fbbf24;
+    --spray-hit-hr: #f87171;
+    --spray-hit-contact: #fbbf24;
+    --spray-hit-shadow: rgb(0 0 0 / 0.85);
+    --spray-hit-ball-outline: #ffffff;
     --hover: #1c1c1c;
     --overlay: rgb(255 255 255 / 0.06);
 

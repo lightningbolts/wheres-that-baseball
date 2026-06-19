@@ -11,6 +11,8 @@ import {
   mapHitToSvg,
 } from "@/lib/mlb/ballparkPaths";
 import type { HitData } from "@/types/mlb-live";
+import { SPRAY_CONTACT_COLOR } from "@/lib/mlb/sprayChartStyle";
+import { SprayTrajectory } from "@/components/features/SprayChartMarkers";
 
 interface SprayChartProps {
   hit: HitData | null;
@@ -78,16 +80,15 @@ export function SprayChart({ hit, venueId, className, size = "default" }: SprayC
         className="aspect-square w-full border border-border bg-field-chart-bg"
       >
         <FieldBackground venueId={venueId} />
-        <line
-          x1={home.x}
-          y1={home.y}
-          x2={x}
-          y2={y}
-          stroke="#fbbf24"
-          strokeWidth="0.45"
-          opacity="0.55"
+        <SprayTrajectory
+          homeX={home.x}
+          homeY={home.y}
+          x={x}
+          y={y}
+          color={SPRAY_CONTACT_COLOR}
+          ballRadius={dotRadius}
+          lineWidth={size === "large" ? 0.7 : 0.6}
         />
-        <circle cx={x} cy={y} r={dotRadius} fill="#fbbf24" stroke="#fff" strokeWidth="0.55" />
       </svg>
       <p className="mt-1.5 text-center text-[11px] text-subtle">
         {hit.totalDistance > 0 ? `${Math.round(hit.totalDistance)} ft` : "In play"}

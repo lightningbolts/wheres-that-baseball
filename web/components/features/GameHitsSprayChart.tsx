@@ -11,6 +11,8 @@ import {
   mapHitToSvg,
 } from "@/lib/mlb/ballparkPaths";
 import type { GameHit } from "@/lib/mlb/gameHits";
+import { SPRAY_HIT_COLOR_VAR } from "@/lib/mlb/sprayChartStyle";
+import { SprayTrajectory } from "@/components/features/SprayChartMarkers";
 
 interface GameHitsSprayChartProps {
   hits: GameHit[];
@@ -87,22 +89,13 @@ export function GameHitsSprayChart({
               role={onSelectHit ? "button" : undefined}
               tabIndex={onSelectHit ? 0 : undefined}
             >
-              <line
-                x1={home.x}
-                y1={home.y}
-                x2={x}
-                y2={y}
-                stroke={gameHit.color}
-                strokeWidth={isSelected ? 0.7 : 0.4}
-                opacity={isSelected ? 0.85 : 0.45}
-              />
-              <circle
-                cx={x}
-                cy={y}
-                r={isSelected ? 3.2 : 2.4}
-                fill={gameHit.color}
-                stroke={isSelected ? "#fff" : "rgba(255,255,255,0.7)"}
-                strokeWidth={isSelected ? 0.75 : 0.45}
+              <SprayTrajectory
+                homeX={home.x}
+                homeY={home.y}
+                x={x}
+                y={y}
+                color={SPRAY_HIT_COLOR_VAR[gameHit.event]}
+                selected={isSelected}
               />
             </g>
           );
