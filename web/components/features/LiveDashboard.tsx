@@ -62,7 +62,7 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
       pitchCount: atBatViewState?.atBatPitches.length,
     });
 
-  const { probabilities, oddsKey, matchedPrediction } = useOutcomeOdds(atBatViewState, predictions);
+  const { probabilities, matchedPrediction } = useOutcomeOdds(atBatViewState, predictions);
 
   const [activeTab, setActiveTab] = useState<GameDetailTab>("plays");
 
@@ -262,7 +262,7 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
                   <div className="flex min-h-0 flex-1 flex-col">
                     {atBatViewState && gameState?.gameStatus === "Live" && !showBreakUI ? (
                       <ProbabilityChart
-                        key={oddsKey}
+                        key={`${atBatViewState.batterId ?? 0}-${atBatViewState.inning}`}
                         probabilities={probabilities}
                         contained
                         className="min-h-0 flex-1"

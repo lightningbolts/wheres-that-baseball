@@ -803,7 +803,9 @@ function parsePlayEntry(
   }
 
   const isOngoingPlay = playIndex === totalPlays - 1;
-  const finalized = isPlayFinalized(play);
+  if (isOngoingPlay && !isPlayFinalized(play)) {
+    return state;
+  }
 
   const halfKey = `${play.about?.inning ?? 0}-${play.about?.halfInning ?? ""}`;
   let situation = state.situation;
@@ -815,6 +817,7 @@ function parsePlayEntry(
   }
 
   const event = play.result?.event ?? "";
+
   const situationBefore = cloneSituation(situation);
   const gameEventEntries = extractGameEventsFromPlay(
     play,
@@ -822,16 +825,6 @@ function parsePlayEntry(
     situationBefore,
     state.loggedGameEventKeys,
   );
-
-  let nextState: PlayByPlayParseState =
-    gameEventEntries.length > 0
-      ? { ...state, entries: [...state.entries, ...gameEventEntries] }
-      : state;
-
-  if (isOngoingPlay && !finalized) {
-    return nextState;
-  }
-
   const postSituation = parsePostSituation(play, situation.bases);
   situation = postSituation;
 
@@ -840,33 +833,42 @@ function parsePlayEntry(
 
   if (!isAtBat && event && terminalCoveredByPlayEvents(play)) {
     return {
-      ...nextState,
+      entries: [...state.entries, ...gameEventEntries],
+      batterStats: state.batterStats,
       situation,
       currentHalf,
       rawPlayCount: playIndex + 1,
+      loggedGameEventKeys: state.loggedGameEventKeys,
+      loggedAtBatIndices: state.loggedAtBatIndices,
     };
   }
 
-  if (isAtBat && nextState.loggedAtBatIndices.has(atBatIndex)) {
+  if (isAtBat && state.loggedAtBatIndices.has(atBatIndex)) {
     return {
-      ...nextState,
+      entries: [...state.entries, ...gameEventEntries],
+      batterStats: state.batterStats,
       situation,
       currentHalf,
       rawPlayCount: playIndex + 1,
+      loggedGameEventKeys: state.loggedGameEventKeys,
+      loggedAtBatIndices: state.loggedAtBatIndices,
     };
   }
 
   const batterId = play.matchup?.batter?.id ?? 0;
   const batterLine =
-    batterId > 0 && isAtBat ? applyBatterLine(nextState.batterStats, batterId, event) : { hits: 0, atBats: 0 };
+    batterId > 0 && isAtBat ? applyBatterLine(state.batterStats, batterId, event) : { hits: 0, atBats: 0 };
 
   const detail = parsePlayDetail(play, batterLine, batterId);
   if (!detail) {
     return {
-      ...nextState,
+      entries: [...state.entries, ...gameEventEntries],
+      batterStats: state.batterStats,
       situation,
       currentHalf,
       rawPlayCount: playIndex + 1,
+      loggedGameEventKeys: state.loggedGameEventKeys,
+      loggedAtBatIndices: state.loggedAtBatIndices,
     };
   }
 
@@ -893,16 +895,16 @@ function parsePlayEntry(
     detail,
   };
 
-  const loggedAtBatIndices = new Set(nextState.loggedAtBatIndices);
+  const loggedAtBatIndices = new Set(state.loggedAtBatIndices);
   if (isAtBat) loggedAtBatIndices.add(atBatIndex);
 
   return {
-    entries: [...nextState.entries, entry],
-    batterStats: nextState.batterStats,
+    entries: [...state.entries, ...gameEventEntries, entry],
+    batterStats: state.batterStats,
     situation,
     currentHalf,
     rawPlayCount: playIndex + 1,
-    loggedGameEventKeys: nextState.loggedGameEventKeys,
+    loggedGameEventKeys: state.loggedGameEventKeys,
     loggedAtBatIndices,
   };
 }
@@ -1118,15 +1120,9 @@ export async function fetchDirectSnapshot(
 
   if (playsFrom != null) {
     const allPlays = feed.liveData.plays.allPlays ?? [];
-    let from = playsFrom;
-    let plays = allPlays.slice(playsFrom);
-    if (plays.length === 0 && allPlays.length > 0) {
-      from = allPlays.length - 1;
-      plays = allPlays.slice(from);
-    }
     return {
       ...snapshot,
-      plays: { from, total: allPlays.length, plays },
+      plays: { from: playsFrom, total: allPlays.length, plays: allPlays.slice(playsFrom) },
     };
   }
 

@@ -38,6 +38,10 @@ function applyGameState(
   if (prev && liveStateFingerprint(prev) === liveStateFingerprint(next)) {
     return prev;
   }
+  // Pitch-only updates: keep the plays array reference so PlayByPlay doesn't re-render.
+  if (prev && prev.plays === next.plays) {
+    return next;
+  }
   return next;
 }
 
@@ -61,6 +65,9 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
   const abortRef = useRef<AbortController | null>(null);
   const slowCountRef = useRef(0);
   const useDirectRef = useRef(false);
+  const pendingPlaysRef = useRef(false);
+  const lastAllPlaysCountRef = useRef(0);
+  const lastSnapshotBatterIdRef = useRef<number | null>(null);
 
   const fetchState = useCallback(async () => {
     const generation = generationRef.current;
@@ -70,7 +77,11 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
     const { signal } = controller;
 
     try {
-      const playsFrom = parseStateRef.current.rawPlayCount;
+      // Snapshot-only during an at-bat; fetch plays when PBP may have new rows.
+      const needsPlays =
+        pendingPlaysRef.current || parseStateRef.current.entries.length === 0;
+
+      const playsFrom = needsPlays ? parseStateRef.current.rawPlayCount : null;
 
       const started = performance.now();
       let result: LiveSnapshotWithPlays;
@@ -96,9 +107,21 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
 
       if (generation !== generationRef.current) return;
 
+      const allPlaysCount = result.allPlaysCount;
       const inningState = result.linescore.inningState ?? "";
       const isBreak = /^(middle|end)$/i.test(inningState);
+      const enteringBreak = isBreak && !wasBreakRef.current;
       wasBreakRef.current = isBreak;
+
+      const snapshotBatterId = result.currentPlay?.matchup?.batter?.id ?? null;
+      const batterChanged =
+        lastSnapshotBatterIdRef.current != null &&
+        snapshotBatterId != null &&
+        snapshotBatterId !== lastSnapshotBatterIdRef.current;
+      lastSnapshotBatterIdRef.current = snapshotBatterId;
+
+      const newPlayRow = allPlaysCount > lastAllPlaysCountRef.current;
+      lastAllPlaysCountRef.current = allPlaysCount;
 
       if (result.plays && result.plays.plays.length > 0) {
         parseStateRef.current = appendPlayByPlay(
@@ -107,6 +130,9 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
           result.plays.from,
           result.plays.total,
         );
+        pendingPlaysRef.current = false;
+      } else if (enteringBreak || batterChanged || newPlayRow) {
+        pendingPlaysRef.current = true;
       }
 
       if (generation !== generationRef.current) return;
@@ -136,6 +162,9 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
     wasBreakRef.current = false;
     slowCountRef.current = 0;
     useDirectRef.current = false;
+    pendingPlaysRef.current = false;
+    lastAllPlaysCountRef.current = 0;
+    lastSnapshotBatterIdRef.current = null;
     setGameState(null);
     setIsLoading(true);
     setError(null);

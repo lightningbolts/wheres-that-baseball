@@ -26,16 +26,9 @@ export async function GET(request: Request, { params }: RouteParams) {
 
     if (playsFrom != null && Number.isFinite(playsFrom) && playsFrom >= 0) {
       const allPlays = feed.liveData.plays.allPlays ?? [];
-      let from = playsFrom;
-      let plays = allPlays.slice(playsFrom);
-      // Re-include the last play when caught up — it may still be gaining playEvents.
-      if (plays.length === 0 && allPlays.length > 0) {
-        from = allPlays.length - 1;
-        plays = allPlays.slice(from);
-      }
       return NextResponse.json({
         ...snapshot,
-        plays: { from, total: allPlays.length, plays },
+        plays: { from: playsFrom, total: allPlays.length, plays: allPlays.slice(playsFrom) },
       });
     }
 
