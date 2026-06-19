@@ -6,7 +6,8 @@ import { isGameOver } from "@/lib/mlb/gameOver";
 import { isHalfInningBreak } from "@/lib/mlb/lineup";
 import type { LiveGameState, PlayByPlayEntry, PlayPitch } from "@/types/mlb-live";
 
-export const BREAK_LINGER_MS = 2_000;
+export const BREAK_LINGER_MS = 3_000;
+export const AT_BAT_LINGER_MS = 3_000;
 /** Cap how long we wait for play-by-play to catch up before showing due-up UI. */
 const MAX_BREAK_WAIT_MS = 5_000;
 
@@ -85,17 +86,34 @@ export function useBreakLinger(gameState: LiveGameState | null): BreakLingerResu
   const activeBreakKeyRef = useRef<string | null>(null);
   const lingerSnapshotRef = useRef<LiveGameState | null>(null);
   const lingerStartedAtRef = useRef(0);
+  const atBatLingerRef = useRef<{ snapshot: LiveGameState; until: number } | null>(null);
   const [lingerTick, setLingerTick] = useState(0);
 
   const isBreak = gameState != null && isHalfInningBreak(gameState.inningState);
   const currentBreakKey = isBreak && gameState ? breakKey(gameState) : null;
 
   if (gameState && !isBreak) {
+    const prev = lastActiveRef.current;
+    const batterChanged =
+      prev != null &&
+      prev.batterId != null &&
+      gameState.batterId != null &&
+      gameState.batterId !== prev.batterId &&
+      prev.atBatPitches.length > 0;
+
+    if (batterChanged) {
+      atBatLingerRef.current = {
+        snapshot: prev,
+        until: Date.now() + AT_BAT_LINGER_MS,
+      };
+    }
+
     lastActiveRef.current = gameState;
     activeBreakKeyRef.current = null;
     lingerSnapshotRef.current = null;
     lingerStartedAtRef.current = 0;
   } else if (gameState && currentBreakKey) {
+    atBatLingerRef.current = null;
     const nextSnapshot = buildLingerState(gameState, lastActiveRef.current);
     const prevPitchCount = lingerSnapshotRef.current?.atBatPitches.length ?? 0;
     const nextPitchCount = nextSnapshot?.atBatPitches.length ?? 0;
@@ -114,35 +132,55 @@ export function useBreakLinger(gameState: LiveGameState | null): BreakLingerResu
     }
   }
 
-  const lingerAge = Date.now() - lingerStartedAtRef.current;
+  const now = Date.now();
+  const atBatLingering =
+    !isBreak &&
+    atBatLingerRef.current != null &&
+    now < atBatLingerRef.current.until;
+
+  const lingerAge = now - lingerStartedAtRef.current;
   const lingerPitchCount = lingerSnapshotRef.current?.atBatPitches.length ?? 0;
-  const isLingering =
+  const isBreakLingering =
     currentBreakKey != null &&
     ((lingerPitchCount > 0 && lingerAge < BREAK_LINGER_MS) ||
       (lingerPitchCount === 0 && lingerAge < MAX_BREAK_WAIT_MS));
 
+  const isLingering = isBreakLingering || atBatLingering;
+
   useEffect(() => {
     if (!isLingering) return;
 
-    const limit =
-      lingerPitchCount > 0 ? BREAK_LINGER_MS : MAX_BREAK_WAIT_MS;
-    const remaining = limit - (Date.now() - lingerStartedAtRef.current);
+    let remaining: number;
+    if (isBreakLingering) {
+      const limit = lingerPitchCount > 0 ? BREAK_LINGER_MS : MAX_BREAK_WAIT_MS;
+      remaining = limit - (Date.now() - lingerStartedAtRef.current);
+    } else if (atBatLingerRef.current) {
+      remaining = atBatLingerRef.current.until - Date.now();
+    } else {
+      return;
+    }
+
     const id = window.setTimeout(() => setLingerTick((tick) => tick + 1), Math.max(0, remaining));
     return () => window.clearTimeout(id);
-  }, [isLingering, currentBreakKey, lingerTick, lingerPitchCount]);
+  }, [isLingering, isBreakLingering, currentBreakKey, lingerTick, lingerPitchCount]);
 
   useEffect(() => {
     lastActiveRef.current = null;
     activeBreakKeyRef.current = null;
     lingerSnapshotRef.current = null;
     lingerStartedAtRef.current = 0;
+    atBatLingerRef.current = null;
   }, [gameState?.gamePk]);
 
   const showBreakUI =
-    isBreak && !isLingering && !(gameState != null && isGameOver(gameState));
-  const atBatViewState = isLingering
-    ? (lingerSnapshotRef.current ?? lastActiveRef.current ?? gameState)
-    : gameState;
+    isBreak && !isBreakLingering && !(gameState != null && isGameOver(gameState));
+
+  let atBatViewState: LiveGameState | null = gameState;
+  if (isBreakLingering) {
+    atBatViewState = lingerSnapshotRef.current ?? lastActiveRef.current ?? gameState;
+  } else if (atBatLingering && atBatLingerRef.current) {
+    atBatViewState = atBatLingerRef.current.snapshot;
+  }
 
   return { atBatViewState, isLingering, showBreakUI };
 }

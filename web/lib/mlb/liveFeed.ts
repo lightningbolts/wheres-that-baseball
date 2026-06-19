@@ -41,6 +41,7 @@ export interface PlayByPlayParseState {
   /** Next allPlays index to process (0-based). */
   rawPlayCount: number;
   loggedGameEventKeys: Set<string>;
+  loggedAtBatIndices: Set<number>;
 }
 
 const MLB_FEED_BASE = "https://statsapi.mlb.com/api/v1.1";
@@ -206,13 +207,14 @@ function extractGameEventsFromPlay(
   loggedKeys: Set<string>,
 ): PlayByPlayEntry[] {
   const entries: PlayByPlayEntry[] = [];
+  const playEvents = play.playEvents ?? [];
+  const atBatIndex = play.about?.atBatIndex ?? playIndex;
 
-  let ordinal = 0;
-  for (const playEvent of play.playEvents ?? []) {
+  for (let i = 0; i < playEvents.length; i += 1) {
+    const playEvent = playEvents[i];
     if (!shouldLogPlayEvent(playEvent)) continue;
 
-    const key = gameEventDedupeKey(playIndex, playEvent, ordinal);
-    ordinal += 1;
+    const key = gameEventDedupeKey(atBatIndex, playEvents, i, playEvent);
     if (loggedKeys.has(key)) continue;
 
     const entry = buildGameEventFromPlayEvent(playEvent, play, situationBefore);
@@ -225,19 +227,21 @@ function extractGameEventsFromPlay(
   return entries;
 }
 
+/**
+ * Stable dedupe key for non-at-bat play events.
+ * Uses position in playEvents (not MLB's event.index) so keys stay consistent
+ * as the feed fills in metadata across polls.
+ */
 function gameEventDedupeKey(
-  playIndex: number,
+  atBatIndex: number,
+  playEvents: PitchEventRaw[],
+  eventPosition: number,
   event: PitchEventRaw,
-  ordinal: number,
 ): string {
-  const marker =
-    event.index ??
-    event.pitchNumber ??
-    event.startTime ??
-    ordinal;
   const type = event.details?.eventType ?? event.type ?? "";
   const desc = event.details?.description ?? event.details?.event ?? "";
-  return `${playIndex}:${marker}:${type}:${desc}`;
+  const time = event.endTime ?? event.startTime ?? "";
+  return `${atBatIndex}:${eventPosition}:${type}:${desc}:${time}`;
 }
 
 /** True when an allPlays row has its terminal outcome and won't gain more playEvents. */
@@ -247,7 +251,10 @@ function isPlayFinalized(play: AllPlayRaw): boolean {
 
   if (!isPlateAppearanceEvent(event)) return true;
 
-  return play.about?.isComplete === true;
+  if (play.about?.isComplete === true) return true;
+
+  // MLB often sets description before isComplete; accept so PBP doesn't lag a poll.
+  return Boolean(play.result?.description?.trim());
 }
 
 type PitchEventRaw = NonNullable<AllPlayRaw["playEvents"]>[number];
@@ -781,6 +788,7 @@ export function createPlayByPlayParseState(): PlayByPlayParseState {
     currentHalf: "",
     rawPlayCount: 0,
     loggedGameEventKeys: new Set(),
+    loggedAtBatIndices: new Set(),
   };
 }
 
@@ -795,9 +803,7 @@ function parsePlayEntry(
   }
 
   const isOngoingPlay = playIndex === totalPlays - 1;
-  if (isOngoingPlay && !isPlayFinalized(play)) {
-    return state;
-  }
+  const finalized = isPlayFinalized(play);
 
   const halfKey = `${play.about?.inning ?? 0}-${play.about?.halfInning ?? ""}`;
   let situation = state.situation;
@@ -809,7 +815,6 @@ function parsePlayEntry(
   }
 
   const event = play.result?.event ?? "";
-
   const situationBefore = cloneSituation(situation);
   const gameEventEntries = extractGameEventsFromPlay(
     play,
@@ -817,35 +822,51 @@ function parsePlayEntry(
     situationBefore,
     state.loggedGameEventKeys,
   );
+
+  let nextState: PlayByPlayParseState =
+    gameEventEntries.length > 0
+      ? { ...state, entries: [...state.entries, ...gameEventEntries] }
+      : state;
+
+  if (isOngoingPlay && !finalized) {
+    return nextState;
+  }
+
   const postSituation = parsePostSituation(play, situation.bases);
   situation = postSituation;
 
   const isAtBat = isPlateAppearanceEvent(event);
+  const atBatIndex = play.about?.atBatIndex ?? playIndex;
 
   if (!isAtBat && event && terminalCoveredByPlayEvents(play)) {
     return {
-      entries: [...state.entries, ...gameEventEntries],
-      batterStats: state.batterStats,
+      ...nextState,
       situation,
       currentHalf,
       rawPlayCount: playIndex + 1,
-      loggedGameEventKeys: state.loggedGameEventKeys,
+    };
+  }
+
+  if (isAtBat && nextState.loggedAtBatIndices.has(atBatIndex)) {
+    return {
+      ...nextState,
+      situation,
+      currentHalf,
+      rawPlayCount: playIndex + 1,
     };
   }
 
   const batterId = play.matchup?.batter?.id ?? 0;
   const batterLine =
-    batterId > 0 && isAtBat ? applyBatterLine(state.batterStats, batterId, event) : { hits: 0, atBats: 0 };
+    batterId > 0 && isAtBat ? applyBatterLine(nextState.batterStats, batterId, event) : { hits: 0, atBats: 0 };
 
   const detail = parsePlayDetail(play, batterLine, batterId);
   if (!detail) {
     return {
-      entries: [...state.entries, ...gameEventEntries],
-      batterStats: state.batterStats,
+      ...nextState,
       situation,
       currentHalf,
       rawPlayCount: playIndex + 1,
-      loggedGameEventKeys: state.loggedGameEventKeys,
     };
   }
 
@@ -872,13 +893,17 @@ function parsePlayEntry(
     detail,
   };
 
+  const loggedAtBatIndices = new Set(nextState.loggedAtBatIndices);
+  if (isAtBat) loggedAtBatIndices.add(atBatIndex);
+
   return {
-    entries: [...state.entries, ...gameEventEntries, entry],
-    batterStats: state.batterStats,
+    entries: [...nextState.entries, entry],
+    batterStats: nextState.batterStats,
     situation,
     currentHalf,
     rawPlayCount: playIndex + 1,
-    loggedGameEventKeys: state.loggedGameEventKeys,
+    loggedGameEventKeys: nextState.loggedGameEventKeys,
+    loggedAtBatIndices,
   };
 }
 
@@ -974,6 +999,7 @@ export function parseLiveFeed(
 /** Cheap fingerprint to skip React updates when the live snapshot is unchanged. */
 export function liveStateFingerprint(state: LiveGameState): string {
   const lastPitch = state.atBatPitches.at(-1);
+  const lastPlay = state.plays.at(-1);
   return [
     state.gameStatus,
     state.inning,
@@ -996,6 +1022,9 @@ export function liveStateFingerprint(state: LiveGameState): string {
     lastPitch?.strikes,
     lastPitch?.startSpeed,
     state.plays.length,
+    lastPlay?.atBatIndex,
+    lastPlay?.event,
+    lastPlay?.isAtBat,
   ].join("|");
 }
 
@@ -1089,9 +1118,15 @@ export async function fetchDirectSnapshot(
 
   if (playsFrom != null) {
     const allPlays = feed.liveData.plays.allPlays ?? [];
+    let from = playsFrom;
+    let plays = allPlays.slice(playsFrom);
+    if (plays.length === 0 && allPlays.length > 0) {
+      from = allPlays.length - 1;
+      plays = allPlays.slice(from);
+    }
     return {
       ...snapshot,
-      plays: { from: playsFrom, total: allPlays.length, plays: allPlays.slice(playsFrom) },
+      plays: { from, total: allPlays.length, plays },
     };
   }
 

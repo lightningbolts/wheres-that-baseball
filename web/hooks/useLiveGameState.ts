@@ -61,7 +61,6 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
   const abortRef = useRef<AbortController | null>(null);
   const slowCountRef = useRef(0);
   const useDirectRef = useRef(false);
-  const pendingPlaysRef = useRef(false);
 
   const fetchState = useCallback(async () => {
     const generation = generationRef.current;
@@ -71,11 +70,7 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
     const { signal } = controller;
 
     try {
-      const needsPlays =
-        pendingPlaysRef.current ||
-        parseStateRef.current.entries.length === 0;
-
-      const playsFrom = needsPlays ? parseStateRef.current.rawPlayCount : null;
+      const playsFrom = parseStateRef.current.rawPlayCount;
 
       const started = performance.now();
       let result: LiveSnapshotWithPlays;
@@ -101,32 +96,17 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
 
       if (generation !== generationRef.current) return;
 
-      const allPlaysCount = result.allPlaysCount;
       const inningState = result.linescore.inningState ?? "";
       const isBreak = /^(middle|end)$/i.test(inningState);
-      const enteringBreak = isBreak && !wasBreakRef.current;
       wasBreakRef.current = isBreak;
 
-      const hasNewPlays = allPlaysCount > parseStateRef.current.rawPlayCount;
-      const playChunkNeeded =
-        hasNewPlays ||
-        (parseStateRef.current.entries.length === 0 && allPlaysCount > 0) ||
-        enteringBreak;
-
       if (result.plays && result.plays.plays.length > 0) {
-        const prevCount = parseStateRef.current.rawPlayCount;
         parseStateRef.current = appendPlayByPlay(
           parseStateRef.current,
           result.plays.plays,
           result.plays.from,
           result.plays.total,
         );
-        const processedAll = parseStateRef.current.rawPlayCount >= result.plays.total;
-        pendingPlaysRef.current = !processedAll;
-      } else if (playChunkNeeded && !result.plays) {
-        pendingPlaysRef.current = true;
-      } else {
-        pendingPlaysRef.current = allPlaysCount > parseStateRef.current.rawPlayCount;
       }
 
       if (generation !== generationRef.current) return;
@@ -156,7 +136,6 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
     wasBreakRef.current = false;
     slowCountRef.current = 0;
     useDirectRef.current = false;
-    pendingPlaysRef.current = false;
     setGameState(null);
     setIsLoading(true);
     setError(null);
