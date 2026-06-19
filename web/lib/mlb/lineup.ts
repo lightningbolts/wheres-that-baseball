@@ -1,6 +1,7 @@
 import type { BatterBoxLine } from "@/types/mlb-boxscore";
 import type { LiveGameState, PlayByPlayEntry } from "@/types/mlb-live";
 import { formatInning, formatInningHalf } from "@/lib/utils";
+import { isDecisiveInningEnd, isHomeWinAfterTopHalf } from "@/lib/mlb/gameOver";
 
 export interface DueUpBatter {
   order: number;
@@ -126,10 +127,14 @@ export function buildDueUpContext(
 ): DueUpContext | null {
   if (!isHalfInningBreak(inningState)) return null;
 
-  const normalized = inningState.toLowerCase();
-  if (normalized === "end" && inning >= 9 && awayRuns !== homeRuns) {
+  if (
+    isDecisiveInningEnd(inning, inningState, awayRuns, homeRuns) ||
+    isHomeWinAfterTopHalf(inning, inningState, awayRuns, homeRuns)
+  ) {
     return null;
   }
+
+  const normalized = inningState.toLowerCase();
 
   const side: "away" | "home" = normalized === "middle" ? "home" : "away";
   const teamBatters = side === "home" ? homeBatters : awayBatters;
@@ -170,8 +175,20 @@ function dueUpSubtitle(inning: number, inningState: string): string {
 export function buildDueUpFromOffense(gameState: LiveGameState): DueUpContext | null {
   if (!isHalfInningBreak(gameState.inningState)) return null;
 
-  const normalized = gameState.inningState.toLowerCase();
-  if (normalized === "end" && gameState.inning >= 9 && gameState.awayRuns !== gameState.homeRuns) {
+  if (
+    isDecisiveInningEnd(
+      gameState.inning,
+      gameState.inningState,
+      gameState.awayRuns,
+      gameState.homeRuns,
+    ) ||
+    isHomeWinAfterTopHalf(
+      gameState.inning,
+      gameState.inningState,
+      gameState.awayRuns,
+      gameState.homeRuns,
+    )
+  ) {
     return null;
   }
 
@@ -208,6 +225,7 @@ export function buildDueUpFromOffense(gameState: LiveGameState): DueUpContext | 
 
   if (batters.length === 0) return null;
 
+  const normalized = gameState.inningState.toLowerCase();
   const side = dueUpSide(normalized);
   return {
     breakKey: `${gameState.inning}-${normalized}`,
