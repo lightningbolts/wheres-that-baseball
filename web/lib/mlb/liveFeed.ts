@@ -38,7 +38,9 @@ export interface PlayByPlayParseState {
   batterStats: Map<number, BatterLine>;
   situation: GameSituation;
   currentHalf: string;
+  /** Next allPlays index to process (0-based). */
   rawPlayCount: number;
+  loggedGameEventKeys: Set<string>;
 }
 
 const MLB_FEED_BASE = "https://statsapi.mlb.com/api/v1.1";
@@ -199,17 +201,53 @@ function buildGameEventFromPlayEvent(
 
 function extractGameEventsFromPlay(
   play: AllPlayRaw,
+  playIndex: number,
   situationBefore: GameSituation,
+  loggedKeys: Set<string>,
 ): PlayByPlayEntry[] {
   const entries: PlayByPlayEntry[] = [];
 
+  let ordinal = 0;
   for (const playEvent of play.playEvents ?? []) {
     if (!shouldLogPlayEvent(playEvent)) continue;
+
+    const key = gameEventDedupeKey(playIndex, playEvent, ordinal);
+    ordinal += 1;
+    if (loggedKeys.has(key)) continue;
+
     const entry = buildGameEventFromPlayEvent(playEvent, play, situationBefore);
-    if (entry) entries.push(entry);
+    if (!entry) continue;
+
+    loggedKeys.add(key);
+    entries.push(entry);
   }
 
   return entries;
+}
+
+function gameEventDedupeKey(
+  playIndex: number,
+  event: PitchEventRaw,
+  ordinal: number,
+): string {
+  const marker =
+    event.index ??
+    event.pitchNumber ??
+    event.startTime ??
+    ordinal;
+  const type = event.details?.eventType ?? event.type ?? "";
+  const desc = event.details?.description ?? event.details?.event ?? "";
+  return `${playIndex}:${marker}:${type}:${desc}`;
+}
+
+/** True when an allPlays row has its terminal outcome and won't gain more playEvents. */
+function isPlayFinalized(play: AllPlayRaw): boolean {
+  const event = play.result?.event?.trim() ?? "";
+  if (!event) return false;
+
+  if (!isPlateAppearanceEvent(event)) return true;
+
+  return play.about?.isComplete === true;
 }
 
 type PitchEventRaw = NonNullable<AllPlayRaw["playEvents"]>[number];
@@ -742,19 +780,25 @@ export function createPlayByPlayParseState(): PlayByPlayParseState {
     situation: initialGameSituation(),
     currentHalf: "",
     rawPlayCount: 0,
+    loggedGameEventKeys: new Set(),
   };
-}
-
-/** Returns true if a play has no terminal outcome yet (may have interim descriptions). */
-function isIncompletePlay(play: AllPlayRaw): boolean {
-  return !play.result?.event && play.about?.isComplete !== true;
 }
 
 function parsePlayEntry(
   play: AllPlayRaw,
   state: PlayByPlayParseState,
-  isLast: boolean,
+  playIndex: number,
+  totalPlays: number,
 ): PlayByPlayParseState {
+  if (playIndex < state.rawPlayCount) {
+    return state;
+  }
+
+  const isOngoingPlay = playIndex === totalPlays - 1;
+  if (isOngoingPlay && !isPlayFinalized(play)) {
+    return state;
+  }
+
   const halfKey = `${play.about?.inning ?? 0}-${play.about?.halfInning ?? ""}`;
   let situation = state.situation;
   let currentHalf = state.currentHalf;
@@ -766,12 +810,13 @@ function parsePlayEntry(
 
   const event = play.result?.event ?? "";
 
-  if (isLast && isIncompletePlay(play)) {
-    return { ...state, situation, currentHalf };
-  }
-
   const situationBefore = cloneSituation(situation);
-  const gameEventEntries = extractGameEventsFromPlay(play, situationBefore);
+  const gameEventEntries = extractGameEventsFromPlay(
+    play,
+    playIndex,
+    situationBefore,
+    state.loggedGameEventKeys,
+  );
   const postSituation = parsePostSituation(play, situation.bases);
   situation = postSituation;
 
@@ -783,7 +828,8 @@ function parsePlayEntry(
       batterStats: state.batterStats,
       situation,
       currentHalf,
-      rawPlayCount: state.rawPlayCount + 1,
+      rawPlayCount: playIndex + 1,
+      loggedGameEventKeys: state.loggedGameEventKeys,
     };
   }
 
@@ -798,7 +844,8 @@ function parsePlayEntry(
       batterStats: state.batterStats,
       situation,
       currentHalf,
-      rawPlayCount: state.rawPlayCount + 1,
+      rawPlayCount: playIndex + 1,
+      loggedGameEventKeys: state.loggedGameEventKeys,
     };
   }
 
@@ -830,17 +877,20 @@ function parsePlayEntry(
     batterStats: state.batterStats,
     situation,
     currentHalf,
-    rawPlayCount: state.rawPlayCount + 1,
+    rawPlayCount: playIndex + 1,
+    loggedGameEventKeys: state.loggedGameEventKeys,
   };
 }
 
 export function appendPlayByPlay(
   state: PlayByPlayParseState,
   rawPlays: AllPlayRaw[],
+  fromIndex: number,
+  totalPlays: number,
 ): PlayByPlayParseState {
   let next = state;
   for (let i = 0; i < rawPlays.length; i++) {
-    next = parsePlayEntry(rawPlays[i], next, i === rawPlays.length - 1);
+    next = parsePlayEntry(rawPlays[i], next, fromIndex + i, totalPlays);
   }
   return next;
 }
@@ -848,7 +898,7 @@ export function appendPlayByPlay(
 function parsePlayByPlay(allPlays: AllPlayRaw[] | undefined): PlayByPlayEntry[] {
   if (!allPlays?.length) return [];
   return normalizePlayByPlay(
-    appendPlayByPlay(createPlayByPlayParseState(), allPlays).entries,
+    appendPlayByPlay(createPlayByPlayParseState(), allPlays, 0, allPlays.length).entries,
   );
 }
 

@@ -115,9 +115,13 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
 
       if (result.plays && result.plays.plays.length > 0) {
         const prevCount = parseStateRef.current.rawPlayCount;
-        parseStateRef.current = appendPlayByPlay(parseStateRef.current, result.plays.plays);
-        const processedAll =
-          parseStateRef.current.rawPlayCount >= prevCount + result.plays.plays.length;
+        parseStateRef.current = appendPlayByPlay(
+          parseStateRef.current,
+          result.plays.plays,
+          result.plays.from,
+          result.plays.total,
+        );
+        const processedAll = parseStateRef.current.rawPlayCount >= result.plays.total;
         pendingPlaysRef.current = !processedAll;
       } else if (playChunkNeeded && !result.plays) {
         pendingPlaysRef.current = true;

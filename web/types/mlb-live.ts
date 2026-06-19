@@ -179,6 +179,8 @@ interface PitchEventRaw {
   type?: string;
   index?: number;
   pitchNumber?: number;
+  startTime?: string;
+  endTime?: string;
   reviewDetails?: {
     isOverturned?: boolean;
     inProgress?: boolean;
