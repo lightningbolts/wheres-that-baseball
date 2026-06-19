@@ -30,16 +30,48 @@ export const FIELD_SEGMENT_ORDER = [
   "home_plate",
 ] as const;
 
-export const FIELD_SEGMENT_STYLES: Record<
-  string,
-  { fill: string; stroke: string; strokeWidth: number; opacity?: number }
-> = {
-  outfield_outer: { fill: "#243524", stroke: "#3d5c3d", strokeWidth: 0.5 },
-  outfield_inner: { fill: "none", stroke: "#3d5c3d", strokeWidth: 0.25, opacity: 0.4 },
-  infield_outer: { fill: "#2a3f2a", stroke: "#4a6b4a", strokeWidth: 0.4 },
-  infield_inner: { fill: "none", stroke: "#4a6b4a", strokeWidth: 0.25, opacity: 0.5 },
-  foul_lines: { fill: "none", stroke: "#4a6b4a", strokeWidth: 0.3, opacity: 0.6 },
-  home_plate: { fill: "#e5e5e5", stroke: "#ffffff", strokeWidth: 0.3 },
+export type FieldSegmentStyle = {
+  fill: string;
+  stroke: string;
+  strokeWidth: number;
+  opacity?: number;
+};
+
+/** Theme-aware via CSS variables — resolved for SVG; read computed values for WebGL. */
+export const FIELD_SEGMENT_STYLES: Record<string, FieldSegmentStyle> = {
+  outfield_outer: {
+    fill: "var(--field-outfield-fill)",
+    stroke: "var(--field-outfield-stroke)",
+    strokeWidth: 0.5,
+  },
+  outfield_inner: {
+    fill: "none",
+    stroke: "var(--field-outfield-stroke)",
+    strokeWidth: 0.25,
+    opacity: 0.4,
+  },
+  infield_outer: {
+    fill: "var(--field-infield-fill)",
+    stroke: "var(--field-infield-stroke)",
+    strokeWidth: 0.4,
+  },
+  infield_inner: {
+    fill: "none",
+    stroke: "var(--field-infield-stroke)",
+    strokeWidth: 0.25,
+    opacity: 0.5,
+  },
+  foul_lines: {
+    fill: "none",
+    stroke: "var(--field-line-stroke)",
+    strokeWidth: 0.3,
+    opacity: 0.6,
+  },
+  home_plate: {
+    fill: "var(--field-home-plate-fill)",
+    stroke: "var(--field-home-plate-stroke)",
+    strokeWidth: 0.3,
+  },
 };
 
 /** Generic symmetric field used when venue is unknown. */

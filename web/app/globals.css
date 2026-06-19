@@ -17,6 +17,16 @@
     --zone-chart-grid: #b8b8b8;
     --zone-chart-plate: #9a9a9a;
     --zone-chart-zone-fill: rgb(0 0 0 / 0.03);
+
+    --field-chart-bg: #e4ede4;
+    --field-chart-canvas-bg: #eef4ee;
+    --field-outfield-fill: #b8d4b8;
+    --field-outfield-stroke: #7dae7d;
+    --field-infield-fill: #c5dcc5;
+    --field-infield-stroke: #6b9a6b;
+    --field-line-stroke: #6b9a6b;
+    --field-home-plate-fill: #d4d4d4;
+    --field-home-plate-stroke: #737373;
     --hover: #f0f0f0;
     --overlay: rgb(0 0 0 / 0.04);
 
@@ -48,6 +58,16 @@
     --zone-chart-grid: #525252;
     --zone-chart-plate: #6b6b6b;
     --zone-chart-zone-fill: rgb(255 255 255 / 0.04);
+
+    --field-chart-bg: #1a2e1a;
+    --field-chart-canvas-bg: #0f1a12;
+    --field-outfield-fill: #243524;
+    --field-outfield-stroke: #3d5c3d;
+    --field-infield-fill: #2a3f2a;
+    --field-infield-stroke: #4a6b4a;
+    --field-line-stroke: #4a6b4a;
+    --field-home-plate-fill: #e5e5e5;
+    --field-home-plate-stroke: #ffffff;
     --hover: #1c1c1c;
     --overlay: rgb(255 255 255 / 0.06);
 

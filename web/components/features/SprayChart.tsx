@@ -75,7 +75,7 @@ export function SprayChart({ hit, venueId, className, size = "default" }: SprayC
     <div className={cn("w-full", SIZE_CLASSES[size], className)}>
       <svg
         viewBox={FIELD_VIEW_BOX}
-        className="aspect-square w-full border border-border bg-[#1a2e1a]"
+        className="aspect-square w-full border border-border bg-field-chart-bg"
       >
         <FieldBackground venueId={venueId} />
         <line

@@ -24,7 +24,7 @@ const GameHitsTrajectory3D = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex h-[360px] items-center justify-center rounded border border-border bg-[#0f1a12] text-xs text-subtle">
+      <div className="flex h-[360px] items-center justify-center rounded border border-border bg-field-chart-canvas text-xs text-subtle">
         Loading trajectories…
       </div>
     ),

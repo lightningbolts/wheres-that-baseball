@@ -1,64 +1,22 @@
 "use client";
 
 import { Line } from "@react-three/drei";
+import { Canvas } from "@react-three/fiber";
+import { useMemo } from "react";
+
 import {
   TRAJECTORY_CONTROLS_HINT,
   TrajectoryOrbitControls,
 } from "@/components/features/TrajectoryOrbitControls";
-import { Canvas } from "@react-three/fiber";
-import { useMemo } from "react";
-import * as THREE from "three";
+import { TrajectoryParkField } from "@/components/features/TrajectoryParkField";
+import { useFieldChartColors } from "@/hooks/useFieldChartColors";
 import {
-  buildChartBackgroundGeometry,
-  buildParkFieldGeometry,
   computeSceneTrajectoryPoints,
   getParkSceneMapper,
   trajectorySceneBounds,
-  type FieldLineData,
-  type FieldMeshData,
 } from "@/lib/mlb/ballparkScene";
 import type { GameHit } from "@/lib/mlb/gameHits";
 import type { Vec3 } from "@/lib/mlb/ballTrajectory";
-
-function ParkField({ venueId }: { venueId?: number | null }) {
-  const mapper = useMemo(() => getParkSceneMapper(venueId), [venueId]);
-
-  const { meshes, lines, background } = useMemo(() => {
-    const field = buildParkFieldGeometry(venueId, mapper);
-    return {
-      ...field,
-      background: buildChartBackgroundGeometry(mapper),
-    };
-  }, [mapper, venueId]);
-
-  return (
-    <group>
-      <mesh geometry={background}>
-        <meshStandardMaterial color="#1a2e1a" />
-      </mesh>
-      {meshes.map((mesh: FieldMeshData) => (
-        <mesh key={mesh.key} geometry={mesh.geometry}>
-          <meshStandardMaterial
-            color={mesh.color}
-            transparent={mesh.opacity != null && mesh.opacity < 1}
-            opacity={mesh.opacity ?? 1}
-            side={THREE.DoubleSide}
-          />
-        </mesh>
-      ))}
-      {lines.map((line: FieldLineData) => (
-        <Line
-          key={line.key}
-          points={line.points}
-          color={line.color}
-          lineWidth={1}
-          transparent={line.opacity != null && line.opacity < 1}
-          opacity={line.opacity ?? 1}
-        />
-      ))}
-    </group>
-  );
-}
 
 function TrajectoryPath({
   gameHit,
@@ -123,15 +81,16 @@ function Scene({
   venueId?: number | null;
   selectedAtBatIndex?: number | null;
 }) {
+  const { canvasBg } = useFieldChartColors();
   const bounds = useMemo(() => combinedBounds(hits, venueId), [hits, venueId]);
 
   return (
     <>
-      <color attach="background" args={["#0f1a12"]} />
+      <color attach="background" args={[canvasBg]} />
       <ambientLight intensity={0.55} />
       <directionalLight position={[8, 14, 6]} intensity={0.9} />
       <directionalLight position={[-6, 8, -4]} intensity={0.25} />
-      <ParkField venueId={venueId} />
+      <TrajectoryParkField venueId={venueId} />
       {hits.map((gameHit) => (
         <TrajectoryPath
           key={gameHit.atBatIndex}
@@ -144,7 +103,7 @@ function Scene({
       ))}
       <TrajectoryOrbitControls
         target={bounds.center}
-        minDistance={bounds.radius * 0.45}
+        boundsRadius={bounds.radius}
         maxDistance={bounds.radius * 3.2}
       />
     </>
@@ -175,11 +134,8 @@ export function GameHitsTrajectory3D({
 
   if (hits.length === 0) {
     return (
-      <div
-        className={className}
-        style={{ height }}
-      >
-        <div className="flex h-full items-center justify-center rounded border border-border bg-[#0f1a12] text-xs text-subtle">
+      <div className={className} style={{ height }}>
+        <div className="flex h-full items-center justify-center rounded border border-border bg-field-chart-canvas text-xs text-subtle">
           No batted-ball trajectories yet
         </div>
       </div>
@@ -188,7 +144,7 @@ export function GameHitsTrajectory3D({
 
   return (
     <div className={className}>
-      <div className="overflow-hidden rounded border border-border bg-[#0f1a12]">
+      <div className="overflow-hidden rounded border border-border bg-field-chart-canvas">
         <Canvas
           camera={{
             position: cameraPosition,

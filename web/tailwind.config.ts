@@ -20,6 +20,8 @@ const config: Config = {
         "zone-chart-bg": "var(--zone-chart-bg)",
         "zone-chart-grid": "var(--zone-chart-grid)",
         "zone-chart-plate": "var(--zone-chart-plate)",
+        "field-chart-bg": "var(--field-chart-bg)",
+        "field-chart-canvas": "var(--field-chart-canvas-bg)",
         hover: "var(--hover)",
         overlay: "var(--overlay)",
         foreground: "var(--foreground)",

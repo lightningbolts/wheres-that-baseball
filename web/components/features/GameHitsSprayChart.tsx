@@ -60,7 +60,7 @@ export function GameHitsSprayChart({
     <div className={cn("w-full", className)}>
       <svg
         viewBox={FIELD_VIEW_BOX}
-        className="aspect-square w-full border border-border bg-[#1a2e1a]"
+        className="aspect-square w-full border border-border bg-field-chart-bg"
       >
         <FieldBackground venueId={venueId} />
         {hits.map((gameHit) => {

@@ -7,6 +7,7 @@ import {
   GENERIC_TRANSFORM,
   getBallparkByVenueId,
   mapHitToSvg,
+  type FieldSegmentStyle,
 } from "@/lib/mlb/ballparkPaths";
 import type { BallparkTransform } from "@/types/ballpark";
 import type { HitData } from "@/types/mlb-live";
@@ -98,6 +99,7 @@ export interface FieldLineData {
 export function buildParkFieldGeometry(
   venueId: number | null | undefined,
   mapper: BallparkSceneMapper,
+  segmentStyles: Record<string, FieldSegmentStyle> = FIELD_SEGMENT_STYLES,
 ): { meshes: FieldMeshData[]; lines: FieldLineData[] } {
   const segments = getParkSegments(venueId);
   const meshes: FieldMeshData[] = [];
@@ -113,7 +115,7 @@ export function buildParkFieldGeometry(
     const d = segments[segment];
     if (!d) continue;
 
-    const style = FIELD_SEGMENT_STYLES[segment] ?? FIELD_SEGMENT_STYLES.outfield_outer;
+    const style = segmentStyles[segment] ?? segmentStyles.outfield_outer ?? FIELD_SEGMENT_STYLES.outfield_outer;
     const paths = parseSvgPath(d);
 
     if (FILLED_SEGMENTS.has(segment)) {
