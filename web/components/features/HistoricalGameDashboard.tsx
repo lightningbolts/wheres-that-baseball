@@ -10,6 +10,7 @@ import { BoxScoreView } from "@/components/features/BoxScoreView";
 import { DashboardSkeleton } from "@/components/features/DashboardSkeleton";
 import { DueUpDialog } from "@/components/features/DueUpDialog";
 import { GameDetailTabs, type GameDetailTab } from "@/components/features/GameDetailTabs";
+import { GameHitsView } from "@/components/features/GameHitsView";
 import { GameFinalDialog } from "@/components/features/GameFinalDialog";
 import { PitchSequence } from "@/components/features/PitchSequence";
 import { PlayByPlay } from "@/components/features/PlayByPlay";
@@ -207,6 +208,15 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
               atBatPlayerId={showBatterHighlights ? gameState?.batterId : null}
               onDeckPlayerId={showBatterHighlights ? gameState?.onDeckId : null}
               offenseTeamId={showBatterHighlights ? gameState?.offenseTeamId : null}
+            />
+          ) : activeTab === "spray" ? (
+            <GameHitsView
+              plays={gameState?.plays ?? []}
+              venueId={gameState?.venueId ?? game.venue_id}
+              venueName={gameState?.venueName ?? game.venue_name}
+              awayAbbrev={gameState?.awayAbbrev ?? game.away_team_abbrev}
+              homeAbbrev={gameState?.homeAbbrev ?? game.home_team_abbrev}
+              isLoading={isLoading && !gameState}
             />
           ) : !gameState ? (
             <div className="flex flex-1 items-center justify-center px-6 text-center">

@@ -8,7 +8,7 @@ from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.metrics import classification_report, log_loss
 from sklearn.pipeline import Pipeline
 
-from constants import FEATURE_COLS, OUTCOME_KEYS
+from constants import FEATURE_COLS, LEAGUE_DEFAULTS, OUTCOME_KEYS
 
 DATA_PATH = Path(__file__).parent / "data" / "at_bat_pitches.parquet"
 MODEL_DIR = Path(__file__).parent / "models"
@@ -76,7 +76,6 @@ def train() -> dict:
             max_depth=6,
             learning_rate=0.1,
             max_iter=200,
-            class_weight="balanced",
             random_state=42,
         )),
     ])
@@ -95,10 +94,19 @@ def train() -> dict:
     print(f"Model log loss:  {model_log_loss:.4f}")
     print(f"Naive log loss:  {naive_log_loss:.4f}")
 
+    hit_keys = ["single", "double", "triple", "home_run"]
+    ob_keys = hit_keys + ["walk"]
+    class_idx = {c: i for i, c in enumerate(classes)}
+    mean_hit = sum(y_proba[:, class_idx[k]].mean() for k in hit_keys if k in class_idx)
+    mean_ob = sum(y_proba[:, class_idx[k]].mean() for k in ob_keys if k in class_idx)
+    print(f"Mean predicted P(hit):     {mean_hit:.3f}")
+    print(f"Mean predicted P(on base): {mean_ob:.3f}")
+
     artifact = {
         "pipeline": pipeline,
         "feature_cols": FEATURE_COLS,
         "outcome_keys": classes,
+        "league_defaults": dict(LEAGUE_DEFAULTS),
     }
 
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
@@ -111,6 +119,8 @@ def train() -> dict:
         "games_test": int(test_df["game_pk"].nunique()),
         "log_loss": model_log_loss,
         "naive_log_loss": naive_log_loss,
+        "mean_predicted_hit": mean_hit,
+        "mean_predicted_on_base": mean_ob,
         "class_distribution_train": y_train.value_counts(normalize=True).to_dict(),
         "class_distribution_test": y_test.value_counts(normalize=True).to_dict(),
         "support_test": {k: int((y_test == k).sum()) for k in OUTCOME_KEYS},

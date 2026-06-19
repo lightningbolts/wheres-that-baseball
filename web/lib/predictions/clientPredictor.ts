@@ -8,13 +8,13 @@ function seededUnit(seed: number): number {
 
 function baseWeights(balls: number, strikes: number): Record<keyof OutcomeProbabilities, number> {
   const w: Record<keyof OutcomeProbabilities, number> = {
-    strikeout: 0.18,
-    walk: 0.08,
-    single: 0.22,
-    double: 0.07,
-    triple: 0.01,
-    home_run: 0.09,
-    field_out: 0.35,
+    strikeout: 0.23,
+    walk: 0.09,
+    single: 0.14,
+    double: 0.04,
+    triple: 0.005,
+    home_run: 0.03,
+    field_out: 0.37,
   };
 
   switch (true) {

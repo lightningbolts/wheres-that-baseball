@@ -27,5 +27,18 @@ FEATURE_COLS = [
     "batter_hand_R",
     "pitcher_hand_L",
     "pitcher_hand_R",
-    "platoon_adv"
+    "platoon_adv",
+    "batter_k_rate",
+    "batter_bb_rate",
+    "batter_iso",
+    "pitcher_k_rate",
+    "pitcher_bb_rate",
 ]
+
+LEAGUE_DEFAULTS = {
+    "batter_k_rate": 0.23,
+    "batter_bb_rate": 0.09,
+    "batter_iso": 0.15,
+    "pitcher_k_rate": 0.23,
+    "pitcher_bb_rate": 0.09,
+}

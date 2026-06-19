@@ -5,7 +5,7 @@ import pandas as pd
 from dotenv import load_dotenv
 from supabase import Client, create_client
 
-from constants import OUTCOME_KEYS
+from constants import LEAGUE_DEFAULTS, OUTCOME_KEYS
 
 load_dotenv()
 
@@ -24,6 +24,7 @@ DATA_DIR = Path(__file__).parent / "data"
 AT_BATS_PATH = DATA_DIR / "at_bats.parquet"
 AT_BAT_PITCHES_PATH = DATA_DIR / "at_bat_pitches.parquet"
 PLAYER_HANDS_PATH = DATA_DIR / "player_hands.parquet"
+PLAYER_STATS_PATH = DATA_DIR / "player_stats.parquet"
 PAGE_SIZE = 1000
 GAME_STATE_BATCH = 25
 
@@ -109,13 +110,70 @@ def _join_hands(df: pd.DataFrame) -> pd.DataFrame:
         df["pitcher_hand"] = ""
         return df
 
-    bat = hands.rename(columns={"player_id": "batter_id", "bat_side": "batter_hand"})
-    pit = hands.rename(columns={"player_id": "pitcher_id", "pitch_hand": "pitcher_hand"})
+    bat = hands[["player_id", "bat_side"]].rename(
+        columns={"player_id": "batter_id", "bat_side": "batter_hand"},
+    )
+    pit = hands[["player_id", "pitch_hand"]].rename(
+        columns={"player_id": "pitcher_id", "pitch_hand": "pitcher_hand"},
+    )
     df = df.merge(bat[["batter_id", "batter_hand"]], on="batter_id", how="left")
     df = df.merge(pit[["pitcher_id", "pitcher_hand"]], on="pitcher_id", how="left")
     df["batter_hand"] = df["batter_hand"].fillna("")
     df["pitcher_hand"] = df["pitcher_hand"].fillna("")
     return df
+
+def enrich_platoon(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    df["batter_hand"] = df["batter_hand"].fillna("").str.upper()
+    df["pitcher_hand"] = df["pitcher_hand"].fillna("").str.upper()
+    df["batter_hand_L"] = (df["batter_hand"] == "L").astype(int)
+    df["batter_hand_R"] = (df["batter_hand"] == "R").astype(int)
+    df["pitcher_hand_L"] = (df["pitcher_hand"] == "L").astype(int)
+    df["pitcher_hand_R"] = (df["pitcher_hand"] == "R").astype(int)
+    df["platoon_adv"] = (
+        ((df["batter_hand"] == "L") & (df["pitcher_hand"] == "R"))
+        | ((df["batter_hand"] == "R") & (df["pitcher_hand"] == "L"))
+    ).astype(int)
+    return df
+
+
+def _join_player_stats(df: pd.DataFrame) -> pd.DataFrame:
+    if not PLAYER_STATS_PATH.exists():
+        for col, default in LEAGUE_DEFAULTS.items():
+            df[col] = default
+        return df
+
+    stats = pd.read_parquet(PLAYER_STATS_PATH)
+    df["season"] = pd.to_datetime(df["game_date"]).dt.year
+
+    bat = stats[stats["role"] == "batter"].rename(columns={
+        "k_rate": "batter_k_rate",
+        "bb_rate": "batter_bb_rate",
+        "iso": "batter_iso",
+    })
+    pit = stats[stats["role"] == "pitcher"].rename(columns={
+        "k_rate": "pitcher_k_rate",
+        "bb_rate": "pitcher_bb_rate",
+    })
+
+    df = df.merge(
+        bat[["player_id", "season", "batter_k_rate", "batter_bb_rate", "batter_iso"]],
+        left_on=["batter_id", "season"],
+        right_on=["player_id", "season"],
+        how="left",
+    ).drop(columns=["player_id"], errors="ignore")
+
+    df = df.merge(
+        pit[["player_id", "season", "pitcher_k_rate", "pitcher_bb_rate"]],
+        left_on=["pitcher_id", "season"],
+        right_on=["player_id", "season"],
+        how="left",
+    ).drop(columns=["player_id"], errors="ignore")
+
+    for col, default in LEAGUE_DEFAULTS.items():
+        df[col] = df[col].fillna(default) if col in df.columns else default
+    return df
+
 
 def extract_at_bats_from_state(
     game_pk: int,
@@ -215,7 +273,9 @@ def enrich_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     )
     df["runners_on"] = df["on_first"] | df["on_second"] | df["on_third"]
     df["half_inning_bottom"] = (df["half_inning"] == "bottom").astype(int)
-    return df
+    df = _join_hands(df)
+    df = enrich_platoon(df)
+    return _join_player_stats(df)
 
 
 def validate_dataset(df: pd.DataFrame) -> None:
@@ -331,19 +391,42 @@ def save_datasets(at_bats_df: pd.DataFrame, pitches_df: pd.DataFrame) -> tuple[P
     return AT_BATS_PATH, AT_BAT_PITCHES_PATH
 
 
+def re_enrich_local_datasets() -> None:
+    """Re-apply hand/platoon/stat joins to existing parquet without Supabase."""
+    for path in (AT_BATS_PATH, AT_BAT_PITCHES_PATH):
+        if not path.exists():
+            raise FileNotFoundError(f"Missing {path}")
+        df = pd.read_parquet(path)
+        drop_cols = [
+            "batter_hand", "pitcher_hand",
+            "batter_hand_L", "batter_hand_R", "pitcher_hand_L", "pitcher_hand_R",
+            "platoon_adv", "season",
+            *LEAGUE_DEFAULTS.keys(),
+        ]
+        df = df.drop(columns=[c for c in drop_cols if c in df.columns])
+        df = enrich_dataframe(df)
+        df.to_parquet(path, index=False)
+        print(f"Re-enriched {path} ({len(df)} rows)")
+
+
 if __name__ == "__main__":
-    at_bats_df, pitches_df = extract_datasets(supabase)
+    import sys
 
-    print(f"\nTerminal at-bats: {len(at_bats_df)}")
-    print(f"Per-pitch snapshots: {len(pitches_df)}")
+    if "--re-enrich-only" in sys.argv:
+        re_enrich_local_datasets()
+    else:
+        at_bats_df, pitches_df = extract_datasets(supabase)
 
-    if len(at_bats_df) > 0:
-        print("\nAt-bat outcome distribution:")
-        print(at_bats_df["outcome_label"].value_counts(normalize=True))
+        print(f"\nTerminal at-bats: {len(at_bats_df)}")
+        print(f"Per-pitch snapshots: {len(pitches_df)}")
 
-        print("\nPer-game at-bat counts:")
-        print(at_bats_df.groupby("game_pk").size().describe())
+        if len(at_bats_df) > 0:
+            print("\nAt-bat outcome distribution:")
+            print(at_bats_df["outcome_label"].value_counts(normalize=True))
 
-    at_bats_path, pitches_path = save_datasets(at_bats_df, pitches_df)
-    print(f"\nWrote {at_bats_path}")
-    print(f"Wrote {pitches_path}")
+            print("\nPer-game at-bat counts:")
+            print(at_bats_df.groupby("game_pk").size().describe())
+
+        at_bats_path, pitches_path = save_datasets(at_bats_df, pitches_df)
+        print(f"\nWrote {at_bats_path}")
+        print(f"Wrote {pitches_path}")

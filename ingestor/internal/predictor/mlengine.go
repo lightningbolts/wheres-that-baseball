@@ -46,15 +46,20 @@ func NewMLEnginePredictor(opts MLEngineOptions) (*MLEnginePredictor, error) {
 }
 
 type mlPredictRequest struct {
-	Inning     int    `json:"inning"`
-	Balls      int    `json:"balls"`
-	Strikes    int    `json:"strikes"`
-	Outs       int    `json:"outs"`
-	OnFirst    bool   `json:"on_first"`
-	OnSecond   bool   `json:"on_second"`
-	OnThird    bool   `json:"on_third"`
-	InningHalf string `json:"inning_half"`
-	PitchCount int    `json:"pitch_count"`
+	Inning      int    `json:"inning"`
+	Balls       int    `json:"balls"`
+	Strikes     int    `json:"strikes"`
+	Outs        int    `json:"outs"`
+	OnFirst     bool   `json:"on_first"`
+	OnSecond    bool   `json:"on_second"`
+	OnThird     bool   `json:"on_third"`
+	InningHalf  string `json:"inning_half"`
+	PitchCount  int    `json:"pitch_count"`
+	BatterHand  string `json:"batter_hand"`
+	PitcherHand string `json:"pitcher_hand"`
+	BatterID    int    `json:"batter_id"`
+	PitcherID   int    `json:"pitcher_id"`
+	Season      int    `json:"season"`
 }
 
 type mlPredictResponse struct {
@@ -68,16 +73,26 @@ func (p *MLEnginePredictor) Predict(ctx context.Context, state mlb.GameState) (P
 		return PredictionResult{}, err
 	}
 
+	season := state.GameDateTime.Year()
+	if season <= 0 {
+		season = time.Now().Year()
+	}
+
 	body, err := json.Marshal(mlPredictRequest{
-		Inning:     state.Inning,
-		Balls:      state.Balls,
-		Strikes:    state.Strikes,
-		Outs:       state.Outs,
-		OnFirst:    state.OnFirst,
-		OnSecond:   state.OnSecond,
-		OnThird:    state.OnThird,
-		InningHalf: state.InningHalf,
-		PitchCount: state.PitchCount,
+		Inning:      state.Inning,
+		Balls:       state.Balls,
+		Strikes:     state.Strikes,
+		Outs:        state.Outs,
+		OnFirst:     state.OnFirst,
+		OnSecond:    state.OnSecond,
+		OnThird:     state.OnThird,
+		InningHalf:  state.InningHalf,
+		PitchCount:  state.PitchCount,
+		BatterHand:  state.BatterHand,
+		PitcherHand: state.PitcherHand,
+		BatterID:    state.BatterID,
+		PitcherID:   state.PitcherID,
+		Season:      season,
 	})
 	if err != nil {
 		return PredictionResult{}, fmt.Errorf("marshal predict request: %w", err)

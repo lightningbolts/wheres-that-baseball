@@ -10,6 +10,7 @@ import { ConnectionIndicator } from "@/components/features/ConnectionIndicator";
 import { DashboardSkeleton } from "@/components/features/DashboardSkeleton";
 import { DueUpDialog } from "@/components/features/DueUpDialog";
 import { GameDetailTabs, type GameDetailTab } from "@/components/features/GameDetailTabs";
+import { GameHitsView } from "@/components/features/GameHitsView";
 import { GameFinalDialog } from "@/components/features/GameFinalDialog";
 import { GameSidebar } from "@/components/features/GameSidebar";
 import { PlayByPlay } from "@/components/features/PlayByPlay";
@@ -97,6 +98,15 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
           atBatPlayerId={showBatterHighlights ? gameState?.batterId : null}
           onDeckPlayerId={showBatterHighlights ? gameState?.onDeckId : null}
           offenseTeamId={showBatterHighlights ? gameState?.offenseTeamId : null}
+        />
+      ) : activeTab === "spray" ? (
+        <GameHitsView
+          plays={gameState?.plays ?? []}
+          venueId={gameState?.venueId}
+          venueName={gameState?.venueName}
+          awayAbbrev={gameState?.awayAbbrev ?? "AWY"}
+          homeAbbrev={gameState?.homeAbbrev ?? "HME"}
+          isLoading={isFeedLoading && !gameState}
         />
       ) : (
         <>
