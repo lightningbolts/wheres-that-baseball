@@ -9,7 +9,7 @@ export async function persistGameFeedCache(
   const status = feed.gameData.status.abstractGameState;
   if (status !== "Final") return;
 
-  const result = await archiveFinishedGame(gamePk, { maxAttempts: 1 });
+  const result = await archiveFinishedGame(gamePk, { maxAttempts: 3, retryDelayMs: 8_000, force: true });
   if (!result.archived && result.reason !== "already archived") {
     console.warn(`Failed to persist feed cache for game ${gamePk}:`, result.reason);
   }

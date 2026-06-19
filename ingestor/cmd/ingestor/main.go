@@ -224,8 +224,16 @@ func run(logger *slog.Logger) error {
 			feedStore,
 			repo,
 			reconcileSince,
-			8,
+			20,
 			logger.With("component", "feed-reconcile"),
+		)
+		go mlb.ReconcileRecentFinalFeeds(
+			context.Background(),
+			mlbClient,
+			feedStore,
+			allGames,
+			date,
+			logger.With("component", "feed-reconcile-recent"),
 		)
 
 		var livePKs []int

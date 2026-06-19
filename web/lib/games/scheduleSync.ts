@@ -2,11 +2,15 @@ import {
   fetchScheduleGamesForDate,
   type GameScheduleRow,
 } from "@/lib/games/scheduleRow";
+import { isStoredFeedComplete } from "@/lib/games/feedComplete";
 import { getServiceSupabase } from "@/lib/games/supabaseAdmin";
 import { ACTIVE_CARRYOVER_STATUSES, previousScheduleDate } from "@/lib/mlb/schedule";
 import type { Game } from "@/types/database";
 
-type DbOverlay = Pick<Game, "game_pk" | "feed_synced_at" | "updated_at">;
+type DbOverlay = Pick<
+  Game,
+  "game_pk" | "feed_synced_at" | "updated_at" | "status" | "away_score" | "home_score" | "game_state"
+>;
 
 function mergeGamesByPk(primary: GameScheduleRow[], secondary: GameScheduleRow[]): GameScheduleRow[] {
   const byPk = new Map<number, GameScheduleRow>();
@@ -23,12 +27,21 @@ function mergeGamesByPk(primary: GameScheduleRow[], secondary: GameScheduleRow[]
 
 function toListGame(row: GameScheduleRow, overlay?: DbOverlay): Game {
   const now = new Date().toISOString();
-  return {
+  const merged: Game = {
     ...row,
-    game_state: null,
+    game_state: overlay?.game_state ?? null,
     box_score: null,
     feed_synced_at: overlay?.feed_synced_at ?? null,
     updated_at: overlay?.updated_at ?? now,
+  };
+
+  if (!isStoredFeedComplete(merged)) {
+    merged.feed_synced_at = null;
+  }
+
+  return {
+    ...merged,
+    game_state: null,
   };
 }
 
@@ -41,7 +54,7 @@ async function fetchDbOverlays(gamePks: number[]): Promise<Map<number, DbOverlay
 
   const { data, error } = await supabase
     .from("games")
-    .select("game_pk, feed_synced_at, updated_at")
+    .select("game_pk, feed_synced_at, updated_at, status, away_score, home_score, game_state")
     .in("game_pk", gamePks);
 
   if (error) {

@@ -67,6 +67,45 @@ func summarizeFeed(raw json.RawMessage) (feedSummary, error) {
 	return summary, nil
 }
 
+// ReconcileRecentFinalFeeds re-caches play-by-play for final games on the current
+// and prior ET slates. Catches mid-game snapshots that were never re-archived.
+func ReconcileRecentFinalFeeds(
+	ctx context.Context,
+	client *Client,
+	store GameFeedStore,
+	games []ScheduleGame,
+	today string,
+	logger *slog.Logger,
+) {
+	if client == nil || store == nil {
+		return
+	}
+	if logger == nil {
+		logger = slog.Default()
+	}
+
+	yesterday := PreviousScheduleDate(today)
+
+	for _, game := range games {
+		if game.Status != "Final" {
+			continue
+		}
+		if game.GameDate != today && game.GameDate != yesterday {
+			continue
+		}
+
+		gamePK := game.GamePK
+		go func(pk int) {
+			syncCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
+
+			if err := CacheGameFeed(syncCtx, client, store, pk, logger); err != nil {
+				logger.Error("reconcile recent final feed failed", "game_pk", pk, "error", err)
+			}
+		}(gamePK)
+	}
+}
+
 // ReconcileMissingFeeds caches play-by-play for final games that were never synced
 // (e.g. the ingestor was offline when they ended).
 func ReconcileMissingFeeds(

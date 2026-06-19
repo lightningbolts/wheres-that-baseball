@@ -1,3 +1,4 @@
+import { isStoredFeedComplete } from "@/lib/games/feedComplete";
 import { isMlbFeedWrapper } from "@/lib/games/gameState";
 import { fetchScheduleGameByPk, type GameScheduleRow } from "@/lib/games/scheduleRow";
 import { getServiceSupabase } from "@/lib/games/supabaseAdmin";
@@ -57,17 +58,19 @@ function mergeScheduleWithFeed(
   };
 }
 
-async function isAlreadyArchived(gamePk: number): Promise<boolean> {
+async function isAlreadyArchived(gamePk: number, force: boolean): Promise<boolean> {
+  if (force) return false;
+
   const supabase = getServiceSupabase();
   if (!supabase) return false;
 
   const { data } = await supabase
     .from("games")
-    .select("feed_synced_at, game_state")
+    .select("status, away_score, home_score, feed_synced_at, game_state")
     .eq("game_pk", gamePk)
     .maybeSingle();
 
-  return Boolean(data?.feed_synced_at && isMlbFeedWrapper(data.game_state));
+  return isStoredFeedComplete(data as Parameters<typeof isStoredFeedComplete>[0]);
 }
 
 async function persistArchivedGame(
@@ -106,13 +109,15 @@ async function persistArchivedGame(
  */
 export async function archiveFinishedGame(
   gamePk: number,
-  options?: { maxAttempts?: number; retryDelayMs?: number },
+  options?: { maxAttempts?: number; retryDelayMs?: number; force?: boolean },
 ): Promise<ArchiveGameResult> {
   if (!Number.isFinite(gamePk) || gamePk <= 0) {
     return { archived: false, reason: "invalid game pk" };
   }
 
-  if (await isAlreadyArchived(gamePk)) {
+  const force = options?.force ?? false;
+
+  if (await isAlreadyArchived(gamePk, force)) {
     return { archived: true, reason: "already archived" };
   }
 

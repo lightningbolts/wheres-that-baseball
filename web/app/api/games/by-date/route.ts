@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { loadGamesForDate, syncScheduleDates } from "@/lib/games/scheduleSync";
+import { reconcileFinalFeedsForGames } from "@/lib/games/reconcileFeeds";
 
 export const dynamic = "force-dynamic";
 
@@ -16,10 +17,15 @@ export async function GET(request: Request) {
   try {
     const games = await loadGamesForDate(date);
 
-    // Keep Supabase in sync without blocking the response.
-    void syncScheduleDates([date]).catch((error) => {
-      console.warn("background schedule sync failed", error);
-    });
+    // Keep Supabase schedule + play-by-play in sync without blocking the response.
+    void (async () => {
+      try {
+        await syncScheduleDates([date]);
+        await reconcileFinalFeedsForGames(games);
+      } catch (error) {
+        console.warn("background schedule/feed sync failed", error);
+      }
+    })();
 
     return NextResponse.json({ games, source: "mlb" });
   } catch (error) {
