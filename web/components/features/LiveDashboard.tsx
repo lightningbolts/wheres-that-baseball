@@ -286,6 +286,8 @@ function DashboardContent({ games, selectedGamePk, onSelectGame }: DashboardCont
 
                 <div className="order-2 flex min-h-0 flex-1 flex-col md:hidden">
                   <PlayByPlay
+                    key={selectedGamePk}
+                    monitorKey={selectedGamePk}
                     plays={gameState?.plays ?? []}
                     awayAbbrev={gameState?.awayAbbrev ?? "AWY"}
                     homeAbbrev={gameState?.homeAbbrev ?? "HME"}

@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { PlayDetailDialog } from "@/components/features/PlayDetailDialog";
 import { BaseDiamond } from "@/components/features/BaseDiamond";
@@ -41,6 +41,8 @@ interface PlayByPlayProps {
   animateLivePitches?: boolean;
   /** Show embedded pitch rows on the completed at-bat with this index. */
   embedPitchesAtBatIndex?: number | null;
+  /** When this changes (e.g. game PK), scroll to the latest play once content loads. */
+  monitorKey?: string | number;
 }
 
 interface InningGroup {
@@ -642,10 +644,13 @@ export const PlayByPlay = memo(function PlayByPlay({
   livePitches,
   animateLivePitches = false,
   embedPitchesAtBatIndex = null,
+  monitorKey,
 }: PlayByPlayProps) {
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const prevCountRef = useRef(plays.length);
-  const prevLivePitchCountRef = useRef(livePitches?.length ?? 0);
+  const prevCountRef = useRef(0);
+  const prevLivePitchCountRef = useRef(0);
+  const hasInitialScrolledRef = useRef(false);
   const groups = useMemo(() => groupByInning(plays), [plays]);
   const entranceFromIndex = useEntranceIndex(plays.length, animateEntrance);
   const livePitchEntranceFrom = useEntranceIndex(
@@ -653,6 +658,10 @@ export const PlayByPlay = memo(function PlayByPlay({
     animateLivePitches,
   );
   const livePitchesList = livePitches ?? [];
+  const latestInningKey = useMemo(() => {
+    const last = plays[plays.length - 1];
+    return last ? `${last.inning}-${last.halfInning}` : null;
+  }, [plays]);
 
   const [expanded, setExpanded] = useState<Set<string>>(() => {
     const latest = groups[groups.length - 1]?.key;
@@ -660,28 +669,71 @@ export const PlayByPlay = memo(function PlayByPlay({
   });
   const [selectedPlay, setSelectedPlay] = useState<PlayDetail | null>(null);
 
+  const latestInningExpanded = latestInningKey ? expanded.has(latestInningKey) : false;
+
+  const scrollFeedToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    const container = scrollContainerRef.current;
+    if (container) {
+      container.scrollTo({ top: container.scrollHeight, behavior });
+      return;
+    }
+    bottomRef.current?.scrollIntoView({ behavior, block: "end" });
+  }, []);
+
+  useEffect(() => {
+    hasInitialScrolledRef.current = false;
+    prevCountRef.current = 0;
+    prevLivePitchCountRef.current = 0;
+  }, [monitorKey]);
+
   useEffect(() => {
     if (plays.length === 0) return;
     const last = plays[plays.length - 1];
     const key = `${last.inning}-${last.halfInning}`;
-    setExpanded((prev) => new Set(prev).add(key));
+    setExpanded((prev) => {
+      if (prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
   }, [plays]);
 
   useEffect(() => {
-    if (!autoScrollToLatest || plays.length === 0) return;
-    if (plays.length > prevCountRef.current) {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-    }
-    prevCountRef.current = plays.length;
-  }, [plays.length, autoScrollToLatest]);
+    if (!autoScrollToLatest) return;
 
-  useEffect(() => {
-    if (!autoScrollToLatest || livePitchesList.length === 0) return;
-    if (livePitchesList.length > prevLivePitchCountRef.current) {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    const hasPlays = plays.length > 0;
+    const hasLivePitches = livePitchesList.length > 0;
+    if (!hasPlays && !hasLivePitches) return;
+
+    if (hasPlays && variant === "feed" && latestInningKey && !latestInningExpanded) {
+      return;
     }
+
+    const playsGrew = plays.length > prevCountRef.current;
+    const pitchesGrew = livePitchesList.length > prevLivePitchCountRef.current;
+    const needsInitialScroll = !hasInitialScrolledRef.current;
+
+    if (!playsGrew && !pitchesGrew && !needsInitialScroll) return;
+
+    const behavior: ScrollBehavior = needsInitialScroll ? "auto" : "smooth";
+    const frame = requestAnimationFrame(() => {
+      requestAnimationFrame(() => scrollFeedToBottom(behavior));
+    });
+
+    hasInitialScrolledRef.current = true;
+    prevCountRef.current = plays.length;
     prevLivePitchCountRef.current = livePitchesList.length;
-  }, [livePitchesList.length, autoScrollToLatest]);
+
+    return () => cancelAnimationFrame(frame);
+  }, [
+    autoScrollToLatest,
+    plays.length,
+    livePitchesList.length,
+    latestInningKey,
+    latestInningExpanded,
+    variant,
+    scrollFeedToBottom,
+  ]);
 
   const toggleInning = (key: string) => {
     setExpanded((prev) => {
@@ -708,7 +760,10 @@ export const PlayByPlay = memo(function PlayByPlay({
           </CollapsibleFeedHeader>
         ) : null}
 
-        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain">
+        <div
+          ref={scrollContainerRef}
+          className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain"
+        >
           {feedHeader && variant !== "feed" ? (
             <div className="border-b border-border bg-panel px-3 py-3">{feedHeader}</div>
           ) : null}

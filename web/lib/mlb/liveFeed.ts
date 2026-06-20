@@ -229,19 +229,40 @@ function extractGameEventsFromPlay(
 
 /**
  * Stable dedupe key for non-at-bat play events.
- * Uses position in playEvents (not MLB's event.index) so keys stay consistent
- * as the feed fills in metadata across polls.
+ * Uses MLB's playEvent.index (falls back to array position) so the same event
+ * is not logged twice when it appears in both playEvents and a separate allPlays row,
+ * or when description/timestamp metadata fills in across polls.
  */
 function gameEventDedupeKey(
   atBatIndex: number,
-  playEvents: PitchEventRaw[],
+  _playEvents: PitchEventRaw[],
   eventPosition: number,
   event: PitchEventRaw,
 ): string {
   const type = event.details?.eventType ?? event.type ?? "";
-  const desc = event.details?.description ?? event.details?.event ?? "";
-  const time = event.endTime ?? event.startTime ?? "";
-  return `${atBatIndex}:${eventPosition}:${type}:${desc}:${time}`;
+  const eventIndex = event.index ?? eventPosition;
+  return `${atBatIndex}:${eventIndex}:${type}`;
+}
+
+function extractOngoingGameEvents(
+  play: AllPlayRaw,
+  playIndex: number,
+  state: PlayByPlayParseState,
+): PlayByPlayParseState {
+  const situationBefore = cloneSituation(state.situation);
+  const gameEventEntries = extractGameEventsFromPlay(
+    play,
+    playIndex,
+    situationBefore,
+    state.loggedGameEventKeys,
+  );
+
+  if (gameEventEntries.length === 0) return state;
+
+  return {
+    ...state,
+    entries: [...state.entries, ...gameEventEntries],
+  };
 }
 
 /** True when an allPlays row has its terminal outcome and won't gain more playEvents. */
@@ -804,7 +825,7 @@ function parsePlayEntry(
 
   const isOngoingPlay = playIndex === totalPlays - 1;
   if (isOngoingPlay && !isPlayFinalized(play)) {
-    return state;
+    return extractOngoingGameEvents(play, playIndex, state);
   }
 
   const halfKey = `${play.about?.inning ?? 0}-${play.about?.halfInning ?? ""}`;
@@ -831,7 +852,7 @@ function parsePlayEntry(
   const isAtBat = isPlateAppearanceEvent(event);
   const atBatIndex = play.about?.atBatIndex ?? playIndex;
 
-  if (!isAtBat && event && terminalCoveredByPlayEvents(play)) {
+  if (!isAtBat && event && (terminalCoveredByPlayEvents(play) || gameEventEntries.length > 0)) {
     return {
       entries: [...state.entries, ...gameEventEntries],
       batterStats: state.batterStats,
