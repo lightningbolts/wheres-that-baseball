@@ -44,6 +44,8 @@ export interface PlayByPlayParseState {
   loggedAtBatIndices: Set<number>;
 }
 
+type PitchEventRaw = NonNullable<AllPlayRaw["playEvents"]>[number];
+
 const MLB_FEED_BASE = "https://statsapi.mlb.com/api/v1.1";
 
 const HIT_EVENTS = new Set(["Single", "Double", "Triple", "Home Run"]);
@@ -200,11 +202,66 @@ function buildGameEventFromPlayEvent(
   };
 }
 
+/**
+ * Stable dedupe key for non-at-bat play events.
+ * Uses position in playEvents — type/description backfill across polls must not change the key.
+ */
+function gameEventDedupeKey(
+  atBatIndex: number,
+  _playEvents: PitchEventRaw[],
+  eventPosition: number,
+  _event: PitchEventRaw,
+): string {
+  return `${atBatIndex}:${eventPosition}`;
+}
+
+function isDuplicateGameEventEntry(
+  entries: PlayByPlayEntry[],
+  entry: PlayByPlayEntry,
+): boolean {
+  for (let i = entries.length - 1; i >= 0; i -= 1) {
+    const existing = entries[i];
+    if (existing.isAtBat !== false) continue;
+    if (
+      existing.atBatIndex === entry.atBatIndex &&
+      existing.description === entry.description &&
+      existing.event === entry.event
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Collapse duplicate non-at-bat rows (e.g. batter timeout logged twice). */
+export function dedupePlayByPlayEntries(entries: PlayByPlayEntry[]): PlayByPlayEntry[] {
+  const seenAtBats = new Set<number>();
+  const seenGameEvents = new Set<string>();
+  const result: PlayByPlayEntry[] = [];
+
+  for (const entry of entries) {
+    if (entry.isAtBat !== false) {
+      if (seenAtBats.has(entry.atBatIndex)) continue;
+      seenAtBats.add(entry.atBatIndex);
+      result.push(entry);
+      continue;
+    }
+
+    const key = `${entry.atBatIndex}:${entry.description}`;
+    if (seenGameEvents.has(key)) continue;
+    seenGameEvents.add(key);
+    result.push(entry);
+  }
+
+  return result;
+}
+
 function extractGameEventsFromPlay(
   play: AllPlayRaw,
   playIndex: number,
   situationBefore: GameSituation,
   loggedKeys: Set<string>,
+  existingEntries: PlayByPlayEntry[] = [],
 ): PlayByPlayEntry[] {
   const entries: PlayByPlayEntry[] = [];
   const playEvents = play.playEvents ?? [];
@@ -219,29 +276,14 @@ function extractGameEventsFromPlay(
 
     const entry = buildGameEventFromPlayEvent(playEvent, play, situationBefore);
     if (!entry) continue;
+    if (isDuplicateGameEventEntry(existingEntries, entry)) continue;
+    if (isDuplicateGameEventEntry(entries, entry)) continue;
 
     loggedKeys.add(key);
     entries.push(entry);
   }
 
   return entries;
-}
-
-/**
- * Stable dedupe key for non-at-bat play events.
- * Uses MLB's playEvent.index (falls back to array position) so the same event
- * is not logged twice when it appears in both playEvents and a separate allPlays row,
- * or when description/timestamp metadata fills in across polls.
- */
-function gameEventDedupeKey(
-  atBatIndex: number,
-  _playEvents: PitchEventRaw[],
-  eventPosition: number,
-  event: PitchEventRaw,
-): string {
-  const type = event.details?.eventType ?? event.type ?? "";
-  // Array position is stable across polls; MLB's event.index can backfill later and duplicate rows.
-  return `${atBatIndex}:${eventPosition}:${type}`;
 }
 
 function extractOngoingGameEvents(
@@ -255,17 +297,18 @@ function extractOngoingGameEvents(
     playIndex,
     situationBefore,
     state.loggedGameEventKeys,
+    state.entries,
   );
 
   if (gameEventEntries.length === 0) return state;
 
   return {
     ...state,
-    entries: [...state.entries, ...gameEventEntries],
+    entries: dedupePlayByPlayEntries([...state.entries, ...gameEventEntries]),
   };
 }
 
-function mergeCurrentPlayTail(
+export function mergeCurrentPlayTail(
   allPlays: AllPlayRaw[],
   currentPlay: AllPlayRaw | null | undefined,
   from: number,
@@ -387,7 +430,11 @@ export function syncPlayByPlayFromFeed(
   const tail = mergeCurrentPlayTail(allPlays, currentPlay, from);
   if (tail.length === 0) return state;
 
-  return appendPlayByPlay(state, tail, from, total);
+  const next = appendPlayByPlay(state, tail, from, total);
+  return {
+    ...next,
+    entries: dedupePlayByPlayEntries(next.entries),
+  };
 }
 
 /** True when an allPlays row has its terminal outcome and won't gain more playEvents. */
@@ -401,8 +448,6 @@ function isPlayFinalized(play: AllPlayRaw): boolean {
   // MLB assigns the PA type before isComplete/description — waiting drops walks on fast turnarounds.
   return true;
 }
-
-type PitchEventRaw = NonNullable<AllPlayRaw["playEvents"]>[number];
 
 interface PitcherRef {
   id?: number;
@@ -973,6 +1018,7 @@ function parsePlayEntry(
     playIndex,
     situationBefore,
     state.loggedGameEventKeys,
+    state.entries,
   );
   const postSituation = parsePostSituation(resolvedPlay, situation.bases);
   situation = postSituation;

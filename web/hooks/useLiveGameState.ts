@@ -3,9 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
+  appendPlayByPlay,
   createPlayByPlayParseState,
+  dedupePlayByPlayEntries,
   fetchMLBLiveFeed,
   liveStateFingerprint,
+  mergeCurrentPlayTail,
   parseLiveFeedSnapshot,
   syncPlayByPlayFromFeed,
   type PlayByPlayParseState,
@@ -67,12 +70,13 @@ function mergeAtBatPitches(prev: PlayPitch[], next: PlayPitch[]): PlayPitch[] {
 function applyGameState(
   prev: LiveGameState | null,
   next: LiveGameState,
+  force = false,
 ): LiveGameState {
-  if (prev && isStaleRegression(prev, next)) {
+  if (!force && prev && isStaleRegression(prev, next)) {
     return prev;
   }
 
-  if (prev && liveStateFingerprint(prev) === liveStateFingerprint(next)) {
+  if (!force && prev && liveStateFingerprint(prev) === liveStateFingerprint(next)) {
     return prev;
   }
 
@@ -95,6 +99,33 @@ function isStaleRegression(prev: LiveGameState, next: LiveGameState): boolean {
   return false;
 }
 
+/** Rebuild play-by-play when the tab was backgrounded and we fell behind allPlays. */
+function resyncPlayByPlayState(
+  state: PlayByPlayParseState,
+  allPlays: AllPlayRaw[],
+  currentPlay: AllPlayRaw | undefined,
+): PlayByPlayParseState {
+  if (allPlays.length === 0) return state;
+
+  const behind = state.rawPlayCount < allPlays.length - 1;
+  if (!behind) {
+    return syncPlayByPlayFromFeed(state, allPlays, currentPlay);
+  }
+
+  const merged = mergeCurrentPlayTail(allPlays, currentPlay, 0);
+  const rebuilt = appendPlayByPlay(
+    createPlayByPlayParseState(),
+    merged,
+    0,
+    allPlays.length,
+  );
+
+  return {
+    ...rebuilt,
+    entries: dedupePlayByPlayEntries(rebuilt.entries),
+  };
+}
+
 /**
  * Direct MLB CDN polls. Re-syncs the allPlays tail each poll (merging fresher
  * currentPlay) so pitches, game events, and at-bat outcomes land as they happen.
@@ -106,9 +137,12 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
 
   const generationRef = useRef(0);
   const parseStateRef = useRef<PlayByPlayParseState>(createPlayByPlayParseState());
+  const tabWasHiddenRef = useRef(false);
 
   const fetchState = useCallback(async () => {
     const generation = generationRef.current;
+    const forceUpdate = tabWasHiddenRef.current && document.visibilityState === "visible";
+    if (forceUpdate) tabWasHiddenRef.current = false;
 
     try {
       const feed = await fetchMLBLiveFeed(gamePk);
@@ -117,7 +151,7 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
       const allPlays = feed.liveData.plays.allPlays ?? [];
       const currentPlay = feed.liveData.plays.currentPlay as AllPlayRaw | undefined;
 
-      parseStateRef.current = syncPlayByPlayFromFeed(
+      parseStateRef.current = resyncPlayByPlayState(
         parseStateRef.current,
         allPlays,
         currentPlay,
@@ -130,7 +164,7 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
         feed,
         parseStateRef.current.entries,
       );
-      setGameState((prev) => applyGameState(prev, next));
+      setGameState((prev) => applyGameState(prev, next, forceUpdate));
       setError(null);
     } catch (err) {
       if (generation !== generationRef.current) return;
@@ -150,10 +184,21 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
 
     generationRef.current += 1;
     parseStateRef.current = createPlayByPlayParseState();
+    tabWasHiddenRef.current = false;
     setGameState(null);
     setIsLoading(true);
     setError(null);
   }, [gamePk]);
+
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        tabWasHiddenRef.current = true;
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
 
   useChainedPoll(fetchState, LIVE_FEED_MIN_GAP_MS, Boolean(gamePk), gamePk);
 
