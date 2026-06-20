@@ -72,9 +72,9 @@ const SIZE_STYLES = {
 const MOBILE_ZONE_FIRST_HEIGHT =
   "h-[clamp(17rem,45vh,28rem)] w-full shrink-0";
 
-/** Compact zone for live dashboard — grows within the at-bat panel flex slot */
+/** Compact zone for live dashboard — capped so play-by-play keeps room on small phones */
 const MOBILE_ZONE_COMPACT_HEIGHT =
-  "h-full min-h-[12rem] w-full shrink-0";
+  "h-[clamp(9rem,32dvh,13.5rem)] w-full shrink-0";
 
 function mobileZoneHeightClass(compact?: boolean): string {
   return compact ? MOBILE_ZONE_COMPACT_HEIGHT : MOBILE_ZONE_FIRST_HEIGHT;

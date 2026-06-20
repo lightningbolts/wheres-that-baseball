@@ -150,7 +150,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
               <Panel
                 title={gameOver ? "Final" : showBreakUI ? "Due up" : "Current at-bat"}
                 flushMobile
-                className="order-1 min-h-0 overflow-hidden max-md:flex-[3] max-md:shrink md:order-none md:min-h-[320px] md:flex-[3] md:shrink-0"
+                className="order-1 min-h-0 overflow-hidden max-md:flex-none max-md:shrink-0 md:order-none md:min-h-[320px] md:flex-[3] md:shrink-0"
               >
                   {gameOver && gameState ? (
                     <div className="flex flex-1 flex-col items-center justify-center gap-3 py-8 text-center">
@@ -232,7 +232,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
                     <p className="text-sm text-subtle">Loading due up…</p>
                   ) : (
                     <>
-                      <div className="flex min-h-0 flex-1 flex-col md:hidden">
+                      <div className="shrink-0 md:hidden">
                         <PitchSequence
                           pitches={atBatViewState?.atBatPitches ?? []}
                           layout="zone"
@@ -240,7 +240,11 @@ function DashboardContent({ game }: { game: SlateGame }) {
                           zoneFirst
                           mobileZoneCompact
                           animateEntrance
-                          className="h-full w-full"
+                          className={cn(
+                            "w-full",
+                            !atBatInProgress &&
+                              "h-[clamp(7.5rem,26dvh,11rem)]",
+                          )}
                         />
                       </div>
                       <div className="hidden min-h-0 flex-1 md:flex">
@@ -282,7 +286,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
                   </div>
                 </Panel>
 
-                <div className="order-2 flex min-h-0 flex-[2] flex-col overflow-hidden md:hidden">
+                <div className="order-2 flex min-h-0 flex-1 flex-col overflow-hidden md:hidden">
                   <PlayByPlay
                     key={selectedGamePk}
                     monitorKey={selectedGamePk}
