@@ -271,7 +271,7 @@ function PlayEventBadge({
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold leading-none align-middle",
+        "inline-flex h-[1.125rem] shrink-0 items-center justify-center rounded px-1.5 font-mono text-[10px] font-semibold leading-none",
         className,
       )}
     >
@@ -614,11 +614,10 @@ function PlayOutcomeCard({
             {formatBatterLine(play.batterHits, play.batterAtBats)}
           </span>
         </div>
-        <p className="line-clamp-3 text-[13px] leading-relaxed text-muted">
+        <div className="flex items-center gap-x-1.5 text-[13px] leading-snug text-muted">
           <AtBatEventBadge event={play.event} />
-          {" "}
-          <span>{play.description}</span>
-        </p>
+          <p className="line-clamp-3 min-w-0 flex-1">{play.description}</p>
+        </div>
         {contact && (
           <p className="mt-1 font-mono text-[11px] text-subtle">{contact}</p>
         )}
