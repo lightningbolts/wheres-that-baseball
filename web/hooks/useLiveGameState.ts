@@ -5,17 +5,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   appendPlayByPlay,
   createPlayByPlayParseState,
-  fetchMLBLiveFeed,
   liveStateFingerprint,
-  parseLiveFeedSnapshot,
+  parseStateFromSnapshot,
   type PlayByPlayParseState,
 } from "@/lib/mlb/liveFeed";
-import type { LiveGameState, PlayPitch } from "@/types/mlb-live";
+import { pollLiveFeed, workerPayloadToSnapshot } from "@/lib/mlb/liveFeedClient";
+import type { AllPlayRaw, LiveGameState, PlayPitch } from "@/types/mlb-live";
 
-import { useChainedPoll } from "./useChainedPoll";
+import { useIntervalPoll } from "./useIntervalPoll";
 
-/** Minimum gap between live polls — chained so slow responses don't stack. */
-const LIVE_FEED_MIN_GAP_MS = 100;
+/** Gameday-class cadence — overlapping polls, not chained on round-trip. */
+const LIVE_FEED_POLL_MS = 200;
 
 export interface UseLiveGameStateResult {
   gameState: LiveGameState | null;
@@ -38,7 +38,6 @@ function pitchEqual(a: PlayPitch, b: PlayPitch): boolean {
   );
 }
 
-/** Reuse prior pitch object references when only the last pitch is new. */
 function mergeAtBatPitches(prev: PlayPitch[], next: PlayPitch[]): PlayPitch[] {
   if (prev.length === next.length) {
     let same = true;
@@ -69,11 +68,14 @@ function applyGameState(
   prev: LiveGameState | null,
   next: LiveGameState,
 ): LiveGameState {
+  if (prev && isStaleRegression(prev, next)) {
+    return prev;
+  }
+
   if (prev && liveStateFingerprint(prev) === liveStateFingerprint(next)) {
     return prev;
   }
 
-  // Pitch-only updates: keep play-by-play stable and reuse unchanged pitch rows.
   if (prev && prev.plays === next.plays) {
     const atBatPitches = mergeAtBatPitches(prev.atBatPitches, next.atBatPitches);
     return { ...next, plays: prev.plays, atBatPitches };
@@ -82,9 +84,30 @@ function applyGameState(
   return next;
 }
 
+/** Ignore out-of-order poll responses that would roll back pitch or PBP state. */
+function isStaleRegression(prev: LiveGameState, next: LiveGameState): boolean {
+  if (next.plays.length < prev.plays.length) return true;
+  if (
+    prev.batterId === next.batterId &&
+    next.atBatPitches.length < prev.atBatPitches.length
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function syncPlayByPlay(
+  parseState: PlayByPlayParseState,
+  newPlays: unknown[],
+  from: number,
+  total: number,
+): PlayByPlayParseState {
+  return appendPlayByPlay(parseState, newPlays as AllPlayRaw[], from, total);
+}
+
 /**
- * Polls the MLB live feed directly from the browser for Gameday-class latency.
- * Play-by-play is extended incrementally; pitch polls reuse the cached log.
+ * Overlapping polls against MLB CDN with off-thread JSON parse (worker).
+ * Pitch polls skip allPlays; play-by-play extends only when allPlays grows.
  */
 export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
   const [gameState, setGameState] = useState<LiveGameState | null>(null);
@@ -93,70 +116,70 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
 
   const generationRef = useRef(0);
   const parseStateRef = useRef<PlayByPlayParseState>(createPlayByPlayParseState());
-  const wasBreakRef = useRef(false);
-  const pendingPlaysRef = useRef(false);
-  const lastAllPlaysCountRef = useRef(0);
-  const lastSnapshotBatterIdRef = useRef<number | null>(null);
 
-  const fetchState = useCallback(async () => {
+  const fetchState = useCallback(() => {
     const generation = generationRef.current;
 
-    try {
-      const feed = await fetchMLBLiveFeed(gamePk);
-      if (generation !== generationRef.current) return;
+    void (async () => {
+      try {
+        const playsFrom =
+          parseStateRef.current.entries.length === 0
+            ? 0
+            : null;
 
-      const allPlays = feed.liveData.plays.allPlays ?? [];
-      const allPlaysCount = allPlays.length;
-      const inningState = feed.liveData.linescore.inningState ?? "";
-      const isBreak = /^(middle|end)$/i.test(inningState);
-      const enteringBreak = isBreak && !wasBreakRef.current;
-      wasBreakRef.current = isBreak;
+        const result = await pollLiveFeed(gamePk, playsFrom);
 
-      const snapshotBatterId = feed.liveData.plays.currentPlay?.matchup?.batter?.id ?? null;
-      const batterChanged =
-        lastSnapshotBatterIdRef.current != null &&
-        snapshotBatterId != null &&
-        snapshotBatterId !== lastSnapshotBatterIdRef.current;
-      lastSnapshotBatterIdRef.current = snapshotBatterId;
+        if (generation !== generationRef.current) {
+          return;
+        }
 
-      const newPlayRow = allPlaysCount > lastAllPlaysCountRef.current;
-      lastAllPlaysCountRef.current = allPlaysCount;
+        const snapshot = workerPayloadToSnapshot(result);
+        let entries = parseStateRef.current.entries;
 
-      const needsPlays =
-        pendingPlaysRef.current ||
-        parseStateRef.current.entries.length === 0 ||
-        newPlayRow;
+        if (result.newPlays?.length && result.playsFrom != null) {
+          parseStateRef.current = syncPlayByPlay(
+            parseStateRef.current,
+            result.newPlays,
+            result.playsFrom,
+            result.allPlaysCount,
+          );
+          entries = parseStateRef.current.entries;
+        } else if (
+          result.allPlaysCount > parseStateRef.current.rawPlayCount &&
+          parseStateRef.current.entries.length > 0
+        ) {
+          const syncFrom = parseStateRef.current.rawPlayCount;
+          void pollLiveFeed(gamePk, syncFrom).then((sync) => {
+            if (generation !== generationRef.current) return;
+            if (!sync.newPlays?.length || sync.playsFrom == null) return;
 
-      if (needsPlays && allPlaysCount > parseStateRef.current.rawPlayCount) {
-        const from = parseStateRef.current.rawPlayCount;
-        parseStateRef.current = appendPlayByPlay(
-          parseStateRef.current,
-          allPlays.slice(from),
-          from,
-          allPlaysCount,
-        );
-        pendingPlaysRef.current = false;
-      } else if (enteringBreak || batterChanged || newPlayRow) {
-        pendingPlaysRef.current = true;
+            parseStateRef.current = syncPlayByPlay(
+              parseStateRef.current,
+              sync.newPlays,
+              sync.playsFrom,
+              sync.allPlaysCount,
+            );
+
+            const synced = parseStateFromSnapshot(
+              workerPayloadToSnapshot(sync),
+              parseStateRef.current.entries,
+            );
+            setGameState((prev) => applyGameState(prev, synced));
+          });
+        }
+
+        const next = parseStateFromSnapshot(snapshot, entries);
+        setGameState((prev) => applyGameState(prev, next));
+        setError(null);
+      } catch (err) {
+        if (generation !== generationRef.current) return;
+        setError(err instanceof Error ? err.message : "Failed to fetch live game state");
+      } finally {
+        if (generation === generationRef.current) {
+          setIsLoading(false);
+        }
       }
-
-      if (generation !== generationRef.current) return;
-
-      const next = parseLiveFeedSnapshot(
-        gamePk,
-        feed,
-        parseStateRef.current.entries,
-      );
-      setGameState((prev) => applyGameState(prev, next));
-      setError(null);
-    } catch (err) {
-      if (generation !== generationRef.current) return;
-      setError(err instanceof Error ? err.message : "Failed to fetch live game state");
-    } finally {
-      if (generation === generationRef.current) {
-        setIsLoading(false);
-      }
-    }
+    })();
   }, [gamePk]);
 
   useEffect(() => {
@@ -167,16 +190,12 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
 
     generationRef.current += 1;
     parseStateRef.current = createPlayByPlayParseState();
-    wasBreakRef.current = false;
-    pendingPlaysRef.current = false;
-    lastAllPlaysCountRef.current = 0;
-    lastSnapshotBatterIdRef.current = null;
     setGameState(null);
     setIsLoading(true);
     setError(null);
   }, [gamePk]);
 
-  useChainedPoll(fetchState, LIVE_FEED_MIN_GAP_MS, Boolean(gamePk), gamePk);
+  useIntervalPoll(fetchState, LIVE_FEED_POLL_MS, Boolean(gamePk), gamePk);
 
   return { gameState, isLoading, error };
 }
