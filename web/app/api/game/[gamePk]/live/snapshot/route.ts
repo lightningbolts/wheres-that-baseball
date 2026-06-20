@@ -26,9 +26,21 @@ export async function GET(request: Request, { params }: RouteParams) {
 
     if (playsFrom != null && Number.isFinite(playsFrom) && playsFrom >= 0) {
       const allPlays = feed.liveData.plays.allPlays ?? [];
+      const currentPlay = feed.liveData.plays.currentPlay;
+      const merged = (() => {
+        const tail = allPlays.slice(playsFrom);
+        if (!currentPlay || allPlays.length === 0) return tail;
+        const ongoingIndex = allPlays.length - 1;
+        if (playsFrom > ongoingIndex) return tail;
+        if (tail.length === 0) return [currentPlay];
+        if (playsFrom + tail.length - 1 === ongoingIndex) {
+          return [...tail.slice(0, -1), currentPlay];
+        }
+        return tail;
+      })();
       return NextResponse.json({
         ...snapshot,
-        plays: { from: playsFrom, total: allPlays.length, plays: allPlays.slice(playsFrom) },
+        plays: { from: playsFrom, total: allPlays.length, plays: merged },
       });
     }
 

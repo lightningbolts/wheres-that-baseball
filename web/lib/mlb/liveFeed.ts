@@ -46,6 +46,22 @@ export interface PlayByPlayParseState {
 
 const MLB_FEED_BASE = "https://statsapi.mlb.com/api/v1.1";
 
+/** Slim field mask for pitch polling — omits allPlays (~30× smaller than full feed). */
+export const LIVE_FEED_PITCH_FIELDS = [
+  "gameData",
+  "status",
+  "teams",
+  "venue",
+  "liveData",
+  "linescore",
+  "offense",
+  "plays",
+  "currentPlay",
+  "boxscore",
+].join(",");
+
+export type LiveFeedFetchMode = "pitch" | "plays";
+
 const HIT_EVENTS = new Set(["Single", "Double", "Triple", "Home Run"]);
 
 const NON_AB_EVENTS = new Set([
@@ -240,8 +256,8 @@ function gameEventDedupeKey(
   event: PitchEventRaw,
 ): string {
   const type = event.details?.eventType ?? event.type ?? "";
-  const eventIndex = event.index ?? eventPosition;
-  return `${atBatIndex}:${eventIndex}:${type}`;
+  // Array position is stable across polls; MLB's event.index can backfill later and duplicate rows.
+  return `${atBatIndex}:${eventPosition}:${type}`;
 }
 
 function extractOngoingGameEvents(
@@ -265,18 +281,45 @@ function extractOngoingGameEvents(
   };
 }
 
-/** Live poll: append steals, mound visits, etc. from the in-progress allPlays row. */
-export function syncOngoingGameEvents(
+function mergeCurrentPlayTail(
+  allPlays: AllPlayRaw[],
+  currentPlay: AllPlayRaw | null | undefined,
+  from: number,
+): AllPlayRaw[] {
+  const tail = allPlays.slice(from);
+  if (!currentPlay || allPlays.length === 0) return tail;
+
+  const ongoingIndex = allPlays.length - 1;
+  if (from > ongoingIndex) return tail;
+
+  if (tail.length === 0) return [currentPlay];
+  if (from + tail.length - 1 === ongoingIndex) {
+    return [...tail.slice(0, -1), currentPlay];
+  }
+
+  return tail;
+}
+
+/**
+ * Snapshot poll: re-process the in-progress allPlays row from fresher currentPlay.
+ * Finalizes at-bat outcomes and logs steals/visits without downloading allPlays.
+ */
+export function syncCurrentPlayTail(
   state: PlayByPlayParseState,
   currentPlay: AllPlayRaw | null | undefined,
   allPlaysCount: number,
 ): PlayByPlayParseState {
   if (!currentPlay || allPlaysCount <= 0) return state;
-  return extractOngoingGameEvents(currentPlay, allPlaysCount - 1, state);
+
+  const ongoingIndex = allPlaysCount - 1;
+  const from = state.rawPlayCount;
+  if (from !== ongoingIndex) return state;
+
+  return appendPlayByPlay(state, [currentPlay], ongoingIndex, allPlaysCount);
 }
 
 /**
- * Incremental play-by-play sync on every live poll.
+ * Incremental play-by-play sync when the full allPlays array is available.
  * `currentPlay` is fresher than `allPlays.at(-1)` — merge it so outcomes finalize
  * as soon as MLB publishes them, not one poll later.
  */
@@ -289,19 +332,7 @@ export function syncPlayByPlayFromFeed(
   if (total === 0) return state;
 
   const from = state.rawPlayCount;
-  let tail = allPlays.slice(from);
-
-  if (currentPlay) {
-    const ongoingIndex = total - 1;
-    if (from <= ongoingIndex) {
-      if (tail.length === 0) {
-        tail = [currentPlay];
-      } else if (from + tail.length - 1 === ongoingIndex) {
-        tail = [...tail.slice(0, -1), currentPlay];
-      }
-    }
-  }
-
+  const tail = mergeCurrentPlayTail(allPlays, currentPlay, from);
   if (tail.length === 0) return state;
 
   return appendPlayByPlay(state, tail, from, total);
@@ -1098,8 +1129,16 @@ export function liveStateFingerprint(state: LiveGameState): string {
 export async function fetchMLBLiveFeed(
   gamePk: number,
   signal?: AbortSignal,
+  options?: { mode?: LiveFeedFetchMode },
 ): Promise<MLBLiveFeedResponse> {
-  const response = await fetch(`${MLB_FEED_BASE}/game/${gamePk}/feed/live`, {
+  const params = new URLSearchParams();
+  if (options?.mode === "pitch") {
+    params.set("fields", LIVE_FEED_PITCH_FIELDS);
+  }
+
+  const query = params.toString();
+  const url = `${MLB_FEED_BASE}/game/${gamePk}/feed/live${query ? `?${query}` : ""}`;
+  const response = await fetch(url, {
     cache: "no-store",
     signal,
   });
@@ -1179,14 +1218,20 @@ export async function fetchDirectSnapshot(
   playsFrom: number | null,
   signal?: AbortSignal,
 ): Promise<LiveSnapshotWithPlays> {
-  const feed = await fetchMLBLiveFeed(gamePk, signal);
+  const feed = await fetchMLBLiveFeed(
+    gamePk,
+    signal,
+    playsFrom != null ? { mode: "plays" } : { mode: "pitch" },
+  );
   const snapshot = buildLiveFeedSnapshot(gamePk, feed);
 
   if (playsFrom != null) {
     const allPlays = feed.liveData.plays.allPlays ?? [];
+    const currentPlay = feed.liveData.plays.currentPlay as AllPlayRaw | undefined;
+    const merged = mergeCurrentPlayTail(allPlays, currentPlay, playsFrom);
     return {
       ...snapshot,
-      plays: { from: playsFrom, total: allPlays.length, plays: allPlays.slice(playsFrom) },
+      plays: { from: playsFrom, total: allPlays.length, plays: merged },
     };
   }
 
