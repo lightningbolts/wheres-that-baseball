@@ -3,20 +3,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
-  appendPlayByPlay,
   createPlayByPlayParseState,
   fetchMLBLiveFeed,
   liveStateFingerprint,
   parseLiveFeedSnapshot,
-  syncOngoingGameEvents,
+  syncPlayByPlayFromFeed,
   type PlayByPlayParseState,
 } from "@/lib/mlb/liveFeed";
 import type { AllPlayRaw, LiveGameState, PlayPitch } from "@/types/mlb-live";
 
-import { useChainedPoll } from "./useChainedPoll";
+import { useRapidPoll } from "./useRapidPoll";
 
-/** Minimum gap between live polls — chained so slow responses don't stack. */
-const LIVE_FEED_MIN_GAP_MS = 100;
+/** Overlapping polls — next request starts while prior fetch is in flight. */
+const LIVE_FEED_POLL_MS = 100;
+const MAX_IN_FLIGHT = 2;
 
 export interface UseLiveGameStateResult {
   gameState: LiveGameState | null;
@@ -69,14 +69,11 @@ function applyGameState(
   prev: LiveGameState | null,
   next: LiveGameState,
 ): LiveGameState {
-  if (prev && isStaleRegression(prev, next)) {
-    return prev;
-  }
-
   if (prev && liveStateFingerprint(prev) === liveStateFingerprint(next)) {
     return prev;
   }
 
+  // Pitch-only: keep play-by-play reference stable for the feed.
   if (prev && prev.plays === next.plays) {
     const atBatPitches = mergeAtBatPitches(prev.atBatPitches, next.atBatPitches);
     return { ...next, plays: prev.plays, atBatPitches };
@@ -85,40 +82,10 @@ function applyGameState(
   return next;
 }
 
-function isStaleRegression(prev: LiveGameState, next: LiveGameState): boolean {
-  if (next.plays.length < prev.plays.length) return true;
-  if (
-    prev.batterId === next.batterId &&
-    next.atBatPitches.length < prev.atBatPitches.length
-  ) {
-    return true;
-  }
-  return false;
-}
-
-function syncPlayByPlayFromFeed(
-  state: PlayByPlayParseState,
-  allPlays: AllPlayRaw[],
-  currentPlay: AllPlayRaw | undefined,
-): PlayByPlayParseState {
-  const total = allPlays.length;
-  const from = state.rawPlayCount;
-  const tail = allPlays.slice(from);
-
-  if (tail.length > 0) {
-    return appendPlayByPlay(state, tail, from, total);
-  }
-
-  if (total > 0 && currentPlay) {
-    return syncOngoingGameEvents(state, currentPlay, total);
-  }
-
-  return state;
-}
-
 /**
- * Direct MLB CDN polls (Gameday-class). Re-parses the ongoing allPlays tail each
- * poll so non-at-bat events land in play-by-play as they happen.
+ * Direct MLB CDN polls with overlapping requests. Re-syncs the allPlays tail
+ * every poll (using fresher currentPlay) so pitches, game events, and at-bat
+ * outcomes land in play-by-play as they happen.
  */
 export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
   const [gameState, setGameState] = useState<LiveGameState | null>(null);
@@ -176,7 +143,7 @@ export function useLiveGameState(gamePk: number): UseLiveGameStateResult {
     setError(null);
   }, [gamePk]);
 
-  useChainedPoll(fetchState, LIVE_FEED_MIN_GAP_MS, Boolean(gamePk), gamePk);
+  useRapidPoll(fetchState, LIVE_FEED_POLL_MS, MAX_IN_FLIGHT, Boolean(gamePk), gamePk);
 
   return { gameState, isLoading, error };
 }

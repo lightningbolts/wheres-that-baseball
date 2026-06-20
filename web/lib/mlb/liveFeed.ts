@@ -275,6 +275,38 @@ export function syncOngoingGameEvents(
   return extractOngoingGameEvents(currentPlay, allPlaysCount - 1, state);
 }
 
+/**
+ * Incremental play-by-play sync on every live poll.
+ * `currentPlay` is fresher than `allPlays.at(-1)` — merge it so outcomes finalize
+ * as soon as MLB publishes them, not one poll later.
+ */
+export function syncPlayByPlayFromFeed(
+  state: PlayByPlayParseState,
+  allPlays: AllPlayRaw[],
+  currentPlay: AllPlayRaw | null | undefined,
+): PlayByPlayParseState {
+  const total = allPlays.length;
+  if (total === 0) return state;
+
+  const from = state.rawPlayCount;
+  let tail = allPlays.slice(from);
+
+  if (currentPlay) {
+    const ongoingIndex = total - 1;
+    if (from <= ongoingIndex) {
+      if (tail.length === 0) {
+        tail = [currentPlay];
+      } else if (from + tail.length - 1 === ongoingIndex) {
+        tail = [...tail.slice(0, -1), currentPlay];
+      }
+    }
+  }
+
+  if (tail.length === 0) return state;
+
+  return appendPlayByPlay(state, tail, from, total);
+}
+
 /** True when an allPlays row has its terminal outcome and won't gain more playEvents. */
 function isPlayFinalized(play: AllPlayRaw): boolean {
   const event = play.result?.event?.trim() ?? "";
