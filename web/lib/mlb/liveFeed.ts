@@ -265,6 +265,16 @@ function extractOngoingGameEvents(
   };
 }
 
+/** Live poll: append steals, mound visits, etc. from the in-progress allPlays row. */
+export function syncOngoingGameEvents(
+  state: PlayByPlayParseState,
+  currentPlay: AllPlayRaw | null | undefined,
+  allPlaysCount: number,
+): PlayByPlayParseState {
+  if (!currentPlay || allPlaysCount <= 0) return state;
+  return extractOngoingGameEvents(currentPlay, allPlaysCount - 1, state);
+}
+
 /** True when an allPlays row has its terminal outcome and won't gain more playEvents. */
 function isPlayFinalized(play: AllPlayRaw): boolean {
   const event = play.result?.event?.trim() ?? "";
@@ -1047,6 +1057,7 @@ export function liveStateFingerprint(state: LiveGameState): string {
     state.plays.length,
     lastPlay?.atBatIndex,
     lastPlay?.event,
+    lastPlay?.description,
     lastPlay?.isAtBat,
   ].join("|");
 }
