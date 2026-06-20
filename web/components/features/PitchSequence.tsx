@@ -429,10 +429,6 @@ export function PitchSequence({
     );
   }
 
-  if (pitches.length === 0) {
-    return <EmptyStrikeZone className={className} zoneFirst={zoneFirst} />;
-  }
-
   if (layout === "split" || layout === "stacked" || layout === "horizontal") {
     return (
       <SplitLayout
