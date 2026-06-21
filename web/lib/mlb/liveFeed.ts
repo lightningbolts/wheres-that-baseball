@@ -855,10 +855,10 @@ function applyRunnerMovements(
     const end = movement?.end ?? null;
     const isOut = movement?.isOut ?? false;
 
-    // Vacate the origin base when a runner leaves (even if not yet applied from a prior movement).
-    if (start === "1B") delete bases.first;
-    if (start === "2B") delete bases.second;
-    if (start === "3B") delete bases.third;
+    // Vacate the origin base only when this runner is the one occupying it.
+    if (start === "1B" && bases.first === name) delete bases.first;
+    if (start === "2B" && bases.second === name) delete bases.second;
+    if (start === "3B" && bases.third === name) delete bases.third;
 
     if (!start && (isOut || !end || end === "score")) {
       clearRunnerFromBases(bases, name);
