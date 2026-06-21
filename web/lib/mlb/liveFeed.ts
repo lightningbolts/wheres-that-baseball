@@ -1263,15 +1263,18 @@ function parsePlayEntry(
 
   const event = resolvedPlay.result?.event ?? "";
 
-  const situationBefore = cloneSituation(situation);
-  const { entries: gameEventEntries } = extractGameEventsFromPlay(
-    resolvedPlay,
-    playIndex,
-    situationBefore,
-    state.loggedGameEventKeys,
-    state.entries,
-  );
-  const postSituation = parsePostSituation(resolvedPlay, situationBefore);
+  const situationAtPlayStart = cloneSituation(situation);
+  const { entries: gameEventEntries, situationAfter: afterGameEvents } =
+    extractGameEventsFromPlay(
+      resolvedPlay,
+      playIndex,
+      situationAtPlayStart,
+      state.loggedGameEventKeys,
+      state.entries,
+    );
+  const feedSituationBefore =
+    gameEventEntries.length > 0 ? afterGameEvents : situationAtPlayStart;
+  const postSituation = parsePostSituation(resolvedPlay, situationAtPlayStart);
   situation = postSituation;
 
   const isAtBat = isPlateAppearanceEvent(event);
