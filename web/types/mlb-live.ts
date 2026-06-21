@@ -214,7 +214,7 @@ interface PitchEventRaw {
       isOut?: boolean;
       outNumber?: number | null;
     };
-    details?: { runner?: { fullName?: string } };
+    details?: { runner?: { fullName?: string }; playIndex?: number };
   }>;
   pitchData?: {
     startSpeed?: number;
@@ -279,7 +279,7 @@ export interface AllPlayRaw {
       isOut?: boolean;
       outNumber?: number | null;
     };
-    details?: { runner?: { fullName?: string } };
+    details?: { runner?: { fullName?: string }; playIndex?: number };
   }>;
 }
 

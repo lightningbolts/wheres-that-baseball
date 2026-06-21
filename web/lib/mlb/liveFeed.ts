@@ -146,25 +146,41 @@ function terminalCoveredByPlayEvents(play: AllPlayRaw): boolean {
   return false;
 }
 
-function eventRunnersForSituation(
+/** MLB links play.runners entries to playEvents via matching index / playIndex. */
+function runnersForPlayEvent(
   event: PitchEventRaw,
   play: AllPlayRaw,
 ): AllPlayRaw["runners"] {
   if (event.runners?.length) return event.runners;
 
-  const resultEvent = play.result?.event?.trim() ?? "";
-  if (!resultEvent || isPlateAppearanceEvent(resultEvent)) return undefined;
+  const eventIndex = event.index;
+  if (eventIndex == null) return undefined;
 
-  const text = `${event.details?.event ?? ""} ${event.details?.description ?? ""} ${event.type ?? ""}`.toLowerCase();
-  if (
-    /stolen base|\bsteals?\b|caught stealing|pickoff|wild pitch|passed ball|balk|defensive indifference|advances|scores/i.test(
-      text,
-    )
-  ) {
-    return play.runners;
+  const matched = (play.runners ?? []).filter(
+    (runner) => runner.details?.playIndex === eventIndex,
+  );
+  return matched.length > 0 ? matched : undefined;
+}
+
+function outsAfterRunnerMovements(
+  previousOuts: number,
+  runners: AllPlayRaw["runners"],
+): number {
+  let outs = previousOuts;
+
+  for (const runner of runners ?? []) {
+    const movement = runner.movement;
+    if (!movement?.isOut) continue;
+
+    const outNumber = movement.outNumber;
+    if (typeof outNumber === "number") {
+      outs = Math.max(outs, outNumber);
+    } else {
+      outs += 1;
+    }
   }
 
-  return undefined;
+  return Math.min(3, outs);
 }
 
 function parsePostSituationFromEvent(
@@ -172,18 +188,21 @@ function parsePostSituationFromEvent(
   play: AllPlayRaw,
   previous: GameSituation,
 ): GameSituation {
-  const runners = eventRunnersForSituation(event, play);
+  const runners = runnersForPlayEvent(event, play);
   const bases = runners?.length
     ? applyRunnerMovements(previous.bases, runners)
     : previous.bases;
   const flags = basesFlags(bases);
+  const outs = runners?.length
+    ? outsAfterRunnerMovements(previous.outs, runners)
+    : (event.count?.outs ?? previous.outs);
 
   return {
     awayScore:
       event.details?.awayScore ?? play.result?.awayScore ?? previous.awayScore,
     homeScore:
       event.details?.homeScore ?? play.result?.homeScore ?? previous.homeScore,
-    outs: event.count?.outs ?? previous.outs,
+    outs,
     bases: flags.bases,
     onFirst: flags.onFirst,
     onSecond: flags.onSecond,
@@ -209,6 +228,7 @@ const NON_SITUATION_EVENT_TYPES = new Set([
 
 function playEventAffectsSituation(
   event: PitchEventRaw,
+  play: AllPlayRaw,
   previous: GameSituation,
   after: GameSituation,
 ): boolean {
@@ -218,13 +238,13 @@ function playEventAffectsSituation(
   const text = `${event.details?.event ?? ""} ${event.details?.description ?? ""} ${event.type ?? ""}`.toLowerCase();
 
   if (
-    /pickoff attempt|stepoff|mound visit|batter timeout|challenged|challenge|review|ejection/i.test(
+    /pickoff attempt|step\s*off|stepoff|mound visit|batter timeout|challenged|challenge|review|ejection/i.test(
       text,
     )
   ) {
     return false;
   }
-  if (/substitution|new pitcher|pinch|defensive switch/i.test(text) && !event.runners?.length) {
+  if (/substitution|new pitcher|pinch|defensive switch/i.test(text) && !runnersForPlayEvent(event, play)?.length) {
     return false;
   }
 
@@ -234,7 +254,7 @@ function playEventAffectsSituation(
   }
   if (!basesEqual(previous.bases, after.bases)) return true;
 
-  for (const runner of event.runners ?? []) {
+  for (const runner of runnersForPlayEvent(event, play) ?? []) {
     const movement = runner.movement;
     if (!movement) continue;
     const start = movement.start ?? movement.originBase ?? null;
@@ -244,6 +264,10 @@ function playEventAffectsSituation(
     if (end && start !== end) return true;
   }
 
+  if (/stolen_base|caught_stealing|pickoff|wild_pitch|passed_ball|balk/i.test(eventType)) {
+    return true;
+  }
+
   if (
     /stolen base|\bsteals?\b|caught stealing|wild pitch|passed ball|balk|fielding error|error on|advances to|runner scores|scores from/i.test(
       text,
@@ -251,7 +275,7 @@ function playEventAffectsSituation(
   ) {
     return true;
   }
-  if (/pickoff/i.test(text) && /out/i.test(text)) return true;
+  if (/picks?\s*off/i.test(text) && !/pickoff attempt/i.test(text)) return true;
 
   return false;
 }
@@ -272,7 +296,7 @@ function inferGameEventAffectsSituation(event: string, description: string): boo
   ) {
     return false;
   }
-  return /stolen base|caught stealing|wild pitch|passed ball|balk|error|pickoff.*out|advances|scores/i.test(
+  return /stolen base|\bsteals?\b|caught stealing|wild pitch|passed ball|balk|error|picks?\s*off|advances|scores/i.test(
     text,
   );
 }
@@ -412,7 +436,7 @@ function extractGameEventsFromPlay(
     const key = gameEventDedupeKey(atBatIndex, playEvents, i, playEvent);
     if (loggedKeys.has(key)) {
       const parsedAfter = parsePostSituationFromEvent(playEvent, play, rolling);
-      if (playEventAffectsSituation(playEvent, rolling, parsedAfter)) {
+      if (playEventAffectsSituation(playEvent, play, rolling, parsedAfter)) {
         rolling = parsedAfter;
       }
       continue;
@@ -422,6 +446,7 @@ function extractGameEventsFromPlay(
     const parsedAfter = parsePostSituationFromEvent(playEvent, play, rolling);
     const affectsSituation = playEventAffectsSituation(
       playEvent,
+      play,
       eventSituationBefore,
       parsedAfter,
     );
@@ -865,14 +890,20 @@ function basesFlags(bases: BaseOccupancy): {
   };
 }
 
-function parsePostSituation(play: AllPlayRaw, previousBases: BaseOccupancy): GameSituation {
-  const bases = applyRunnerMovements(previousBases, play.runners);
+function parsePostSituation(
+  play: AllPlayRaw,
+  previous: Pick<GameSituation, "bases" | "outs" | "awayScore" | "homeScore">,
+): GameSituation {
+  const bases = applyRunnerMovements(previous.bases, play.runners);
   const flags = basesFlags(bases);
+  const outs = play.runners?.length
+    ? outsAfterRunnerMovements(previous.outs, play.runners)
+    : (play.count?.outs ?? previous.outs);
 
   return {
-    awayScore: play.result?.awayScore ?? 0,
-    homeScore: play.result?.homeScore ?? 0,
-    outs: play.count?.outs ?? 0,
+    awayScore: play.result?.awayScore ?? previous.awayScore,
+    homeScore: play.result?.homeScore ?? previous.homeScore,
+    outs,
     bases: flags.bases,
     onFirst: flags.onFirst,
     onSecond: flags.onSecond,
@@ -1240,7 +1271,7 @@ function parsePlayEntry(
     state.loggedGameEventKeys,
     state.entries,
   );
-  const postSituation = parsePostSituation(resolvedPlay, situation.bases);
+  const postSituation = parsePostSituation(resolvedPlay, situationBefore);
   situation = postSituation;
 
   const isAtBat = isPlateAppearanceEvent(event);
