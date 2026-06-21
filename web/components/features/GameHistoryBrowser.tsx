@@ -17,7 +17,7 @@ import {
 import {
   buildGameDetailHref,
   buildSeasonHistoryHref,
-  getMLBScheduleDate,
+  getLocalCalendarDate,
 } from "@/lib/mlb/schedule";
 import { MLB_TEAMS } from "@/lib/mlb/teams";
 import { cn } from "@/lib/utils";
@@ -141,7 +141,7 @@ export function GameHistoryBrowser({
   initialView = "date",
 }: GameHistoryBrowserProps) {
   const router = useRouter();
-  const today = getMLBScheduleDate();
+  const today = getLocalCalendarDate();
   const maxDate = today;
   const [view, setView] = useState<ViewMode>(initialView);
   const [selectedDate, setSelectedDate] = useState(initialDate ?? today);

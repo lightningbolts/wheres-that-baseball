@@ -1,25 +1,20 @@
 import {
-  fetchScheduleGamesForDate,
+  fetchScheduleGamesRawForDate,
+  mapScheduleGameToRow,
   type GameScheduleRow,
 } from "@/lib/games/scheduleRow";
 import { getServiceSupabase } from "@/lib/games/supabaseAdmin";
-import { ACTIVE_CARRYOVER_STATUSES, getMLBScheduleDate, previousScheduleDate } from "@/lib/mlb/schedule";
+import {
+  ACTIVE_CARRYOVER_STATUSES,
+  addScheduleDays,
+  gameLocalCalendarDate,
+  getBrowserTimeZone,
+  getCalendarDateInTimeZone,
+  previousScheduleDate,
+} from "@/lib/mlb/schedule";
 import { GAME_LIST_COLUMNS, type Game } from "@/types/database";
 
 type DbOverlay = Pick<Game, "game_pk" | "feed_synced_at" | "updated_at">;
-
-function mergeGamesByPk(primary: GameScheduleRow[], secondary: GameScheduleRow[]): GameScheduleRow[] {
-  const byPk = new Map<number, GameScheduleRow>();
-  for (const game of secondary) {
-    byPk.set(game.game_pk, game);
-  }
-  for (const game of primary) {
-    byPk.set(game.game_pk, game);
-  }
-  return [...byPk.values()].sort((a, b) =>
-    a.away_team_name.localeCompare(b.away_team_name),
-  );
-}
 
 function toListGame(row: GameScheduleRow, overlay?: DbOverlay): Game {
   const now = new Date().toISOString();
@@ -55,18 +50,40 @@ async function fetchDbOverlays(gamePks: number[]): Promise<Map<number, DbOverlay
   return map;
 }
 
-/** MLB schedule for a date, including carryover games still active from the prior ET slate. */
-export async function fetchMlbGamesForBrowseDate(date: string): Promise<GameScheduleRow[]> {
-  const prevDate = previousScheduleDate(date);
+/** MLB schedule for a browse date, including carryover games still active from the prior day. */
+export async function fetchMlbGamesForBrowseDate(
+  date: string,
+  timeZone?: string,
+): Promise<GameScheduleRow[]> {
+  const tz = timeZone ?? getBrowserTimeZone();
+  const prevLocalDate = previousScheduleDate(date);
   const carryoverStatuses = new Set(ACTIVE_CARRYOVER_STATUSES);
 
-  const [todayGames, yesterdayGames] = await Promise.all([
-    fetchScheduleGamesForDate(date),
-    fetchScheduleGamesForDate(prevDate),
-  ]);
+  const candidateDates = [
+    previousScheduleDate(date),
+    date,
+    addScheduleDays(date, 1),
+  ];
+  const byPk = new Map<number, ReturnType<typeof mapScheduleGameToRow>>();
 
-  const carryover = yesterdayGames.filter((game) => carryoverStatuses.has(game.status));
-  return mergeGamesByPk(todayGames, carryover);
+  const batches = await Promise.all(candidateDates.map((d) => fetchScheduleGamesRawForDate(d)));
+  for (const batch of batches) {
+    for (const game of batch) {
+      const localDate = gameLocalCalendarDate(game.gameDate, tz);
+      const status = game.status?.abstractGameState ?? "";
+      const onBrowseDay = localDate === date;
+      const isCarryover =
+        localDate === prevLocalDate && carryoverStatuses.has(status);
+
+      if (onBrowseDay || isCarryover) {
+        byPk.set(game.gamePk, mapScheduleGameToRow(game));
+      }
+    }
+  }
+
+  return [...byPk.values()].sort((a, b) =>
+    a.away_team_name.localeCompare(b.away_team_name),
+  );
 }
 
 /** Fast path — historical dates served entirely from Supabase. */
@@ -110,14 +127,15 @@ export async function loadHistoricalGamesFromDb(date: string): Promise<Game[]> {
 }
 
 /** Live slate — MLB scores/status merged with lightweight Supabase feed metadata. */
-export async function loadGamesForDate(date: string): Promise<Game[]> {
-  const mlbGames = await fetchMlbGamesForBrowseDate(date);
+export async function loadGamesForDate(date: string, timeZone?: string): Promise<Game[]> {
+  const mlbGames = await fetchMlbGamesForBrowseDate(date, timeZone);
   const overlays = await fetchDbOverlays(mlbGames.map((game) => game.game_pk));
   return mlbGames.map((game) => toListGame(game, overlays.get(game.game_pk)));
 }
 
-export function isLiveScheduleDate(date: string): boolean {
-  return date === getMLBScheduleDate();
+export function isLiveScheduleDate(date: string, timeZone?: string): boolean {
+  const tz = timeZone ?? getBrowserTimeZone();
+  return date === getCalendarDateInTimeZone(new Date(), tz);
 }
 
 /** Upsert schedule metadata without overwriting stored play-by-play or box scores. */
@@ -146,13 +164,16 @@ export async function upsertScheduleRows(rows: GameScheduleRow[]): Promise<numbe
 }
 
 /** Sync one or more calendar dates from MLB into Supabase (metadata only). */
-export async function syncScheduleDates(dates: string[]): Promise<{ synced: number }> {
+export async function syncScheduleDates(
+  dates: string[],
+  timeZone?: string,
+): Promise<{ synced: number }> {
   const uniqueDates = [...new Set(dates.filter(Boolean))];
   if (uniqueDates.length === 0) return { synced: 0 };
 
   const byPk = new Map<number, GameScheduleRow>();
   for (const date of uniqueDates) {
-    const games = await fetchMlbGamesForBrowseDate(date);
+    const games = await fetchMlbGamesForBrowseDate(date, timeZone);
     for (const game of games) {
       byPk.set(game.game_pk, game);
     }

@@ -14,16 +14,32 @@ import {
 
 const MLB_SCHEDULE_BASE = "https://statsapi.mlb.com/api/v1";
 
+const MLB_TIME_ZONE = "America/New_York";
+
 /** MLB schedule dates use US Eastern (league local) calendar days. */
 export function getMLBScheduleDate(date = new Date()): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/New_York",
-  }).format(date);
+  return getCalendarDateInTimeZone(date, MLB_TIME_ZONE);
+}
+
+/** Calendar date (YYYY-MM-DD) in an IANA timezone. */
+export function getCalendarDateInTimeZone(date: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone }).format(date);
 }
 
 /** Browser-local calendar date (YYYY-MM-DD) for history browsing defaults. */
 export function getLocalCalendarDate(date = new Date()): string {
-  return new Intl.DateTimeFormat("en-CA").format(date);
+  return getCalendarDateInTimeZone(date, getBrowserTimeZone());
+}
+
+/** Resolved browser IANA timezone (client-only; falls back to Eastern on the server). */
+export function getBrowserTimeZone(): string {
+  if (typeof Intl === "undefined") return MLB_TIME_ZONE;
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || MLB_TIME_ZONE;
+}
+
+/** Which local calendar day a scheduled first pitch falls on. */
+export function gameLocalCalendarDate(gameDateIso: string, timeZone: string): string {
+  return getCalendarDateInTimeZone(new Date(gameDateIso), timeZone);
 }
 
 export function addScheduleDays(date: string, days: number): string {
@@ -172,17 +188,46 @@ function sortGames(a: ActiveGame, b: ActiveGame): number {
 
 function isTrackedNow(
   game: MLBScheduleGame,
-  options: { now?: number; isTodaySlate?: boolean } = {},
+  options: {
+    now?: number;
+    localToday?: string;
+    timeZone?: string;
+    isTodaySlate?: boolean;
+  } = {},
 ): boolean {
-  const { now = Date.now(), isTodaySlate = true } = options;
+  const {
+    now = Date.now(),
+    localToday,
+    timeZone = MLB_TIME_ZONE,
+    isTodaySlate = true,
+  } = options;
   const status = game.status.abstractGameState;
   if (!TRACKED_GAME_STATUSES.has(status)) return false;
+
+  if (localToday) {
+    const gameDay = gameLocalCalendarDate(game.gameDate, timeZone);
+    const prevLocalDay = addScheduleDays(localToday, -1);
+    const isLocalToday = gameDay === localToday;
+    const isPrevLocalCarryover = gameDay === prevLocalDay;
+
+    if (LIVE_GAME_STATUSES.has(status)) {
+      return isLocalToday || isPrevLocalCarryover;
+    }
+    if (status === "Warmup" || status === "Pre-Game" || status === "Delayed") {
+      return isLocalToday || isPrevLocalCarryover;
+    }
+    if (status === "Preview") {
+      return isLocalToday;
+    }
+    return false;
+  }
+
   if (LIVE_GAME_STATUSES.has(status)) return true;
   if (status === "Warmup" || status === "Pre-Game" || status === "Delayed") return true;
 
   if (status === "Preview") {
-    // Today's full slate is always visible; only apply the preview window to
-    // carryover games from yesterday's ET date (west-coast night games).
+    // Legacy ET-slate path: today's full slate is always visible; only apply the
+    // preview window to carryover games from yesterday's ET date.
     if (isTodaySlate) return true;
     const startMs = new Date(game.gameDate).getTime();
     return startMs - now <= PREVIEW_WINDOW_MS;
@@ -221,31 +266,29 @@ export async function fetchActiveGames(scheduleDate?: string): Promise<ActiveGam
 }
 
 /** Today's slate with linescore summary for game cards. */
-export async function fetchSlateGames(scheduleDate?: string): Promise<SlateGame[]> {
-  const date = scheduleDate ?? getMLBScheduleDate();
-  const prevDate = addScheduleDays(date, -1);
-
-  const [todayGames, yesterdayGames] = await Promise.all([
-    fetchScheduleForDate(date),
-    fetchScheduleForDate(prevDate),
-  ]);
+export async function fetchSlateGames(
+  scheduleDate?: string,
+  timeZone?: string,
+): Promise<SlateGame[]> {
+  const tz = timeZone ?? MLB_TIME_ZONE;
+  const localToday = scheduleDate ?? getCalendarDateInTimeZone(new Date(), tz);
+  const etToday = getMLBScheduleDate();
+  const etDates = [
+    addScheduleDays(etToday, -1),
+    etToday,
+    addScheduleDays(etToday, 1),
+  ];
 
   const byPk = new Map<number, MLBScheduleGame>();
-  const yesterdayPk = new Set<number>();
-
-  for (const game of yesterdayGames) {
-    if (CARRYOVER_STATUSES.has(game.status.abstractGameState)) {
+  const slateBatches = await Promise.all(etDates.map((date) => fetchScheduleForDate(date)));
+  for (const batch of slateBatches) {
+    for (const game of batch) {
       byPk.set(game.gamePk, game);
-      yesterdayPk.add(game.gamePk);
     }
   }
 
-  for (const game of todayGames) {
-    byPk.set(game.gamePk, game);
-  }
-
   const tracked = [...byPk.values()].filter((game) =>
-    isTrackedNow(game, { isTodaySlate: !yesterdayPk.has(game.gamePk) }),
+    isTrackedNow(game, { localToday, timeZone: tz }),
   );
 
   const probableIds = tracked.flatMap((game) => [

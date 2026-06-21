@@ -23,6 +23,8 @@ interface ScheduleApiGame {
   venue?: { id?: number; name?: string };
 }
 
+export type ScheduleApiGameRaw = ScheduleApiGame;
+
 /** Schedule metadata for games table upsert (feed fields added at archive time). */
 export type GameScheduleRow = Omit<Game, "game_state" | "box_score" | "feed_synced_at" | "updated_at">;
 
@@ -51,7 +53,7 @@ export function mapScheduleGameToRow(game: ScheduleApiGame): GameScheduleRow {
 }
 
 /** All regular-season games on an MLB calendar date (scores + status hydrated). */
-export async function fetchScheduleGamesForDate(date: string): Promise<GameScheduleRow[]> {
+export async function fetchScheduleGamesRawForDate(date: string): Promise<ScheduleApiGame[]> {
   const url = new URL(MLB_SCHEDULE_BASE);
   url.searchParams.set("sportId", "1");
   url.searchParams.set("date", date);
@@ -67,7 +69,13 @@ export async function fetchScheduleGamesForDate(date: string): Promise<GameSched
     dates?: Array<{ games?: ScheduleApiGame[] }>;
   };
 
-  return (data.dates?.flatMap((day) => day.games ?? []) ?? []).map(mapScheduleGameToRow);
+  return data.dates?.flatMap((day) => day.games ?? []) ?? [];
+}
+
+/** All regular-season games on an MLB calendar date (scores + status hydrated). */
+export async function fetchScheduleGamesForDate(date: string): Promise<GameScheduleRow[]> {
+  const games = await fetchScheduleGamesRawForDate(date);
+  return games.map(mapScheduleGameToRow);
 }
 
 export async function fetchScheduleGameByPk(

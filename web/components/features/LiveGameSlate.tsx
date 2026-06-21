@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { AppNav } from "@/components/features/AppNav";
 import { LiveGameCard } from "@/components/features/LiveGameCard";
+import { getBrowserTimeZone } from "@/lib/mlb/schedule";
 import type { SlateGame } from "@/types/mlb";
 
 const SLATE_REFRESH_MS = 10_000;
@@ -30,7 +31,8 @@ export function LiveGameSlate({ initialGames, scheduleError }: LiveGameSlateProp
 
   const refreshGames = useCallback(async () => {
     try {
-      const response = await fetch("/api/games", { cache: "no-store" });
+      const params = new URLSearchParams({ tz: getBrowserTimeZone() });
+      const response = await fetch(`/api/games?${params.toString()}`, { cache: "no-store" });
       if (!response.ok) return;
       const data = (await response.json()) as { games: SlateGame[] };
       setGames(data.games);

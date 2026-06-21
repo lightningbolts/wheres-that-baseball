@@ -5,7 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getSeasonStartDate } from "@/lib/games/format";
 import {
   ACTIVE_CARRYOVER_STATUSES,
-  getMLBScheduleDate,
+  getBrowserTimeZone,
+  getLocalCalendarDate,
   previousScheduleDate,
 } from "@/lib/mlb/schedule";
 import { GAME_LIST_COLUMNS, type Game } from "@/types/database";
@@ -67,7 +68,8 @@ export function useGamesByDate(date: string): UseGamesByDateResult {
   const [games, setGames] = useState<Game[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const isToday = date === getMLBScheduleDate();
+  const isToday = date === getLocalCalendarDate();
+  const timeZone = getBrowserTimeZone();
   const requestIdRef = useRef(0);
   const hasLoadedRef = useRef(false);
 
@@ -80,7 +82,8 @@ export function useGamesByDate(date: string): UseGamesByDateResult {
     try {
       const result = isToday
         ? await (async () => {
-            const response = await fetch(`/api/games/by-date?date=${encodeURIComponent(date)}`, {
+            const params = new URLSearchParams({ date, tz: timeZone });
+            const response = await fetch(`/api/games/by-date?${params.toString()}`, {
               cache: "no-store",
             });
             if (!response.ok) {
@@ -105,7 +108,7 @@ export function useGamesByDate(date: string): UseGamesByDateResult {
         setIsLoading(false);
       }
     }
-  }, [date, isToday]);
+  }, [date, isToday, timeZone]);
 
   useEffect(() => {
     hasLoadedRef.current = false;
@@ -151,7 +154,7 @@ export function useGamesByTeam(teamId: number | null): UseGamesByTeamResult {
     setIsLoading(true);
     setError(null);
 
-    const seasonEnd = getMLBScheduleDate();
+    const seasonEnd = getLocalCalendarDate();
     const seasonStart = getSeasonStartDate(seasonEnd);
 
     try {
