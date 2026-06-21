@@ -798,7 +798,6 @@ function applyRunnerMovements(
   runners: AllPlayRaw["runners"],
 ): BaseOccupancy {
   const bases: BaseOccupancy = { ...previousBases };
-  const placements: Array<{ base: "1B" | "2B" | "3B"; name: string }> = [];
 
   for (const runner of runners ?? []) {
     const name = runner.details?.runner?.fullName;
@@ -809,23 +808,22 @@ function applyRunnerMovements(
     const end = movement?.end ?? null;
     const isOut = movement?.isOut ?? false;
 
-    if (start === "1B" && bases.first === name) delete bases.first;
-    if (start === "2B" && bases.second === name) delete bases.second;
-    if (start === "3B" && bases.third === name) delete bases.third;
+    // Vacate the origin base when a runner leaves (even if not yet applied from a prior movement).
+    if (start === "1B") delete bases.first;
+    if (start === "2B") delete bases.second;
+    if (start === "3B") delete bases.third;
 
     if (!start && (isOut || !end || end === "score")) {
       clearRunnerFromBases(bases, name);
     }
 
     if (!isOut && end && BASE_CODES.has(end)) {
-      placements.push({ base: end as "1B" | "2B" | "3B", name });
+      // Same play can list Home→1B then 1B→2B for the batter; apply each leg immediately.
+      clearRunnerFromBases(bases, name);
+      if (end === "1B") bases.first = name;
+      if (end === "2B") bases.second = name;
+      if (end === "3B") bases.third = name;
     }
-  }
-
-  for (const { base, name } of placements) {
-    if (base === "1B") bases.first = name;
-    if (base === "2B") bases.second = name;
-    if (base === "3B") bases.third = name;
   }
 
   return bases;
