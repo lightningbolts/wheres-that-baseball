@@ -1,5 +1,6 @@
 import { reconcileFinalFeedsForGames } from "@/lib/games/reconcileFeeds";
 import { syncScheduleDates } from "@/lib/games/scheduleSync";
+import { getMLBScheduleDate, recentScheduleDates } from "@/lib/mlb/schedule";
 import type { Game } from "@/types/database";
 
 const DEBOUNCE_MS = 60_000;
@@ -16,7 +17,9 @@ async function flush(): Promise<void> {
   if (!job) return;
 
   lastRunAt = Date.now();
-  await syncScheduleDates([job.date], job.timeZone);
+  const etToday = getMLBScheduleDate();
+  const dates = [...new Set([job.date, ...recentScheduleDates(etToday, 3)])];
+  await syncScheduleDates(dates, job.timeZone);
   await reconcileFinalFeedsForGames(job.games);
 }
 

@@ -1,0 +1,20 @@
+-- One-time setup for Supabase Cron → sync-schedule Edge Function.
+-- Run in the Supabase SQL editor AFTER deploying the Edge Function.
+--
+-- 1. Deploy the function:
+--      supabase functions deploy sync-schedule
+--
+-- 2. Store project URL and service role key in Vault (replace placeholders):
+--
+--    select vault.create_secret('https://YOUR_PROJECT_REF.supabase.co', 'project_url');
+--    select vault.create_secret('YOUR_SERVICE_ROLE_KEY', 'service_role_key');
+--
+-- 3. Apply the cron migration (or run supabase db push):
+--      supabase db push
+--
+-- 4. Verify in Dashboard → Integrations → Cron, or:
+--      select * from cron.job where jobname = 'sync-mlb-schedule';
+--
+-- Manual trigger:
+--    curl -X POST "https://YOUR_PROJECT_REF.supabase.co/functions/v1/sync-schedule" \
+--      -H "Authorization: Bearer YOUR_SERVICE_ROLE_KEY"

@@ -296,6 +296,16 @@ export function previousScheduleDate(date: string): string {
   return addScheduleDays(date, -1);
 }
 
+/** Consecutive ET calendar dates ending at `date`, oldest first (ingestor parity). */
+export function recentScheduleDates(date: string, days: number): string[] {
+  const count = Math.max(1, days);
+  const dates: string[] = [];
+  for (let offset = count - 1; offset >= 0; offset -= 1) {
+    dates.push(addScheduleDays(date, -offset));
+  }
+  return dates;
+}
+
 /** Statuses still active on a prior slate that should appear on the next day. */
 export const ACTIVE_CARRYOVER_STATUSES = CARRYOVER_STATUSES;
 

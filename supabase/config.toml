@@ -1,0 +1,4 @@
+# Minimal Supabase project config. Link with: supabase link --project-ref <ref>
+
+[functions.sync-schedule]
+verify_jwt = true

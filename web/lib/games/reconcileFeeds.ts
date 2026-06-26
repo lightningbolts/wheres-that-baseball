@@ -47,3 +47,43 @@ export async function reconcileFinalFeedsForGames(
     );
   }
 }
+
+/** Backfill feeds for final games in Supabase that were never archived (ingestor offline, no site visits). */
+export async function reconcileMissingFeedsSince(
+  sinceDate: string,
+  limit = 20,
+): Promise<number> {
+  const supabase = getServiceSupabase();
+  if (!supabase) return 0;
+
+  const { data, error } = await supabase
+    .from("games")
+    .select("game_pk")
+    .eq("status", "Final")
+    .gte("game_date", sinceDate)
+    .is("feed_synced_at", null)
+    .order("game_date", { ascending: true })
+    .limit(limit);
+
+  if (error) {
+    console.warn("reconcile missing feeds: query failed", error.message);
+    return 0;
+  }
+
+  const batch = data ?? [];
+  if (batch.length === 0) return 0;
+
+  const concurrency = 3;
+  for (let i = 0; i < batch.length; i += concurrency) {
+    const slice = batch.slice(i, i + concurrency);
+    await Promise.all(
+      slice.map((row) =>
+        reconcileFinalGameFeed(row.game_pk).catch((err) => {
+          console.warn(`reconcile missing feed ${row.game_pk} failed:`, err);
+        }),
+      ),
+    );
+  }
+
+  return batch.length;
+}

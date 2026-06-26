@@ -5,12 +5,18 @@ import {
 } from "@/lib/games/scheduleRow";
 import { getServiceSupabase } from "@/lib/games/supabaseAdmin";
 import {
+  reconcileFinalFeedsForGames,
+  reconcileMissingFeedsSince,
+} from "@/lib/games/reconcileFeeds";
+import {
   ACTIVE_CARRYOVER_STATUSES,
   addScheduleDays,
   gameLocalCalendarDate,
   getBrowserTimeZone,
   getCalendarDateInTimeZone,
+  getMLBScheduleDate,
   previousScheduleDate,
+  recentScheduleDates,
 } from "@/lib/mlb/schedule";
 import { GAME_LIST_COLUMNS, type Game } from "@/types/database";
 
@@ -181,4 +187,49 @@ export async function syncScheduleDates(
 
   const synced = await upsertScheduleRows([...byPk.values()]);
   return { synced };
+}
+
+export interface RecentScheduleSyncResult {
+  synced: number;
+  dates: string[];
+  finalGamesSeen: number;
+  missingFeedsReconciled: number;
+}
+
+/**
+ * Sync recent ET slates into Supabase and archive final-game feeds.
+ * Primary scheduler: Supabase pg_cron → sync-schedule Edge Function.
+ */
+export async function syncRecentScheduleAndFeeds(options?: {
+  days?: number;
+  feedBatchLimit?: number;
+}): Promise<RecentScheduleSyncResult> {
+  const days = options?.days ?? 7;
+  const feedBatchLimit = options?.feedBatchLimit ?? 20;
+  const today = getMLBScheduleDate();
+  const dates = recentScheduleDates(today, days);
+
+  const byPk = new Map<number, GameScheduleRow>();
+  for (const date of dates) {
+    const games = await fetchMlbGamesForBrowseDate(date);
+    for (const game of games) {
+      byPk.set(game.game_pk, game);
+    }
+  }
+
+  const synced = await upsertScheduleRows([...byPk.values()]);
+  const gamesForFeeds = [...byPk.values()].map((game) => ({
+    game_pk: game.game_pk,
+    status: game.status,
+  }));
+
+  await reconcileFinalFeedsForGames(gamesForFeeds);
+  const missingFeedsReconciled = await reconcileMissingFeedsSince(dates[0], feedBatchLimit);
+
+  return {
+    synced,
+    dates,
+    finalGamesSeen: gamesForFeeds.filter((g) => g.status === "Final").length,
+    missingFeedsReconciled,
+  };
 }
