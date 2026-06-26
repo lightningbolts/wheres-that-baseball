@@ -1,0 +1,62 @@
+{
+  "completedAb": {
+    "result": {
+      "event": "Single",
+      "description": "Player singles to center field.",
+      "awayScore": 1,
+      "homeScore": 0
+    },
+    "about": {
+      "atBatIndex": 4,
+      "inning": 2,
+      "halfInning": "top",
+      "isComplete": true
+    },
+    "matchup": {
+      "batter": { "id": 101, "fullName": "Completed Batter" },
+      "pitcher": { "id": 201, "fullName": "Pitcher One" }
+    },
+    "playEvents": [
+      {
+        "isPitch": true,
+        "index": 0,
+        "count": { "balls": 0, "strikes": 0, "outs": 0 },
+        "details": {
+          "call": { "code": "X", "description": "In play, run(s)" },
+          "event": "Single"
+        }
+      }
+    ],
+    "runners": [
+      {
+        "movement": { "originBase": null, "start": null, "end": "1B", "isOut": false },
+        "details": { "runner": { "fullName": "Completed Batter" }, "playIndex": 0 }
+      }
+    ],
+    "count": { "balls": 0, "strikes": 0, "outs": 0 }
+  },
+  "nextCurrentPlay": {
+    "about": {
+      "atBatIndex": 5,
+      "inning": 2,
+      "halfInning": "top",
+      "isComplete": false
+    },
+    "matchup": {
+      "batter": { "id": 102, "fullName": "Next Batter" },
+      "pitcher": { "id": 201, "fullName": "Pitcher One" }
+    },
+    "playEvents": [
+      {
+        "isPitch": true,
+        "index": 0,
+        "count": { "balls": 1, "strikes": 0, "outs": 0 },
+        "details": {
+          "call": { "code": "B", "description": "Ball" },
+          "isBall": true
+        }
+      }
+    ],
+    "count": { "balls": 1, "strikes": 0, "outs": 0 }
+  }
+}

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { parseBoxScore } from "@/lib/mlb/boxScore";
-import { buildLiveFeedSnapshot } from "@/lib/mlb/liveFeed";
+import { buildLiveFeedSnapshot, mergeCurrentPlayTail } from "@/lib/mlb/liveFeed";
+import type { AllPlayRaw } from "@/types/mlb-live";
 import { getCachedLiveFeed } from "@/lib/mlb/liveFeedServer";
 
 export const dynamic = "force-dynamic";
@@ -29,17 +30,11 @@ export async function GET(request: Request, { params }: RouteParams) {
     if (playsFrom != null && Number.isFinite(playsFrom) && playsFrom >= 0) {
       const allPlays = feed.liveData.plays.allPlays ?? [];
       const currentPlay = feed.liveData.plays.currentPlay;
-      const merged = (() => {
-        const tail = allPlays.slice(playsFrom);
-        if (!currentPlay || allPlays.length === 0) return tail;
-        const ongoingIndex = allPlays.length - 1;
-        if (playsFrom > ongoingIndex) return tail;
-        if (tail.length === 0) return [currentPlay];
-        if (playsFrom + tail.length - 1 === ongoingIndex) {
-          return [...tail.slice(0, -1), currentPlay];
-        }
-        return tail;
-      })();
+      const merged = mergeCurrentPlayTail(
+        allPlays,
+        currentPlay as AllPlayRaw | undefined,
+        playsFrom,
+      );
       return NextResponse.json({
         ...snapshot,
         boxScore,

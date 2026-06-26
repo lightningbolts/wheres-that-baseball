@@ -254,28 +254,18 @@ function playEventAffectsSituation(
   }
   if (!basesEqual(previous.bases, after.bases)) return true;
 
-  for (const runner of runnersForPlayEvent(event, play) ?? []) {
-    const movement = runner.movement;
-    if (!movement) continue;
-    const start = movement.start ?? movement.originBase ?? null;
-    const end = movement.end ?? null;
-    if (movement.isOut) return true;
-    if (end === "score") return true;
-    if (end && start !== end) return true;
+  const eventRunners = runnersForPlayEvent(event, play);
+  if (eventRunners?.length) {
+    for (const runner of eventRunners) {
+      const movement = runner.movement;
+      if (!movement) continue;
+      const start = movement.start ?? movement.originBase ?? null;
+      const end = movement.end ?? null;
+      if (movement.isOut) return true;
+      if (end === "score") return true;
+      if (end && start !== end) return true;
+    }
   }
-
-  if (/stolen_base|caught_stealing|pickoff|wild_pitch|passed_ball|balk/i.test(eventType)) {
-    return true;
-  }
-
-  if (
-    /stolen base|\bsteals?\b|caught stealing|wild pitch|passed ball|balk|fielding error|error on|advances to|runner scores|scores from/i.test(
-      text,
-    )
-  ) {
-    return true;
-  }
-  if (/picks?\s*off/i.test(text) && !/pickoff attempt/i.test(text)) return true;
 
   return false;
 }
@@ -494,6 +484,24 @@ function extractOngoingGameEvents(
   };
 }
 
+/** True when `currentPlay` is a fresher copy of the same plate appearance as `tailPlay`. */
+function shouldMergeCurrentPlayIntoTail(
+  tailPlay: AllPlayRaw,
+  currentPlay: AllPlayRaw,
+): boolean {
+  const tailAb = tailPlay.about?.atBatIndex;
+  const currentAb = currentPlay.about?.atBatIndex;
+  if (tailAb != null && currentAb != null) {
+    return tailAb === currentAb;
+  }
+
+  // Without indices, only merge when the tail row is still in progress.
+  return (
+    tailPlay.about?.isComplete !== true &&
+    !tailPlay.result?.event?.trim()
+  );
+}
+
 export function mergeCurrentPlayTail(
   allPlays: AllPlayRaw[],
   currentPlay: AllPlayRaw | null | undefined,
@@ -507,7 +515,11 @@ export function mergeCurrentPlayTail(
 
   if (tail.length === 0) return [currentPlay];
   if (from + tail.length - 1 === ongoingIndex) {
-    return [...tail.slice(0, -1), currentPlay];
+    const tailPlay = tail[tail.length - 1];
+    if (tailPlay && shouldMergeCurrentPlayIntoTail(tailPlay, currentPlay)) {
+      return [...tail.slice(0, -1), currentPlay];
+    }
+    return tail;
   }
 
   return tail;
@@ -918,6 +930,28 @@ function cloneSituation(situation: GameSituation): GameSituation {
   };
 }
 
+/** Prefer play-level runner resolution, but keep mid-PA game-event base updates when present. */
+function mergeSituations(primary: GameSituation, fromGameEvents: GameSituation): GameSituation {
+  const basesChanged =
+    !basesEqual(primary.bases, fromGameEvents.bases) ||
+    primary.onFirst !== fromGameEvents.onFirst ||
+    primary.onSecond !== fromGameEvents.onSecond ||
+    primary.onThird !== fromGameEvents.onThird;
+
+  if (!basesChanged) return primary;
+
+  return {
+    ...primary,
+    bases: { ...fromGameEvents.bases },
+    onFirst: fromGameEvents.onFirst,
+    onSecond: fromGameEvents.onSecond,
+    onThird: fromGameEvents.onThird,
+    outs: Math.max(primary.outs, fromGameEvents.outs),
+    awayScore: Math.max(primary.awayScore, fromGameEvents.awayScore),
+    homeScore: Math.max(primary.homeScore, fromGameEvents.homeScore),
+  };
+}
+
 function resetHalfInningSituation(situation: GameSituation): GameSituation {
   return {
     ...situation,
@@ -1264,15 +1298,19 @@ function parsePlayEntry(
   const event = resolvedPlay.result?.event ?? "";
 
   const situationAtPlayStart = cloneSituation(situation);
-  const { entries: gameEventEntries } = extractGameEventsFromPlay(
-    resolvedPlay,
-    playIndex,
-    situationAtPlayStart,
-    state.loggedGameEventKeys,
-    state.entries,
-  );
+  const { entries: gameEventEntries, situationAfter: situationAfterGameEvents } =
+    extractGameEventsFromPlay(
+      resolvedPlay,
+      playIndex,
+      situationAtPlayStart,
+      state.loggedGameEventKeys,
+      state.entries,
+    );
   const postSituation = parsePostSituation(resolvedPlay, situationAtPlayStart);
-  situation = postSituation;
+  situation =
+    gameEventEntries.length > 0
+      ? mergeSituations(postSituation, situationAfterGameEvents)
+      : postSituation;
 
   const isAtBat = isPlateAppearanceEvent(event);
   const atBatIndex = resolvedPlay.about?.atBatIndex ?? playIndex;
@@ -1342,13 +1380,13 @@ function parsePlayEntry(
     batterAtBats: detail.batterAtBats,
     event: detail.event,
     description: detail.description,
-    awayScore: postSituation.awayScore,
-    homeScore: postSituation.homeScore,
-    outs: postSituation.outs,
-    bases: postSituation.bases,
-    onFirst: postSituation.onFirst,
-    onSecond: postSituation.onSecond,
-    onThird: postSituation.onThird,
+    awayScore: situation.awayScore,
+    homeScore: situation.homeScore,
+    outs: situation.outs,
+    bases: situation.bases,
+    onFirst: situation.onFirst,
+    onSecond: situation.onSecond,
+    onThird: situation.onThird,
     situationBefore: situationAtPlayStart,
     isScoringPlay: detail.isScoringPlay,
     isAtBat,
