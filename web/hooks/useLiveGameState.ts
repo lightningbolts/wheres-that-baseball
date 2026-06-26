@@ -40,6 +40,7 @@ export function useLiveGameState(
     isLoading: true,
     error: null,
     consecutiveErrors: 0,
+    realtimeConnected: false,
   });
 
   useEffect(() => {
@@ -50,6 +51,7 @@ export function useLiveGameState(
         isLoading: false,
         error: null,
         consecutiveErrors: 0,
+        realtimeConnected: false,
       });
       return;
     }
@@ -60,6 +62,7 @@ export function useLiveGameState(
       isLoading: true,
       error: null,
       consecutiveErrors: 0,
+      realtimeConnected: false,
     });
 
     return subscribeLiveFeed(gamePk, setCoordinatorState);

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { fetchBatterVsPitcherRecord } from "@/lib/mlb/matchupStats";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 3600;
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -18,7 +19,14 @@ export async function GET(request: Request) {
 
   try {
     const record = await fetchBatterVsPitcherRecord(batterId, pitcherId);
-    return NextResponse.json({ record });
+    return NextResponse.json(
+      { record },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=600",
+        },
+      },
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to fetch matchup stats";
     return NextResponse.json({ error: message }, { status: 502 });

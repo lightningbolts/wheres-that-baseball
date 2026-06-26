@@ -12,7 +12,22 @@ export const POLL_BREAK_MS = 800;
 /** Background tab. */
 export const POLL_HIDDEN_MS = 2_000;
 
+/** Safety-net poll when Supabase Realtime is delivering game_state pushes. */
+export const POLL_REALTIME_FALLBACK_MS = 3_000;
+
 export const MAX_IN_FLIGHT = 2;
+
+/** Choose poll gap; stretches when Realtime push is active. */
+export function effectivePollIntervalMs(
+  feed: Pick<MLBLiveFeedResponse, "liveData"> | null,
+  hidden: boolean,
+  realtimeConnected: boolean,
+): number {
+  if (realtimeConnected && !hidden) {
+    return POLL_REALTIME_FALLBACK_MS;
+  }
+  return adaptivePollIntervalMs(feed, hidden);
+}
 
 /** Choose poll gap from linescore / current play shape. */
 export function adaptivePollIntervalMs(

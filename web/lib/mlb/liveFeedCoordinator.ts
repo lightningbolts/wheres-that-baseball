@@ -1,9 +1,10 @@
 import { recordFetchMetric } from "@/lib/mlb/fetchMetrics";
 import {
-  adaptivePollIntervalMs,
+  effectivePollIntervalMs,
   MAX_IN_FLIGHT,
 } from "@/lib/mlb/pollIntervals";
 import {
+  buildLiveFeedSnapshot,
   createPlayByPlayParseState,
   fetchLiveSnapshotWithPlays,
   liveStateFingerprint,
@@ -16,8 +17,14 @@ import {
   type LiveFeedSnapshot,
   type PlayByPlayParseState,
 } from "@/lib/mlb/liveFeed";
+import {
+  snapshotFromRealtimeFeed,
+  subscribeGameStateRealtime,
+  type GameStateRealtimeSubscription,
+} from "@/lib/mlb/liveFeedRealtime";
+import { parseBoxScore } from "@/lib/mlb/boxScore";
 import type { GameBoxScore } from "@/types/mlb-boxscore";
-import type { AllPlayRaw, LiveGameState } from "@/types/mlb-live";
+import type { AllPlayRaw, LiveGameState, MLBLiveFeedResponse } from "@/types/mlb-live";
 
 export interface LiveFeedCoordinatorState {
   gameState: LiveGameState | null;
@@ -25,6 +32,7 @@ export interface LiveFeedCoordinatorState {
   isLoading: boolean;
   error: string | null;
   consecutiveErrors: number;
+  realtimeConnected: boolean;
 }
 
 type Subscriber = (state: LiveFeedCoordinatorState) => void;
@@ -42,6 +50,8 @@ interface CoordinatorInstance {
   cancelled: boolean;
   tabWasHidden: boolean;
   generation: number;
+  realtimeConnected: boolean;
+  realtimeSub: GameStateRealtimeSubscription | null;
 }
 
 const instances = new Map<number, CoordinatorInstance>();
@@ -53,6 +63,7 @@ function defaultState(): LiveFeedCoordinatorState {
     isLoading: true,
     error: null,
     consecutiveErrors: 0,
+    realtimeConnected: false,
   };
 }
 
@@ -109,6 +120,79 @@ function resyncPlayByPlayState(
   return syncPlayByPlayFromFeed(state, allPlays, currentPlay);
 }
 
+function applyFeedToInstance(
+  instance: CoordinatorInstance,
+  feed: MLBLiveFeedResponse,
+  options: {
+    snapshot?: LiveFeedSnapshot;
+    boxScore?: GameBoxScore | null;
+    catchingUp: boolean;
+    source: "snapshot" | "realtime";
+    latencyMs?: number;
+  },
+): void {
+  const generation = instance.generation;
+  const allPlays = feed.liveData.plays.allPlays ?? [];
+  const currentPlay = feed.liveData.plays.currentPlay as AllPlayRaw | undefined;
+
+  instance.localAllPlays = allPlays;
+  instance.lastSnapshot = options.snapshot ?? buildLiveFeedSnapshot(instance.gamePk, feed);
+
+  const fastNext = parseLiveFeedSnapshot(
+    instance.gamePk,
+    feed,
+    instance.parseState.entries,
+  );
+  instance.state = {
+    ...instance.state,
+    gameState: applyGameState(instance.state.gameState, fastNext, options.catchingUp),
+    boxScore: options.boxScore ?? parseBoxScore(instance.gamePk, feed) ?? instance.state.boxScore,
+    error: null,
+    consecutiveErrors: 0,
+    isLoading: false,
+    realtimeConnected: instance.realtimeConnected,
+  };
+  notify(instance);
+
+  instance.parseState = resyncPlayByPlayState(
+    instance.parseState,
+    allPlays,
+    currentPlay,
+    options.catchingUp,
+  );
+
+  if (!playByPlayNeedsResync(instance.parseState, allPlays, currentPlay)) {
+    instance.tabWasHidden = false;
+  }
+
+  if (generation !== instance.generation || instance.cancelled) return;
+
+  const next = parseLiveFeedSnapshot(
+    instance.gamePk,
+    feed,
+    instance.parseState.entries,
+  );
+  instance.state = {
+    ...instance.state,
+    gameState: applyGameState(instance.state.gameState, next, options.catchingUp),
+    isLoading: false,
+    realtimeConnected: instance.realtimeConnected,
+  };
+  notify(instance);
+
+  if (options.latencyMs != null) {
+    recordFetchMetric({
+      gamePk: instance.gamePk,
+      source: options.source,
+      latencyMs: options.latencyMs,
+      payloadBytes: 0,
+      status: 200,
+      notModified: false,
+      at: new Date().toISOString(),
+    });
+  }
+}
+
 async function pollOnce(instance: CoordinatorInstance): Promise<void> {
   const generation = instance.generation;
   const catchingUp =
@@ -125,20 +209,9 @@ async function pollOnce(instance: CoordinatorInstance): Promise<void> {
 
     if (generation !== instance.generation || instance.cancelled) return;
 
-    recordFetchMetric({
-      gamePk: instance.gamePk,
-      source: "snapshot",
-      latencyMs: performance.now() - started,
-      payloadBytes: 0,
-      status: 200,
-      notModified: false,
-      at: new Date().toISOString(),
-    });
-
-    instance.lastSnapshot = snapshot;
-
+    let allPlays = instance.localAllPlays;
     if (snapshot.plays) {
-      instance.localAllPlays = mergeAllPlays(
+      allPlays = mergeAllPlays(
         instance.localAllPlays,
         snapshot.plays.from,
         snapshot.plays.plays,
@@ -147,7 +220,7 @@ async function pollOnce(instance: CoordinatorInstance): Promise<void> {
     } else if (snapshot.allPlaysCount > instance.localAllPlays.length) {
       const refetch = await fetchLiveSnapshotWithPlays(instance.gamePk, 0);
       if (refetch.plays) {
-        instance.localAllPlays = mergeAllPlays(
+        allPlays = mergeAllPlays(
           [],
           refetch.plays.from,
           refetch.plays.plays,
@@ -156,50 +229,16 @@ async function pollOnce(instance: CoordinatorInstance): Promise<void> {
       }
     }
 
-    const currentPlay = snapshot.currentPlay as AllPlayRaw | undefined;
-    const feed = reconstructFeedFromParts(snapshot, instance.localAllPlays);
+    const feed = reconstructFeedFromParts(snapshot, allPlays);
+    instance.localAllPlays = allPlays;
 
-    const fastNext = parseLiveFeedSnapshot(
-      instance.gamePk,
-      feed,
-      instance.parseState.entries,
-    );
-    instance.state = {
-      ...instance.state,
-      gameState: applyGameState(instance.state.gameState, fastNext, catchingUp),
-      boxScore: snapshot.boxScore ?? instance.state.boxScore,
-      error: null,
-      consecutiveErrors: 0,
-      isLoading: false,
-    };
-    notify(instance);
-
-    instance.parseState = resyncPlayByPlayState(
-      instance.parseState,
-      instance.localAllPlays,
-      currentPlay,
+    applyFeedToInstance(instance, feed, {
+      snapshot,
+      boxScore: snapshot.boxScore ?? null,
       catchingUp,
-    );
-
-    if (!playByPlayNeedsResync(instance.parseState, instance.localAllPlays, currentPlay)) {
-      instance.tabWasHidden = false;
-    }
-
-    if (generation !== instance.generation || instance.cancelled) return;
-
-    const next = parseLiveFeedSnapshot(
-      instance.gamePk,
-      reconstructFeedFromParts(snapshot, instance.localAllPlays),
-      instance.parseState.entries,
-    );
-
-    instance.state = {
-      ...instance.state,
-      gameState: applyGameState(instance.state.gameState, next, catchingUp),
-      boxScore: snapshot.boxScore ?? instance.state.boxScore,
-      isLoading: false,
-    };
-    notify(instance);
+      source: "snapshot",
+      latencyMs: performance.now() - started,
+    });
   } catch (err) {
     if (generation !== instance.generation || instance.cancelled) return;
     const message = err instanceof Error ? err.message : "Failed to fetch live game state";
@@ -208,6 +247,7 @@ async function pollOnce(instance: CoordinatorInstance): Promise<void> {
       error: message,
       consecutiveErrors: instance.state.consecutiveErrors + 1,
       isLoading: false,
+      realtimeConnected: instance.realtimeConnected,
     };
     notify(instance);
   }
@@ -220,7 +260,7 @@ function scheduleNextPoll(instance: CoordinatorInstance): void {
   const feed = instance.lastSnapshot
     ? reconstructFeedFromParts(instance.lastSnapshot, instance.localAllPlays)
     : null;
-  const delay = adaptivePollIntervalMs(feed, hidden);
+  const delay = effectivePollIntervalMs(feed, hidden, instance.realtimeConnected);
 
   instance.pollTimer = setTimeout(() => {
     void runPollCycle(instance);
@@ -241,6 +281,33 @@ async function runPollCycle(instance: CoordinatorInstance): Promise<void> {
   scheduleNextPoll(instance);
 }
 
+function startRealtime(instance: CoordinatorInstance): void {
+  if (typeof window === "undefined" || instance.realtimeSub) return;
+
+  instance.realtimeSub = subscribeGameStateRealtime(
+    instance.gamePk,
+    (payload) => {
+      if (instance.cancelled) return;
+      const catchingUp =
+        instance.tabWasHidden && document.visibilityState === "visible";
+      applyFeedToInstance(instance, payload.feed, {
+        snapshot: snapshotFromRealtimeFeed(instance.gamePk, payload.feed),
+        boxScore: payload.boxScore,
+        catchingUp,
+        source: "realtime",
+      });
+    },
+    (status) => {
+      if (instance.cancelled) return;
+      const connected = status === "connected";
+      if (instance.realtimeConnected === connected) return;
+      instance.realtimeConnected = connected;
+      instance.state = { ...instance.state, realtimeConnected: connected };
+      notify(instance);
+    },
+  );
+}
+
 function startPolling(instance: CoordinatorInstance): void {
   if (instance.pollTimer != null) return;
 
@@ -257,6 +324,7 @@ function startPolling(instance: CoordinatorInstance): void {
     document.addEventListener("visibilitychange", onVisibility);
   }
 
+  startRealtime(instance);
   void pollOnce(instance);
   scheduleNextPoll(instance);
 }
@@ -267,6 +335,8 @@ function stopPolling(instance: CoordinatorInstance): void {
     clearTimeout(instance.pollTimer);
     instance.pollTimer = null;
   }
+  instance.realtimeSub?.unsubscribe();
+  instance.realtimeSub = null;
   instances.delete(instance.gamePk);
 }
 
@@ -287,6 +357,8 @@ function getOrCreate(gamePk: number): CoordinatorInstance {
     cancelled: false,
     tabWasHidden: false,
     generation: 0,
+    realtimeConnected: false,
+    realtimeSub: null,
   };
   instances.set(gamePk, instance);
   return instance;
@@ -344,3 +416,17 @@ export function mergeAllPlaysForTest(
 
 /** Test helper — expose mergeCurrentPlayTail for golden fixtures. */
 export { mergeCurrentPlayTail };
+
+/** Test helper — apply a feed payload like Realtime would. */
+export function applyFeedForTest(
+  gamePk: number,
+  feed: MLBLiveFeedResponse,
+): LiveFeedCoordinatorState | null {
+  const instance = instances.get(gamePk);
+  if (!instance) return null;
+  applyFeedToInstance(instance, feed, {
+    catchingUp: false,
+    source: "realtime",
+  });
+  return instance.state;
+}

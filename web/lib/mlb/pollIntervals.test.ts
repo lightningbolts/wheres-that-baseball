@@ -6,7 +6,9 @@ import {
   POLL_BREAK_MS,
   POLL_HIDDEN_MS,
   POLL_IDLE_MS,
+  POLL_REALTIME_FALLBACK_MS,
   adaptivePollIntervalMs,
+  effectivePollIntervalMs,
 } from "@/lib/mlb/pollIntervals";
 import type { AllPlayRaw, MLBLiveFeedResponse } from "@/types/mlb-live";
 
@@ -66,6 +68,11 @@ describe("adaptivePollIntervalMs", () => {
     });
 
     expect(adaptivePollIntervalMs(feed, false)).toBe(POLL_IDLE_MS);
+  });
+
+  it("uses realtime fallback interval when push is connected", () => {
+    expect(effectivePollIntervalMs(null, false, true)).toBe(POLL_REALTIME_FALLBACK_MS);
+    expect(effectivePollIntervalMs(null, false, false)).toBe(POLL_ACTIVE_MS);
   });
 });
 

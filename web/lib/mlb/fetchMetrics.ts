@@ -2,7 +2,7 @@
 
 export interface FetchMetricSample {
   gamePk: number;
-  source: "browser" | "server" | "snapshot";
+  source: "browser" | "server" | "snapshot" | "realtime";
   latencyMs: number;
   payloadBytes: number;
   status: number;

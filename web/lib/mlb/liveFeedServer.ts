@@ -2,7 +2,7 @@ import type { MLBLiveFeedResponse } from "@/types/mlb-live";
 
 import { recordFetchMetric } from "@/lib/mlb/fetchMetrics";
 
-const MLB_FEED_BASE = "https://statsapi.mlb.com/api/v1.1";
+import { mlbLiveFeedUrl } from "@/lib/mlb/liveFeedEndpoints";
 /** Coalesce rapid server-side polls without adding live pitch lag. */
 const CACHE_MS = 400;
 
@@ -25,7 +25,7 @@ async function fetchLiveFeedFromMlb(
   }
 
   const started = performance.now();
-  const response = await fetch(`${MLB_FEED_BASE}/game/${gamePk}/feed/live`, {
+  const response = await fetch(mlbLiveFeedUrl(gamePk), {
     cache: "no-store",
     headers,
   });

@@ -14,6 +14,9 @@ import (
 
 const scheduleAPIBase = "https://statsapi.mlb.com/api/v1"
 
+// Hydrate contract shared with web/lib/mlb/scheduleApi.ts (row preset):
+// team,linescore,venue
+
 // ScheduleGame is metadata for one game returned by the MLB schedule endpoint.
 type ScheduleGame struct {
 	GamePK           int

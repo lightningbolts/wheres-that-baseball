@@ -1,35 +1,18 @@
+import {
+  fetchScheduleGamesForDate as fetchMlbScheduleRaw,
+  fetchScheduleGameByPkRaw,
+  type ScheduleApiRawGame,
+} from "@/lib/mlb/scheduleApi";
+
 import { getMLBScheduleDate } from "@/lib/mlb/schedule";
-import { cachedScheduleFetch } from "@/lib/mlb/scheduleCache";
 import type { Game } from "@/types/database";
 
-const MLB_SCHEDULE_BASE = "https://statsapi.mlb.com/api/v1/schedule";
-
-interface ScheduleApiGame {
-  gamePk: number;
-  gameDate: string;
-  season: string;
-  gameType?: string;
-  officialDate?: string;
-  status?: { abstractGameState?: string; detailedState?: string };
-  teams: {
-    away: {
-      team: { id: number; name: string; abbreviation: string };
-      score?: number;
-    };
-    home: {
-      team: { id: number; name: string; abbreviation: string };
-      score?: number;
-    };
-  };
-  venue?: { id?: number; name?: string };
-}
-
-export type ScheduleApiGameRaw = ScheduleApiGame;
+export type ScheduleApiGameRaw = ScheduleApiRawGame;
 
 /** Schedule metadata for games table upsert (feed fields added at archive time). */
 export type GameScheduleRow = Omit<Game, "game_state" | "box_score" | "feed_synced_at" | "updated_at">;
 
-export function mapScheduleGameToRow(game: ScheduleApiGame): GameScheduleRow {
+export function mapScheduleGameToRow(game: ScheduleApiRawGame): GameScheduleRow {
   const gameDate = game.officialDate ?? game.gameDate?.slice(0, 10) ?? getMLBScheduleDate();
 
   return {
@@ -54,25 +37,8 @@ export function mapScheduleGameToRow(game: ScheduleApiGame): GameScheduleRow {
 }
 
 /** All regular-season games on an MLB calendar date (scores + status hydrated). */
-export async function fetchScheduleGamesRawForDate(date: string): Promise<ScheduleApiGame[]> {
-  return cachedScheduleFetch(`schedule-row:${date}`, async () => {
-    const url = new URL(MLB_SCHEDULE_BASE);
-    url.searchParams.set("sportId", "1");
-    url.searchParams.set("date", date);
-    url.searchParams.set("gameTypes", "R");
-    url.searchParams.set("hydrate", "team,linescore,venue");
-
-    const response = await fetch(url.toString(), { cache: "no-store" });
-    if (!response.ok) {
-      throw new Error(`MLB schedule failed: ${response.status} ${response.statusText}`);
-    }
-
-    const data = (await response.json()) as {
-      dates?: Array<{ games?: ScheduleApiGame[] }>;
-    };
-
-    return data.dates?.flatMap((day) => day.games ?? []) ?? [];
-  });
+export async function fetchScheduleGamesRawForDate(date: string): Promise<ScheduleApiRawGame[]> {
+  return fetchMlbScheduleRaw(date, "row");
 }
 
 /** All regular-season games on an MLB calendar date (scores + status hydrated). */
@@ -84,19 +50,6 @@ export async function fetchScheduleGamesForDate(date: string): Promise<GameSched
 export async function fetchScheduleGameByPk(
   gamePk: number,
 ): Promise<GameScheduleRow | null> {
-  const url = new URL(MLB_SCHEDULE_BASE);
-  url.searchParams.set("gamePk", String(gamePk));
-  url.searchParams.set("hydrate", "team,linescore,venue");
-
-  const response = await fetch(url.toString(), { cache: "no-store" });
-  if (!response.ok) {
-    throw new Error(`MLB schedule failed: ${response.status}`);
-  }
-
-  const data = (await response.json()) as {
-    dates?: Array<{ games?: ScheduleApiGame[] }>;
-  };
-
-  const game = data.dates?.flatMap((day) => day.games ?? []).find((g) => g.gamePk === gamePk);
+  const game = await fetchScheduleGameByPkRaw(gamePk, "row");
   return game ? mapScheduleGameToRow(game) : null;
 }
