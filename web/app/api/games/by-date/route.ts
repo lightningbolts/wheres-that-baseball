@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 
-import { reconcileFinalFeedsForGames } from "@/lib/games/reconcileFeeds";
+import { scheduleBackgroundSlateSync } from "@/lib/games/backgroundSync";
 import {
   isLiveScheduleDate,
   loadGamesForDate,
-  syncScheduleDates,
 } from "@/lib/games/scheduleSync";
 
 export const dynamic = "force-dynamic";
@@ -29,14 +28,7 @@ export async function GET(request: Request) {
   try {
     const games = await loadGamesForDate(date, timeZone);
 
-    void (async () => {
-      try {
-        await syncScheduleDates([date], timeZone);
-        await reconcileFinalFeedsForGames(games);
-      } catch (error) {
-        console.warn("background schedule/feed sync failed", error);
-      }
-    })();
+    void scheduleBackgroundSlateSync(date, games, timeZone);
 
     return NextResponse.json({ games, source: "mlb" });
   } catch (error) {

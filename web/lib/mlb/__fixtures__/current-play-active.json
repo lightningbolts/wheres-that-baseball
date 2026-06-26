@@ -1,0 +1,42 @@
+{
+  "playEvents": [
+    {
+      "isPitch": true,
+      "playId": "p1",
+      "count": { "balls": 0, "strikes": 1, "outs": 1 },
+      "details": {
+        "type": { "code": "FF", "description": "Four-Seam Fastball" },
+        "call": { "code": "S", "description": "Called Strike" },
+        "isStrike": true
+      },
+      "pitchData": {
+        "startSpeed": 95.2,
+        "coordinates": { "pX": 0.1, "pZ": 2.5 },
+        "strikeZoneTop": 3.5,
+        "strikeZoneBottom": 1.5
+      }
+    },
+    {
+      "isPitch": true,
+      "playId": "p2",
+      "count": { "balls": 1, "strikes": 1, "outs": 1 },
+      "details": {
+        "type": { "code": "SL", "description": "Slider" },
+        "call": { "code": "B", "description": "Ball" },
+        "isBall": true
+      },
+      "pitchData": {
+        "startSpeed": 86.1,
+        "coordinates": { "pX": -0.8, "pZ": 1.2 },
+        "strikeZoneTop": 3.5,
+        "strikeZoneBottom": 1.5
+      }
+    }
+  ],
+  "matchup": {
+    "batter": { "id": 123, "fullName": "Test Batter" },
+    "pitcher": { "id": 456, "fullName": "Test Pitcher" }
+  },
+  "about": { "atBatIndex": 10, "inning": 3, "halfInning": "top", "isComplete": false },
+  "count": { "balls": 1, "strikes": 1, "outs": 1 }
+}

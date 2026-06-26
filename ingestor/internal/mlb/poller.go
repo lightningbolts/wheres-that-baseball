@@ -35,8 +35,7 @@ type Worker struct {
 	liveMu    sync.Mutex
 	wasLive   map[int]bool
 
-	stateWriteMu sync.Mutex
-	stateWriting map[int]bool
+	stateWrites *liveStateWriteQueue
 }
 
 // WorkerConfig wires dependencies for a game polling goroutine.
@@ -61,16 +60,21 @@ func NewWorker(cfg WorkerConfig) (*Worker, error) {
 		logger = slog.Default()
 	}
 
+	var stateWrites *liveStateWriteQueue
+	if cfg.Games != nil {
+		stateWrites = newLiveStateWriteQueue(cfg.Games, logger)
+	}
+
 	return &Worker{
-		client:       cfg.Client,
-		tracker:      cfg.Tracker,
-		interval:     cfg.Interval,
-		onChange:     cfg.OnChange,
-		onGameEnd:    cfg.OnGameEnd,
-		games:        cfg.Games,
-		logger:       logger,
-		wasLive:      make(map[int]bool),
-		stateWriting: make(map[int]bool),
+		client:      cfg.Client,
+		tracker:     cfg.Tracker,
+		interval:    cfg.Interval,
+		onChange:    cfg.OnChange,
+		onGameEnd:   cfg.OnGameEnd,
+		games:       cfg.Games,
+		logger:      logger,
+		wasLive:     make(map[int]bool),
+		stateWrites: stateWrites,
 	}, nil
 }
 
@@ -181,34 +185,16 @@ func (w *Worker) pollOnce(ctx context.Context, gamePK int, log *slog.Logger) err
 	return nil
 }
 
-// enqueueLiveStateWrite persists the live feed snapshot without blocking the poll loop.
+// enqueueLiveStateWrite persists the latest live feed snapshot without blocking the poll loop.
 func (w *Worker) enqueueLiveStateWrite(
 	gamePK int,
 	status string,
 	awayScore, homeScore int,
 	wrapped []byte,
-	log *slog.Logger,
+	_ *slog.Logger,
 ) {
-	w.stateWriteMu.Lock()
-	if w.stateWriting[gamePK] {
-		w.stateWriteMu.Unlock()
+	if w.stateWrites == nil {
 		return
 	}
-	w.stateWriting[gamePK] = true
-	w.stateWriteMu.Unlock()
-
-	go func() {
-		defer func() {
-			w.stateWriteMu.Lock()
-			delete(w.stateWriting, gamePK)
-			w.stateWriteMu.Unlock()
-		}()
-
-		writeCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-
-		if err := w.games.UpdateLiveGameState(writeCtx, gamePK, status, awayScore, homeScore, wrapped); err != nil {
-			log.Error("failed to update live game state", "error", err)
-		}
-	}()
+	w.stateWrites.enqueue(gamePK, status, awayScore, homeScore, wrapped)
 }

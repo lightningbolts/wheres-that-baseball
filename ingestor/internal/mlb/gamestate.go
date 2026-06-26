@@ -12,7 +12,7 @@ func ToGameState(gamePK int, feed *LiveFeed) GameState {
 	state := GameState{
 		GamePK:     gamePK,
 		GameStatus: feed.GameData.Status.AbstractGameState,
-		ObservedAt: time.Now().UTC(),
+		ObservedAt: observedAtFromFeed(feed),
 	}
 
 	if t, err := time.Parse(time.RFC3339, feed.GameData.DateTime.DateTime); err == nil {
@@ -67,6 +67,23 @@ func ToGameState(gamePK int, feed *LiveFeed) GameState {
 	}
 
 	return state
+}
+
+func observedAtFromFeed(feed *LiveFeed) time.Time {
+	events := feed.LiveData.Plays.CurrentPlay.PlayEvents
+	for i := len(events) - 1; i >= 0; i-- {
+		if events[i].EndTime != "" {
+			if t, err := time.Parse(time.RFC3339, events[i].EndTime); err == nil {
+				return t.UTC()
+			}
+		}
+		if events[i].StartTime != "" {
+			if t, err := time.Parse(time.RFC3339, events[i].StartTime); err == nil {
+				return t.UTC()
+			}
+		}
+	}
+	return time.Now().UTC()
 }
 
 func handCode(h *Hand) string {

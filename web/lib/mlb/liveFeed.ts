@@ -1430,6 +1430,18 @@ function parseAtBatPitchesFromFeed(
   return fromCurrent;
 }
 
+function observedAtFromFeed(feed: MLBLiveFeedResponse): string {
+  const events = feed.liveData.plays.currentPlay?.playEvents;
+  if (events?.length) {
+    for (let i = events.length - 1; i >= 0; i -= 1) {
+      const ev = events[i];
+      if (ev?.endTime) return ev.endTime;
+      if (ev?.startTime) return ev.startTime;
+    }
+  }
+  return new Date().toISOString();
+}
+
 export function parseLiveFeed(
   gamePk: number,
   feed: MLBLiveFeedResponse,
@@ -1498,7 +1510,7 @@ export function parseLiveFeed(
     onThird: isBreak ? false : offense.third != null,
     atBatPitches: parseAtBatPitchesFromFeed(feed, isBreak),
     plays: plays ?? parsePlayByPlay(feed.liveData.plays.allPlays),
-    observedAt: new Date().toISOString(),
+    observedAt: observedAtFromFeed(feed),
   };
 }
 
@@ -1559,6 +1571,7 @@ export interface LivePlayChunk {
 }
 
 export interface LiveSnapshotWithPlays extends LiveFeedSnapshot {
+  boxScore?: GameBoxScore | null;
   plays?: LivePlayChunk;
 }
 
@@ -1661,6 +1674,32 @@ export function buildLiveFeedSnapshot(
     allPlaysCount: feed.liveData.plays.allPlays?.length ?? 0,
     awayPitcher: pitchers.away,
     homePitcher: pitchers.home,
+  };
+}
+
+export function reconstructFeedFromParts(
+  snapshot: LiveFeedSnapshot,
+  allPlays: AllPlayRaw[],
+): MLBLiveFeedResponse {
+  return {
+    gameData: {
+      status: { abstractGameState: snapshot.gameStatus },
+      venue:
+        snapshot.venueId != null
+          ? { id: snapshot.venueId, name: snapshot.venueName ?? undefined }
+          : undefined,
+      teams: {
+        away: { name: snapshot.awayTeam, abbreviation: snapshot.awayAbbrev },
+        home: { name: snapshot.homeTeam, abbreviation: snapshot.homeAbbrev },
+      },
+    },
+    liveData: {
+      linescore: snapshot.linescore,
+      plays: {
+        allPlays,
+        currentPlay: snapshot.currentPlay,
+      },
+    },
   };
 }
 

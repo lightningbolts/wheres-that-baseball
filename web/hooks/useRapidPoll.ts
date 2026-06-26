@@ -13,6 +13,7 @@ export function useRapidPoll(
   maxInFlight: number,
   enabled: boolean,
   resetKey: unknown,
+  onError?: (error: unknown) => void,
 ): void {
   const pollRef = useRef(poll);
 
@@ -31,8 +32,8 @@ export function useRapidPoll(
       inFlight += 1;
       void pollRef
         .current()
-        .catch(() => {
-          // Caller owns error handling inside poll.
+        .catch((err) => {
+          onError?.(err);
         })
         .finally(() => {
           inFlight -= 1;

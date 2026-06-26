@@ -1,5 +1,7 @@
 import type { BatterHittingLine, BatterRispStats } from "@/types/mlb-live";
 
+import { cachedStatsFetch } from "@/lib/mlb/statsCache";
+
 const MLB_STATS_BASE = "https://statsapi.mlb.com/api/v1";
 
 interface HittingStatRaw {
@@ -33,23 +35,25 @@ function parseHittingLine(stat: HittingStatRaw): BatterHittingLine {
 }
 
 export async function fetchBatterRispStats(batterId: number): Promise<BatterRispStats | null> {
-  const url = new URL(`${MLB_STATS_BASE}/people/${batterId}/stats`);
-  url.searchParams.set("stats", "statSplits");
-  url.searchParams.set("group", "hitting");
-  url.searchParams.set("sitCodes", "risp");
+  return cachedStatsFetch([`risp`, String(batterId)], async () => {
+    const url = new URL(`${MLB_STATS_BASE}/people/${batterId}/stats`);
+    url.searchParams.set("stats", "statSplits");
+    url.searchParams.set("group", "hitting");
+    url.searchParams.set("sitCodes", "risp");
 
-  const response = await fetch(url, { cache: "no-store" });
-  if (!response.ok) {
-    throw new Error(`MLB RISP stats failed: ${response.status}`);
-  }
+    const response = await fetch(url, { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(`MLB RISP stats failed: ${response.status}`);
+    }
 
-  const data = (await response.json()) as StatSplitsResponse;
-  const split = data.stats?.[0]?.splits?.[0];
-  if (!split?.stat) return null;
+    const data = (await response.json()) as StatSplitsResponse;
+    const split = data.stats?.[0]?.splits?.[0];
+    if (!split?.stat) return null;
 
-  return {
-    batterId,
-    season: split.season ?? "",
-    ...parseHittingLine(split.stat),
-  };
+    return {
+      batterId,
+      season: split.season ?? "",
+      ...parseHittingLine(split.stat),
+    };
+  });
 }

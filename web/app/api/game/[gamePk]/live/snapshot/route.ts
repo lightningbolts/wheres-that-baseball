@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { getCachedLiveFeed } from "@/lib/mlb/liveFeedServer";
+import { parseBoxScore } from "@/lib/mlb/boxScore";
 import { buildLiveFeedSnapshot } from "@/lib/mlb/liveFeed";
+import { getCachedLiveFeed } from "@/lib/mlb/liveFeedServer";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ export async function GET(request: Request, { params }: RouteParams) {
   try {
     const feed = await getCachedLiveFeed(gamePk);
     const snapshot = buildLiveFeedSnapshot(gamePk, feed);
+    const boxScore = parseBoxScore(gamePk, feed);
 
     if (playsFrom != null && Number.isFinite(playsFrom) && playsFrom >= 0) {
       const allPlays = feed.liveData.plays.allPlays ?? [];
@@ -40,11 +42,12 @@ export async function GET(request: Request, { params }: RouteParams) {
       })();
       return NextResponse.json({
         ...snapshot,
+        boxScore,
         plays: { from: playsFrom, total: allPlays.length, plays: merged },
       });
     }
 
-    return NextResponse.json(snapshot);
+    return NextResponse.json({ ...snapshot, boxScore });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to fetch live snapshot";
     return NextResponse.json({ error: message }, { status: 502 });

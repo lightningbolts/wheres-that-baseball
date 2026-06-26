@@ -13,6 +13,7 @@ export function useChainedPoll(
   minGapHiddenMs: number,
   enabled: boolean,
   resetKey: unknown,
+  onError?: (error: unknown) => void,
 ): void {
   const pollRef = useRef(poll);
   pollRef.current = poll;
@@ -41,8 +42,8 @@ export function useChainedPoll(
 
       try {
         await pollRef.current();
-      } catch {
-        // Caller owns error handling inside poll.
+      } catch (err) {
+        onError?.(err);
       } finally {
         running = false;
       }

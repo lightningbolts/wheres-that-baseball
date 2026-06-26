@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -17,6 +18,14 @@ type Client struct {
 	httpClient *http.Client
 	maxRetries int
 	baseDelay  time.Duration
+
+	feedMu    sync.Mutex
+	feedCache map[int]feedCacheEntry
+}
+
+type feedCacheEntry struct {
+	body []byte
+	etag string
 }
 
 // ClientOptions tunes HTTP behavior for the MLB API client.
@@ -53,6 +62,7 @@ func NewClient(opts ClientOptions) *Client {
 		},
 		maxRetries: opts.MaxRetries,
 		baseDelay:  opts.BaseDelay,
+		feedCache:  make(map[int]feedCacheEntry),
 	}
 }
 
@@ -95,10 +105,22 @@ func (c *Client) FetchLiveFeedRaw(ctx context.Context, gamePK int) (json.RawMess
 func (c *Client) FetchLiveFeedRawFull(ctx context.Context, gamePK int) (json.RawMessage, error) {
 	url := fmt.Sprintf("%s/game/%d/feed/live", c.baseURL, gamePK)
 
-	body, err := c.getWithRetry(ctx, url)
+	c.feedMu.Lock()
+	cached, hasCached := c.feedCache[gamePK]
+	c.feedMu.Unlock()
+
+	body, status, etag, err := c.getWithRetryConditional(ctx, url, cached.etag)
 	if err != nil {
 		return nil, fmt.Errorf("fetch live feed gamePk=%d: %w", gamePK, err)
 	}
+
+	if status == http.StatusNotModified && hasCached {
+		return json.RawMessage(cached.body), nil
+	}
+
+	c.feedMu.Lock()
+	c.feedCache[gamePK] = feedCacheEntry{body: body, etag: etag}
+	c.feedMu.Unlock()
 
 	return json.RawMessage(body), nil
 }
@@ -106,6 +128,11 @@ func (c *Client) FetchLiveFeedRawFull(ctx context.Context, gamePK int) (json.Raw
 // getWithRetry executes GET with exponential backoff. Context cancellation
 // aborts between retries so shutdown is not blocked by backoff sleeps.
 func (c *Client) getWithRetry(ctx context.Context, url string) ([]byte, error) {
+	body, _, _, err := c.getWithRetryConditional(ctx, url, "")
+	return body, err
+}
+
+func (c *Client) getWithRetryConditional(ctx context.Context, url, etag string) ([]byte, int, string, error) {
 	var lastErr error
 
 	for attempt := 0; attempt <= c.maxRetries; attempt++ {
@@ -113,14 +140,14 @@ func (c *Client) getWithRetry(ctx context.Context, url string) ([]byte, error) {
 			delay := c.backoffDelay(attempt)
 			select {
 			case <-ctx.Done():
-				return nil, fmt.Errorf("context canceled during retry backoff: %w", ctx.Err())
+				return nil, 0, "", fmt.Errorf("context canceled during retry backoff: %w", ctx.Err())
 			case <-time.After(delay):
 			}
 		}
 
-		body, err := c.doGet(ctx, url)
+		body, status, respEtag, err := c.doGetConditional(ctx, url, etag)
 		if err == nil {
-			return body, nil
+			return body, status, respEtag, nil
 		}
 		lastErr = err
 
@@ -129,33 +156,50 @@ func (c *Client) getWithRetry(ctx context.Context, url string) ([]byte, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("exhausted retries for %s: %w", url, lastErr)
+	return nil, 0, "", fmt.Errorf("exhausted retries for %s: %w", url, lastErr)
 }
 
 func (c *Client) doGet(ctx context.Context, url string) ([]byte, error) {
+	body, _, _, err := c.doGetConditional(ctx, url, "")
+	return body, err
+}
+
+func (c *Client) doGetConditional(ctx context.Context, url, etag string) ([]byte, int, string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
+		return nil, 0, "", fmt.Errorf("create request: %w", err)
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", "mlb-atbat-predictor-ingestor/1.0")
+	if etag != "" {
+		req.Header.Set("If-None-Match", etag)
+	}
 
+	started := time.Now()
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("http do: %w", err)
+		return nil, 0, "", fmt.Errorf("http do: %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("read body: %w", err)
+		return nil, resp.StatusCode, "", fmt.Errorf("read body: %w", err)
+	}
+
+	elapsed := time.Since(started)
+	respEtag := resp.Header.Get("ETag")
+
+	if resp.StatusCode == http.StatusNotModified {
+		return nil, resp.StatusCode, respEtag, nil
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, &httpStatusError{StatusCode: resp.StatusCode, Body: string(body)}
+		return nil, resp.StatusCode, respEtag, &httpStatusError{StatusCode: resp.StatusCode, Body: string(body)}
 	}
 
-	return body, nil
+	_ = elapsed // reserved for structured metrics hooks
+	return body, resp.StatusCode, respEtag, nil
 }
 
 func (c *Client) backoffDelay(attempt int) time.Duration {

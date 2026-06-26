@@ -1,4 +1,5 @@
 import { getMLBScheduleDate } from "@/lib/mlb/schedule";
+import { cachedScheduleFetch } from "@/lib/mlb/scheduleCache";
 import type { Game } from "@/types/database";
 
 const MLB_SCHEDULE_BASE = "https://statsapi.mlb.com/api/v1/schedule";
@@ -54,22 +55,24 @@ export function mapScheduleGameToRow(game: ScheduleApiGame): GameScheduleRow {
 
 /** All regular-season games on an MLB calendar date (scores + status hydrated). */
 export async function fetchScheduleGamesRawForDate(date: string): Promise<ScheduleApiGame[]> {
-  const url = new URL(MLB_SCHEDULE_BASE);
-  url.searchParams.set("sportId", "1");
-  url.searchParams.set("date", date);
-  url.searchParams.set("gameTypes", "R");
-  url.searchParams.set("hydrate", "team,linescore,venue");
+  return cachedScheduleFetch(`schedule-row:${date}`, async () => {
+    const url = new URL(MLB_SCHEDULE_BASE);
+    url.searchParams.set("sportId", "1");
+    url.searchParams.set("date", date);
+    url.searchParams.set("gameTypes", "R");
+    url.searchParams.set("hydrate", "team,linescore,venue");
 
-  const response = await fetch(url.toString(), { cache: "no-store" });
-  if (!response.ok) {
-    throw new Error(`MLB schedule failed: ${response.status} ${response.statusText}`);
-  }
+    const response = await fetch(url.toString(), { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(`MLB schedule failed: ${response.status} ${response.statusText}`);
+    }
 
-  const data = (await response.json()) as {
-    dates?: Array<{ games?: ScheduleApiGame[] }>;
-  };
+    const data = (await response.json()) as {
+      dates?: Array<{ games?: ScheduleApiGame[] }>;
+    };
 
-  return data.dates?.flatMap((day) => day.games ?? []) ?? [];
+    return data.dates?.flatMap((day) => day.games ?? []) ?? [];
+  });
 }
 
 /** All regular-season games on an MLB calendar date (scores + status hydrated). */

@@ -12,8 +12,9 @@ import {
   type SlateGame,
 } from "@/types/mlb";
 
-const MLB_SCHEDULE_BASE = "https://statsapi.mlb.com/api/v1";
+import { cachedScheduleFetch } from "@/lib/mlb/scheduleCache";
 
+const MLB_SCHEDULE_BASE = "https://statsapi.mlb.com/api/v1";
 const MLB_TIME_ZONE = "America/New_York";
 
 /** MLB schedule dates use US Eastern (league local) calendar days. */
@@ -237,22 +238,24 @@ function isTrackedNow(
 }
 
 async function fetchScheduleForDate(date: string): Promise<MLBScheduleGame[]> {
-  const url = new URL(`${MLB_SCHEDULE_BASE}/schedule`);
-  url.searchParams.set("sportId", "1");
-  url.searchParams.set("date", date);
-  url.searchParams.set("gameTypes", "R");
-  url.searchParams.set("hydrate", "probablePitcher,linescore,team");
+  return cachedScheduleFetch(`schedule:${date}`, async () => {
+    const url = new URL(`${MLB_SCHEDULE_BASE}/schedule`);
+    url.searchParams.set("sportId", "1");
+    url.searchParams.set("date", date);
+    url.searchParams.set("gameTypes", "R");
+    url.searchParams.set("hydrate", "probablePitcher,linescore,team");
 
-  const response = await fetch(url.toString(), {
-    cache: "no-store",
+    const response = await fetch(url.toString(), {
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      throw new Error(`MLB schedule request failed: ${response.status} ${response.statusText}`);
+    }
+
+    const data = (await response.json()) as MLBScheduleResponse;
+    return data.dates?.flatMap((d) => d.games ?? []) ?? [];
   });
-
-  if (!response.ok) {
-    throw new Error(`MLB schedule request failed: ${response.status} ${response.statusText}`);
-  }
-
-  const data = (await response.json()) as MLBScheduleResponse;
-  return data.dates?.flatMap((d) => d.games ?? []) ?? [];
 }
 
 /**

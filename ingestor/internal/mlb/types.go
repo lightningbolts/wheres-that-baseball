@@ -126,6 +126,8 @@ type PlayEvent struct {
 	PitchData *PitchData  `json:"pitchData,omitempty"`
 	Count     *EventCount `json:"count,omitempty"`
 	Index     int         `json:"index"`
+	StartTime string      `json:"startTime,omitempty"`
+	EndTime   string      `json:"endTime,omitempty"`
 }
 
 // PitchData holds Statcast-style measurements for a pitch.
