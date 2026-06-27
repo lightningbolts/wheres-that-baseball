@@ -1,0 +1,96 @@
+{
+  "about": {
+    "atBatIndex": 19,
+    "inning": 2,
+    "halfInning": "top",
+    "isComplete": true
+  },
+  "matchup": {
+    "batter": { "id": 683734, "fullName": "Andrew Vaughn" },
+    "pitcher": { "id": 680694, "fullName": "Kyle Bradish" }
+  },
+  "result": {
+    "event": "Strikeout",
+    "description": "Andrew Vaughn strikes out swinging.",
+    "awayScore": 1,
+    "homeScore": 0
+  },
+  "playEvents": [
+    {
+      "isPitch": true,
+      "index": 0,
+      "count": { "balls": 0, "strikes": 1, "outs": 1 },
+      "details": { "call": { "code": "S", "description": "Called Strike" }, "isStrike": true }
+    },
+    {
+      "isPitch": true,
+      "index": 1,
+      "count": { "balls": 0, "strikes": 2, "outs": 1 },
+      "details": { "call": { "code": "S", "description": "Swinging Strike" }, "isStrike": true }
+    },
+    {
+      "type": "pickoff",
+      "index": 2,
+      "count": { "balls": 0, "strikes": 2, "outs": 1 },
+      "details": { "description": "Pickoff Attempt 1B" }
+    },
+    {
+      "type": "action",
+      "index": 3,
+      "count": { "balls": 0, "strikes": 2, "outs": 2 },
+      "details": {
+        "description": "Pitcher Kyle Bradish picks off Tommy Pham at first base.",
+        "event": "Pickoff 1B",
+        "eventType": "pickoff_1b",
+        "awayScore": 1,
+        "homeScore": 0
+      },
+      "isPitch": false
+    },
+    {
+      "isPitch": true,
+      "index": 4,
+      "count": { "balls": 0, "strikes": 2, "outs": 3 },
+      "details": {
+        "call": { "code": "S", "description": "Swinging Strike" },
+        "event": "Strikeout",
+        "isStrike": true
+      }
+    }
+  ],
+  "runners": [
+    {
+      "movement": {
+        "originBase": "1B",
+        "start": "1B",
+        "end": null,
+        "outBase": "1B",
+        "isOut": true,
+        "outNumber": 2
+      },
+      "details": {
+        "event": "Pickoff 1B",
+        "eventType": "pickoff_1b",
+        "runner": { "fullName": "Tommy Pham" },
+        "playIndex": 3
+      }
+    },
+    {
+      "movement": {
+        "originBase": null,
+        "start": null,
+        "end": null,
+        "outBase": "1B",
+        "isOut": true,
+        "outNumber": 3
+      },
+      "details": {
+        "event": "Strikeout",
+        "eventType": "strikeout",
+        "runner": { "fullName": "Andrew Vaughn" },
+        "playIndex": 4
+      }
+    }
+  ],
+  "count": { "balls": 0, "strikes": 2, "outs": 3 }
+}

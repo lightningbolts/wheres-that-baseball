@@ -157,7 +157,7 @@ function runnersForPlayEvent(
   if (eventIndex == null) return undefined;
 
   const matched = (play.runners ?? []).filter(
-    (runner) => runner.details?.playIndex === eventIndex,
+    (runner) => Number(runner.details?.playIndex) === Number(eventIndex),
   );
   return matched.length > 0 ? matched : undefined;
 }
@@ -195,7 +195,7 @@ function parsePostSituationFromEvent(
   const flags = basesFlags(bases);
   const outs = runners?.length
     ? outsAfterRunnerMovements(previous.outs, runners)
-    : (event.count?.outs ?? previous.outs);
+    : previous.outs;
 
   return {
     awayScore:
@@ -232,8 +232,20 @@ function playEventAffectsSituation(
   previous: GameSituation,
   after: GameSituation,
 ): boolean {
+  if (isNonSituationPlayEvent(event, play)) return false;
+
+  if (after.outs !== previous.outs) return true;
+  if (after.awayScore !== previous.awayScore || after.homeScore !== previous.homeScore) {
+    return true;
+  }
+  if (!basesEqual(previous.bases, after.bases)) return true;
+
+  return false;
+}
+
+function isNonSituationPlayEvent(event: PitchEventRaw, play: AllPlayRaw): boolean {
   const eventType = event.details?.eventType ?? "";
-  if (NON_SITUATION_EVENT_TYPES.has(eventType)) return false;
+  if (NON_SITUATION_EVENT_TYPES.has(eventType)) return true;
 
   const text = `${event.details?.event ?? ""} ${event.details?.description ?? ""} ${event.type ?? ""}`.toLowerCase();
 
@@ -242,29 +254,10 @@ function playEventAffectsSituation(
       text,
     )
   ) {
-    return false;
-  }
-  if (/substitution|new pitcher|pinch|defensive switch/i.test(text) && !runnersForPlayEvent(event, play)?.length) {
-    return false;
-  }
-
-  if (after.outs !== previous.outs) return true;
-  if (after.awayScore !== previous.awayScore || after.homeScore !== previous.homeScore) {
     return true;
   }
-  if (!basesEqual(previous.bases, after.bases)) return true;
-
-  const eventRunners = runnersForPlayEvent(event, play);
-  if (eventRunners?.length) {
-    for (const runner of eventRunners) {
-      const movement = runner.movement;
-      if (!movement) continue;
-      const start = movement.start ?? movement.originBase ?? null;
-      const end = movement.end ?? null;
-      if (movement.isOut) return true;
-      if (end === "score") return true;
-      if (end && start !== end) return true;
-    }
+  if (/substitution|new pitcher|pinch|defensive switch/i.test(text) && !runnersForPlayEvent(event, play)?.length) {
+    return true;
   }
 
   return false;
@@ -297,6 +290,7 @@ function buildGameEventFromPlayEvent(
   situationBefore: GameSituation,
   situationAfter: GameSituation,
   affectsSituation: boolean,
+  gameEventKey: string,
 ): PlayByPlayEntry | null {
   if (!play.about?.inning) return null;
 
@@ -344,6 +338,7 @@ function buildGameEventFromPlayEvent(
     isScoringPlay: detail.isScoringPlay,
     isAtBat: false,
     affectsSituation,
+    gameEventKey,
     detail,
   };
 }
@@ -403,8 +398,22 @@ export function dedupePlayByPlayEntries(entries: PlayByPlayEntry[]): PlayByPlayE
 }
 
 interface GameEventExtraction {
-  entries: PlayByPlayEntry[];
+  newEntries: PlayByPlayEntry[];
+  entriesMutated: boolean;
   situationAfter: GameSituation;
+}
+
+function upsertGameEventEntry(
+  entries: PlayByPlayEntry[],
+  key: string,
+  entry: PlayByPlayEntry,
+): boolean {
+  const index = entries.findIndex(
+    (existing) => existing.isAtBat === false && existing.gameEventKey === key,
+  );
+  if (index === -1) return false;
+  entries[index] = entry;
+  return true;
 }
 
 function extractGameEventsFromPlay(
@@ -414,7 +423,8 @@ function extractGameEventsFromPlay(
   loggedKeys: Set<string>,
   existingEntries: PlayByPlayEntry[] = [],
 ): GameEventExtraction {
-  const entries: PlayByPlayEntry[] = [];
+  const newEntries: PlayByPlayEntry[] = [];
+  let entriesMutated = false;
   const playEvents = play.playEvents ?? [];
   const atBatIndex = play.about?.atBatIndex ?? playIndex;
   let rolling = cloneSituation(situationBefore);
@@ -424,14 +434,6 @@ function extractGameEventsFromPlay(
     if (!shouldLogPlayEvent(playEvent)) continue;
 
     const key = gameEventDedupeKey(atBatIndex, playEvents, i, playEvent);
-    if (loggedKeys.has(key)) {
-      const parsedAfter = parsePostSituationFromEvent(playEvent, play, rolling);
-      if (playEventAffectsSituation(playEvent, play, rolling, parsedAfter)) {
-        rolling = parsedAfter;
-      }
-      continue;
-    }
-
     const eventSituationBefore = cloneSituation(rolling);
     const parsedAfter = parsePostSituationFromEvent(playEvent, play, rolling);
     const affectsSituation = playEventAffectsSituation(
@@ -440,26 +442,37 @@ function extractGameEventsFromPlay(
       eventSituationBefore,
       parsedAfter,
     );
-    const eventSituationAfter = affectsSituation ? parsedAfter : eventSituationBefore;
     const entry = buildGameEventFromPlayEvent(
       playEvent,
       play,
       eventSituationBefore,
-      eventSituationAfter,
+      parsedAfter,
       affectsSituation,
+      key,
     );
     if (!entry) continue;
+
+    if (loggedKeys.has(key)) {
+      if (upsertGameEventEntry(existingEntries, key, entry)) {
+        entriesMutated = true;
+      }
+      if (affectsSituation) {
+        rolling = parsedAfter;
+      }
+      continue;
+    }
+
     if (isDuplicateGameEventEntry(existingEntries, entry)) continue;
-    if (isDuplicateGameEventEntry(entries, entry)) continue;
+    if (isDuplicateGameEventEntry(newEntries, entry)) continue;
 
     loggedKeys.add(key);
-    entries.push(entry);
+    newEntries.push(entry);
     if (affectsSituation) {
-      rolling = eventSituationAfter;
+      rolling = parsedAfter;
     }
   }
 
-  return { entries, situationAfter: rolling };
+  return { newEntries, entriesMutated, situationAfter: rolling };
 }
 
 function extractOngoingGameEvents(
@@ -467,20 +480,37 @@ function extractOngoingGameEvents(
   playIndex: number,
   state: PlayByPlayParseState,
 ): PlayByPlayParseState {
-  const { entries: gameEventEntries, situationAfter } = extractGameEventsFromPlay(
+  const halfKey = `${play.about?.inning ?? 0}-${play.about?.halfInning ?? ""}`;
+  let situation = state.situation;
+  let currentHalf = state.currentHalf;
+  if (halfKey !== currentHalf) {
+    currentHalf = halfKey;
+    situation = resetHalfInningSituation(situation);
+  }
+
+  const entries = [...state.entries];
+  const { newEntries, entriesMutated, situationAfter } = extractGameEventsFromPlay(
     play,
     playIndex,
-    state.situation,
+    situation,
     state.loggedGameEventKeys,
-    state.entries,
+    entries,
   );
 
-  if (gameEventEntries.length === 0) return state;
+  if (newEntries.length === 0 && !entriesMutated) {
+    if (currentHalf === state.currentHalf) return state;
+    return { ...state, currentHalf, situation };
+  }
+
+  if (newEntries.length > 0) {
+    entries.push(...newEntries);
+  }
 
   return {
     ...state,
-    entries: dedupePlayByPlayEntries([...state.entries, ...gameEventEntries]),
+    entries: dedupePlayByPlayEntries(entries),
     situation: situationAfter,
+    currentHalf,
   };
 }
 
@@ -611,6 +641,18 @@ function isSupersededByNext(play: AllPlayRaw, nextPlay?: AllPlayRaw): boolean {
   return nextAb > playAb;
 }
 
+/** Index to start incremental PBP sync — rewinds to re-process the open allPlays tail. */
+export function playByPlaySyncFromIndex(
+  state: PlayByPlayParseState,
+  allPlaysCount: number,
+): number {
+  if (allPlaysCount === 0) return 0;
+  if (state.rawPlayCount >= allPlaysCount) {
+    return allPlaysCount - 1;
+  }
+  return state.rawPlayCount;
+}
+
 /**
  * Incremental play-by-play sync on every live poll.
  * `currentPlay` is fresher than `allPlays.at(-1)` — merge it so outcomes finalize
@@ -624,11 +666,13 @@ export function syncPlayByPlayFromFeed(
   const total = allPlays.length;
   if (total === 0) return state;
 
-  const from = state.rawPlayCount;
+  const from = playByPlaySyncFromIndex(state, total);
   const tail = mergeCurrentPlayTail(allPlays, currentPlay, from);
   if (tail.length === 0) return state;
 
-  const next = appendPlayByPlay(state, tail, from, total);
+  const syncState =
+    from < state.rawPlayCount ? { ...state, rawPlayCount: from } : state;
+  const next = appendPlayByPlay(syncState, tail, from, total);
   return {
     ...next,
     entries: dedupePlayByPlayEntries(next.entries),
@@ -664,12 +708,13 @@ function countExpectedLoggedAtBats(
   let count = 0;
 
   for (let i = 0; i < merged.length; i += 1) {
-    const play = resolvePlayResult(merged[i]!);
+    const raw = merged[i]!;
     const isOngoing = i === merged.length - 1;
-    const event = play.result?.event?.trim() ?? "";
+    if (isOngoing && !isPlayFinalized(raw)) continue;
 
+    const play = resolvePlayResult(raw);
+    const event = play.result?.event?.trim() ?? "";
     if (!event) continue;
-    if (isOngoing && !isPlayFinalized(play)) continue;
     if (isPlateAppearanceEvent(event)) count += 1;
   }
 
@@ -683,7 +728,7 @@ export function playByPlayNeedsResync(
   currentPlay: AllPlayRaw | null | undefined,
 ): boolean {
   if (allPlays.length === 0) return false;
-  if (state.rawPlayCount < allPlays.length - 1) return true;
+  if (state.rawPlayCount < allPlays.length) return true;
 
   const expected = countExpectedLoggedAtBats(allPlays, currentPlay);
   const logged = state.entries.filter((entry) => entry.isAtBat !== false).length;
@@ -692,13 +737,15 @@ export function playByPlayNeedsResync(
 
 /** True when an allPlays row has its terminal outcome and won't gain more playEvents. */
 function isPlayFinalized(play: AllPlayRaw): boolean {
+  const explicitEvent = play.result?.event?.trim() ?? "";
+  if (play.about?.isComplete !== true && !explicitEvent) return false;
+
   const resolved = resolvePlayResult(play);
   const event = resolved.result?.event?.trim() ?? "";
   if (!event) return false;
 
   if (!isPlateAppearanceEvent(event)) return true;
 
-  // MLB assigns the PA type before isComplete/description — waiting drops walks on fast turnarounds.
   return true;
 }
 
@@ -1282,7 +1329,7 @@ function parsePlayEntry(
   const isOngoingPlay = playIndex === totalPlays - 1;
   const superseded = isSupersededByNext(play, nextPlay);
 
-  if (isOngoingPlay && !isPlayFinalized(resolvedPlay)) {
+  if (isOngoingPlay && !isPlayFinalized(play)) {
     return extractOngoingGameEvents(resolvedPlay, playIndex, state);
   }
 
@@ -1298,26 +1345,32 @@ function parsePlayEntry(
   const event = resolvedPlay.result?.event ?? "";
 
   const situationAtPlayStart = cloneSituation(situation);
-  const { entries: gameEventEntries, situationAfter: situationAfterGameEvents } =
+  const workingEntries = [...state.entries];
+  const { newEntries: gameEventEntries, entriesMutated, situationAfter: situationAfterGameEvents } =
     extractGameEventsFromPlay(
       resolvedPlay,
       playIndex,
       situationAtPlayStart,
       state.loggedGameEventKeys,
-      state.entries,
+      workingEntries,
     );
+  if (gameEventEntries.length > 0) {
+    workingEntries.push(...gameEventEntries);
+  }
   const postSituation = parsePostSituation(resolvedPlay, situationAtPlayStart);
   situation =
-    gameEventEntries.length > 0
+    gameEventEntries.length > 0 || entriesMutated
       ? mergeSituations(postSituation, situationAfterGameEvents)
       : postSituation;
+  const mergedEntries =
+    gameEventEntries.length > 0 || entriesMutated ? workingEntries : state.entries;
 
   const isAtBat = isPlateAppearanceEvent(event);
   const atBatIndex = resolvedPlay.about?.atBatIndex ?? playIndex;
 
   if (!isAtBat && event && (terminalCoveredByPlayEvents(resolvedPlay) || gameEventEntries.length > 0)) {
     return {
-      entries: [...state.entries, ...gameEventEntries],
+      entries: dedupePlayByPlayEntries(mergedEntries),
       batterStats: state.batterStats,
       situation,
       currentHalf,
@@ -1329,7 +1382,7 @@ function parsePlayEntry(
 
   if (isAtBat && state.loggedAtBatIndices.has(atBatIndex)) {
     return {
-      entries: [...state.entries, ...gameEventEntries],
+      entries: dedupePlayByPlayEntries(mergedEntries),
       batterStats: state.batterStats,
       situation,
       currentHalf,
@@ -1345,9 +1398,9 @@ function parsePlayEntry(
 
   const detail = parsePlayDetail(resolvedPlay, batterLine, batterId);
   if (!detail) {
-    if (gameEventEntries.length > 0) {
+    if (gameEventEntries.length > 0 || entriesMutated) {
       return {
-        entries: [...state.entries, ...gameEventEntries],
+        entries: dedupePlayByPlayEntries(mergedEntries),
         batterStats: state.batterStats,
         situation,
         currentHalf,
@@ -1359,12 +1412,13 @@ function parsePlayEntry(
     if (!superseded) {
       return state;
     }
+    // Superseded PA without a parseable result yet — do not advance rawPlayCount.
     return {
-      entries: state.entries,
+      entries: mergedEntries,
       batterStats: state.batterStats,
       situation,
       currentHalf,
-      rawPlayCount: playIndex + 1,
+      rawPlayCount: state.rawPlayCount,
       loggedGameEventKeys: state.loggedGameEventKeys,
       loggedAtBatIndices: state.loggedAtBatIndices,
     };
@@ -1397,7 +1451,7 @@ function parsePlayEntry(
   if (isAtBat) loggedAtBatIndices.add(atBatIndex);
 
   return {
-    entries: [...state.entries, ...gameEventEntries, entry],
+    entries: dedupePlayByPlayEntries([...mergedEntries, entry]),
     batterStats: state.batterStats,
     situation,
     currentHalf,

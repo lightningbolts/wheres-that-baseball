@@ -117,6 +117,8 @@ export interface PlayByPlayEntry {
   isAtBat: boolean;
   /** False for game events that don't change bases/outs (mound visits, timeouts, etc.). */
   affectsSituation?: boolean;
+  /** Stable key for refreshing non-at-bat rows when MLB backfills runner data. */
+  gameEventKey?: string;
   detail: PlayDetail;
 }
 

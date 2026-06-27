@@ -73,7 +73,8 @@ function notify(instance: CoordinatorInstance): void {
   }
 }
 
-function mergeAllPlays(
+/** Merge incremental MLB play chunks into the local allPlays cache. */
+export function mergeAllPlays(
   local: AllPlayRaw[],
   from: number,
   chunk: AllPlayRaw[],
@@ -91,6 +92,12 @@ function mergeAllPlays(
   }
   const head = local.slice(0, from);
   return [...head, ...chunk];
+}
+
+/** Request plays from this index so the open allPlays tail is always refreshed. */
+export function incrementalPlaysFromIndex(localAllPlaysCount: number): number {
+  if (localAllPlaysCount <= 0) return 0;
+  return localAllPlaysCount - 1;
 }
 
 function applyGameState(
@@ -161,7 +168,7 @@ function applyFeedToInstance(
     options.catchingUp,
   );
 
-  if (!playByPlayNeedsResync(instance.parseState, allPlays, currentPlay)) {
+  if (options.catchingUp || !playByPlayNeedsResync(instance.parseState, allPlays, currentPlay)) {
     instance.tabWasHidden = false;
   }
 
@@ -198,7 +205,7 @@ async function pollOnce(instance: CoordinatorInstance): Promise<void> {
   const catchingUp =
     instance.tabWasHidden && typeof document !== "undefined" && document.visibilityState === "visible";
 
-  const playsFrom = instance.localAllPlays.length > 0 ? instance.localAllPlays.length : 0;
+  const playsFrom = incrementalPlaysFromIndex(instance.localAllPlays.length);
   const started = performance.now();
 
   try {

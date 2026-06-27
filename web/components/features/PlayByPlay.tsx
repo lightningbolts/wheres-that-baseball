@@ -7,7 +7,6 @@ import { BaseDiamond } from "@/components/features/BaseDiamond";
 import { PitchFeedList } from "@/components/features/PitchFeedList";
 import { useEntranceIndex } from "@/hooks/useEntranceIndex";
 import { cn } from "@/lib/utils";
-import { gameEventShowsSituation } from "@/lib/mlb/liveFeed";
 import {
   formatGameScore,
   formatOuts,
@@ -154,10 +153,6 @@ function situationsEqual(a: GameSituation, b: GameSituation): boolean {
 
 /** True when a feed row should show the post-play situation marker. */
 function entryShowsSituationAfter(entry: PlayByPlayEntry): boolean {
-  if (entry.isAtBat === false) {
-    return gameEventShowsSituation(entry);
-  }
-
   return !situationsEqual(entry.situationBefore, entrySituationAfter(entry));
 }
 
