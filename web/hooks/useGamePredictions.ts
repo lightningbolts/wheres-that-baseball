@@ -58,13 +58,15 @@ export function useGamePredictions(
     balls?: number;
     strikes?: number;
   } | null,
+  options?: { enabled?: boolean },
 ): UseGamePredictionsResult {
+  const enabled = options?.enabled ?? true;
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchPredictions = useCallback(async () => {
-    if (!gamePk) {
+    if (!enabled || !gamePk) {
       setPredictions([]);
       setIsLoading(false);
       return;
@@ -94,7 +96,7 @@ export function useGamePredictions(
     } finally {
       setIsLoading(false);
     }
-  }, [gamePk]);
+  }, [enabled, gamePk]);
 
   useEffect(() => {
     void fetchPredictions();

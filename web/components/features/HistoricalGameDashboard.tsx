@@ -7,6 +7,7 @@ import { AppNav } from "@/components/features/AppNav";
 import { BatterRispRecord } from "@/components/features/BatterRispRecord";
 import { BatterVsPitcherRecord } from "@/components/features/BatterVsPitcherRecord";
 import { BoxScoreView } from "@/components/features/BoxScoreView";
+import { ConnectionIndicator } from "@/components/features/ConnectionIndicator";
 import { DashboardSkeleton } from "@/components/features/DashboardSkeleton";
 import { DueUpDialog } from "@/components/features/DueUpDialog";
 import { GameDetailTabs, type GameDetailTab } from "@/components/features/GameDetailTabs";
@@ -20,7 +21,9 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { useGameBoxScore } from "@/hooks/useGameBoxScore";
 import { useGamePredictions } from "@/hooks/useGamePredictions";
 import { useLiveGameState } from "@/hooks/useLiveGameState";
+import { useLivePredictions } from "@/hooks/useLivePredictions";
 import { useGameState } from "@/hooks/useGameState";
+import { useOutcomeOdds } from "@/hooks/useOutcomeOdds";
 import { useArchiveFinishedGame } from "@/hooks/useArchiveFinishedGame";
 import { useBatterRisp } from "@/hooks/useBatterRisp";
 import { useBatterVsPitcher } from "@/hooks/useBatterVsPitcher";
@@ -34,6 +37,7 @@ import { isPlayByPlayAtBat } from "@/lib/mlb/liveFeed";
 import { cn } from "@/lib/utils";
 import { DEFAULT_OUTCOME_PROBABILITIES } from "@/types/database";
 import type { Game } from "@/types/database";
+import { LIVE_GAME_STATUSES } from "@/types/mlb";
 import type { PlayByPlayEntry } from "@/types/mlb-live";
 
 interface HistoricalGameDashboardProps {
@@ -106,7 +110,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
     error: boxScoreError,
   } = useGameBoxScore(game.game_pk, { poll: isLive, pollBurstKey: activeTab });
 
-  const { showBreakUI } = useBreakLinger(isLive ? gameState : null);
+  const { atBatViewState, showBreakUI, isLingering } = useBreakLinger(isLive ? gameState : null);
   const { dueUp, showDueUp, dismissDueUp, showFinal, dismissFinal, gameOver } = useLiveGameOverlays(
     isLive ? gameState : null,
     isLive ? boxScore : null,
@@ -122,14 +126,14 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
   );
 
   useEffect(() => {
-    if (!atBatPlays.length) return;
+    if (isLive || !atBatPlays.length) return;
     setSelectedAtBatIndex((current) => {
       if (current != null && atBatPlays.some((play) => play.atBatIndex === current)) {
         return current;
       }
       return atBatPlays[atBatPlays.length - 1]?.atBatIndex ?? null;
     });
-  }, [atBatPlays]);
+  }, [atBatPlays, isLive]);
 
   const selectedPlay = useMemo<PlayByPlayEntry | null>(() => {
     if (!gameState || selectedAtBatIndex == null) return null;
@@ -138,32 +142,60 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
     return play;
   }, [gameState, selectedAtBatIndex]);
 
-  const displayState = useMemo(() => {
-    if (!gameState) return null;
-    if (!selectedPlay) return gameState;
+  const replayState = useMemo(() => {
+    if (!gameState || !selectedPlay || isLive) return null;
     return gameStateForAtBat(gameState, selectedPlay);
-  }, [gameState, selectedPlay]);
+  }, [gameState, selectedPlay, isLive]);
 
-  const onFirst = displayState?.onFirst ?? false;
-  const onSecond = displayState?.onSecond ?? false;
-  const onThird = displayState?.onThird ?? false;
-  const runnersInScoringPosition = onSecond || onThird;
+  const displayState = isLive ? atBatViewState : (replayState ?? gameState);
 
   const lastPitch = selectedPlay?.detail.pitches.at(-1);
-  const { predictionForAtBat, predictions, isLoading: predictionsLoading } = useGamePredictions(
-    game.game_pk,
-    selectedPlay
-      ? {
-          batterName: selectedPlay.batterName,
-          inning: selectedPlay.inning,
-          balls: lastPitch?.balls ?? 0,
-          strikes: lastPitch?.strikes ?? 0,
-        }
-      : null,
+  const { predictionForAtBat, predictions: archivedPredictions, isLoading: archivedPredictionsLoading } =
+    useGamePredictions(
+      game.game_pk,
+      !isLive && selectedPlay
+        ? {
+            batterName: selectedPlay.batterName,
+            inning: selectedPlay.inning,
+            balls: lastPitch?.balls ?? 0,
+            strikes: lastPitch?.strikes ?? 0,
+          }
+        : null,
+      { enabled: !isLive },
+    );
+
+  const {
+    predictions: livePredictions,
+    isLoading: livePredictionsLoading,
+    error: livePredictionsError,
+    connectionStatus,
+  } = useLivePredictions(isLive ? game.game_pk : 0, {
+    batterName: atBatViewState?.batterName,
+    inning: atBatViewState?.inning,
+    balls: atBatViewState?.balls,
+    strikes: atBatViewState?.strikes,
+    pitchCount: atBatViewState?.atBatPitches.length,
+  });
+
+  const { probabilities: liveOutcomeProbabilities, matchedPrediction } = useOutcomeOdds(
+    isLive ? atBatViewState : null,
+    livePredictions,
   );
 
-  const probabilities =
-    predictionForAtBat?.outcome_probabilities ?? DEFAULT_OUTCOME_PROBABILITIES;
+  const outcomeProbabilities = isLive
+    ? liveOutcomeProbabilities
+    : (predictionForAtBat?.outcome_probabilities ?? DEFAULT_OUTCOME_PROBABILITIES);
+
+  const onFirst = isLive
+    ? (matchedPrediction?.on_first ?? gameState?.onFirst ?? false)
+    : (displayState?.onFirst ?? false);
+  const onSecond = isLive
+    ? (matchedPrediction?.on_second ?? gameState?.onSecond ?? false)
+    : (displayState?.onSecond ?? false);
+  const onThird = isLive
+    ? (matchedPrediction?.on_third ?? gameState?.onThird ?? false)
+    : (displayState?.onThird ?? false);
+  const runnersInScoringPosition = onSecond || onThird;
 
   const { record: matchupRecord, isLoading: isMatchupLoading } = useBatterVsPitcher(
     displayState?.batterId,
@@ -185,6 +217,88 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
     gameState != null &&
     gameState.gameStatus === "Live" &&
     !isHalfInningBreak(gameState.inningState);
+
+  const atBatInProgress =
+    isLive &&
+    gameState?.gameStatus === "Live" &&
+    !showBreakUI &&
+    !isLingering &&
+    (atBatViewState?.atBatPitches.length ?? 0) > 0;
+
+  const lastCompletedAtBatIndex = useMemo(() => {
+    const atBats = gameState?.plays.filter(isPlayByPlayAtBat) ?? [];
+    return atBats.at(-1)?.atBatIndex ?? null;
+  }, [gameState?.plays]);
+
+  const scorebugState =
+    isLive && gameState ? { ...gameState, onFirst, onSecond, onThird } : displayState;
+
+  const panelTitle = isLive
+    ? gameOver
+      ? "Final"
+      : showBreakUI
+        ? "Due up"
+        : "Current at-bat"
+    : "Selected at-bat";
+
+  const renderOutcomeOdds = (compact = false) => {
+    if (isLive) {
+      if (atBatViewState && gameState?.gameStatus === "Live" && !showBreakUI) {
+        return (
+          <ProbabilityChart
+            key={`${atBatViewState.batterId ?? 0}-${atBatViewState.inning}`}
+            probabilities={outcomeProbabilities}
+            compact={compact}
+            contained={!compact}
+            className={compact ? undefined : "min-h-0 flex-1"}
+          />
+        );
+      }
+
+      return (
+        <p className={cn("text-center text-sm text-muted", compact ? "py-2" : "py-4")}>
+          {LIVE_GAME_STATUSES.has(game.status)
+            ? showBreakUI
+              ? "Between innings"
+              : "Waiting for at-bat…"
+            : "Available when live."}
+        </p>
+      );
+    }
+
+    if (predictionForAtBat) {
+      return (
+        <ProbabilityChart
+          probabilities={outcomeProbabilities}
+          compact={compact}
+          contained={!compact}
+          className={compact ? undefined : "min-h-0 flex-1"}
+        />
+      );
+    }
+
+    if (archivedPredictionsLoading) {
+      return (
+        <p className={cn("text-center text-sm text-muted", compact ? "py-2" : "py-4")}>
+          Loading predictions…
+        </p>
+      );
+    }
+
+    if (archivedPredictions.length > 0) {
+      return (
+        <p className={cn("text-center text-sm text-muted", compact ? "py-2" : "py-4")}>
+          No model snapshot matched this exact at-bat count.
+        </p>
+      );
+    }
+
+    return (
+      <p className={cn("text-center text-sm text-muted", compact ? "py-2" : "py-4")}>
+        No ingestor predictions were stored for this game.
+      </p>
+    );
+  };
 
   return (
     <div className="flex h-screen min-h-0 flex-col overflow-x-hidden bg-background text-foreground">
@@ -285,7 +399,17 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
             </div>
           ) : (
             <>
-          <Scorebug gameState={displayState} />
+          {isLive && (
+            <ConnectionIndicator status={connectionStatus} error={livePredictionsError} />
+          )}
+          <Scorebug
+            gameState={scorebugState}
+            dueUpBatters={
+              isLive && gameState && !gameOver && isHalfInningBreak(gameState.inningState)
+                ? dueUp?.batters
+                : undefined
+            }
+          />
 
           <div className="flex min-h-0 flex-1 overflow-x-hidden">
             <div className="hidden w-[300px] shrink-0 border-r border-border md:flex lg:w-[320px]">
@@ -294,9 +418,11 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
                 awayAbbrev={gameState.awayAbbrev}
                 homeAbbrev={gameState.homeAbbrev}
                 venueId={gameState.venueId}
-                selectedAtBatIndex={selectedAtBatIndex}
-                onSelectAtBat={(play) => setSelectedAtBatIndex(play.atBatIndex)}
-                autoScrollToLatest={false}
+                selectedAtBatIndex={isLive ? undefined : selectedAtBatIndex}
+                onSelectAtBat={
+                  isLive ? undefined : (play) => setSelectedAtBatIndex(play.atBatIndex)
+                }
+                autoScrollToLatest={isLive}
                 className="w-full"
               />
             </div>
@@ -304,7 +430,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
             <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden">
               <div className="flex min-h-0 flex-1 flex-col gap-px overflow-x-hidden bg-border">
                 <Panel
-                  title="Selected at-bat"
+                  title={panelTitle}
                   flushMobile
                   className="order-1 shrink-0 overflow-hidden md:order-none md:min-h-[380px] md:flex-[3]"
                 >
@@ -358,27 +484,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
                   title="Outcome odds"
                   className="order-2 hidden min-h-[140px] shrink-0 md:order-none md:flex lg:flex-1"
                 >
-                  <div className="flex min-h-0 flex-1 flex-col">
-                    {predictionForAtBat ? (
-                      <ProbabilityChart
-                        probabilities={probabilities}
-                        contained
-                        className="min-h-0 flex-1"
-                      />
-                    ) : predictionsLoading ? (
-                      <p className="py-4 text-center text-sm text-muted">Loading predictions…</p>
-                    ) : predictions.length > 0 ? (
-                      <p className="py-4 text-center text-sm text-muted">
-                        No model snapshot matched this exact at-bat count.
-                      </p>
-                    ) : (
-                      <p className="py-4 text-center text-sm text-muted">
-                        {isLive
-                          ? "Waiting on ingestor for live predictions."
-                          : "No ingestor predictions were stored for this game."}
-                      </p>
-                    )}
-                  </div>
+                  <div className="flex min-h-0 flex-1 flex-col">{renderOutcomeOdds()}</div>
                 </Panel>
 
                 <div className="order-2 flex min-h-0 flex-1 flex-col md:hidden">
@@ -387,30 +493,28 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
                     awayAbbrev={gameState.awayAbbrev}
                     homeAbbrev={gameState.homeAbbrev}
                     venueId={gameState.venueId}
-                    selectedAtBatIndex={selectedAtBatIndex}
-                    onSelectAtBat={(play) => setSelectedAtBatIndex(play.atBatIndex)}
-                    autoScrollToLatest={false}
-                    variant="feed"
-                    animateEntrance={false}
-                    className="min-h-0 flex-1"
-                    embedPitchesAtBatIndex={selectedAtBatIndex}
-                    feedHeader={
-                      predictionForAtBat ? (
-                        <ProbabilityChart probabilities={probabilities} compact />
-                      ) : predictionsLoading ? (
-                        <p className="py-2 text-center text-sm text-muted">Loading predictions…</p>
-                      ) : predictions.length > 0 ? (
-                        <p className="py-2 text-center text-sm text-muted">
-                          No model snapshot matched this exact at-bat count.
-                        </p>
-                      ) : (
-                        <p className="py-2 text-center text-sm text-muted">
-                          {isLive
-                            ? "Waiting on ingestor for live predictions."
-                            : "No ingestor predictions were stored for this game."}
-                        </p>
-                      )
+                    selectedAtBatIndex={isLive ? undefined : selectedAtBatIndex}
+                    onSelectAtBat={
+                      isLive ? undefined : (play) => setSelectedAtBatIndex(play.atBatIndex)
                     }
+                    autoScrollToLatest={isLive}
+                    variant="feed"
+                    animateEntrance={isLive}
+                    className="min-h-0 flex-1"
+                    livePitches={
+                      isLive && (atBatInProgress || isLingering)
+                        ? atBatViewState?.atBatPitches
+                        : undefined
+                    }
+                    animateLivePitches={isLive && (atBatInProgress || isLingering)}
+                    embedPitchesAtBatIndex={
+                      isLive
+                        ? atBatInProgress || isLingering
+                          ? null
+                          : lastCompletedAtBatIndex
+                        : selectedAtBatIndex
+                    }
+                    feedHeader={renderOutcomeOdds(true)}
                   />
                 </div>
               </div>
