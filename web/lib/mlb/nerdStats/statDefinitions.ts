@@ -128,6 +128,26 @@ export const NERD_STAT_DEFINITIONS: NerdStatDefinition[] = [
     compute: (c) => c.twoOrFewerRunGames,
     formatValue: formatCount,
   },
+  {
+    id: "one-run-losses",
+    title: "One-Run Heartbreakers",
+    subtitle: "Losses by a single run.",
+    category: "drama",
+    sort: "desc",
+    unit: "losses",
+    compute: (c) => c.oneRunLosses,
+    formatValue: formatCount,
+  },
+  {
+    id: "extra-inning-losses",
+    title: "Extra-Inning Heartbreak",
+    subtitle: "Losses in bonus baseball.",
+    category: "drama",
+    sort: "desc",
+    unit: "losses",
+    compute: (c) => c.extraInningLosses,
+    formatValue: formatCount,
+  },
 
   // —— Misfortune ——
   {
@@ -468,6 +488,26 @@ export const NERD_STAT_DEFINITIONS: NerdStatDefinition[] = [
     compute: (c) => c.triplePlaysTurned,
     formatValue: formatCount,
   },
+  {
+    id: "hardest-hit-allowed",
+    title: "Hardest Hit Allowed",
+    subtitle: "Highest exit velocity surrendered on contact.",
+    category: "defense",
+    sort: "desc",
+    unit: "mph",
+    compute: (c) => c.hardestHitAllowedMph,
+    formatValue: formatMph,
+  },
+  {
+    id: "no-hitter-bid-ruined",
+    title: "No-Hitter Bid Ruiners",
+    subtitle: "Games where the first hit came after 6 hitless innings.",
+    category: "defense",
+    sort: "desc",
+    unit: "games",
+    compute: (c) => c.noHitterBidRuined,
+    formatValue: formatCount,
+  },
 
   // —— Chaos ——
   {
@@ -655,6 +695,88 @@ export const NERD_STAT_DEFINITIONS: NerdStatDefinition[] = [
     unit: "innings",
     compute: (c) => c.basesLoadedNoRuns,
     formatValue: formatCount,
+  },
+  {
+    id: "left-on-base",
+    title: "LOB Stranded",
+    subtitle: "Total runners left on base.",
+    category: "vibes",
+    sort: "desc",
+    unit: "LOB",
+    compute: (c) => c.leftOnBase,
+    formatValue: formatCount,
+  },
+  {
+    id: "lob-nightmare-games",
+    title: "LOB Nightmares",
+    subtitle: "Games with 10+ runners left on base.",
+    category: "vibes",
+    sort: "desc",
+    unit: "games",
+    compute: (c) => c.lobNightmareGames,
+    formatValue: formatCount,
+  },
+  {
+    id: "player-cycle-games",
+    title: "Individual Cycle Club",
+    subtitle: "Games where one batter hit for the cycle.",
+    category: "vibes",
+    sort: "desc",
+    unit: "games",
+    compute: (c) => c.playerCycleGames,
+    formatValue: formatCount,
+  },
+  {
+    id: "pinch-hit-chaos",
+    title: "Pinch-Hit Chaos",
+    subtitle: "Pinch appearances ending in hit, HBP, HR, or K.",
+    category: "vibes",
+    sort: "desc",
+    unit: "events",
+    compute: (c) => c.pinchHitChaos,
+    formatValue: formatCount,
+  },
+  {
+    id: "pinch-hit-hits",
+    title: "Pinch-Hit Heroes",
+    subtitle: "Hits by pinch hitters.",
+    category: "vibes",
+    sort: "desc",
+    unit: "hits",
+    compute: (c) => c.pinchHitHits,
+    formatValue: formatCount,
+  },
+  {
+    id: "max-hbp-in-game",
+    title: "Plunked the Most (One Game)",
+    subtitle: "Most hit-by-pitches absorbed in a single game.",
+    category: "misfortune",
+    sort: "desc",
+    unit: "HBP",
+    compute: (c) => c.maxHbpInGame,
+    formatValue: formatCount,
+  },
+  {
+    id: "chaos-luck-index",
+    title: "Chaos Luck Index",
+    subtitle: "Walk-offs, comeback wins, and gift runs minus misery per game.",
+    category: "chaos",
+    sort: "desc",
+    unit: "index",
+    minGames: 20,
+    compute: (c) => {
+      if (c.finalGamesWithFeed <= 0) return null;
+      const luck =
+        c.walkoffWins * 3 +
+        c.comebackWins * 2 +
+        c.errorRunBenefits +
+        c.balkBenefits +
+        c.wildPitchBenefits +
+        c.passedBallBenefits;
+      const misery = c.blowoutLosses + c.shutoutGames + c.goldenSombreros;
+      return (luck - misery) / c.finalGamesWithFeed;
+    },
+    formatValue: (v) => v.toFixed(2),
   },
 ];
 

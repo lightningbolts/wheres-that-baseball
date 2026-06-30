@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
+import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/site";
 import "./globals.css";
 
 const inter = Inter({
@@ -17,9 +18,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MLB At-Bat Predictor",
-  description:
-    "Real-time machine learning probability distributions for live MLB at-bats.",
+  title: SITE_NAME,
+  description: SITE_DESCRIPTION,
 };
 
 export const viewport: Viewport = {

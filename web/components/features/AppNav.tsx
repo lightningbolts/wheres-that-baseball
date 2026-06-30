@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { useTheme } from "@/components/providers/ThemeProvider";
+import { SITE_NAME, SITE_NAME_SHORT } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
@@ -119,7 +120,7 @@ export function AppNav() {
         <div className="hidden items-center justify-between gap-4 sm:flex">
           <div className="flex min-w-0 items-center gap-4 lg:gap-6">
             <Link href="/" className="shrink-0 text-sm font-medium text-foreground">
-              MLB At-Bat Predictor
+              {SITE_NAME}
             </Link>
             <nav className="flex items-center gap-0.5 lg:gap-1" aria-label="Main">
               <NavLinks pathname={pathname} />
@@ -135,7 +136,7 @@ export function AppNav() {
         <div className="flex flex-col gap-2 sm:hidden">
           <div className="flex items-center justify-between gap-2">
             <Link href="/" className="shrink-0 text-sm font-medium text-foreground">
-              MLB Predictor
+              {SITE_NAME_SHORT}
             </Link>
             <div className="flex shrink-0 items-center gap-1.5">
               <DonateButton />

@@ -93,6 +93,16 @@ export interface TeamNerdCounters {
   immaculateInningVictims: number;
   zeroWalkGames: number;
   wallScraperHomeRuns: number;
+  leftOnBase: number;
+  lobNightmareGames: number;
+  pinchHitAttempts: number;
+  pinchHitHits: number;
+  pinchHitHomeRuns: number;
+  pinchHitChaos: number;
+  hardestHitAllowedMph: number | null;
+  playerCycleGames: number;
+  maxHbpInGame: number;
+  noHitterBidRuined: number;
   notableEvents: NotableNerdEvent[];
 }
 

@@ -60,6 +60,32 @@ export function isWalkOff(play: PlayByPlayEntry, plays: PlayByPlayEntry[]): bool
   return true;
 }
 
+/** Winning bottom-of-9+ scoring play that puts the home team ahead (feed-safe). */
+export function findWalkOffPlay(
+  plays: PlayByPlayEntry[],
+  finalHomeScore: number,
+  finalAwayScore: number,
+): PlayByPlayEntry | null {
+  if (finalHomeScore <= finalAwayScore) return null;
+
+  const candidates = plays.filter((play) => {
+    if (play.halfInning !== "bottom" || play.inning < 9 || !play.isScoringPlay) return false;
+    const before = play.situationBefore;
+    return before.homeScore <= before.awayScore && play.homeScore > play.awayScore;
+  });
+
+  return candidates.at(-1) ?? null;
+}
+
+export function runnersLeftOnBases(before: PlayByPlayEntry["situationBefore"]): number {
+  return (before.onFirst ? 1 : 0) + (before.onSecond ? 1 : 0) + (before.onThird ? 1 : 0);
+}
+
+export function extractPinchHitterName(description: string): string | null {
+  const match = description.match(/Pinch-hitter\s+(.+?)\s+replaces/i);
+  return match?.[1]?.trim() ?? null;
+}
+
 export function isTriplePlayOpportunity(play: PlayByPlayEntry): boolean {
   if (!play.isAtBat) return false;
   const before = play.situationBefore;

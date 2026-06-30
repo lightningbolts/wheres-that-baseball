@@ -69,6 +69,16 @@ export function createEmptyTeamCounters(): TeamNerdCounters {
     immaculateInningVictims: 0,
     zeroWalkGames: 0,
     wallScraperHomeRuns: 0,
+    leftOnBase: 0,
+    lobNightmareGames: 0,
+    pinchHitAttempts: 0,
+    pinchHitHits: 0,
+    pinchHitHomeRuns: 0,
+    pinchHitChaos: 0,
+    hardestHitAllowedMph: null,
+    playerCycleGames: 0,
+    maxHbpInGame: 0,
+    noHitterBidRuined: 0,
     notableEvents: [],
   };
 }
@@ -154,6 +164,17 @@ export function mergeTeamCounters(target: TeamNerdCounters, source: TeamNerdCoun
   target.immaculateInningVictims += source.immaculateInningVictims;
   target.zeroWalkGames += source.zeroWalkGames;
   target.wallScraperHomeRuns += source.wallScraperHomeRuns;
+  target.leftOnBase += source.leftOnBase;
+  target.lobNightmareGames += source.lobNightmareGames;
+  target.pinchHitAttempts += source.pinchHitAttempts;
+  target.pinchHitHits += source.pinchHitHits;
+  target.pinchHitHomeRuns += source.pinchHitHomeRuns;
+  target.pinchHitChaos += source.pinchHitChaos;
+  target.playerCycleGames += source.playerCycleGames;
+  target.noHitterBidRuined += source.noHitterBidRuined;
+  target.maxHbpInGame = Math.max(target.maxHbpInGame, source.maxHbpInGame);
+
+  target.hardestHitAllowedMph = mergeMaxNullable(target.hardestHitAllowedMph, source.hardestHitAllowedMph);
 
   target.softestHomeRunMph = mergeMinNullable(target.softestHomeRunMph, source.softestHomeRunMph);
   target.shortestHomeRunFt = mergeMinNullable(target.shortestHomeRunFt, source.shortestHomeRunFt);
