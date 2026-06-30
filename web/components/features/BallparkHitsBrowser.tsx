@@ -7,8 +7,8 @@ import { GameHitsSprayChart } from "@/components/features/GameHitsSprayChart";
 import { TeamLogo } from "@/components/ui/TeamLogo";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useBallparkHitsSummary } from "@/hooks/useBallparkHits";
-import { HIT_TYPE_LABELS } from "@/lib/mlb/gameHits";
-import type { VenueHit } from "@/lib/mlb/ballparkHits";
+import { HIT_TYPE_LABELS, type GameHit } from "@/lib/mlb/gameHits";
+import type { SprayPreviewHit } from "@/lib/mlb/ballparkHits";
 import { cn } from "@/lib/utils";
 
 const CURRENT_SEASON = new Date().getFullYear();
@@ -16,7 +16,8 @@ const CURRENT_SEASON = new Date().getFullYear();
 export function BallparkHitsBrowser() {
   const { data, isLoading, error } = useBallparkHitsSummary(CURRENT_SEASON);
 
-  const totalHits = data?.parks.reduce((sum, park) => sum + park.stats.total, 0) ?? 0;
+  const totalHits = data?.indexedHitCount ?? 0;
+  const ballparksWithHits = data?.ballparksWithHits ?? 0;
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
@@ -30,12 +31,19 @@ export function BallparkHitsBrowser() {
           </p>
           {!isLoading && data && (
             <p className="mt-2 text-xs text-subtle">
-              {totalHits.toLocaleString()} hit{totalHits === 1 ? "" : "s"} indexed from archived
-              games
+              {totalHits.toLocaleString()} hit{totalHits === 1 ? "" : "s"} across{" "}
+              {ballparksWithHits} ballpark{ballparksWithHits === 1 ? "" : "s"}
+              {data.indexedGameCount > 0 && (
+                <>
+                  {" "}
+                  · {data.indexedGameCount.toLocaleString()} game
+                  {data.indexedGameCount === 1 ? "" : "s"} indexed
+                </>
+              )}
               {data.backfillPending && (
                 <span className="text-muted">
                   {" "}
-                  · Indexing in progress — refresh in a minute for more games
+                  · Indexing more games — refresh shortly
                 </span>
               )}
             </p>
@@ -83,9 +91,9 @@ export function BallparkHitsBrowser() {
 
                   <div className="pointer-events-none">
                     <GameHitsSprayChart
-                      hits={park.previewHits}
+                      hits={park.previewHits as unknown as GameHit[]}
                       venueId={park.venueId}
-                      getHitKey={(hit) => (hit as VenueHit).hitKey}
+                      getHitKey={(hit) => (hit as unknown as SprayPreviewHit).hitKey}
                       className="opacity-90"
                     />
                   </div>

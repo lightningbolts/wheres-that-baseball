@@ -10,7 +10,10 @@ import type { Game } from "@/types/database";
 export type ScheduleApiGameRaw = ScheduleApiRawGame;
 
 /** Schedule metadata for games table upsert (feed fields added at archive time). */
-export type GameScheduleRow = Omit<Game, "game_state" | "box_score" | "feed_synced_at" | "updated_at">;
+export type GameScheduleRow = Omit<
+  Game,
+  "game_state" | "box_score" | "feed_synced_at" | "updated_at"
+>;
 
 export function mapScheduleGameToRow(game: ScheduleApiRawGame): GameScheduleRow {
   const gameDate = game.officialDate ?? game.gameDate?.slice(0, 10) ?? getMLBScheduleDate();

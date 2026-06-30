@@ -2,7 +2,8 @@ import { isStoredFeedComplete } from "@/lib/games/feedComplete";
 import { isMlbFeedWrapper } from "@/lib/games/gameState";
 import { fetchScheduleGameByPk, type GameScheduleRow } from "@/lib/games/scheduleRow";
 import { getServiceSupabase } from "@/lib/games/supabaseAdmin";
-import { syncGameHitsFromFeed } from "@/lib/games/syncGameHits";
+import { extractVenueHitsFromFeed } from "@/lib/mlb/ballparkHitsAggregate";
+import { appendGameHitsToStore } from "@/lib/mlb/ballparkHitsStore";
 import { parseBoxScore } from "@/lib/mlb/boxScore";
 import { parseLiveFeed, wrapMlbFeedForStorage } from "@/lib/mlb/liveFeed";
 import { clearLiveFeedCache, getCachedLiveFeed } from "@/lib/mlb/liveFeedServer";
@@ -101,9 +102,12 @@ async function persistArchivedGame(
     throw new Error(error.message);
   }
 
-  await syncGameHitsFromFeed(row, feed).catch((err) => {
-    console.warn(`sync game_hits ${row.game_pk} failed:`, err);
-  });
+  try {
+    const hits = extractVenueHitsFromFeed(row, feed);
+    appendGameHitsToStore(row.season, row, hits);
+  } catch (err) {
+    console.warn(`append ballpark hits ${row.game_pk} failed:`, err);
+  }
 
   return syncedAt;
 }

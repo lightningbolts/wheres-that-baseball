@@ -72,7 +72,9 @@ export function extractGameHits(plays: PlayByPlayEntry[]): GameHit[] {
   return hits;
 }
 
-export function computeGameHitStats(hits: GameHit[]): GameHitStats {
+export function computeGameHitStats(
+  hits: Array<Pick<GameHit, "event" | "hit">>,
+): GameHitStats {
   const singles = hits.filter((h) => h.event === "Single").length;
   const doubles = hits.filter((h) => h.event === "Double").length;
   const triples = hits.filter((h) => h.event === "Triple").length;

@@ -12,8 +12,7 @@
     "fetch-ballparks": "node ../scripts/fetch-ballparks.mjs",
     "fetch-season-games": "node ../scripts/fetch-season-games.mjs",
     "sync-game-feeds": "tsx scripts/sync-game-feeds.ts",
-    "backfill-game-hits": "tsx scripts/backfill-game-hits.ts",
-    "apply-game-hits-migration": "tsx scripts/apply-game-hits-migration.ts"
+    "aggregate-ballpark-hits": "tsx scripts/aggregate-ballpark-hits.ts"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",

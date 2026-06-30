@@ -60,31 +60,6 @@ COMMENT ON TABLE games IS 'Regular-season MLB games synced from the Stats API sc
 COMMENT ON COLUMN games.game_state IS 'Parsed live feed (play-by-play, pitches, hit data) from MLB feed/live endpoint.';
 COMMENT ON COLUMN games.box_score IS 'Parsed box score (linescore, batting/pitching lines, game info) from MLB feed/live endpoint.';
 
--- Indexed hit rows for Ballpark Hits (extracted when games are archived).
-CREATE TABLE IF NOT EXISTS game_hits (
-    game_pk             INTEGER NOT NULL,
-    at_bat_index        INTEGER NOT NULL,
-    season              INTEGER NOT NULL,
-    game_date           DATE NOT NULL,
-    venue_id            INTEGER NOT NULL,
-    away_team_abbrev    TEXT NOT NULL,
-    home_team_abbrev    TEXT NOT NULL,
-    batter_name         TEXT NOT NULL,
-    event               TEXT NOT NULL,
-    inning              INTEGER NOT NULL,
-    half_inning         TEXT NOT NULL,
-    away_score          INTEGER NOT NULL,
-    home_score          INTEGER NOT NULL,
-    hit_data            JSONB NOT NULL,
-    play_detail         JSONB NOT NULL,
-    synced_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-    PRIMARY KEY (game_pk, at_bat_index)
-);
-
-CREATE INDEX IF NOT EXISTS idx_game_hits_season_venue ON game_hits (season, venue_id);
-CREATE INDEX IF NOT EXISTS idx_game_hits_season ON game_hits (season, game_date DESC);
-
 -- Migration for existing databases:
 -- ALTER TABLE games ADD COLUMN IF NOT EXISTS box_score JSONB;
 
