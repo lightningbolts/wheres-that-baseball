@@ -3,14 +3,18 @@ export type NerdStatCategory =
   | "misfortune"
   | "baserunning"
   | "contact"
-  | "chaos";
+  | "defense"
+  | "chaos"
+  | "vibes";
 
 export const NERD_STAT_CATEGORIES: Array<{ id: NerdStatCategory; label: string }> = [
   { id: "drama", label: "Drama" },
   { id: "misfortune", label: "Misfortune" },
   { id: "baserunning", label: "Baserunning" },
   { id: "contact", label: "Contact" },
+  { id: "defense", label: "Defense" },
   { id: "chaos", label: "Chaos" },
+  { id: "vibes", label: "Vibes" },
 ];
 
 export interface NotableNerdEvent {
@@ -25,28 +29,70 @@ export interface NotableNerdEvent {
 export interface TeamNerdCounters {
   gamesPlayed: number;
   finalGamesWithFeed: number;
+  wins: number;
+  losses: number;
   oneRunGames: number;
+  oneRunWins: number;
+  oneRunLosses: number;
   extraInningGames: number;
+  extraInningWins: number;
+  extraInningLosses: number;
   blowoutLosses: number;
+  blowoutWins: number;
+  shutoutGames: number;
+  tenPlusRunGames: number;
+  twoOrFewerRunGames: number;
+  comebackWins: number;
   runsScored: number;
   runsWithTwoOuts: number;
+  firstInningRuns: number;
+  lateInningRuns: number;
   plateAppearances: number;
   strikeouts: number;
   walks: number;
-  gidp: number;
-  triplePlays: number;
-  triplePlayOpportunities: number;
+  intentWalks: number;
   hbp: number;
   sacFlies: number;
+  sacBunts: number;
+  gidp: number;
+  rallyKillerGidp: number;
+  gidpInduced: number;
+  triplePlays: number;
+  triplePlaysTurned: number;
+  triplePlayOpportunities: number;
+  walkoffBloopSingles: number;
+  walkoffWins: number;
+  walkoffLosses: number;
+  bloopSingles: number;
+  infieldSingles: number;
+  homeRuns: number;
+  softestHomeRunMph: number | null;
+  shortestHomeRunFt: number | null;
+  flarestHomeRunLa: number | null;
+  hardestHitMph: number | null;
+  moonshotHomeRuns: number;
+  noDoubterHomeRuns: number;
+  battedBallEvents: number;
+  barrelBalls: number;
+  chopBalls: number;
+  popupBalls: number;
+  pitcherHits: number;
   stolenBases: number;
   caughtStealing: number;
   pickoffs: number;
-  walkoffBloopSingles: number;
-  bloopSingles: number;
-  infieldSingles: number;
-  lateInningRuns: number;
-  homeRuns: number;
-  softestHomeRunMph: number | null;
+  balkBenefits: number;
+  wildPitchBenefits: number;
+  passedBallBenefits: number;
+  errorRunBenefits: number;
+  basesLoadedNoRuns: number;
+  cycleGames: number;
+  backToBackHrGames: number;
+  backToBackToBackHrGames: number;
+  goldenSombreros: number;
+  multiHrGamesAllowed: number;
+  immaculateInningVictims: number;
+  zeroWalkGames: number;
+  wallScraperHomeRuns: number;
   notableEvents: NotableNerdEvent[];
 }
 
