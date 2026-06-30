@@ -2,11 +2,13 @@ export interface MLBTeam {
   id: number;
   name: string;
   abbrev: string;
+  /** Alternate abbrevs used by the MLB Stats API / live feeds. */
+  aliases?: string[];
 }
 
 /** All 30 MLB teams — sorted alphabetically by city/name for the team picker. */
 export const MLB_TEAMS: MLBTeam[] = [
-  { id: 109, name: "Arizona Diamondbacks", abbrev: "ARI" },
+  { id: 109, name: "Arizona Diamondbacks", abbrev: "ARI", aliases: ["AZ"] },
   { id: 144, name: "Atlanta Braves", abbrev: "ATL" },
   { id: 110, name: "Baltimore Orioles", abbrev: "BAL" },
   { id: 111, name: "Boston Red Sox", abbrev: "BOS" },
@@ -25,7 +27,7 @@ export const MLB_TEAMS: MLBTeam[] = [
   { id: 142, name: "Minnesota Twins", abbrev: "MIN" },
   { id: 121, name: "New York Mets", abbrev: "NYM" },
   { id: 147, name: "New York Yankees", abbrev: "NYY" },
-  { id: 133, name: "Oakland Athletics", abbrev: "OAK" },
+  { id: 133, name: "Athletics", abbrev: "OAK", aliases: ["ATH"] },
   { id: 143, name: "Philadelphia Phillies", abbrev: "PHI" },
   { id: 134, name: "Pittsburgh Pirates", abbrev: "PIT" },
   { id: 135, name: "San Diego Padres", abbrev: "SD" },
@@ -42,7 +44,15 @@ export function getTeamById(teamId: number): MLBTeam | undefined {
   return MLB_TEAMS.find((team) => team.id === teamId);
 }
 
+function normalizeTeamAbbrev(abbrev: string): string {
+  return abbrev.trim().toUpperCase();
+}
+
 export function getTeamByAbbrev(abbrev: string): MLBTeam | undefined {
-  const normalized = abbrev.trim().toUpperCase();
-  return MLB_TEAMS.find((team) => team.abbrev.toUpperCase() === normalized);
+  const normalized = normalizeTeamAbbrev(abbrev);
+  return MLB_TEAMS.find(
+    (team) =>
+      team.abbrev.toUpperCase() === normalized ||
+      team.aliases?.some((alias) => alias.toUpperCase() === normalized),
+  );
 }

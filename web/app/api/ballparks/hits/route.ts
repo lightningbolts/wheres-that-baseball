@@ -1,44 +1,36 @@
-import { unstable_cache } from "next/cache";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
-import { aggregateBallparkHits } from "@/lib/mlb/ballparkHits";
-import { getSeasonStartDate } from "@/lib/games/format";
+import {
+  aggregateBallparkHits,
+  type BallparkHitsAggregate,
+  type BallparkHitsDetail,
+} from "@/lib/mlb/ballparkHits";
+import { fetchSeasonGameHitRows } from "@/lib/mlb/ballparkHitsQuery";
 import { createClient } from "@/utils/supabase/server";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const GAME_HITS_COLUMNS =
-  "game_pk,game_date,venue_id,away_team_abbrev,home_team_abbrev,game_state" as const;
+const CACHE_TTL_MS = 5 * 60 * 1000;
 
-async function loadSeasonGameRows(season: number) {
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
-  const seasonEnd = `${season}-12-31`;
+const responseCache = new Map<string, { expiresAt: number; payload: unknown }>();
 
-  const { data, error } = await supabase
-    .from("games")
-    .select(GAME_HITS_COLUMNS)
-    .eq("season", season)
-    .gte("game_date", getSeasonStartDate(`${season}-06-30`))
-    .lte("game_date", seasonEnd)
-    .not("game_state", "is", null)
-    .not("venue_id", "is", null);
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return data ?? [];
+function cacheKey(season: number, venueId?: number): string {
+  return venueId != null ? `${season}:venue:${venueId}` : `${season}:summary`;
 }
 
-function getCachedSeasonRows(season: number) {
-  return unstable_cache(
-    () => loadSeasonGameRows(season),
-    [`ballpark-hits-season-${season}`],
-    { revalidate: 300 },
-  )();
+function getCachedResponse<T>(key: string): T | null {
+  const entry = responseCache.get(key);
+  if (!entry || entry.expiresAt <= Date.now()) {
+    if (entry) responseCache.delete(key);
+    return null;
+  }
+  return entry.payload as T;
+}
+
+function setCachedResponse(key: string, payload: unknown): void {
+  responseCache.set(key, { expiresAt: Date.now() + CACHE_TTL_MS, payload });
 }
 
 export async function GET(request: Request) {
@@ -56,11 +48,24 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Invalid venueId" }, { status: 400 });
   }
 
-  try {
-    const rows = await getCachedSeasonRows(season);
-    const result = aggregateBallparkHits(season, rows, venueId);
+  const key = cacheKey(season, venueId);
+  const cached = getCachedResponse<BallparkHitsAggregate | BallparkHitsDetail>(key);
+  if (cached) {
+    return NextResponse.json(cached, {
+      headers: { "Cache-Control": "private, max-age=300" },
+    });
+  }
 
-    return NextResponse.json(result);
+  try {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+    const rows = await fetchSeasonGameHitRows(supabase, season, venueId);
+    const result = aggregateBallparkHits(season, rows, venueId);
+    setCachedResponse(key, result);
+
+    return NextResponse.json(result, {
+      headers: { "Cache-Control": "private, max-age=300" },
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load ballpark hits";
     const status = message === "Unknown venue" ? 404 : 502;

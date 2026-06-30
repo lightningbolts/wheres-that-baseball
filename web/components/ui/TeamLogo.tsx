@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { useTheme } from "@/components/providers/ThemeProvider";
 import { mlbTeamLogoUrl } from "@/lib/mlb/teamAssets";
 import { getTeamByAbbrev, getTeamById } from "@/lib/mlb/teams";
 import { cn } from "@/lib/utils";
@@ -21,6 +22,7 @@ export function TeamLogo({
   className,
   title,
 }: TeamLogoProps) {
+  const { theme } = useTheme();
   const team =
     (teamId != null ? getTeamById(teamId) : undefined) ??
     (abbrev ? getTeamByAbbrev(abbrev) : undefined);
@@ -44,7 +46,8 @@ export function TeamLogo({
 
   return (
     <img
-      src={mlbTeamLogoUrl(team.id)}
+      key={`${team.id}-${theme}`}
+      src={mlbTeamLogoUrl(team.id, theme)}
       alt=""
       width={size}
       height={size}
@@ -53,5 +56,25 @@ export function TeamLogo({
       title={title ?? team.name}
       onError={() => setFailed(true)}
     />
+  );
+}
+
+/** Logo immediately followed by the team abbreviation. */
+export function TeamLogoWithAbbrev({
+  teamId,
+  abbrev,
+  size = 20,
+  className,
+}: {
+  teamId?: number | null;
+  abbrev: string;
+  size?: number;
+  className?: string;
+}) {
+  return (
+    <span className={cn("inline-flex items-center gap-1", className)}>
+      <TeamLogo teamId={teamId} abbrev={abbrev} size={size} />
+      <span className="font-medium">{abbrev}</span>
+    </span>
   );
 }
