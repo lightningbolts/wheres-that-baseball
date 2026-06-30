@@ -30,7 +30,14 @@ export function BallparkHitsBrowser() {
           </p>
           {!isLoading && data && (
             <p className="mt-2 text-xs text-subtle">
-              {totalHits.toLocaleString()} hit{totalHits === 1 ? "" : "s"} from archived games
+              {totalHits.toLocaleString()} hit{totalHits === 1 ? "" : "s"} indexed from archived
+              games
+              {data.backfillPending && (
+                <span className="text-muted">
+                  {" "}
+                  · Indexing in progress — refresh in a minute for more games
+                </span>
+              )}
             </p>
           )}
         </div>

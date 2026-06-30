@@ -4,6 +4,7 @@
  */
 
 import type { GameBoxScore } from "@/types/mlb-boxscore";
+import type { GameHitRow } from "@/types/game-hits";
 import type { LiveGameState } from "@/types/mlb-live";
 
 /** Terminal at-bat outcome probability distribution (sums to ~1.0). */
@@ -80,6 +81,12 @@ export interface Database {
         Row: Game;
         Insert: Omit<Game, "updated_at"> & { updated_at?: string };
         Update: Partial<Game>;
+        Relationships: [];
+      };
+      game_hits: {
+        Row: GameHitRow;
+        Insert: Omit<GameHitRow, "synced_at"> & { synced_at?: string };
+        Update: Partial<GameHitRow>;
         Relationships: [];
       };
     };

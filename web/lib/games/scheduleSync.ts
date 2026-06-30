@@ -8,6 +8,7 @@ import {
   reconcileFinalFeedsForGames,
   reconcileMissingFeedsSince,
 } from "@/lib/games/reconcileFeeds";
+import { backfillGameHitsBatch } from "@/lib/games/syncGameHits";
 import {
   ACTIVE_CARRYOVER_STATUSES,
   addScheduleDays,
@@ -194,6 +195,7 @@ export interface RecentScheduleSyncResult {
   dates: string[];
   finalGamesSeen: number;
   missingFeedsReconciled: number;
+  gameHitsBackfilled: number;
 }
 
 /**
@@ -226,10 +228,22 @@ export async function syncRecentScheduleAndFeeds(options?: {
   await reconcileFinalFeedsForGames(gamesForFeeds);
   const missingFeedsReconciled = await reconcileMissingFeedsSince(dates[0], feedBatchLimit);
 
+  let gameHitsBackfilled = 0;
+  try {
+    const backfill = await backfillGameHitsBatch({
+      season: Number.parseInt(today.slice(0, 4), 10),
+      limit: 30,
+    });
+    gameHitsBackfilled = backfill.processed;
+  } catch (err) {
+    console.warn("schedule sync: game_hits backfill failed", err);
+  }
+
   return {
     synced,
     dates,
     finalGamesSeen: gamesForFeeds.filter((g) => g.status === "Final").length,
     missingFeedsReconciled,
+    gameHitsBackfilled,
   };
 }

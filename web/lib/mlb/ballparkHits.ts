@@ -1,8 +1,12 @@
 import { ballparkIndex } from "@/lib/mlb/ballparkPaths";
-import { computeGameHitStats, extractGameHits, type GameHit, type GameHitStats } from "@/lib/mlb/gameHits";
-import { parseStoredGameState } from "@/lib/games/gameState";
+import {
+  computeGameHitStats,
+  HIT_TYPE_COLORS,
+  type GameHit,
+  type GameHitStats,
+} from "@/lib/mlb/gameHits";
 import type { BallparkData } from "@/types/ballpark";
-import type { LiveGameState } from "@/types/mlb-live";
+import type { GameHitRow } from "@/types/game-hits";
 
 export interface VenueHit extends GameHit {
   hitKey: string;
@@ -21,7 +25,6 @@ export interface BallparkHitsSummary {
   stadiumSlug: string;
   stats: GameHitStats;
   gameCount: number;
-  /** Minimal hit data for spray chart previews on the index grid. */
   previewHits: VenueHit[];
 }
 
@@ -29,6 +32,8 @@ export interface BallparkHitsAggregate {
   season: number;
   parks: BallparkHitsSummary[];
   generatedAt: string;
+  indexedHitCount: number;
+  backfillPending: boolean;
 }
 
 export interface BallparkHitsDetail {
@@ -40,46 +45,42 @@ export interface BallparkHitsDetail {
   generatedAt: string;
 }
 
-interface GameHitsRow {
-  game_pk: number;
-  game_date: string;
-  venue_id: number | null;
-  away_team_abbrev: string;
-  home_team_abbrev: string;
-  game_state: LiveGameState | unknown | null;
-}
-
-function extractVenueHitsFromGame(row: GameHitsRow): VenueHit[] {
-  const state = parseStoredGameState(row.game_state, row.game_pk);
-  if (!state?.plays?.length) return [];
-
-  return extractGameHits(state.plays).map((hit) => ({
-    ...hit,
-    hitKey: `${row.game_pk}-${hit.atBatIndex}`,
+function rowToVenueHit(row: GameHitRow): VenueHit {
+  return {
+    atBatIndex: row.at_bat_index,
+    batterName: row.batter_name,
+    event: row.event,
+    inning: row.inning,
+    halfInning: row.half_inning,
+    awayScore: row.away_score,
+    homeScore: row.home_score,
+    hit: row.hit_data,
+    color: HIT_TYPE_COLORS[row.event],
+    detail: row.play_detail,
+    hitKey: `${row.game_pk}-${row.at_bat_index}`,
     gamePk: row.game_pk,
     gameDate: row.game_date,
     awayAbbrev: row.away_team_abbrev,
     homeAbbrev: row.home_team_abbrev,
-  }));
+  };
 }
 
 export function aggregateBallparkHits(
   season: number,
-  rows: GameHitsRow[],
+  rows: GameHitRow[],
   venueIdFilter?: number,
+  options?: { backfillPending?: boolean },
 ): BallparkHitsAggregate | BallparkHitsDetail {
   const hitsByVenue = new Map<number, VenueHit[]>();
   const gamesByVenue = new Map<number, Set<number>>();
 
   for (const row of rows) {
-    if (row.venue_id == null) continue;
     if (venueIdFilter != null && row.venue_id !== venueIdFilter) continue;
 
-    const hits = extractVenueHitsFromGame(row);
-    if (hits.length === 0) continue;
-
+    const hit = rowToVenueHit(row);
     const existing = hitsByVenue.get(row.venue_id) ?? [];
-    hitsByVenue.set(row.venue_id, existing.concat(hits));
+    existing.push(hit);
+    hitsByVenue.set(row.venue_id, existing);
 
     const gameSet = gamesByVenue.get(row.venue_id) ?? new Set<number>();
     gameSet.add(row.game_pk);
@@ -129,5 +130,11 @@ export function aggregateBallparkHits(
 
   parks.sort((a, b) => a.venueName.localeCompare(b.venueName));
 
-  return { season, parks, generatedAt };
+  return {
+    season,
+    parks,
+    generatedAt,
+    indexedHitCount: rows.length,
+    backfillPending: options?.backfillPending ?? false,
+  };
 }

@@ -2,6 +2,7 @@ import { isStoredFeedComplete } from "@/lib/games/feedComplete";
 import { isMlbFeedWrapper } from "@/lib/games/gameState";
 import { fetchScheduleGameByPk, type GameScheduleRow } from "@/lib/games/scheduleRow";
 import { getServiceSupabase } from "@/lib/games/supabaseAdmin";
+import { syncGameHitsFromFeed } from "@/lib/games/syncGameHits";
 import { parseBoxScore } from "@/lib/mlb/boxScore";
 import { parseLiveFeed, wrapMlbFeedForStorage } from "@/lib/mlb/liveFeed";
 import { clearLiveFeedCache, getCachedLiveFeed } from "@/lib/mlb/liveFeedServer";
@@ -99,6 +100,10 @@ async function persistArchivedGame(
   if (error) {
     throw new Error(error.message);
   }
+
+  await syncGameHitsFromFeed(row, feed).catch((err) => {
+    console.warn(`sync game_hits ${row.game_pk} failed:`, err);
+  });
 
   return syncedAt;
 }

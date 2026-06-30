@@ -2,41 +2,33 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getSeasonStartDate } from "@/lib/games/format";
 import type { Database } from "@/types/database";
+import type { GameHitRow } from "@/types/game-hits";
 
-const GAME_HITS_COLUMNS =
-  "game_pk,game_date,venue_id,away_team_abbrev,home_team_abbrev,game_state" as const;
+const GAME_HIT_COLUMNS =
+  "game_pk,at_bat_index,season,game_date,venue_id,away_team_abbrev,home_team_abbrev,batter_name,event,inning,half_inning,away_score,home_score,hit_data,play_detail" as const;
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 1000;
 
-export type GameHitsRow = {
-  game_pk: number;
-  game_date: string;
-  venue_id: number | null;
-  away_team_abbrev: string;
-  home_team_abbrev: string;
-  game_state: unknown;
-};
-
-/** Fetch archived game_state rows in small pages to avoid Supabase statement timeouts. */
-export async function fetchSeasonGameHitRows(
+/** Fast read from the indexed game_hits table (no game_state JSONB). */
+export async function fetchIndexedGameHits(
   supabase: SupabaseClient<Database>,
   season: number,
   venueId?: number,
-): Promise<GameHitsRow[]> {
+): Promise<GameHitRow[]> {
   const seasonEnd = `${season}-12-31`;
-  const rows: GameHitsRow[] = [];
+  const rows: GameHitRow[] = [];
   let offset = 0;
 
   while (true) {
     let query = supabase
-      .from("games")
-      .select(GAME_HITS_COLUMNS)
+      .from("game_hits")
+      .select(GAME_HIT_COLUMNS)
       .eq("season", season)
       .gte("game_date", getSeasonStartDate(`${season}-06-30`))
       .lte("game_date", seasonEnd)
-      .not("game_state", "is", null)
-      .not("venue_id", "is", null)
+      .order("game_date", { ascending: true })
       .order("game_pk", { ascending: true })
+      .order("at_bat_index", { ascending: true })
       .range(offset, offset + PAGE_SIZE - 1);
 
     if (venueId != null) {
@@ -49,7 +41,7 @@ export async function fetchSeasonGameHitRows(
       throw new Error(error.message);
     }
 
-    const page = (data ?? []) as GameHitsRow[];
+    const page = (data ?? []) as GameHitRow[];
     rows.push(...page);
 
     if (page.length < PAGE_SIZE) {
@@ -60,4 +52,20 @@ export async function fetchSeasonGameHitRows(
   }
 
   return rows;
+}
+
+export async function countIndexedGameHits(
+  supabase: SupabaseClient<Database>,
+  season: number,
+): Promise<number> {
+  const { count, error } = await supabase
+    .from("game_hits")
+    .select("game_pk", { count: "exact", head: true })
+    .eq("season", season);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return count ?? 0;
 }
