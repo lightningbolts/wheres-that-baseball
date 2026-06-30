@@ -8,6 +8,7 @@ import {
   NERD_STAT_DEFINITIONS,
   type NerdStatDefinition,
 } from "@/lib/mlb/nerdStats/statDefinitions";
+import { sortNotableEvents } from "@/lib/mlb/nerdStats/notableEvents";
 import { getTeamById, MLB_TEAMS } from "@/lib/mlb/teams";
 
 export {
@@ -86,6 +87,7 @@ export function buildStatLeaderboard(
     category: definition.category,
     sort: definition.sort,
     unit: definition.unit,
+    formula: definition.formula,
     leagueAverage,
     leagueAverageDisplay:
       leagueAverage != null ? definition.formatValue(leagueAverage) : null,
@@ -111,8 +113,7 @@ export function collectNotableEventsForStat(
     events.push(...counters.notableEvents.filter((event) => event.statId === statId));
   }
 
-  events.sort((a, b) => b.gameDate.localeCompare(a.gameDate));
-  return events.slice(0, 50);
+  return sortNotableEvents(events, statId).slice(0, 25);
 }
 
 export function getAllStatDefinitions(): NerdStatDefinition[] {

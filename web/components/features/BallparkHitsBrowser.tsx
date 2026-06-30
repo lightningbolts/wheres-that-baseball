@@ -96,7 +96,7 @@ export function BallparkHitsBrowser() {
                       getHitKey={(hit) => (hit as unknown as SprayPreviewHit).hitKey}
                       showLines={false}
                       ballRadius={
-                        park.stats.total > 500 ? 0.6 : park.stats.total > 300 ? 0.75 : 0.9
+                        park.stats.total > 500 ? 0.45 : park.stats.total > 300 ? 0.55 : 0.7
                       }
                       hideVenueLabel
                       className="opacity-90"

@@ -1,3 +1,4 @@
+import type { GameBoxScore } from "@/types/mlb-boxscore";
 import type { PlayByPlayEntry } from "@/types/mlb-live";
 
 export function battingTeamId(
@@ -133,9 +134,40 @@ export function isPassedBall(play: PlayByPlayEntry): boolean {
   return /passed ball/i.test(`${play.event} ${play.description}`);
 }
 
-export function isPitcherHit(play: PlayByPlayEntry): boolean {
+export function isPitcherHit(
+  play: PlayByPlayEntry,
+  pitcherBatterIds?: Set<number>,
+): boolean {
   if (!["Single", "Double", "Triple", "Home Run"].includes(play.event)) return false;
-  return /pitcher/i.test(play.description) || /pitching/i.test(play.batterName);
+  if (play.batterId != null && pitcherBatterIds?.has(play.batterId)) return true;
+
+  const name = play.batterName.trim();
+  if (!name) return false;
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (new RegExp(`^Pitcher\\s+${escaped}\\b`, "i").test(play.description)) return true;
+
+  // Hits fielded by the pitcher are not pitcher hits.
+  if (/\bto pitcher\b|\bby pitcher\b|\bpitcher to\b/i.test(play.description)) return false;
+
+  return false;
+}
+
+export function buildPitcherBatterIds(boxScore: GameBoxScore | null): Set<number> {
+  const ids = new Set<number>();
+  if (!boxScore) return ids;
+
+  for (const side of [boxScore.away, boxScore.home]) {
+    for (const pitcher of side.pitchers ?? []) {
+      ids.add(pitcher.playerId);
+    }
+    for (const batter of side.batters ?? []) {
+      if (/\bP\b/.test(batter.positions)) {
+        ids.add(batter.playerId);
+      }
+    }
+  }
+
+  return ids;
 }
 
 export function isBarrel(hit: { launchSpeed: number; launchAngle: number }): boolean {

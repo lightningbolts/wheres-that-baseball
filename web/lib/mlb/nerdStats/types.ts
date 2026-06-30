@@ -124,6 +124,7 @@ export interface NerdStatLeaderboard {
   category: NerdStatCategory;
   sort: "asc" | "desc";
   unit: string;
+  formula?: string;
   leagueAverage: number | null;
   leagueAverageDisplay: string | null;
   leaders: NerdStatLeader[];

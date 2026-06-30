@@ -61,6 +61,11 @@ export function NerdStatDetailView({ statId }: NerdStatDetailViewProps) {
                 </p>
                 <h1 className="mt-1 text-xl font-medium text-foreground">{data.stat.title}</h1>
                 <p className="mt-2 max-w-2xl text-sm text-muted">{data.stat.subtitle}</p>
+                {data.stat.formula && (
+                  <p className="mt-2 max-w-2xl rounded-lg border border-border bg-surface px-3 py-2 font-mono text-xs text-secondary">
+                    How it&apos;s calculated: {data.stat.formula}
+                  </p>
+                )}
                 {data.stat.leagueAverageDisplay && (
                   <p className="mt-2 text-xs text-subtle">
                     League average: {data.stat.leagueAverageDisplay}

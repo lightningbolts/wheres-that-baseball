@@ -6,6 +6,7 @@ import {
 } from "@/lib/mlb/nerdStats/counters";
 import {
   battingTeamId,
+  buildPitcherBatterIds,
   extractPinchHitterName,
   fieldingTeamId,
   findWalkOffPlay,
@@ -61,13 +62,18 @@ function basesLoaded(before: PlayByPlayEntry["situationBefore"]): boolean {
   return before.onFirst && before.onSecond && before.onThird;
 }
 
+interface BatterCycleState {
+  name: string;
+  types: Set<string>;
+}
+
 interface GameTeamState {
   maxDeficit: number;
   hitTypes: Set<string>;
-  batterHitTypes: Map<number, Set<string>>;
+  batterHitTypes: Map<number, BatterCycleState>;
   hrStreak: number;
   maxHrStreak: number;
-  batterStrikeouts: Map<number, number>;
+  batterStrikeouts: Map<number, { count: number; name: string }>;
   opponentHr: number;
   walksInGame: number;
   lobInGame: number;
@@ -124,7 +130,12 @@ function trackDeficit(
   homeState.maxDeficit = Math.max(homeState.maxDeficit, homeDeficit);
 }
 
-function recordHitType(state: GameTeamState, event: string, batterId?: number | null): void {
+function recordHitType(
+  state: GameTeamState,
+  event: string,
+  batterId?: number | null,
+  batterName?: string,
+): void {
   const hitKey =
     event === "Single"
       ? "single"
@@ -137,11 +148,14 @@ function recordHitType(state: GameTeamState, event: string, batterId?: number | 
             : null;
   if (!hitKey) return;
   state.hitTypes.add(hitKey);
-  if (batterId != null) {
-    const types = state.batterHitTypes.get(batterId) ?? new Set<string>();
-    types.add(hitKey);
-    state.batterHitTypes.set(batterId, types);
-  }
+  if (batterId == null) return;
+  const entry = state.batterHitTypes.get(batterId) ?? {
+    name: batterName?.trim() || "Unknown batter",
+    types: new Set<string>(),
+  };
+  if (batterName?.trim()) entry.name = batterName.trim();
+  entry.types.add(hitKey);
+  state.batterHitTypes.set(batterId, entry);
 }
 
 function hasCycle(hitTypes: Set<string>): boolean {
@@ -207,16 +221,16 @@ function finalizeGameTeamState(
     });
   }
 
-  for (const strikeouts of state.batterStrikeouts.values()) {
-    if (strikeouts >= 4) {
+  for (const { count, name } of state.batterStrikeouts.values()) {
+    if (count >= 4) {
       team.goldenSombreros += 1;
       pushNotable(team, {
         statId: "golden-sombrero",
         gamePk: row.game_pk,
         gameDate: row.game_date,
-        label: "Golden sombrero",
-        detail: `${strikeouts} strikeouts by one batter`,
-        value: strikeouts,
+        label: `${name} — golden sombrero`,
+        detail: `${count} strikeouts in one game`,
+        value: count,
       });
       break;
     }
@@ -250,15 +264,15 @@ function finalizeGameTeamState(
     });
   }
 
-  for (const hitTypes of state.batterHitTypes.values()) {
-    if (hasCycle(hitTypes)) {
+  for (const { name, types } of state.batterHitTypes.values()) {
+    if (hasCycle(types)) {
       team.playerCycleGames += 1;
       pushNotable(team, {
         statId: "player-cycle-games",
         gamePk: row.game_pk,
         gameDate: row.game_date,
-        label: "Player hit for the cycle",
-        detail: "One batter with a single, double, triple, and home run",
+        label: `${name} hit for the cycle`,
+        detail: "Single, double, triple, and home run in the same game",
       });
       break;
     }
@@ -337,6 +351,7 @@ export function extractNerdCountersFromGame(row: GameNerdSourceRow): SeasonNerdC
 
   const plays = state.plays;
   const boxScore = row.box_score as GameBoxScore | null;
+  const pitcherBatterIds = buildPitcherBatterIds(boxScore);
   const maxInning = gameInningCount(plays, boxScore);
 
   if (maxInning > 9) {
@@ -384,7 +399,7 @@ export function extractNerdCountersFromGame(row: GameNerdSourceRow): SeasonNerdC
 
     if (play.isAtBat) {
       offense.plateAppearances += 1;
-      recordHitType(offenseGame, play.event, play.batterId);
+      recordHitType(offenseGame, play.event, play.batterId, play.batterName);
 
       if (isHitEvent(play.event)) {
         defenseGame.hitsAllowed += 1;
@@ -428,8 +443,13 @@ export function extractNerdCountersFromGame(row: GameNerdSourceRow): SeasonNerdC
       if (play.event === "Strikeout") {
         offense.strikeouts += 1;
         const batterId = play.batterId ?? play.atBatIndex;
-        const prev = offenseGame.batterStrikeouts.get(batterId) ?? 0;
-        offenseGame.batterStrikeouts.set(batterId, prev + 1);
+        const prev = offenseGame.batterStrikeouts.get(batterId) ?? {
+          count: 0,
+          name: play.batterName,
+        };
+        prev.count += 1;
+        if (play.batterName.trim()) prev.name = play.batterName.trim();
+        offenseGame.batterStrikeouts.set(batterId, prev);
 
         const hk = `${playHalf}-k`;
         const halfKs = halfInningStrikeouts.get(hk) ?? { offenseId, count: 0 };
@@ -511,13 +531,13 @@ export function extractNerdCountersFromGame(row: GameNerdSourceRow): SeasonNerdC
         offense.infieldSingles += 1;
       }
 
-      if (isPitcherHit(play)) {
+      if (isPitcherHit(play, pitcherBatterIds)) {
         offense.pitcherHits += 1;
         pushNotable(offense, {
           statId: "pitcher-hits",
           gamePk: row.game_pk,
           gameDate: row.game_date,
-          label: `${play.batterName} pitcher hit`,
+          label: `${play.batterName} — pitcher hit`,
           detail: play.description,
         });
       }
