@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
+import { Suspense } from "react";
 
+import { ScrollRestoration } from "@/components/providers/ScrollRestoration";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/site";
 import "./globals.css";
@@ -42,7 +44,12 @@ export default function RootLayout({
         />
       </head>
       <body className={`${inter.variable} ${jetbrainsMono.variable} font-sans`}>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <Suspense fallback={null}>
+            <ScrollRestoration />
+          </Suspense>
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );

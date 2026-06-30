@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { AppNav } from "@/components/features/AppNav";
 import { NerdStatCard } from "@/components/features/NerdStatCard";
@@ -12,12 +12,36 @@ import { MLB_TEAMS } from "@/lib/mlb/teams";
 import { cn } from "@/lib/utils";
 
 const CURRENT_SEASON = new Date().getFullYear();
+const NERD_UI_STORAGE_KEY = "nerd-standings-ui";
+
+interface SavedNerdUi {
+  category: NerdStatCategory | "all";
+  search: string;
+  teamId: number | null;
+}
+
+function loadSavedNerdUi(): SavedNerdUi | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(NERD_UI_STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as SavedNerdUi;
+  } catch {
+    return null;
+  }
+}
 
 export function NerdStandingsBrowser() {
   const { data, isLoading, error } = useNerdStatsSummary(CURRENT_SEASON);
-  const [category, setCategory] = useState<NerdStatCategory | "all">("all");
-  const [search, setSearch] = useState("");
-  const [teamId, setTeamId] = useState<number | null>(null);
+  const savedUi = useMemo(() => loadSavedNerdUi(), []);
+  const [category, setCategory] = useState<NerdStatCategory | "all">(savedUi?.category ?? "all");
+  const [search, setSearch] = useState(savedUi?.search ?? "");
+  const [teamId, setTeamId] = useState<number | null>(savedUi?.teamId ?? null);
+
+  useEffect(() => {
+    const payload: SavedNerdUi = { category, search, teamId };
+    sessionStorage.setItem(NERD_UI_STORAGE_KEY, JSON.stringify(payload));
+  }, [category, search, teamId]);
 
   const filteredStats = useMemo(() => {
     if (!data?.stats) return [];
