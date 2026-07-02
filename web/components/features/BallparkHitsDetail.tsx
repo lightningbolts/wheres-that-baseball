@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AppNav } from "@/components/features/AppNav";
 import { GameHitsSprayChart } from "@/components/features/GameHitsSprayChart";
@@ -10,13 +10,15 @@ import { PlayDetailDialog } from "@/components/features/PlayDetailDialog";
 import { TeamLogo } from "@/components/ui/TeamLogo";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useBallparkHitsDetail } from "@/hooks/useBallparkHits";
+import { useRestoreScrollWhenReady } from "@/hooks/useRestoreScrollWhenReady";
 import {
   HIT_TYPE_COLORS,
   HIT_TYPE_LABELS,
   type HitType,
 } from "@/lib/mlb/gameHits";
-import type { VenueHit } from "@/lib/mlb/ballparkHits";
+import type { SprayPreviewHit, VenueHit } from "@/lib/mlb/ballparkHits";
 import { cn, formatInningHalf } from "@/lib/utils";
+import type { PlayDetail } from "@/types/mlb-live";
 
 const GameHitsTrajectory3D = dynamic(
   () =>
@@ -99,14 +101,79 @@ function HitRow({
   );
 }
 
+function LazyTrajectorySection({
+  hits,
+  venueId,
+  getHitKey,
+  selectedHitKey,
+  className,
+}: {
+  hits: SprayPreviewHit[];
+  venueId: number;
+  getHitKey: (hit: { hitKey?: string; atBatIndex: number }) => string;
+  selectedHitKey: string | null;
+  className?: string;
+}) {
+  const sectionRef = useRef<HTMLElement>(null);
+  const [shouldRender, setShouldRender] = useState(false);
+
+  useEffect(() => {
+    const node = sectionRef.current;
+    if (!node) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          setShouldRender(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "200px" },
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <section ref={sectionRef} className="bg-panel p-3 sm:p-4">
+      <p className="mb-3 text-[10px] font-medium uppercase tracking-wide text-muted">
+        3D trajectories
+      </p>
+      {shouldRender ? (
+        <GameHitsTrajectory3D
+          hits={hits}
+          venueId={venueId}
+          getHitKey={getHitKey}
+          selectedHitKey={selectedHitKey}
+          className={className}
+        />
+      ) : (
+        <div className="flex h-[240px] items-center justify-center rounded border border-border bg-field-chart-canvas text-xs text-subtle sm:h-[300px] xl:h-[360px]">
+          Scroll to load 3D view…
+        </div>
+      )}
+    </section>
+  );
+}
+
 interface BallparkHitsDetailProps {
   venueId: number;
 }
 
 export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
-  const { data, isLoading, error } = useBallparkHitsDetail(venueId, CURRENT_SEASON);
+  const { data, isLoading, isLoadingMore, error, loadMore, hasMore, fetchHitDetail } =
+    useBallparkHitsDetail(venueId, CURRENT_SEASON);
+  useRestoreScrollWhenReady(!isLoading && (data?.stats.total ?? 0) > 0);
   const [selectedHitKey, setSelectedHitKey] = useState<string | null>(null);
-  const [detailPlay, setDetailPlay] = useState<VenueHit["detail"] | null>(null);
+  const [detailPlay, setDetailPlay] = useState<PlayDetail | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  const chartHits = useMemo(() => {
+    if (!data) return [];
+    if (data.chartHits?.length) return data.chartHits;
+    return data.hits;
+  }, [data]);
 
   const selectedHit = useMemo(
     () => data?.hits.find((hit) => hit.hitKey === selectedHitKey) ?? null,
@@ -116,6 +183,29 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
   const getHitKey = (hit: { hitKey?: string; atBatIndex: number }) =>
     "hitKey" in hit && hit.hitKey ? hit.hitKey : String(hit.atBatIndex);
 
+  const openHitDetail = useCallback(
+    async (hitKey: string) => {
+      const hit = await fetchHitDetail(hitKey);
+      if (hit?.detail) setDetailPlay(hit.detail);
+    },
+    [fetchHitDetail],
+  );
+
+  useEffect(() => {
+    const node = loadMoreRef.current;
+    if (!node || !hasMore) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) void loadMore();
+      },
+      { rootMargin: "120px" },
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasMore, loadMore, data?.hits.length]);
+
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <AppNav />
@@ -124,6 +214,7 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
         <div className="mb-6">
           <Link
             href="/ballparks"
+            scroll={false}
             className="text-xs text-muted transition-colors hover:text-foreground"
           >
             ← All ballparks
@@ -205,7 +296,7 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
                     Season spray chart
                   </p>
                   <GameHitsSprayChart
-                    hits={data.hits}
+                    hits={chartHits}
                     venueId={data.park.venueId}
                     getHitKey={getHitKey}
                     selectedHitKey={selectedHitKey}
@@ -219,39 +310,41 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
                   />
                 </section>
 
-                <section className="bg-panel p-3 sm:p-4">
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-[10px] font-medium uppercase tracking-wide text-muted">
-                      3D trajectories
-                    </p>
-                    {selectedHit && (
-                      <button
-                        type="button"
-                        onClick={() => setDetailPlay(selectedHit.detail)}
-                        className="text-[11px] text-secondary underline-offset-2 hover:underline"
-                      >
-                        {selectedHit.batterName} — {selectedHit.event} details
-                      </button>
-                    )}
+                <LazyTrajectorySection
+                  hits={chartHits}
+                  venueId={data.park.venueId}
+                  getHitKey={getHitKey}
+                  selectedHitKey={selectedHitKey}
+                  className="mx-auto w-full max-w-4xl"
+                />
+
+                {selectedHit && (
+                  <div className="border-t border-border bg-panel px-3 py-2 sm:px-4">
+                    <button
+                      type="button"
+                      onClick={() => void openHitDetail(selectedHit.hitKey)}
+                      className="text-[11px] text-secondary underline-offset-2 hover:underline"
+                    >
+                      {selectedHit.batterName} — {selectedHit.event} details
+                    </button>
                   </div>
-                  <GameHitsTrajectory3D
-                    hits={data.hits}
-                    venueId={data.park.venueId}
-                    getHitKey={getHitKey}
-                    selectedHitKey={selectedHitKey}
-                    className="mx-auto w-full max-w-4xl"
-                  />
-                </section>
+                )}
               </div>
 
-              <aside className="flex max-h-[min(70vh,40rem)] flex-col bg-surface xl:max-h-[calc(100dvh-12rem)]">
+              <aside className="flex max-h-none flex-col bg-surface xl:max-h-[calc(100dvh-12rem)] xl:sticky xl:top-0">
                 <div className="shrink-0 border-b border-border px-3 py-2">
                   <h3 className="text-xs font-medium text-muted">
                     All hits{" "}
-                    <span className="font-mono tabular-nums text-subtle">({data.hits.length})</span>
+                    <span className="font-mono tabular-nums text-subtle">
+                      ({data.hitsTotal ?? data.hits.length}
+                      {(data.hitsTotal ?? data.hits.length) !== data.stats.total
+                        ? ` of ${data.stats.total}`
+                        : ""}
+                      )
+                    </span>
                   </h3>
                 </div>
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
+                <div className="min-h-0 flex-1 xl:overflow-y-auto xl:overscroll-y-contain">
                   {data.hits.map((venueHit) => (
                     <HitRow
                       key={venueHit.hitKey}
@@ -264,6 +357,14 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
                       }
                     />
                   ))}
+                  {hasMore && (
+                    <div
+                      ref={loadMoreRef}
+                      className="flex items-center justify-center border-t border-border px-3 py-4 text-xs text-muted"
+                    >
+                      {isLoadingMore ? "Loading more hits…" : "Loading more…"}
+                    </div>
+                  )}
                 </div>
               </aside>
             </div>

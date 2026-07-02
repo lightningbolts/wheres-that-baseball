@@ -42,6 +42,10 @@ interface PlayByPlayProps {
   embedPitchesAtBatIndex?: number | null;
   /** When this changes (e.g. game PK), scroll to the latest play once content loads. */
   monitorKey?: string | number;
+  /** Scroll with a parent container instead of an internal feed scroller (mobile Gameday). */
+  embeddedScroll?: boolean;
+  /** Parent scroll container when embeddedScroll is true. */
+  parentScrollRef?: React.RefObject<HTMLElement | null>;
 }
 
 interface InningGroup {
@@ -698,6 +702,8 @@ export const PlayByPlay = memo(function PlayByPlay({
   animateLivePitches = false,
   embedPitchesAtBatIndex = null,
   monitorKey,
+  embeddedScroll = false,
+  parentScrollRef,
 }: PlayByPlayProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -725,13 +731,23 @@ export const PlayByPlay = memo(function PlayByPlay({
   const latestInningExpanded = latestInningKey ? expanded.has(latestInningKey) : false;
 
   const scrollFeedToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    if (embeddedScroll) {
+      const parent = parentScrollRef?.current;
+      if (parent) {
+        parent.scrollTo({ top: parent.scrollHeight, behavior });
+        return;
+      }
+      bottomRef.current?.scrollIntoView({ behavior, block: "end" });
+      return;
+    }
+
     const container = scrollContainerRef.current;
     if (container) {
       container.scrollTo({ top: container.scrollHeight, behavior });
       return;
     }
     bottomRef.current?.scrollIntoView({ behavior, block: "end" });
-  }, []);
+  }, [embeddedScroll, parentScrollRef]);
 
   useEffect(() => {
     hasInitialScrolledRef.current = false;
@@ -799,12 +815,20 @@ export const PlayByPlay = memo(function PlayByPlay({
 
   return (
     <>
-      <div className={cn("flex h-full min-h-0 w-full max-w-full flex-col bg-surface", className)}>
-        <div className="shrink-0 border-b border-border px-3 py-2">
-          <h2 className="text-xs font-medium text-muted">Play-by-play</h2>
-        </div>
+      <div
+        className={cn(
+          "flex w-full max-w-full flex-col bg-surface",
+          embeddedScroll ? "min-h-0" : "h-full min-h-0",
+          className,
+        )}
+      >
+        {!embeddedScroll ? (
+          <div className="shrink-0 border-b border-border px-3 py-2">
+            <h2 className="text-xs font-medium text-muted">Play-by-play</h2>
+          </div>
+        ) : null}
 
-        {feedHeader && variant === "feed" ? (
+        {feedHeader && variant === "feed" && !embeddedScroll ? (
           <CollapsibleFeedHeader
             title={feedHeaderTitle}
             defaultOpen={!feedHeaderCollapsedDefault}
@@ -815,10 +839,17 @@ export const PlayByPlay = memo(function PlayByPlay({
 
         <div
           ref={scrollContainerRef}
-          className="min-h-0 flex-1 touch-pan-y overflow-y-auto overflow-x-hidden overscroll-y-contain"
+          className={cn(
+            embeddedScroll
+              ? "overflow-x-hidden"
+              : "min-h-0 flex-1 touch-pan-y overflow-y-auto overflow-x-hidden overscroll-y-contain",
+          )}
         >
           {feedHeader && variant !== "feed" ? (
             <div className="border-b border-border bg-panel px-3 py-3">{feedHeader}</div>
+          ) : null}
+          {feedHeader && variant === "feed" && embeddedScroll ? (
+            <div className="border-b border-border bg-panel px-3 py-2">{feedHeader}</div>
           ) : null}
           {plays.length === 0 ? (
             livePitchesList.length > 0 ? (

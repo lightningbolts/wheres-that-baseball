@@ -79,6 +79,11 @@ export function createEmptyTeamCounters(): TeamNerdCounters {
     playerCycleGames: 0,
     maxHbpInGame: 0,
     noHitterBidRuined: 0,
+    grandSlams: 0,
+    insideTheParkHomeRuns: 0,
+    eightPlusRunGames: 0,
+    whiffFestGames: 0,
+    leadoffHomeRuns: 0,
     notableEvents: [],
   };
 }
@@ -172,6 +177,11 @@ export function mergeTeamCounters(target: TeamNerdCounters, source: TeamNerdCoun
   target.pinchHitChaos += source.pinchHitChaos;
   target.playerCycleGames += source.playerCycleGames;
   target.noHitterBidRuined += source.noHitterBidRuined;
+  target.grandSlams += source.grandSlams;
+  target.insideTheParkHomeRuns += source.insideTheParkHomeRuns;
+  target.eightPlusRunGames += source.eightPlusRunGames;
+  target.whiffFestGames += source.whiffFestGames;
+  target.leadoffHomeRuns += source.leadoffHomeRuns;
   target.maxHbpInGame = Math.max(target.maxHbpInGame, source.maxHbpInGame);
 
   target.hardestHitAllowedMph = mergeMaxNullable(target.hardestHitAllowedMph, source.hardestHitAllowedMph);

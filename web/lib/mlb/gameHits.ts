@@ -31,6 +31,8 @@ export interface GameHit {
   detail: PlayDetail;
 }
 
+export type SprayChartHit = Pick<GameHit, "atBatIndex" | "event" | "hit" | "color">;
+
 export interface GameHitStats {
   total: number;
   singles: number;

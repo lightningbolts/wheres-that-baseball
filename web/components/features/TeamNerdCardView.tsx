@@ -7,6 +7,7 @@ import { AppNav } from "@/components/features/AppNav";
 import { TeamLogo } from "@/components/ui/TeamLogo";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useTeamNerdCard } from "@/hooks/useNerdStats";
+import { useRestoreScrollWhenReady } from "@/hooks/useRestoreScrollWhenReady";
 import { NERD_STAT_CATEGORIES } from "@/lib/mlb/nerdStats/types";
 import { cn } from "@/lib/utils";
 
@@ -33,12 +34,14 @@ export function TeamNerdCardView({ teamId }: TeamNerdCardViewProps) {
     })).filter((group) => group.stats.length > 0);
   }, [data]);
 
+  useRestoreScrollWhenReady(!isLoading && grouped.length > 0);
+
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <AppNav />
 
       <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-6">
-        <Link href="/nerd" className="text-xs text-muted transition-colors hover:text-foreground">
+        <Link href="/nerd" scroll={false} className="text-xs text-muted transition-colors hover:text-foreground">
           ← Nerd Standings
         </Link>
 

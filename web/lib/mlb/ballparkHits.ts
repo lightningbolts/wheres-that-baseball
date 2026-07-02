@@ -51,6 +51,13 @@ export interface BallparkHitsDetail {
   gameCount: number;
   generatedAt: string;
   source?: "file" | "empty";
+  /** Lightweight hits for spray/3D charts (no play detail payload). */
+  chartHits?: SprayPreviewHit[];
+  hitsTotal?: number;
+  hasMore?: boolean;
 }
+
+/** Hit list row without heavy play detail — detail loaded on demand. */
+export type VenueHitListItem = Omit<VenueHit, "detail"> & { detail?: VenueHit["detail"] };
 
 export { ballparkIndex };

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { BallparkHitsAggregate, BallparkHitsDetail } from "@/lib/mlb/ballparkHits";
+import type { BallparkHitsAggregate, BallparkHitsDetail, VenueHit } from "@/lib/mlb/ballparkHits";
 
 interface UseBallparkHitsSummaryResult {
   data: BallparkHitsAggregate | null;
@@ -14,8 +14,20 @@ interface UseBallparkHitsSummaryResult {
 interface UseBallparkHitsDetailResult {
   data: BallparkHitsDetail | null;
   isLoading: boolean;
+  isLoadingMore: boolean;
   error: string | null;
   refetch: () => Promise<void>;
+  loadMore: () => Promise<void>;
+  hasMore: boolean;
+  fetchHitDetail: (hitKey: string) => Promise<VenueHit | null>;
+}
+
+const MOBILE_PAGE_SIZE = 40;
+const DESKTOP_PAGE_SIZE = 80;
+
+function getPageSize(): number {
+  if (typeof window === "undefined") return DESKTOP_PAGE_SIZE;
+  return window.matchMedia("(max-width: 767px)").matches ? MOBILE_PAGE_SIZE : DESKTOP_PAGE_SIZE;
 }
 
 export function useBallparkHitsSummary(season: number): UseBallparkHitsSummaryResult {
@@ -66,18 +78,23 @@ export function useBallparkHitsDetail(
 ): UseBallparkHitsDetailResult {
   const [data, setData] = useState<BallparkHitsDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
+  const pageSizeRef = useRef(getPageSize());
 
   const refetch = useCallback(async () => {
     const requestId = ++requestIdRef.current;
     setIsLoading(true);
     setError(null);
+    pageSizeRef.current = getPageSize();
 
     try {
       const params = new URLSearchParams({
         season: String(season),
         venueId: String(venueId),
+        limit: String(pageSizeRef.current),
+        offset: "0",
       });
       const response = await fetch(`/api/ballparks/hits?${params.toString()}`, {
         cache: "no-store",
@@ -101,9 +118,91 @@ export function useBallparkHitsDetail(
     }
   }, [season, venueId]);
 
+  const loadMore = useCallback(async () => {
+    if (!data?.hasMore || isLoadingMore) return;
+
+    setIsLoadingMore(true);
+    try {
+      const params = new URLSearchParams({
+        season: String(season),
+        venueId: String(venueId),
+        hitsOnly: "true",
+        limit: String(pageSizeRef.current),
+        offset: String(data.hits.length),
+      });
+      const response = await fetch(`/api/ballparks/hits?${params.toString()}`, {
+        cache: "no-store",
+      });
+      const body = (await response.json()) as {
+        hits: VenueHit[];
+        hitsTotal: number;
+        hasMore: boolean;
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(body.error ?? "Failed to load more hits");
+      }
+
+      setData((current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          hits: [...current.hits, ...body.hits],
+          hitsTotal: body.hitsTotal,
+          hasMore: body.hasMore,
+        };
+      });
+    } catch (fetchError) {
+      setError(fetchError instanceof Error ? fetchError.message : "Failed to load more hits");
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [data, isLoadingMore, season, venueId]);
+
+  const fetchHitDetail = useCallback(
+    async (hitKey: string): Promise<VenueHit | null> => {
+      const cached = data?.hits.find((hit) => hit.hitKey === hitKey);
+      if (cached?.detail) return cached as VenueHit;
+
+      const params = new URLSearchParams({
+        season: String(season),
+        venueId: String(venueId),
+        hitKey,
+      });
+      const response = await fetch(`/api/ballparks/hits?${params.toString()}`, {
+        cache: "no-store",
+      });
+      const body = (await response.json()) as { hit?: VenueHit; error?: string };
+      if (!response.ok || !body.hit) return null;
+
+      setData((current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          hits: current.hits.map((hit) =>
+            hit.hitKey === hitKey ? { ...hit, detail: body.hit!.detail } : hit,
+          ),
+        };
+      });
+
+      return body.hit;
+    },
+    [data?.hits, season, venueId],
+  );
+
   useEffect(() => {
     void refetch();
   }, [refetch]);
 
-  return { data, isLoading, error, refetch };
+  return {
+    data,
+    isLoading,
+    isLoadingMore,
+    error,
+    refetch,
+    loadMore,
+    hasMore: data?.hasMore ?? false,
+    fetchHitDetail,
+  };
 }

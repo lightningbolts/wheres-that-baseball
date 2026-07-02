@@ -80,6 +80,8 @@ interface GameTeamState {
   hbpInGame: number;
   hitsAllowed: number;
   hitsAllowedThrough6: number;
+  strikeoutsInGame: number;
+  firstAbOfHalf: boolean;
   pinchBatters: Set<string>;
 }
 
@@ -97,6 +99,8 @@ function createGameTeamState(): GameTeamState {
     hbpInGame: 0,
     hitsAllowed: 0,
     hitsAllowedThrough6: 0,
+    strikeoutsInGame: 0,
+    firstAbOfHalf: true,
     pinchBatters: new Set(),
   };
 }
@@ -264,6 +268,32 @@ function finalizeGameTeamState(
     });
   }
 
+  const teamRuns =
+    teamId === row.away_team_id ? row.away_score ?? 0 : row.home_score ?? 0;
+  if (teamRuns >= 8) {
+    team.eightPlusRunGames += 1;
+    pushNotable(team, {
+      statId: "eight-plus-run-games",
+      gamePk: row.game_pk,
+      gameDate: row.game_date,
+      label: "Slugfest",
+      detail: `${teamRuns} runs scored`,
+      value: teamRuns,
+    });
+  }
+
+  if (state.strikeoutsInGame >= 12) {
+    team.whiffFestGames += 1;
+    pushNotable(team, {
+      statId: "whiff-fest-games",
+      gamePk: row.game_pk,
+      gameDate: row.game_date,
+      label: "Whiff fest",
+      detail: `${state.strikeoutsInGame} strikeouts in one game`,
+      value: state.strikeoutsInGame,
+    });
+  }
+
   for (const { name, types } of state.batterHitTypes.values()) {
     if (hasCycle(types)) {
       team.playerCycleGames += 1;
@@ -393,6 +423,7 @@ export function extractNerdCountersFromGame(row: GameNerdSourceRow): SeasonNerdC
         basesLoadedSeen: basesLoaded(play.situationBefore),
         runs: 0,
       };
+      offenseGame.firstAbOfHalf = true;
     } else if (basesLoaded(play.situationBefore)) {
       halfTracker.basesLoadedSeen = true;
     }
@@ -442,6 +473,7 @@ export function extractNerdCountersFromGame(row: GameNerdSourceRow): SeasonNerdC
 
       if (play.event === "Strikeout") {
         offense.strikeouts += 1;
+        offenseGame.strikeoutsInGame += 1;
         const batterId = play.batterId ?? play.atBatIndex;
         const prev = offenseGame.batterStrikeouts.get(batterId) ?? {
           count: 0,
@@ -580,6 +612,39 @@ export function extractNerdCountersFromGame(row: GameNerdSourceRow): SeasonNerdC
         offenseGame.maxHrStreak = Math.max(offenseGame.maxHrStreak, offenseGame.hrStreak);
         defenseGame.opponentHr += 1;
 
+        if (basesLoaded(play.situationBefore)) {
+          offense.grandSlams += 1;
+          pushNotable(offense, {
+            statId: "grand-slams",
+            gamePk: row.game_pk,
+            gameDate: row.game_date,
+            label: `${play.batterName} grand slam`,
+            detail: play.description,
+          });
+        }
+
+        if (offenseGame.firstAbOfHalf) {
+          offense.leadoffHomeRuns += 1;
+          pushNotable(offense, {
+            statId: "leadoff-homers",
+            gamePk: row.game_pk,
+            gameDate: row.game_date,
+            label: `${play.batterName} leadoff HR`,
+            detail: `${play.inning} ${play.halfInning}`,
+          });
+        }
+
+        if (/inside[\s-]?the[\s-]?park/i.test(play.description)) {
+          offense.insideTheParkHomeRuns += 1;
+          pushNotable(offense, {
+            statId: "inside-the-park-hrs",
+            gamePk: row.game_pk,
+            gameDate: row.game_date,
+            label: `${play.batterName} inside-the-park HR`,
+            detail: play.description,
+          });
+        }
+
         if (hit && hit.launchSpeed > 0) {
           offense.homeRuns += 1;
           const ev = hit.launchSpeed;
@@ -653,6 +718,10 @@ export function extractNerdCountersFromGame(row: GameNerdSourceRow): SeasonNerdC
 
       } else if (play.isAtBat) {
         offenseGame.hrStreak = 0;
+      }
+
+      if (play.isAtBat) {
+        offenseGame.firstAbOfHalf = false;
       }
     }
 

@@ -103,6 +103,11 @@ export interface TeamNerdCounters {
   playerCycleGames: number;
   maxHbpInGame: number;
   noHitterBidRuined: number;
+  grandSlams: number;
+  insideTheParkHomeRuns: number;
+  eightPlusRunGames: number;
+  whiffFestGames: number;
+  leadoffHomeRuns: number;
   notableEvents: NotableNerdEvent[];
 }
 

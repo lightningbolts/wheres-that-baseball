@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { AppNav } from "@/components/features/AppNav";
 import { AtBatMatchup } from "@/components/features/AtBatMatchup";
@@ -38,6 +38,7 @@ interface LiveGameDashboardProps {
 function DashboardContent({ game }: { game: SlateGame }) {
   const selectedGamePk = game.gamePk;
   const [activeTab, setActiveTab] = useState<GameDetailTab>("plays");
+  const mobileScrollRef = useRef<HTMLElement>(null);
 
   const { gameState, isLoading: isFeedLoading } = useLiveGameState(selectedGamePk, {
     pollBurstKey: activeTab,
@@ -164,15 +165,18 @@ function DashboardContent({ game }: { game: SlateGame }) {
           />
         </div>
 
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <main
+          ref={mobileScrollRef}
+          className="flex min-h-0 min-w-0 flex-1 flex-col max-md:overflow-y-auto max-md:overscroll-y-contain md:overflow-hidden"
+        >
           {showSkeleton ? (
             <DashboardSkeleton />
           ) : (
-            <div className="flex min-h-0 flex-1 flex-col gap-px overflow-hidden bg-border">
+            <div className="flex min-h-0 flex-1 flex-col gap-px overflow-hidden bg-border max-md:overflow-visible max-md:flex-none">
               <Panel
                 title={gameOver ? "Final" : showBreakUI ? "Due up" : "Current at-bat"}
                 flushMobile
-                className="order-1 min-h-0 overflow-hidden max-md:flex-none max-md:shrink-0 md:order-none md:min-h-[320px] md:flex-[3] md:shrink-0"
+                className="order-1 min-h-0 overflow-hidden md:order-none md:min-h-[320px] md:flex-[3] md:shrink-0 max-md:min-h-0"
               >
                   {gameOver && gameState ? (
                     <div className="flex flex-1 flex-col items-center justify-center gap-3 py-8 text-center">
@@ -308,7 +312,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
                   </div>
                 </Panel>
 
-                <div className="order-2 flex min-h-0 flex-1 flex-col overflow-hidden md:hidden">
+                <div className="order-2 flex min-h-0 flex-1 flex-col md:hidden max-md:flex-none">
                   <PlayByPlay
                     key={selectedGamePk}
                     monitorKey={selectedGamePk}
@@ -317,7 +321,9 @@ function DashboardContent({ game }: { game: SlateGame }) {
                     homeAbbrev={gameState?.homeAbbrev ?? "HME"}
                     venueId={gameState?.venueId}
                     variant="feed"
-                    className="min-h-0 flex-1"
+                    embeddedScroll
+                    parentScrollRef={mobileScrollRef}
+                    className="flex-none"
                     autoScrollToLatest
                     livePitches={
                       atBatInProgress || isLingering

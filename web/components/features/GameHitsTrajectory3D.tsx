@@ -15,7 +15,7 @@ import {
   getParkSceneMapper,
   trajectorySceneBounds,
 } from "@/lib/mlb/ballparkScene";
-import type { GameHit } from "@/lib/mlb/gameHits";
+import type { GameHit, SprayChartHit } from "@/lib/mlb/gameHits";
 import type { Vec3 } from "@/lib/mlb/ballTrajectory";
 
 function TrajectoryPath({
@@ -23,7 +23,7 @@ function TrajectoryPath({
   venueId,
   selected,
 }: {
-  gameHit: GameHit;
+  gameHit: SprayChartHit;
   venueId?: number | null;
   selected: boolean;
 }) {
@@ -61,7 +61,7 @@ function TrajectoryPath({
   );
 }
 
-function combinedBounds(hits: GameHit[], venueId?: number | null) {
+function combinedBounds(hits: SprayChartHit[], venueId?: number | null) {
   const mapper = getParkSceneMapper(venueId);
   const allPoints: Vec3[] = [[0, 0, 0]];
 
@@ -79,15 +79,15 @@ function Scene({
   getHitKey,
   selectedHitKey,
 }: {
-  hits: GameHit[];
+  hits: SprayChartHit[];
   venueId?: number | null;
   selectedAtBatIndex?: number | null;
-  getHitKey?: (hit: GameHit) => string | number;
+  getHitKey?: (hit: SprayChartHit) => string | number;
   selectedHitKey?: string | number | null;
 }) {
   const { canvasBg } = useFieldChartColors();
   const bounds = useMemo(() => combinedBounds(hits, venueId), [hits, venueId]);
-  const resolveKey = getHitKey ?? ((hit: GameHit) => hit.atBatIndex);
+  const resolveKey = getHitKey ?? ((hit: SprayChartHit) => hit.atBatIndex);
   const activeKey = selectedHitKey ?? selectedAtBatIndex;
 
   return (
@@ -115,10 +115,10 @@ function Scene({
 }
 
 interface GameHitsTrajectory3DProps {
-  hits: GameHit[];
+  hits: SprayChartHit[];
   venueId?: number | null;
   selectedAtBatIndex?: number | null;
-  getHitKey?: (hit: GameHit) => string | number;
+  getHitKey?: (hit: SprayChartHit) => string | number;
   selectedHitKey?: string | number | null;
   className?: string;
 }

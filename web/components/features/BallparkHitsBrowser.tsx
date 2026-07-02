@@ -7,6 +7,7 @@ import { GameHitsSprayChart } from "@/components/features/GameHitsSprayChart";
 import { TeamLogo } from "@/components/ui/TeamLogo";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useBallparkHitsSummary } from "@/hooks/useBallparkHits";
+import { useRestoreScrollWhenReady } from "@/hooks/useRestoreScrollWhenReady";
 import { HIT_TYPE_LABELS, type GameHit } from "@/lib/mlb/gameHits";
 import type { SprayPreviewHit } from "@/lib/mlb/ballparkHits";
 import { cn } from "@/lib/utils";
@@ -15,6 +16,7 @@ const CURRENT_SEASON = new Date().getFullYear();
 
 export function BallparkHitsBrowser() {
   const { data, isLoading, error } = useBallparkHitsSummary(CURRENT_SEASON);
+  useRestoreScrollWhenReady(!isLoading && (data?.parks.length ?? 0) > 0);
 
   const totalHits = data?.indexedHitCount ?? 0;
   const ballparksWithHits = data?.ballparksWithHits ?? 0;

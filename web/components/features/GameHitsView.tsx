@@ -13,6 +13,7 @@ import {
   HIT_TYPE_LABELS,
   type GameHit,
   type HitType,
+  type SprayChartHit,
 } from "@/lib/mlb/gameHits";
 import { cn } from "@/lib/utils";
 import type { PlayByPlayEntry } from "@/types/mlb-live";
@@ -134,7 +135,7 @@ export function GameHitsView({
       ? hits.find((hit) => hit.atBatIndex === selectedAtBatIndex) ?? null
       : null;
 
-  const handleSelectHit = (gameHit: GameHit) => {
+  const handleSelectHit = (gameHit: SprayChartHit) => {
     setSelectedAtBatIndex((current) =>
       current === gameHit.atBatIndex ? null : gameHit.atBatIndex,
     );

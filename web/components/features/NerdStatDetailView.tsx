@@ -42,7 +42,7 @@ export function NerdStatDetailView({ statId }: NerdStatDetailViewProps) {
       <AppNav />
 
       <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-6">
-        <Link href="/nerd" className="text-xs text-muted transition-colors hover:text-foreground">
+        <Link href="/nerd" scroll={false} className="text-xs text-muted transition-colors hover:text-foreground">
           ← Nerd Standings
         </Link>
 

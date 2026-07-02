@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import type { BallparkHitsAggregate, BallparkHitsDetail } from "@/lib/mlb/ballparkHits";
+import { paginateBallparkDetail } from "@/lib/mlb/ballparkHitsApi";
 import {
   getEmptyBallparkHitsDetail,
   getEmptyBallparkHitsSummary,
@@ -9,6 +10,8 @@ import {
 } from "@/lib/mlb/ballparkHitsStore";
 
 export const dynamic = "force-dynamic";
+
+const DEFAULT_PAGE_SIZE = 50;
 
 function loadSummary(season: number): BallparkHitsAggregate {
   const summary = loadBallparkHitsSummary(season);
@@ -36,10 +39,17 @@ function loadDetail(season: number, venueId: number): BallparkHitsDetail {
   }
 }
 
+function parsePositiveInt(value: string | null, fallback: number): number {
+  if (value == null) return fallback;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const seasonParam = searchParams.get("season");
   const venueIdParam = searchParams.get("venueId");
+  const hitKeyParam = searchParams.get("hitKey");
   const season = seasonParam ? Number.parseInt(seasonParam, 10) : new Date().getFullYear();
   const venueId = venueIdParam ? Number.parseInt(venueIdParam, 10) : undefined;
 
@@ -52,8 +62,47 @@ export async function GET(request: Request) {
   }
 
   try {
-    const result = venueId != null ? loadDetail(season, venueId) : loadSummary(season);
+    if (venueId != null && hitKeyParam) {
+      const detail = loadDetail(season, venueId);
+      const hit = detail.hits.find((entry) => entry.hitKey === hitKeyParam);
+      if (!hit) {
+        return NextResponse.json({ error: "Hit not found" }, { status: 404 });
+      }
+      return NextResponse.json({ hit }, { headers: { "Cache-Control": "public, max-age=300" } });
+    }
 
+    if (venueId != null) {
+      const detail = loadDetail(season, venueId);
+      const hitsOnly = searchParams.get("hitsOnly") === "true";
+      const limit = parsePositiveInt(searchParams.get("limit"), hitsOnly ? DEFAULT_PAGE_SIZE : 0);
+      const offset = parsePositiveInt(searchParams.get("offset"), 0);
+      const includeDetail = searchParams.get("includeDetail") === "true";
+      const includeChartHits = searchParams.get("includeChartHits") !== "false";
+
+      const result = paginateBallparkDetail(detail, {
+        limit,
+        offset,
+        includeDetail,
+        includeChartHits: hitsOnly ? false : includeChartHits,
+      });
+
+      if (hitsOnly) {
+        return NextResponse.json(
+          {
+            hits: result.hits,
+            hitsTotal: result.hitsTotal,
+            hasMore: result.hasMore,
+          },
+          { headers: { "Cache-Control": "public, max-age=120" } },
+        );
+      }
+
+      return NextResponse.json(result, {
+        headers: { "Cache-Control": "public, max-age=120" },
+      });
+    }
+
+    const result = loadSummary(season);
     return NextResponse.json(result, {
       headers: { "Cache-Control": "public, max-age=120" },
     });

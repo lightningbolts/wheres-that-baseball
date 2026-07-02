@@ -12,17 +12,17 @@ import {
   getBallparkByVenueId,
   mapHitToSvg,
 } from "@/lib/mlb/ballparkPaths";
-import type { GameHit } from "@/lib/mlb/gameHits";
+import type { HitType, SprayChartHit } from "@/lib/mlb/gameHits";
 import { SPRAY_HIT_COLOR_VAR } from "@/lib/mlb/sprayChartStyle";
 import { SprayTrajectory } from "@/components/features/SprayChartMarkers";
 
 interface GameHitsSprayChartProps {
-  hits: GameHit[];
+  hits: SprayChartHit[];
   venueId?: number | null;
   selectedAtBatIndex?: number | null;
-  getHitKey?: (hit: GameHit) => string | number;
+  getHitKey?: (hit: SprayChartHit) => string | number;
   selectedHitKey?: string | number | null;
-  onSelectHit?: (hit: GameHit) => void;
+  onSelectHit?: (hit: SprayChartHit) => void;
   showLineToggle?: boolean;
   /** When set, fixes line/dot mode and hides the toggle unless `showLineToggle` is true. */
   showLines?: boolean;
@@ -117,7 +117,7 @@ export function GameHitsSprayChart({
   const park = getBallparkByVenueId(venueId);
   const transform = park?.transform ?? GENERIC_TRANSFORM;
   const home = mapHitToSvg(125, 200, transform);
-  const resolveKey = getHitKey ?? ((hit: GameHit) => hit.atBatIndex);
+  const resolveKey = getHitKey ?? ((hit: SprayChartHit) => hit.atBatIndex);
   const activeKey = selectedHitKey ?? selectedAtBatIndex;
   const lineToggleEnabled =
     showLineToggle ?? (showLinesProp == null && Boolean(onSelectHit));
@@ -164,7 +164,7 @@ export function GameHitsSprayChart({
                 homeY={home.y}
                 x={x}
                 y={y}
-                color={SPRAY_HIT_COLOR_VAR[gameHit.event]}
+                color={SPRAY_HIT_COLOR_VAR[gameHit.event as HitType]}
                 selected={isSelected}
                 showLines={showLines}
                 ballRadius={ballRadius}

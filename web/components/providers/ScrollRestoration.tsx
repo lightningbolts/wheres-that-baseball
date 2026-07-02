@@ -3,46 +3,53 @@
 import { useEffect, useRef } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
-function buildScrollKey(pathname: string, searchParams: URLSearchParams): string {
-  const query = searchParams.toString();
-  return query ? `${pathname}?${query}` : pathname;
-}
+import {
+  buildScrollKey,
+  getSavedScrollY,
+  restoreScrollPosition,
+  saveScrollPosition,
+} from "@/lib/scrollRestoration";
 
-function restoreScrollY(targetY: number): void {
-  const attempt = (tries = 0) => {
-    window.scrollTo(0, targetY);
-    const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-    if (tries < 12 && maxScroll < targetY - 8) {
-      window.requestAnimationFrame(() => attempt(tries + 1));
-    }
-  };
-
-  window.requestAnimationFrame(() => attempt());
-}
-
-/** Remembers window scroll per route when navigating away and restores on return. */
+/** Remembers window scroll per route and restores on return (incl. async pages). */
 export function ScrollRestoration() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const scrollPositions = useRef(new Map<string, number>());
-  const scrollKey = buildScrollKey(pathname, searchParams);
+  const scrollKey = buildScrollKey(pathname, searchParams.toString());
+  const scrollKeyRef = useRef(scrollKey);
+  scrollKeyRef.current = scrollKey;
 
   useEffect(() => {
-    const savedY = scrollPositions.current.get(scrollKey);
+    let throttleId: number | null = null;
+
+    const persistScroll = () => {
+      saveScrollPosition(scrollKeyRef.current, window.scrollY);
+    };
+
+    const onScroll = () => {
+      if (throttleId != null) return;
+      throttleId = window.setTimeout(() => {
+        throttleId = null;
+        persistScroll();
+      }, 80);
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (throttleId != null) window.clearTimeout(throttleId);
+      persistScroll();
+    };
+  }, []);
+
+  useEffect(() => {
+    const savedY = getSavedScrollY(scrollKey);
+
     if (savedY === undefined) {
       window.scrollTo(0, 0);
       return;
     }
 
-    restoreScrollY(savedY);
-    const retry = window.setTimeout(() => restoreScrollY(savedY), 150);
-    return () => window.clearTimeout(retry);
-  }, [scrollKey]);
-
-  useEffect(() => {
-    return () => {
-      scrollPositions.current.set(scrollKey, window.scrollY);
-    };
+    return restoreScrollPosition(savedY);
   }, [scrollKey]);
 
   return null;

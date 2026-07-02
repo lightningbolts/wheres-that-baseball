@@ -7,6 +7,7 @@ import { AppNav } from "@/components/features/AppNav";
 import { NerdStatCard } from "@/components/features/NerdStatCard";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useNerdStatsSummary } from "@/hooks/useNerdStats";
+import { useRestoreScrollWhenReady } from "@/hooks/useRestoreScrollWhenReady";
 import { NERD_STAT_CATEGORIES, type NerdStatCategory } from "@/lib/mlb/nerdStats/types";
 import { MLB_TEAMS } from "@/lib/mlb/teams";
 import { cn } from "@/lib/utils";
@@ -38,11 +39,6 @@ export function NerdStandingsBrowser() {
   const [search, setSearch] = useState(savedUi?.search ?? "");
   const [teamId, setTeamId] = useState<number | null>(savedUi?.teamId ?? null);
 
-  useEffect(() => {
-    const payload: SavedNerdUi = { category, search, teamId };
-    sessionStorage.setItem(NERD_UI_STORAGE_KEY, JSON.stringify(payload));
-  }, [category, search, teamId]);
-
   const filteredStats = useMemo(() => {
     if (!data?.stats) return [];
     const query = search.trim().toLowerCase();
@@ -56,6 +52,13 @@ export function NerdStandingsBrowser() {
       );
     });
   }, [category, data?.stats, search]);
+
+  useRestoreScrollWhenReady(!isLoading && filteredStats.length > 0);
+
+  useEffect(() => {
+    const payload: SavedNerdUi = { category, search, teamId };
+    sessionStorage.setItem(NERD_UI_STORAGE_KEY, JSON.stringify(payload));
+  }, [category, search, teamId]);
 
   const statOfTheDay = data?.stats.find((stat) => stat.id === data.statOfTheDayId);
 
