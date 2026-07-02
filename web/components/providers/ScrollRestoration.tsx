@@ -6,11 +6,12 @@ import { usePathname, useSearchParams } from "next/navigation";
 import {
   buildScrollKey,
   getSavedScrollY,
+  isAsyncScrollRoute,
   restoreScrollPosition,
   saveScrollPosition,
 } from "@/lib/scrollRestoration";
 
-/** Remembers window scroll per route and restores on return (incl. async pages). */
+/** Remembers window scroll per route and restores on return (sync pages only). */
 export function ScrollRestoration() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -42,15 +43,16 @@ export function ScrollRestoration() {
   }, []);
 
   useEffect(() => {
-    const savedY = getSavedScrollY(scrollKey);
+    if (isAsyncScrollRoute(pathname)) return;
 
+    const savedY = getSavedScrollY(scrollKey);
     if (savedY === undefined) {
       window.scrollTo(0, 0);
       return;
     }
 
     return restoreScrollPosition(savedY);
-  }, [scrollKey]);
+  }, [pathname, scrollKey]);
 
   return null;
 }

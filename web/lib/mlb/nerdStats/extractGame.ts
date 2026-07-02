@@ -435,6 +435,8 @@ export function extractNerdCountersFromGame(row: GameNerdSourceRow): SeasonNerdC
       if (isHitEvent(play.event)) {
         defenseGame.hitsAllowed += 1;
         if (play.inning <= 6) defenseGame.hitsAllowedThrough6 += 1;
+        if (play.event === "Double") offense.doubles += 1;
+        if (play.event === "Triple") offense.triples += 1;
         if (
           defenseGame.hitsAllowed === 1 &&
           play.inning >= 7 &&
@@ -471,9 +473,18 @@ export function extractNerdCountersFromGame(row: GameNerdSourceRow): SeasonNerdC
         });
       }
 
+      if (play.isAtBat) {
+        const risp = play.situationBefore.onSecond || play.situationBefore.onThird;
+        if (risp) {
+          offense.rispPlateAppearances += 1;
+          if (isHitEvent(play.event)) offense.rispHits += 1;
+        }
+      }
+
       if (play.event === "Strikeout") {
         offense.strikeouts += 1;
         offenseGame.strikeoutsInGame += 1;
+        defense.pitchingStrikeouts += 1;
         const batterId = play.batterId ?? play.atBatIndex;
         const prev = offenseGame.batterStrikeouts.get(batterId) ?? {
           count: 0,
@@ -610,6 +621,7 @@ export function extractNerdCountersFromGame(row: GameNerdSourceRow): SeasonNerdC
         const hit = play.detail.hit;
         offenseGame.hrStreak += 1;
         offenseGame.maxHrStreak = Math.max(offenseGame.maxHrStreak, offenseGame.hrStreak);
+        if (offenseGame.hrStreak >= 2) offense.backToBackHrSequences += 1;
         defenseGame.opponentHr += 1;
 
         if (basesLoaded(play.situationBefore)) {

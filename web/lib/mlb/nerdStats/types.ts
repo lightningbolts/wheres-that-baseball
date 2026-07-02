@@ -108,6 +108,12 @@ export interface TeamNerdCounters {
   eightPlusRunGames: number;
   whiffFestGames: number;
   leadoffHomeRuns: number;
+  doubles: number;
+  triples: number;
+  rispHits: number;
+  rispPlateAppearances: number;
+  pitchingStrikeouts: number;
+  backToBackHrSequences: number;
   notableEvents: NotableNerdEvent[];
 }
 

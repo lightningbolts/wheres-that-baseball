@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 
 import {
   buildScrollKey,
@@ -12,21 +12,22 @@ import {
 /** Re-run scroll restoration after async content finishes loading. */
 export function useRestoreScrollWhenReady(ready: boolean, enabled = true): void {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const scrollKey = buildScrollKey(pathname, searchParams.toString());
+  const scrollKeyRef = useRef("");
   const restoredRef = useRef(false);
 
   useEffect(() => {
+    const query = window.location.search.replace(/^\?/, "");
+    scrollKeyRef.current = buildScrollKey(pathname, query);
     restoredRef.current = false;
-  }, [scrollKey]);
+  }, [pathname]);
 
   useEffect(() => {
     if (!enabled || !ready || restoredRef.current) return;
 
-    const savedY = getSavedScrollY(scrollKey);
+    const savedY = getSavedScrollY(scrollKeyRef.current);
     if (savedY === undefined) return;
 
     restoredRef.current = true;
     return restoreScrollPosition(savedY);
-  }, [enabled, ready, scrollKey]);
+  }, [enabled, ready, pathname]);
 }
