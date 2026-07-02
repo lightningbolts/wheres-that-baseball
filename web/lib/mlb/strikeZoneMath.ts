@@ -297,3 +297,60 @@ export function plateBandBatterBoxes(
     activeSide,
   };
 }
+
+/** Gameday-style scene anchors for the Call It portrait view. */
+export interface GamedaySceneLayout {
+  activeSide: BatterBoxRects["activeSide"];
+  batterAnchorPercent: number;
+  rightBox: SvgRectPercent;
+  leftBox: SvgRectPercent;
+}
+
+export function gamedaySceneLayout(
+  batSide: string | null | undefined,
+): GamedaySceneLayout {
+  const boxes = plateBandBatterBoxes(batSide);
+  const batterAnchorPercent =
+    boxes.activeSide === "rightHanded"
+      ? boxes.rightHanded.x + boxes.rightHanded.width / 2
+      : boxes.leftHanded.x + boxes.leftHanded.width / 2;
+
+  return {
+    activeSide: boxes.activeSide,
+    batterAnchorPercent,
+    rightBox: { x: 4, y: 86, width: 40, height: 12 },
+    leftBox: { x: 56, y: 86, width: 40, height: 12 },
+  };
+}
+
+/** Strike zone grid for the floating Gameday overlay (zone-only coordinates). */
+export function zoneOverlayRect(szTop: number, szBottom: number): SvgRectPercent {
+  const pad = 5;
+  return { x: pad, y: pad, width: 100 - pad * 2, height: 100 - pad * 2 };
+}
+
+/** Map plate coordinates into the zone-only overlay SVG. */
+export function zoneOverlayToSvgPercent(
+  pX: number,
+  pZ: number,
+  szTop: number,
+  szBottom: number,
+): { x: number; y: number } {
+  const zone = zoneVerticalBounds(szTop, szBottom);
+  const overlay = zoneOverlayRect(szTop, szBottom);
+  const minX = -VIEW_WIDTH_FT / 2;
+  const maxX = VIEW_WIDTH_FT / 2;
+
+  const x = overlay.x + ((pX - minX) / (maxX - minX)) * overlay.width;
+  let y: number;
+  if (pZ >= zone.minZ) {
+    y = overlay.y + (1 - (pZ - zone.minZ) / (zone.maxZ - zone.minZ)) * overlay.height;
+  } else {
+    y = overlay.y + overlay.height;
+  }
+
+  return {
+    x: Math.min(overlay.x + overlay.width, Math.max(overlay.x, x)),
+    y: Math.min(overlay.y + overlay.height, Math.max(overlay.y, y)),
+  };
+}

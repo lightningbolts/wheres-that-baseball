@@ -208,7 +208,7 @@ export function CallItGame({
         bestStreak={score.bestStreak}
       />
 
-      <div className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-border">
+      <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-black/30 p-2 sm:p-3">
         <CatcherScene
           pitches={displayPitches}
           batSide={batSide}
@@ -217,7 +217,7 @@ export function CallItGame({
           revealCall={showReveal}
           animatePitchIn={animatePitchIn}
           showStrikeZone={showStrikeZone}
-          className="h-full min-h-[18rem]"
+          className="h-full max-h-full w-auto"
         />
 
         {showReveal ? (

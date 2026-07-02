@@ -8,10 +8,12 @@ import {
   PLATE_BAND_PCT,
   ZONE_BAND_PCT,
   batterBoxRectsPercent,
+  gamedaySceneLayout,
   gameToSvgPercent,
   gameZoneRectPercent,
   isAbsStrike,
   plateBandBatterBoxes,
+  zoneOverlayToSvgPercent,
 } from "@/lib/mlb/strikeZoneMath";
 
 describe("gameToSvgPercent", () => {
@@ -81,6 +83,29 @@ describe("plateBandBatterBoxes", () => {
   it("selects active box from bat side", () => {
     expect(plateBandBatterBoxes("L").activeSide).toBe("leftHanded");
     expect(plateBandBatterBoxes("R").activeSide).toBe("rightHanded");
+  });
+});
+
+describe("gamedaySceneLayout", () => {
+  it("anchors LHB to the first-base box", () => {
+    const layout = gamedaySceneLayout("L");
+    expect(layout.activeSide).toBe("leftHanded");
+    expect(layout.batterAnchorPercent).toBeGreaterThan(50);
+  });
+
+  it("anchors RHB to the third-base box", () => {
+    const layout = gamedaySceneLayout("R");
+    expect(layout.activeSide).toBe("rightHanded");
+    expect(layout.batterAnchorPercent).toBeLessThan(50);
+  });
+});
+
+describe("zoneOverlayToSvgPercent", () => {
+  it("maps a middle strike to the center of the overlay", () => {
+    const pt = zoneOverlayToSvgPercent(0, 2.5, 3.5, 1.5);
+    expect(pt.x).toBeCloseTo(50, 0);
+    expect(pt.y).toBeGreaterThan(10);
+    expect(pt.y).toBeLessThan(90);
   });
 });
 
