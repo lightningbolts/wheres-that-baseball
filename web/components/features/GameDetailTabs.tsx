@@ -2,25 +2,36 @@
 
 import { cn } from "@/lib/utils";
 
-export type GameDetailTab = "plays" | "box" | "spray";
+export type GameDetailTab = "plays" | "box" | "spray" | "callIt";
 
 interface GameDetailTabsProps {
   activeTab: GameDetailTab;
   onTabChange: (tab: GameDetailTab) => void;
   className?: string;
+  /** Hide Call It tab for non-live games. */
+  showCallItTab?: boolean;
 }
 
-const TABS: { id: GameDetailTab; label: string }[] = [
+const ALL_TABS: { id: GameDetailTab; label: string }[] = [
   { id: "plays", label: "Play-by-Play" },
+  { id: "callIt", label: "Call It" },
   { id: "box", label: "Box" },
   { id: "spray", label: "Spray" },
 ];
 
-export function GameDetailTabs({ activeTab, onTabChange, className }: GameDetailTabsProps) {
+export function GameDetailTabs({
+  activeTab,
+  onTabChange,
+  className,
+  showCallItTab = true,
+}: GameDetailTabsProps) {
+  const tabs = showCallItTab
+    ? ALL_TABS
+    : ALL_TABS.filter((tab) => tab.id !== "callIt");
   return (
     <div className={cn("shrink-0 overflow-x-auto border-b border-border bg-surface", className)}>
       <div className="flex min-w-max gap-1 px-3 sm:px-4">
-        {TABS.map((tab) => {
+        {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
           return (
             <button

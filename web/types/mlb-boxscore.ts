@@ -24,6 +24,7 @@ export interface BatterBoxLine {
   name: string;
   note: string;
   positions: string;
+  batSide: string;
   atBats: number;
   runs: number;
   hits: number;

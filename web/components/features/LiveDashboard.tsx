@@ -7,6 +7,7 @@ import { AppNav } from "@/components/features/AppNav";
 import { AtBatMatchup } from "@/components/features/AtBatMatchup";
 import { BatterRispRecord } from "@/components/features/BatterRispRecord";
 import { BoxScoreView } from "@/components/features/BoxScoreView";
+import { CallItGame } from "@/components/features/callIt/CallItGame";
 import { ConnectionIndicator } from "@/components/features/ConnectionIndicator";
 import { DashboardSkeleton } from "@/components/features/DashboardSkeleton";
 import { DueUpDialog } from "@/components/features/DueUpDialog";
@@ -26,6 +27,7 @@ import { useLiveGameState } from "@/hooks/useLiveGameState";
 import { useGameBoxScore } from "@/hooks/useGameBoxScore";
 import { useLivePredictions } from "@/hooks/useLivePredictions";
 import { useOutcomeOdds } from "@/hooks/useOutcomeOdds";
+import { isGameOver } from "@/lib/mlb/gameOver";
 import { isHalfInningBreak } from "@/lib/mlb/lineup";
 import { isPlayByPlayAtBat } from "@/lib/mlb/liveFeed";
 import { cn } from "@/lib/utils";
@@ -131,6 +133,39 @@ function DashboardContent({ game }: { game: SlateGame }) {
           isLoading={isFeedLoading && !gameState}
           className="min-h-0 flex-1"
         />
+      </div>
+
+      <div
+        className={cn(
+          "flex min-h-0 flex-1 flex-col overflow-hidden",
+          activeTab !== "callIt" && "hidden",
+        )}
+        aria-hidden={activeTab !== "callIt"}
+      >
+        <Scorebug
+          className="shrink-0"
+          gameState={
+            gameState
+              ? { ...gameState, onFirst, onSecond, onThird }
+              : null
+          }
+          dueUpBatters={
+            gameState && !gameOver && isHalfInningBreak(gameState.inningState)
+              ? dueUp?.batters
+              : undefined
+          }
+        />
+        {showSkeleton ? (
+          <DashboardSkeleton />
+        ) : (
+          <CallItGame
+            gameState={atBatViewState ?? gameState}
+            boxScore={boxScore}
+            paused={showBreakUI || isLingering || isHalfInningBreak(gameState?.inningState ?? "")}
+            gameOver={gameOver || (gameState != null && isGameOver(gameState))}
+            className="min-h-0 flex-1"
+          />
+        )}
       </div>
 
       <div

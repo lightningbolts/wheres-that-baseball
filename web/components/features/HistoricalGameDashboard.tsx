@@ -7,6 +7,7 @@ import { AppNav } from "@/components/features/AppNav";
 import { BatterRispRecord } from "@/components/features/BatterRispRecord";
 import { BatterVsPitcherRecord } from "@/components/features/BatterVsPitcherRecord";
 import { BoxScoreView } from "@/components/features/BoxScoreView";
+import { CallItGame } from "@/components/features/callIt/CallItGame";
 import { ConnectionIndicator } from "@/components/features/ConnectionIndicator";
 import { DashboardSkeleton } from "@/components/features/DashboardSkeleton";
 import { DueUpDialog } from "@/components/features/DueUpDialog";
@@ -32,6 +33,7 @@ import { useLiveGameOverlays } from "@/hooks/useLiveGameOverlays";
 import { formatGameDate, formatMatchup, formatScore, isLiveStatus } from "@/lib/games/format";
 import { buildSeasonHistoryHref } from "@/lib/mlb/schedule";
 import { gameStateForAtBat } from "@/lib/games/replay";
+import { isGameOver } from "@/lib/mlb/gameOver";
 import { isHalfInningBreak } from "@/lib/mlb/lineup";
 import { isPlayByPlayAtBat } from "@/lib/mlb/liveFeed";
 import { cn } from "@/lib/utils";
@@ -345,7 +347,39 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
-          <GameDetailTabs activeTab={activeTab} onTabChange={setActiveTab} />
+          <GameDetailTabs
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            showCallItTab={isLive}
+          />
+
+          <div
+            className={cn(
+              "flex min-h-0 flex-1 flex-col overflow-hidden",
+              activeTab !== "callIt" && "hidden",
+            )}
+            aria-hidden={activeTab !== "callIt"}
+          >
+            {isLive && gameState ? (
+              <>
+                <Scorebug
+                  gameState={scorebugState}
+                  dueUpBatters={
+                    !gameOver && isHalfInningBreak(gameState.inningState)
+                      ? dueUp?.batters
+                      : undefined
+                  }
+                />
+                <CallItGame
+                  gameState={atBatViewState ?? gameState}
+                  boxScore={boxScore}
+                  paused={showBreakUI || isLingering || isHalfInningBreak(gameState.inningState)}
+                  gameOver={gameOver || isGameOver(gameState)}
+                  className="min-h-0 flex-1"
+                />
+              </>
+            ) : null}
+          </div>
 
           <div
             className={cn(

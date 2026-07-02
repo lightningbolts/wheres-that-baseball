@@ -118,6 +118,7 @@ function parseBatterLine(player: BoxScorePlayerRaw): BatterBoxLine | null {
     name: player.person?.boxscoreName ?? player.person?.fullName ?? "—",
     note: formatStat(batting.note, ""),
     positions: formatPositions(player),
+    batSide: player.batSide?.code ?? "R",
     atBats: Number(batting.atBats ?? 0),
     runs: Number(batting.runs ?? 0),
     hits: Number(batting.hits ?? 0),
