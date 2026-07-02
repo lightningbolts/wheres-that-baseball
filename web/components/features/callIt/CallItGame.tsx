@@ -4,11 +4,13 @@ import { useEffect, useState } from "react";
 
 import { CatcherScene } from "@/components/features/callIt/CatcherScene";
 import { findBatterBoxLine } from "@/lib/mlb/boxScoreLookup";
+import { CALL_IT_ZONE_STORAGE_KEY } from "@/lib/mlb/callItGame";
 import { cn } from "@/lib/utils";
 import {
   useCallItGame,
   type CallItMode,
 } from "@/hooks/useCallItGame";
+import { useGamedayBatterImage } from "@/hooks/useGamedayBatterImage";
 import type { GameBoxScore } from "@/types/mlb-boxscore";
 import type { LiveGameState } from "@/types/mlb-live";
 
@@ -18,6 +20,12 @@ interface CallItGameProps {
   paused: boolean;
   gameOver: boolean;
   className?: string;
+}
+
+function loadShowZone(): boolean {
+  if (typeof window === "undefined") return true;
+  const stored = localStorage.getItem(CALL_IT_ZONE_STORAGE_KEY);
+  return stored !== "0";
 }
 
 function ModeToggle({
@@ -53,6 +61,43 @@ function ModeToggle({
   );
 }
 
+function ZoneToggle({
+  showZone,
+  onChange,
+}: {
+  showZone: boolean;
+  onChange: (show: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!showZone)}
+      className={cn(
+        "flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
+        showZone
+          ? "border-border bg-surface-elevated text-foreground"
+          : "border-border bg-overlay text-muted",
+      )}
+      aria-pressed={showZone}
+    >
+      <span
+        className={cn(
+          "relative h-4 w-7 rounded-full transition-colors",
+          showZone ? "bg-foreground" : "bg-faint",
+        )}
+      >
+        <span
+          className={cn(
+            "absolute top-0.5 h-3 w-3 rounded-full bg-background transition-transform",
+            showZone ? "left-3.5" : "left-0.5",
+          )}
+        />
+      </span>
+      Strike zone
+    </button>
+  );
+}
+
 function Scoreboard({
   correct,
   total,
@@ -67,25 +112,23 @@ function Scoreboard({
   const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
 
   return (
-    <div className="grid grid-cols-4 gap-2 text-center">
-      <div className="rounded-md border border-border bg-surface-elevated px-2 py-2">
-        <p className="text-[10px] uppercase tracking-wide text-subtle">Score</p>
-        <p className="font-mono text-lg font-semibold tabular-nums">
-          {correct}/{total}
-        </p>
-      </div>
-      <div className="rounded-md border border-border bg-surface-elevated px-2 py-2">
-        <p className="text-[10px] uppercase tracking-wide text-subtle">Accuracy</p>
-        <p className="font-mono text-lg font-semibold tabular-nums">{accuracy}%</p>
-      </div>
-      <div className="rounded-md border border-border bg-surface-elevated px-2 py-2">
-        <p className="text-[10px] uppercase tracking-wide text-subtle">Streak</p>
-        <p className="font-mono text-lg font-semibold tabular-nums">{streak}</p>
-      </div>
-      <div className="rounded-md border border-border bg-surface-elevated px-2 py-2">
-        <p className="text-[10px] uppercase tracking-wide text-subtle">Best</p>
-        <p className="font-mono text-lg font-semibold tabular-nums">{bestStreak}</p>
-      </div>
+    <div className="grid grid-cols-4 gap-1.5 text-center sm:gap-2">
+      {[
+        { label: "Score", value: `${correct}/${total}` },
+        { label: "Accuracy", value: `${accuracy}%` },
+        { label: "Streak", value: String(streak) },
+        { label: "Best", value: String(bestStreak) },
+      ].map((stat) => (
+        <div
+          key={stat.label}
+          className="rounded-md border border-border bg-surface-elevated px-1.5 py-1.5 sm:px-2 sm:py-2"
+        >
+          <p className="text-[9px] uppercase tracking-wide text-subtle sm:text-[10px]">
+            {stat.label}
+          </p>
+          <p className="font-mono text-base font-semibold tabular-nums sm:text-lg">{stat.value}</p>
+        </div>
+      ))}
     </div>
   );
 }
@@ -111,10 +154,20 @@ export function CallItGame({
   } = useCallItGame({ gameState, paused, gameOver });
 
   const [lockedGuess, setLockedGuess] = useState<"strike" | "ball" | null>(null);
+  const [showStrikeZone, setShowStrikeZone] = useState(true);
+
+  useEffect(() => {
+    setShowStrikeZone(loadShowZone());
+  }, []);
 
   useEffect(() => {
     if (phase !== "awaiting_pre") setLockedGuess(null);
   }, [phase]);
+
+  const handleZoneToggle = (show: boolean) => {
+    setShowStrikeZone(show);
+    localStorage.setItem(CALL_IT_ZONE_STORAGE_KEY, show ? "1" : "0");
+  };
 
   const handleGuess = (call: "strike" | "ball") => {
     if (mode === "predictor" && phase === "awaiting_pre") setLockedGuess(call);
@@ -127,15 +180,23 @@ export function CallItGame({
     gameState?.offenseTeamId,
   );
   const batSide = batterLine?.batSide ?? "R";
+  const batterImageUrl = useGamedayBatterImage(
+    gameState?.gamePk,
+    gameState?.offenseTeamId,
+    batSide,
+  );
 
   const displayPitches = gameState?.atBatPitches ?? [];
   const showReveal = phase === "revealed" && reveal != null;
 
   return (
-    <div className={cn("flex min-h-0 flex-1 flex-col gap-3 p-3 md:gap-4", className)}>
+    <div className={cn("flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-3 sm:p-3", className)}>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <ModeToggle mode={mode} onChange={setMode} />
-        <p className="text-xs text-muted">
+        <div className="flex flex-wrap items-center gap-2">
+          <ModeToggle mode={mode} onChange={setMode} />
+          <ZoneToggle showZone={showStrikeZone} onChange={handleZoneToggle} />
+        </div>
+        <p className="truncate text-xs text-muted">
           {gameState?.batterName ?? "—"} vs {gameState?.pitcherName ?? "—"}
         </p>
       </div>
@@ -147,22 +208,22 @@ export function CallItGame({
         bestStreak={score.bestStreak}
       />
 
-      <div className="relative min-h-0 flex-1">
+      <div className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-border">
         <CatcherScene
           pitches={displayPitches}
           batSide={batSide}
-          batterId={gameState?.batterId ?? null}
-          batterName={gameState?.batterName ?? "—"}
+          batterImageUrl={batterImageUrl}
           activePitch={activePitch}
           revealCall={showReveal}
           animatePitchIn={animatePitchIn}
-          className="h-[clamp(17rem,42dvh,28rem)] md:h-full"
+          showStrikeZone={showStrikeZone}
+          className="h-full min-h-[18rem]"
         />
 
         {showReveal ? (
           <div
             className={cn(
-              "absolute inset-x-3 bottom-3 rounded-lg border px-4 py-3 text-center shadow-lg backdrop-blur-sm",
+              "absolute inset-x-2 bottom-2 rounded-lg border px-3 py-2.5 text-center shadow-lg backdrop-blur-sm sm:inset-x-3 sm:bottom-3 sm:px-4 sm:py-3",
               reveal.correct
                 ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-100"
                 : "border-red-500/40 bg-red-500/15 text-red-100",
@@ -187,13 +248,13 @@ export function CallItGame({
 
       <p className="text-center text-sm text-secondary">{statusMessage}</p>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-2 sm:gap-3">
         <button
           type="button"
           disabled={!canGuess}
           onClick={() => handleGuess("ball")}
           className={cn(
-            "rounded-lg border-2 py-4 text-base font-semibold transition-colors",
+            "rounded-lg border-2 py-3.5 text-base font-semibold transition-colors sm:py-4",
             canGuess
               ? lockedGuess === "ball"
                 ? "border-emerald-400 bg-emerald-500/25 text-emerald-100"
@@ -208,7 +269,7 @@ export function CallItGame({
           disabled={!canGuess}
           onClick={() => handleGuess("strike")}
           className={cn(
-            "rounded-lg border-2 py-4 text-base font-semibold transition-colors",
+            "rounded-lg border-2 py-3.5 text-base font-semibold transition-colors sm:py-4",
             canGuess
               ? lockedGuess === "strike"
                 ? "border-red-400 bg-red-500/25 text-red-100"

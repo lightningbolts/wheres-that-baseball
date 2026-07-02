@@ -281,3 +281,19 @@ export function moundArcPath(szTop: number, szBottom: number): string {
   const rx = zone.width * 1.8;
   return `M${cx - rx} ${y} A${rx} ${rx * 0.35} 0 0 1 ${cx + rx} ${y}`;
 }
+
+/** Batter's boxes in the plate band — Gameday chalk lines flanking home plate. */
+export function plateBandBatterBoxes(
+  batSide: string | null | undefined,
+): BatterBoxRects {
+  const activeSide: BatterBoxRects["activeSide"] =
+    batSide?.toUpperCase() === "L" ? "leftHanded" : "rightHanded";
+  const bandTop = ZONE_BAND_PCT + 1;
+  const bandHeight = 100 - bandTop - 0.5;
+
+  return {
+    rightHanded: { x: 5, y: bandTop, width: 36, height: bandHeight },
+    leftHanded: { x: 59, y: bandTop, width: 36, height: bandHeight },
+    activeSide,
+  };
+}

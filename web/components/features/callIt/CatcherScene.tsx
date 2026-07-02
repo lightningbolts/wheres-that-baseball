@@ -2,16 +2,15 @@
 
 import { useEffect, useState } from "react";
 
-import { BatterFigure } from "@/components/features/callIt/BatterFigure";
 import { cn } from "@/lib/utils";
 import {
   PITCH_NEUTRAL_COLOR,
-  batterBoxRectsPercent,
-  gameHomePlatePath,
-  gameToSvgPercent,
-  gameZoneRectPercent,
-  moundArcPath,
+  ZONE_BAND_PCT,
+  homePlatePath,
   pitchResultColor,
+  plateBandBatterBoxes,
+  toSvgPercent,
+  zoneRectPercent,
   type SvgRectPercent,
 } from "@/lib/mlb/strikeZoneMath";
 import type { PlayPitch } from "@/types/mlb-live";
@@ -19,14 +18,11 @@ import type { PlayPitch } from "@/types/mlb-live";
 interface CatcherSceneProps {
   pitches: PlayPitch[];
   batSide: string | null;
-  batterId: number | null;
-  batterName: string;
-  /** Pitch shown in guess phase (location visible, call hidden). */
+  batterImageUrl: string | null;
   activePitch: PlayPitch | null;
-  /** When true, show actual call color on active pitch. */
   revealCall: boolean;
-  /** Animate pitch dot traveling to the plate (umpire mode). */
   animatePitchIn?: boolean;
+  showStrikeZone?: boolean;
   className?: string;
 }
 
@@ -70,7 +66,7 @@ function ZoneGridLines({ zone }: { zone: SvgRectPercent }) {
   );
 }
 
-function BatterBox({
+function BatterBoxChalk({
   box,
   active,
 }: {
@@ -83,11 +79,11 @@ function BatterBox({
       y={box.y}
       width={box.width}
       height={box.height}
-      fill={active ? "var(--zone-chart-zone-fill)" : "transparent"}
-      stroke="var(--zone-chart-grid)"
-      strokeWidth={active ? "0.9" : "0.5"}
-      strokeDasharray={active ? undefined : "1.2 1.2"}
-      opacity={active ? 0.55 : 0.35}
+      fill="none"
+      stroke="rgb(255 255 255 / 0.7)"
+      strokeWidth={active ? "0.75" : "0.45"}
+      strokeDasharray={active ? undefined : "1.4 1.4"}
+      opacity={active ? 1 : 0.4}
     />
   );
 }
@@ -98,14 +94,16 @@ function PitchDot({
   szBottom,
   revealCall,
   animateIn,
+  showNumber,
 }: {
   pitch: PlayPitch;
   szTop: number;
   szBottom: number;
   revealCall: boolean;
   animateIn: boolean;
+  showNumber?: boolean;
 }) {
-  const target = gameToSvgPercent(pitch.plateX, pitch.plateZ, szTop, szBottom);
+  const target = toSvgPercent(pitch.plateX, pitch.plateZ, szTop, szBottom);
   const [pos, setPos] = useState(target);
 
   useEffect(() => {
@@ -114,7 +112,7 @@ function PitchDot({
       return;
     }
 
-    setPos({ x: 50, y: 8 });
+    setPos({ x: 50, y: 6 });
     const frame = requestAnimationFrame(() => {
       requestAnimationFrame(() => setPos(target));
     });
@@ -123,11 +121,26 @@ function PitchDot({
 
   const color = revealCall ? pitchResultColor(pitch) : PITCH_NEUTRAL_COLOR;
   const transition = animateIn && !revealCall ? "cx 400ms ease-out, cy 400ms ease-out" : undefined;
+  const dotR = 2.4;
 
   return (
     <g>
-      <circle cx={pos.x} cy={pos.y} r={2.8} fill="rgb(0 0 0 / 0.25)" style={{ transition }} />
-      <circle cx={pos.x} cy={pos.y} r={2.4} fill={color} style={{ transition }} />
+      <circle cx={pos.x} cy={pos.y} r={dotR + 0.35} fill="rgb(0 0 0 / 0.3)" style={{ transition }} />
+      <circle cx={pos.x} cy={pos.y} r={dotR} fill={color} style={{ transition }} />
+      {showNumber ? (
+        <text
+          x={pos.x}
+          y={pos.y}
+          textAnchor="middle"
+          dominantBaseline="central"
+          fontSize="2.8"
+          fill="#fff"
+          fontWeight="bold"
+          style={{ transition }}
+        >
+          {pitch.pitchNumber}
+        </text>
+      ) : null}
     </g>
   );
 }
@@ -135,83 +148,100 @@ function PitchDot({
 export function CatcherScene({
   pitches,
   batSide,
-  batterId,
-  batterName,
+  batterImageUrl,
   activePitch,
   revealCall,
   animatePitchIn = false,
+  showStrikeZone = true,
   className,
 }: CatcherSceneProps) {
   const plotted = pitches.filter((p) => p.isPitch && p.hasPlateLocation !== false);
   const szTop = activePitch?.strikeZoneTop ?? plotted.at(-1)?.strikeZoneTop ?? 3.5;
   const szBottom = activePitch?.strikeZoneBottom ?? plotted.at(-1)?.strikeZoneBottom ?? 1.5;
-  const zone = gameZoneRectPercent(szTop, szBottom);
-  const plate = gameHomePlatePath(zone, szTop, szBottom);
-  const boxes = batterBoxRectsPercent(batSide, szTop, szBottom);
-  const activeBox = boxes[boxes.activeSide];
+  const zone = zoneRectPercent(szTop, szBottom);
+  const plate = homePlatePath(zone, szTop, szBottom);
+  const boxes = plateBandBatterBoxes(batSide);
+  const activeSide = boxes.activeSide;
 
   const priorPitches = activePitch
     ? plotted.filter((p) => p.pitchNumber < activePitch.pitchNumber)
     : plotted;
 
   return (
-    <svg
-      viewBox="0 0 100 100"
-      className={cn(
-        "h-[clamp(17rem,45vh,28rem)] w-full border border-border bg-zone-chart-bg md:h-full md:min-h-[280px]",
-        className,
-      )}
-      aria-label="Catcher view strike zone"
-      preserveAspectRatio="xMidYMid meet"
-    >
-      <path
-        d={moundArcPath(szTop, szBottom)}
-        fill="none"
-        stroke="var(--zone-chart-grid)"
-        strokeWidth="0.4"
-        opacity="0.35"
-      />
-      <BatterBox box={boxes.rightHanded} active={boxes.activeSide === "rightHanded"} />
-      <BatterBox box={boxes.leftHanded} active={boxes.activeSide === "leftHanded"} />
-      <path
-        d={plate}
-        fill="var(--zone-chart-plate)"
-        stroke="var(--zone-chart-grid)"
-        strokeWidth="0.55"
-      />
-      <rect
-        x={zone.x}
-        y={zone.y}
-        width={zone.width}
-        height={zone.height}
-        fill="var(--zone-chart-zone-fill)"
-        opacity="0.85"
-      />
-      <ZoneGridLines zone={zone} />
-      <BatterFigure
-        batterId={batterId}
-        batterName={batterName}
-        box={activeBox}
-        batSide={batSide}
-      />
-      {priorPitches.map((pitch) => {
-        const dot = gameToSvgPercent(pitch.plateX, pitch.plateZ, szTop, szBottom);
-        const color = pitchResultColor(pitch);
-        return (
-          <g key={`${pitch.pitchNumber}-${pitch.callCode}`}>
-            <circle cx={dot.x} cy={dot.y} r={2.1} fill={color} opacity="0.85" />
-          </g>
-        );
-      })}
-      {activePitch && activePitch.hasPlateLocation !== false ? (
-        <PitchDot
-          pitch={activePitch}
-          szTop={szTop}
-          szBottom={szBottom}
-          revealCall={revealCall}
-          animateIn={animatePitchIn && !revealCall}
+    <div className={cn("relative h-full w-full", className)}>
+      <svg
+        viewBox="0 0 100 100"
+        className="h-full w-full touch-none bg-zone-chart-bg"
+        aria-label="Catcher view"
+        preserveAspectRatio="xMidYMid meet"
+      >
+        <BatterBoxChalk box={boxes.rightHanded} active={activeSide === "rightHanded"} />
+        <BatterBoxChalk box={boxes.leftHanded} active={activeSide === "leftHanded"} />
+
+        <path
+          d={plate}
+          fill="var(--zone-chart-plate)"
+          stroke="var(--zone-chart-grid)"
+          strokeWidth="0.55"
+        />
+
+        {showStrikeZone ? (
+          <>
+            <rect
+              x={zone.x}
+              y={zone.y}
+              width={zone.width}
+              height={zone.height}
+              fill="var(--zone-chart-zone-fill)"
+            />
+            <ZoneGridLines zone={zone} />
+          </>
+        ) : null}
+
+        {priorPitches.map((pitch) => (
+          <PitchDot
+            key={`${pitch.pitchNumber}-${pitch.callCode}`}
+            pitch={pitch}
+            szTop={szTop}
+            szBottom={szBottom}
+            revealCall={false}
+            animateIn={false}
+            showNumber={showStrikeZone}
+          />
+        ))}
+
+        {activePitch && activePitch.hasPlateLocation !== false ? (
+          <PitchDot
+            pitch={activePitch}
+            szTop={szTop}
+            szBottom={szBottom}
+            revealCall={revealCall}
+            animateIn={animatePitchIn && !revealCall}
+            showNumber={showStrikeZone && revealCall}
+          />
+        ) : null}
+
+        <line
+          x1="0"
+          y1={ZONE_BAND_PCT}
+          x2="100"
+          y2={ZONE_BAND_PCT}
+          stroke="var(--zone-chart-grid)"
+          strokeWidth="0.25"
+          opacity="0.4"
+        />
+      </svg>
+
+      {batterImageUrl ? (
+        <img
+          src={batterImageUrl}
+          alt=""
+          className={cn(
+            "pointer-events-none absolute bottom-0 h-[46%] w-auto max-w-[40%] object-contain object-bottom",
+            activeSide === "rightHanded" ? "left-[6%]" : "right-[6%]",
+          )}
         />
       ) : null}
-    </svg>
+    </div>
   );
 }

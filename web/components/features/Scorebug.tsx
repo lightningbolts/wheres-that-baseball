@@ -19,11 +19,88 @@ function inningLabel(inning: number, halfInning: string): string {
   return `${prefix} ${inning}`;
 }
 
+function StatCell({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex shrink-0 items-center justify-center border-r border-border px-2 md:px-2.5",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+function MatchupLine({
+  gameEnded,
+  isBreak,
+  awayAbbrev,
+  awayRuns,
+  homeRuns,
+  homeAbbrev,
+  dueUpBatters,
+  batterName,
+  onDeckName,
+  inHoleName,
+  pitcherName,
+}: {
+  gameEnded: boolean;
+  isBreak: boolean;
+  awayAbbrev: string;
+  awayRuns: number;
+  homeRuns: number;
+  homeAbbrev: string;
+  dueUpBatters?: DueUpBatter[];
+  batterName: string;
+  onDeckName: string;
+  inHoleName: string;
+  pitcherName: string;
+}) {
+  if (gameEnded) {
+    return (
+      <span className="truncate text-sm font-medium">
+        Final · {awayAbbrev} {awayRuns}–{homeRuns} {homeAbbrev}
+      </span>
+    );
+  }
+
+  if (isBreak) {
+    const lead = dueUpBatters?.[0]
+      ? `${dueUpBatters[0].order}. ${dueUpBatters[0].name}`
+      : batterName;
+    const follow =
+      dueUpBatters?.[1]?.name ??
+      (onDeckName && onDeckName !== "—" ? onDeckName : null);
+    return (
+      <span className="truncate text-sm">
+        <span className="font-medium text-scorebug-muted">Due up </span>
+        <span className="font-medium">{lead}</span>
+        {follow ? <span className="text-scorebug-muted"> · {follow}</span> : null}
+      </span>
+    );
+  }
+
+  return (
+    <span className="truncate text-sm">
+      <span className="font-medium">{batterName}</span>
+      <span className="text-scorebug-muted"> vs </span>
+      <span className="text-secondary">{pitcherName}</span>
+    </span>
+  );
+}
+
 /** Fox-style broadcast scorebug with score, inning, count, outs, bases, matchup. */
 export function Scorebug({ gameState, dueUpBatters, className }: ScorebugProps) {
   if (!gameState) {
     return (
-      <div className={cn("h-14 border-b border-border bg-scorebug", className)}>
+      <div className={cn("h-11 border-b border-border bg-scorebug lg:h-14", className)}>
         <div className="h-full animate-pulse bg-overlay" />
       </div>
     );
@@ -55,119 +132,117 @@ export function Scorebug({ gameState, dueUpBatters, className }: ScorebugProps) 
   return (
     <div
       className={cn(
-        "flex h-14 w-full max-w-full shrink-0 items-stretch border-b border-border bg-scorebug text-scorebug-fg max-md:overflow-hidden",
+        "flex w-full max-w-full shrink-0 flex-col border-b border-border bg-scorebug text-scorebug-fg",
+        "lg:flex-row lg:items-stretch lg:h-14",
         className,
       )}
     >
-      <div className="flex min-w-0 flex-1 items-stretch overflow-x-auto overscroll-x-contain md:overflow-visible">
-      <div className="flex min-w-[52px] flex-col items-center justify-center border-r border-border px-2 max-md:min-w-[52px] md:min-w-[72px] md:px-3">
-        <TeamLogo abbrev={awayAbbrev} size={22} className="mb-0.5" />
-        <span className="font-mono text-2xl font-bold leading-none tabular-nums">{awayRuns}</span>
-      </div>
+      {/* Stats strip — horizontal scroll, never shares a row with matchup below lg */}
+      <div className="flex h-11 min-w-0 items-stretch overflow-x-auto overscroll-x-contain lg:h-14 lg:flex-1 lg:overflow-visible">
+        <StatCell className="min-w-[48px] flex-col gap-0.5 py-1 md:min-w-[56px] lg:min-w-[72px] lg:px-3">
+          <TeamLogo abbrev={awayAbbrev} size={18} className="lg:hidden" />
+          <TeamLogo abbrev={awayAbbrev} size={22} className="hidden lg:block" />
+          <span className="font-mono text-xl font-bold leading-none tabular-nums lg:text-2xl">
+            {awayRuns}
+          </span>
+        </StatCell>
 
-      <div className="flex min-w-[52px] flex-col items-center justify-center border-r border-border px-2 max-md:min-w-[52px] md:min-w-[72px] md:px-3">
-        <TeamLogo abbrev={homeAbbrev} size={22} className="mb-0.5" />
-        <span className="font-mono text-2xl font-bold leading-none tabular-nums">{homeRuns}</span>
-      </div>
+        <StatCell className="min-w-[48px] flex-col gap-0.5 py-1 md:min-w-[56px] lg:min-w-[72px] lg:px-3">
+          <TeamLogo abbrev={homeAbbrev} size={18} className="lg:hidden" />
+          <TeamLogo abbrev={homeAbbrev} size={22} className="hidden lg:block" />
+          <span className="font-mono text-xl font-bold leading-none tabular-nums lg:text-2xl">
+            {homeRuns}
+          </span>
+        </StatCell>
 
-      <div className="flex min-w-[52px] items-center justify-center border-r border-border px-2 md:min-w-[64px] md:px-3">
-        <span className="font-mono text-sm font-semibold tracking-wide">
-          {gameEnded ? "FINAL" : inningLabel(inning, inningHalf)}
-        </span>
-      </div>
+        <StatCell className="min-w-[44px] md:min-w-[52px] lg:min-w-[64px] lg:px-3">
+          <span className="font-mono text-xs font-semibold tracking-wide md:text-sm">
+            {gameEnded ? "FINAL" : inningLabel(inning, inningHalf)}
+          </span>
+        </StatCell>
 
-      <div className="flex items-center gap-1.5 border-r border-border px-2 md:gap-2 md:px-3">
-        <div className="flex flex-col items-center gap-0.5">
-          <span className="text-[9px] font-semibold text-green-600 dark:text-green-500">B</span>
-          <span className="flex h-7 w-7 items-center justify-center rounded bg-green-600/15 font-mono text-lg font-bold tabular-nums text-green-700 dark:bg-green-600/20 dark:text-green-400">
+        {/* Compact count — tight / medium layouts */}
+        <StatCell className="gap-1 lg:hidden">
+          <span className="font-mono text-base font-bold tabular-nums text-green-700 dark:text-green-400">
             {isBreak ? "–" : balls}
           </span>
-        </div>
-        <div className="flex flex-col items-center gap-0.5">
-          <span className="text-[9px] font-semibold text-red-600 dark:text-red-500">S</span>
-          <span className="flex h-7 w-7 items-center justify-center rounded bg-red-600/15 font-mono text-lg font-bold tabular-nums text-red-700 dark:bg-red-600/20 dark:text-red-400">
+          <span className="text-[10px] text-scorebug-muted">–</span>
+          <span className="font-mono text-base font-bold tabular-nums text-red-700 dark:text-red-400">
             {isBreak ? "–" : strikes}
           </span>
-        </div>
+        </StatCell>
+
+        {/* Full B/S boxes — wide layouts */}
+        <StatCell className="hidden gap-2 lg:flex lg:px-3">
+          <div className="flex flex-col items-center gap-0.5">
+            <span className="text-[9px] font-semibold text-green-600 dark:text-green-500">B</span>
+            <span className="flex h-7 w-7 items-center justify-center rounded bg-green-600/15 font-mono text-lg font-bold tabular-nums text-green-700 dark:bg-green-600/20 dark:text-green-400">
+              {isBreak ? "–" : balls}
+            </span>
+          </div>
+          <div className="flex flex-col items-center gap-0.5">
+            <span className="text-[9px] font-semibold text-red-600 dark:text-red-500">S</span>
+            <span className="flex h-7 w-7 items-center justify-center rounded bg-red-600/15 font-mono text-lg font-bold tabular-nums text-red-700 dark:bg-red-600/20 dark:text-red-400">
+              {isBreak ? "–" : strikes}
+            </span>
+          </div>
+        </StatCell>
+
+        <StatCell className="flex-col py-1 lg:px-3" aria-label={`${safeOuts} outs`}>
+          <span className="mb-0.5 text-[8px] font-semibold text-scorebug-muted lg:mb-1 lg:text-[9px]">
+            OUT
+          </span>
+          <div className="flex gap-0.5 lg:gap-1">
+            {[0, 1, 2].map((i) => (
+              <span
+                key={i}
+                className={cn(
+                  "h-2 w-2 rounded-full lg:h-2.5 lg:w-2.5",
+                  i < safeOuts ? "bg-scorebug-fg" : "bg-faint",
+                )}
+              />
+            ))}
+          </div>
+        </StatCell>
+
+        <StatCell className="pr-2 lg:px-3">
+          <BaseDiamond
+            onFirst={onFirst}
+            onSecond={onSecond}
+            onThird={onThird}
+            size="tiny"
+            className="lg:hidden"
+          />
+          <BaseDiamond
+            onFirst={onFirst}
+            onSecond={onSecond}
+            onThird={onThird}
+            size="compact"
+            className="hidden lg:block"
+          />
+        </StatCell>
       </div>
 
+      {/* Matchup — own row when tight; inline panel on lg+ */}
       <div
-        className="flex flex-col items-center justify-center border-r border-border px-2 md:px-3"
-        aria-label={`${safeOuts} outs`}
-      >
-        <span className="mb-1 text-[9px] font-semibold text-scorebug-muted">OUT</span>
-        <div className="flex gap-1">
-          {[0, 1, 2].map((i) => (
-            <span
-              key={i}
-              className={cn(
-                "h-2.5 w-2.5 rounded-full",
-                i < safeOuts ? "bg-scorebug-fg" : "bg-faint",
-              )}
-            />
-          ))}
-        </div>
-      </div>
-
-      <div className="flex items-center border-r border-border px-2 md:px-3">
-        <BaseDiamond
-          onFirst={onFirst}
-          onSecond={onSecond}
-          onThird={onThird}
-          size="compact"
-        />
-      </div>
-      </div>
-
-      <div className="hidden min-w-0 flex-1 flex-col justify-center px-3 md:flex md:px-4">
-        {gameEnded ? (
-          <>
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-scorebug-muted">
-              Final
-            </span>
-            <span className="truncate text-[15px] font-medium">
-              {awayAbbrev} {awayRuns} – {homeRuns} {homeAbbrev}
-            </span>
-          </>
-        ) : isBreak ? (
-          <>
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-scorebug-muted">
-              Due up
-            </span>
-            <span className="truncate text-[15px] font-medium">
-              {dueUpBatters?.[0]
-                ? `${dueUpBatters[0].order}. ${dueUpBatters[0].name}`
-                : batterName}
-            </span>
-            <span className="truncate text-[12px] text-scorebug-muted">
-              {dueUpBatters?.[1] ? (
-                <>
-                  {dueUpBatters[1].order}. {dueUpBatters[1].name}
-                </>
-              ) : onDeckName && onDeckName !== "—" ? (
-                onDeckName
-              ) : null}
-              {dueUpBatters?.[2] ? (
-                <>
-                  {dueUpBatters[1] || (onDeckName && onDeckName !== "—") ? " · " : ""}
-                  {dueUpBatters[2].order}. {dueUpBatters[2].name}
-                </>
-              ) : inHoleName && inHoleName !== "—" ? (
-                <>
-                  {(dueUpBatters?.[1] || (onDeckName && onDeckName !== "—")) ? " · " : ""}
-                  {inHoleName}
-                </>
-              ) : null}
-            </span>
-          </>
-        ) : (
-          <>
-            <span className="truncate text-[15px] font-medium">{batterName}</span>
-            <span className="truncate text-[12px] text-scorebug-muted">
-              vs <span className="text-secondary">{pitcherName}</span>
-            </span>
-          </>
+        className={cn(
+          "hidden min-w-0 items-center border-t border-border px-3 py-1.5 md:flex",
+          "lg:h-14 lg:max-w-[min(42%,18rem)] lg:shrink-0 lg:border-l lg:border-t-0 lg:py-0 lg:pl-4",
         )}
+      >
+        <MatchupLine
+          gameEnded={gameEnded}
+          isBreak={isBreak}
+          awayAbbrev={awayAbbrev}
+          awayRuns={awayRuns}
+          homeRuns={homeRuns}
+          homeAbbrev={homeAbbrev}
+          dueUpBatters={dueUpBatters}
+          batterName={batterName}
+          onDeckName={onDeckName}
+          inHoleName={inHoleName}
+          pitcherName={pitcherName}
+        />
       </div>
     </div>
   );

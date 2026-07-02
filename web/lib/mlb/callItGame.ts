@@ -23,6 +23,7 @@ export function pitchKey(batterId: number | null, pitchNumber: number): string {
 }
 
 export const CALL_IT_MODE_STORAGE_KEY = "call-it-mode";
+export const CALL_IT_ZONE_STORAGE_KEY = "call-it-show-zone";
 export const CALL_IT_REVEAL_MS = 1500;
 
 export function callItScoreStorageKey(gamePk: number) {

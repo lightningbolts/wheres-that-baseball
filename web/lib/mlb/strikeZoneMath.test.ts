@@ -5,10 +5,13 @@ import {
   BATTER_BOX_WIDTH_FT,
   GAME_VIEW_WIDTH_FT,
   PLATE_HALF_WIDTH_FT,
+  PLATE_BAND_PCT,
+  ZONE_BAND_PCT,
   batterBoxRectsPercent,
   gameToSvgPercent,
   gameZoneRectPercent,
   isAbsStrike,
+  plateBandBatterBoxes,
 } from "@/lib/mlb/strikeZoneMath";
 
 describe("gameToSvgPercent", () => {
@@ -63,6 +66,21 @@ describe("batterBoxRectsPercent", () => {
     expect(boxes.rightHanded.width).toBeCloseTo(expectedWidthPct, 0);
     expect(boxes.leftHanded.width).toBeCloseTo(expectedWidthPct, 0);
     expect(span).toBeLessThan(viewHalf);
+  });
+});
+
+describe("plateBandBatterBoxes", () => {
+  it("places boxes in the plate band on opposite sides", () => {
+    const boxes = plateBandBatterBoxes("R");
+    expect(boxes.rightHanded.y).toBeGreaterThanOrEqual(ZONE_BAND_PCT);
+    expect(boxes.leftHanded.y).toBeGreaterThanOrEqual(ZONE_BAND_PCT);
+    expect(boxes.rightHanded.x + boxes.rightHanded.width).toBeLessThan(50);
+    expect(boxes.leftHanded.x).toBeGreaterThan(50);
+  });
+
+  it("selects active box from bat side", () => {
+    expect(plateBandBatterBoxes("L").activeSide).toBe("leftHanded");
+    expect(plateBandBatterBoxes("R").activeSide).toBe("rightHanded");
   });
 });
 
