@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { BallparkHitsAggregate, BallparkHitsDetail, VenueHit } from "@/lib/mlb/ballparkHits";
+import {
+  getCachedBallparkHitsDetail,
+  getCachedBallparkHitsSummary,
+  setCachedBallparkHitsDetail,
+  setCachedBallparkHitsSummary,
+} from "@/lib/mlb/ballparkHitsCache";
 
 interface UseBallparkHitsSummaryResult {
   data: BallparkHitsAggregate | null;
@@ -31,8 +37,9 @@ function getPageSize(): number {
 }
 
 export function useBallparkHitsSummary(season: number): UseBallparkHitsSummaryResult {
-  const [data, setData] = useState<BallparkHitsAggregate | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const cachedSummary = getCachedBallparkHitsSummary(season);
+  const [data, setData] = useState<BallparkHitsAggregate | null>(cachedSummary);
+  const [isLoading, setIsLoading] = useState(!cachedSummary);
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
 
@@ -53,7 +60,9 @@ export function useBallparkHitsSummary(season: number): UseBallparkHitsSummaryRe
       }
 
       if (requestId !== requestIdRef.current) return;
-      setData(body as BallparkHitsAggregate);
+      const summary = body as BallparkHitsAggregate;
+      setCachedBallparkHitsSummary(season, summary);
+      setData(summary);
     } catch (fetchError) {
       if (requestId !== requestIdRef.current) return;
       setError(fetchError instanceof Error ? fetchError.message : "Failed to load ballpark hits");
@@ -66,8 +75,17 @@ export function useBallparkHitsSummary(season: number): UseBallparkHitsSummaryRe
   }, [season]);
 
   useEffect(() => {
+    const cached = getCachedBallparkHitsSummary(season);
+    if (cached) {
+      setData(cached);
+      setIsLoading(false);
+      setError(null);
+      return;
+    }
+    setData(null);
+    setIsLoading(true);
     void refetch();
-  }, [refetch]);
+  }, [refetch, season]);
 
   return { data, isLoading, error, refetch };
 }
@@ -76,8 +94,9 @@ export function useBallparkHitsDetail(
   venueId: number,
   season: number,
 ): UseBallparkHitsDetailResult {
-  const [data, setData] = useState<BallparkHitsDetail | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const cachedDetail = getCachedBallparkHitsDetail(season, venueId);
+  const [data, setData] = useState<BallparkHitsDetail | null>(cachedDetail);
+  const [isLoading, setIsLoading] = useState(!cachedDetail);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
@@ -106,7 +125,9 @@ export function useBallparkHitsDetail(
       }
 
       if (requestId !== requestIdRef.current) return;
-      setData(body as BallparkHitsDetail);
+      const detail = body as BallparkHitsDetail;
+      setCachedBallparkHitsDetail(season, venueId, detail);
+      setData(detail);
     } catch (fetchError) {
       if (requestId !== requestIdRef.current) return;
       setError(fetchError instanceof Error ? fetchError.message : "Failed to load ballpark hits");
@@ -146,12 +167,14 @@ export function useBallparkHitsDetail(
 
       setData((current) => {
         if (!current) return current;
-        return {
+        const next = {
           ...current,
           hits: [...current.hits, ...body.hits],
           hitsTotal: body.hitsTotal,
           hasMore: body.hasMore,
         };
+        setCachedBallparkHitsDetail(season, venueId, next);
+        return next;
       });
     } catch (fetchError) {
       setError(fetchError instanceof Error ? fetchError.message : "Failed to load more hits");
@@ -178,12 +201,14 @@ export function useBallparkHitsDetail(
 
       setData((current) => {
         if (!current) return current;
-        return {
+        const next = {
           ...current,
           hits: current.hits.map((hit) =>
             hit.hitKey === hitKey ? { ...hit, detail: body.hit!.detail } : hit,
           ),
         };
+        setCachedBallparkHitsDetail(season, venueId, next);
+        return next;
       });
 
       return body.hit;
@@ -192,8 +217,17 @@ export function useBallparkHitsDetail(
   );
 
   useEffect(() => {
+    const cached = getCachedBallparkHitsDetail(season, venueId);
+    if (cached) {
+      setData(cached);
+      setIsLoading(false);
+      setError(null);
+      return;
+    }
+    setData(null);
+    setIsLoading(true);
     void refetch();
-  }, [refetch]);
+  }, [refetch, season, venueId]);
 
   return {
     data,
