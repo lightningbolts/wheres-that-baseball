@@ -2,7 +2,7 @@
  * Aggregate ballpark hits from archived games.game_state into web/data/ballpark-hits/.
  * Does not write to Supabase — keeps the database small on the free tier.
  *
- * Usage: npm run aggregate-ballpark-hits -- --season=2026
+ * Usage: npm run aggregate-ballpark-hits -- --season=2026 [--since=2026-06-30]
  */
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -16,7 +16,11 @@ import {
   type GameHitsSourceRow,
 } from "../lib/mlb/ballparkHitsAggregate";
 import { resolveBallparkVenueId } from "../lib/mlb/ballparkPaths";
-import { writeFullBallparkHitsStore } from "../lib/mlb/ballparkHitsStore";
+import {
+  appendGameHitsToStore,
+  loadBallparkHitsManifest,
+  writeFullBallparkHitsStore,
+} from "../lib/mlb/ballparkHitsStore";
 
 const WEB_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const REPO_ROOT = join(WEB_ROOT, "..");
@@ -56,7 +60,14 @@ function readArg(name: string): string | undefined {
   return process.argv.find((arg) => arg.startsWith(prefix))?.slice(prefix.length);
 }
 
-async function fetchGamesViaSupabase(season: number): Promise<GameHitsSourceRow[]> {
+function readDateRange(): { since?: string; until?: string } {
+  return { since: readArg("since"), until: readArg("until") };
+}
+
+async function fetchGamesViaSupabase(
+  season: number,
+  dateRange: { since?: string; until?: string },
+): Promise<GameHitsSourceRow[]> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SECRET_KEY;
   if (!url || !key) {
@@ -68,14 +79,22 @@ async function fetchGamesViaSupabase(season: number): Promise<GameHitsSourceRow[
   let offset = 0;
 
   while (true) {
-    const { data, error } = await supabase
+    let query = supabase
       .from("games")
       .select(GAME_COLUMNS)
       .eq("season", season)
       .not("feed_synced_at", "is", null)
       .not("venue_id", "is", null)
-      .order("game_pk", { ascending: true })
-      .range(offset, offset + PAGE_SIZE - 1);
+      .order("game_pk", { ascending: true });
+
+    if (dateRange.since) {
+      query = query.gte("game_date", dateRange.since);
+    }
+    if (dateRange.until) {
+      query = query.lte("game_date", dateRange.until);
+    }
+
+    const { data, error } = await query.range(offset, offset + PAGE_SIZE - 1);
 
     if (error) {
       throw new Error(error.message);
@@ -96,17 +115,37 @@ async function fetchGamesViaSupabase(season: number): Promise<GameHitsSourceRow[
   return rows;
 }
 
-async function fetchGamesViaPostgres(season: number, databaseUrl: string): Promise<GameHitsSourceRow[]> {
+async function fetchGamesViaPostgres(
+  season: number,
+  databaseUrl: string,
+  dateRange: { since?: string; until?: string },
+): Promise<GameHitsSourceRow[]> {
   const Pool = require("pg").Pool;
   const pool = new Pool({ connectionString: databaseUrl });
 
   try {
+    const params: Array<string | number> = [season];
+    const conditions = [
+      "season = $1",
+      "feed_synced_at IS NOT NULL",
+      "venue_id IS NOT NULL",
+    ];
+
+    if (dateRange.since) {
+      params.push(dateRange.since);
+      conditions.push(`game_date >= $${params.length}`);
+    }
+    if (dateRange.until) {
+      params.push(dateRange.until);
+      conditions.push(`game_date <= $${params.length}`);
+    }
+
     const { rows } = await pool.query(
       `SELECT game_pk, game_date, season, venue_id, home_team_id, away_team_abbrev, home_team_abbrev, game_state
        FROM games
-       WHERE season = $1 AND feed_synced_at IS NOT NULL AND venue_id IS NOT NULL
+       WHERE ${conditions.join(" AND ")}
        ORDER BY game_pk`,
-      [season],
+      params,
     );
     return rows as GameHitsSourceRow[];
   } finally {
@@ -116,12 +155,45 @@ async function fetchGamesViaPostgres(season: number, databaseUrl: string): Promi
 
 async function main() {
   const season = Number.parseInt(readArg("season") ?? String(new Date().getFullYear()), 10);
+  const dateRange = readDateRange();
+  const incremental = Boolean(dateRange.since || dateRange.until);
 
   const creds = resolveDbCredentials(REPO_ROOT);
   const games =
     creds.mode === "postgres"
-      ? await fetchGamesViaPostgres(season, creds.databaseUrl)
-      : await fetchGamesViaSupabase(season);
+      ? await fetchGamesViaPostgres(season, creds.databaseUrl, dateRange)
+      : await fetchGamesViaSupabase(season, dateRange);
+
+  if (incremental) {
+    console.log(`Incremental ballpark hits since ${dateRange.since ?? "…"}${dateRange.until ? ` until ${dateRange.until}` : ""}`);
+
+    const processed = new Set(loadBallparkHitsManifest(season).processedGamePks);
+    const pending = games.filter((game) => !processed.has(game.game_pk));
+
+    if (pending.length === 0) {
+      console.log("No new games to process.");
+      return;
+    }
+
+    let hitCount = 0;
+    console.log(`Processing ${pending.length} new game(s)…`);
+    for (let i = 0; i < pending.length; i += 1) {
+      const game = pending[i]!;
+      const hits = extractVenueHitsFromStoredGame(game);
+      hitCount += hits.length;
+      appendGameHitsToStore(season, game, hits);
+
+      if ((i + 1) % 10 === 0 || i + 1 === pending.length) {
+        process.stdout.write(`\rProcessed ${i + 1}/${pending.length} games, ${hitCount} hits…`);
+      }
+    }
+
+    process.stdout.write("\n");
+    console.log(
+      `Updated ballpark hits with ${pending.length} game(s) (${hitCount} hits) in data/ballpark-hits/${season}/`,
+    );
+    return;
+  }
 
   const gameRows: Array<{
     gamePk: number;

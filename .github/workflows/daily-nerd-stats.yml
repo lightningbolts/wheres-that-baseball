@@ -39,7 +39,10 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: npm run sync-game-feeds
+        run: |
+          SINCE=$(date -u -d '2 days ago' +%Y-%m-%d)
+          echo "Syncing feeds for games since ${SINCE}"
+          npm run sync-game-feeds -- --since="$SINCE"
 
       - name: Aggregate nerd stats
         working-directory: web
@@ -52,7 +55,9 @@ jobs:
           if [ -z "$SEASON" ]; then
             SEASON=$(date +%Y)
           fi
-          npm run aggregate-nerd-stats -- --season="$SEASON"
+          SINCE=$(date -u -d '2 days ago' +%Y-%m-%d)
+          echo "Aggregating nerd stats for season ${SEASON} since ${SINCE}"
+          npm run aggregate-nerd-stats -- --season="$SEASON" --since="$SINCE"
 
       - name: Aggregate ballpark hits
         working-directory: web
@@ -65,7 +70,9 @@ jobs:
           if [ -z "$SEASON" ]; then
             SEASON=$(date +%Y)
           fi
-          npm run aggregate-ballpark-hits -- --season="$SEASON"
+          SINCE=$(date -u -d '2 days ago' +%Y-%m-%d)
+          echo "Aggregating ballpark hits for season ${SEASON} since ${SINCE}"
+          npm run aggregate-ballpark-hits -- --season="$SEASON" --since="$SINCE"
 
       - name: Commit updated data
         run: |
