@@ -357,6 +357,7 @@ function PlayFeedRow({
   animate,
   embeddedPitches,
   pitchEntranceFromIndex = 0,
+  reverseOrder = false,
 }: {
   play: PlayByPlayEntry;
   awayAbbrev: string;
@@ -367,18 +368,13 @@ function PlayFeedRow({
   animate: boolean;
   embeddedPitches?: PlayPitch[];
   pitchEntranceFromIndex?: number;
+  reverseOrder?: boolean;
 }) {
   const showSituationAfter = entryShowsSituationAfter(play);
   const selected = selectedAtBatIndex === play.atBatIndex;
 
   return (
     <div className={cn(animate && "animate-play_in")}>
-      {embeddedPitches && embeddedPitches.length > 0 && (
-        <PitchFeedList
-          pitches={embeddedPitches}
-          entranceFromIndex={pitchEntranceFromIndex}
-        />
-      )}
       <button
         type="button"
         onClick={() => {
@@ -407,6 +403,13 @@ function PlayFeedRow({
           situation={entrySituationAfter(play)}
           awayAbbrev={awayAbbrev}
           homeAbbrev={homeAbbrev}
+        />
+      )}
+      {embeddedPitches && embeddedPitches.length > 0 && (
+        <PitchFeedList
+          pitches={embeddedPitches}
+          entranceFromIndex={pitchEntranceFromIndex}
+          reverse={reverseOrder}
         />
       )}
     </div>
@@ -515,6 +518,7 @@ function PlayFeed({
   livePitches = [],
   livePitchEntranceFrom,
   embedPitchesAtBatIndex = null,
+  reverseOrder = false,
 }: {
   plays: PlayByPlayEntry[];
   groups: InningGroup[];
@@ -530,17 +534,30 @@ function PlayFeed({
   livePitches?: PlayPitch[];
   livePitchEntranceFrom: number;
   embedPitchesAtBatIndex?: number | null;
+  reverseOrder?: boolean;
 }) {
   const inProgress = livePitches.length > 0;
+  const orderedGroups = reverseOrder ? [...groups].reverse() : groups;
 
   return (
     <div>
-      {groups.map((group, groupIndex) => {
+      {reverseOrder && inProgress && (
+        <PitchFeedList
+          pitches={livePitches}
+          entranceFromIndex={livePitchEntranceFrom}
+          reverse
+        />
+      )}
+      {orderedGroups.map((group, displayIndex) => {
+        const groupIndex = reverseOrder ? groups.length - 1 - displayIndex : displayIndex;
         const isOpen = expanded.has(group.key);
         const showThreeOuts = shouldShowThreeOuts(group, groupIndex, groups, plays);
         const lastIndex = group.playIndices[group.playIndices.length - 1];
         const lastPlay = lastIndex != null ? plays[lastIndex] : undefined;
         const isLatestGroup = groupIndex === groups.length - 1;
+        const playIndices = reverseOrder
+          ? [...group.playIndices].reverse()
+          : group.playIndices;
 
         return (
           <section key={group.key}>
@@ -552,7 +569,7 @@ function PlayFeed({
             />
             {isOpen && (
               <>
-                {group.playIndices.map((playIndex) => {
+                {playIndices.map((playIndex) => {
               const play = plays[playIndex];
               const animate = animateEntrance && playIndex >= entranceFromIndex;
 
@@ -587,10 +604,11 @@ function PlayFeed({
                   setSelectedPlay={setSelectedPlay}
                   animate={animate}
                   embeddedPitches={embeddedPitches}
+                  reverseOrder={reverseOrder}
                 />
               );
             })}
-            {isLatestGroup && inProgress && (
+            {!reverseOrder && isLatestGroup && inProgress && (
               <PitchFeedList
                 pitches={livePitches}
                 entranceFromIndex={livePitchEntranceFrom}
@@ -707,6 +725,7 @@ export const PlayByPlay = memo(function PlayByPlay({
 }: PlayByPlayProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const latestAnchorRef = useRef<HTMLDivElement>(null);
   const prevCountRef = useRef(0);
   const prevLivePitchCountRef = useRef(0);
   const hasInitialScrolledRef = useRef(false);
@@ -730,7 +749,22 @@ export const PlayByPlay = memo(function PlayByPlay({
 
   const latestInningExpanded = latestInningKey ? expanded.has(latestInningKey) : false;
 
-  const scrollFeedToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+  const scrollFeedToLatest = useCallback((behavior: ScrollBehavior = "smooth") => {
+    if (variant === "feed") {
+      if (embeddedScroll) {
+        latestAnchorRef.current?.scrollIntoView({ behavior, block: "start" });
+        return;
+      }
+
+      const container = scrollContainerRef.current;
+      if (container) {
+        container.scrollTo({ top: 0, behavior });
+        return;
+      }
+      latestAnchorRef.current?.scrollIntoView({ behavior, block: "start" });
+      return;
+    }
+
     if (embeddedScroll) {
       const parent = parentScrollRef?.current;
       if (parent) {
@@ -747,7 +781,7 @@ export const PlayByPlay = memo(function PlayByPlay({
       return;
     }
     bottomRef.current?.scrollIntoView({ behavior, block: "end" });
-  }, [embeddedScroll, parentScrollRef]);
+  }, [embeddedScroll, parentScrollRef, variant]);
 
   useEffect(() => {
     hasInitialScrolledRef.current = false;
@@ -786,7 +820,7 @@ export const PlayByPlay = memo(function PlayByPlay({
 
     const behavior: ScrollBehavior = needsInitialScroll ? "auto" : "smooth";
     const frame = requestAnimationFrame(() => {
-      requestAnimationFrame(() => scrollFeedToBottom(behavior));
+      requestAnimationFrame(() => scrollFeedToLatest(behavior));
     });
 
     hasInitialScrolledRef.current = true;
@@ -801,7 +835,7 @@ export const PlayByPlay = memo(function PlayByPlay({
     latestInningKey,
     latestInningExpanded,
     variant,
-    scrollFeedToBottom,
+    scrollFeedToLatest,
   ]);
 
   const toggleInning = (key: string) => {
@@ -851,11 +885,13 @@ export const PlayByPlay = memo(function PlayByPlay({
           {feedHeader && variant === "feed" && embeddedScroll ? (
             <div className="border-b border-border bg-panel px-3 py-2">{feedHeader}</div>
           ) : null}
+          {variant === "feed" ? <div ref={latestAnchorRef} aria-hidden className="h-0" /> : null}
           {plays.length === 0 ? (
             livePitchesList.length > 0 ? (
               <PitchFeedList
                 pitches={livePitchesList}
                 entranceFromIndex={livePitchEntranceFrom}
+                reverse={variant === "feed"}
               />
             ) : (
               <p className="px-3 py-6 text-sm text-subtle">No plays yet.</p>
@@ -876,6 +912,7 @@ export const PlayByPlay = memo(function PlayByPlay({
               livePitches={livePitchesList}
               livePitchEntranceFrom={livePitchEntranceFrom}
               embedPitchesAtBatIndex={embedPitchesAtBatIndex}
+              reverseOrder
             />
           ) : (
             <div>

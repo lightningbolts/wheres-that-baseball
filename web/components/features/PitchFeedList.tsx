@@ -26,20 +26,26 @@ export function PitchFeedList({
   pitches,
   size = "compact",
   entranceFromIndex = pitches.length,
+  reverse = false,
   className,
 }: {
   pitches: PlayPitch[];
   size?: keyof typeof FEED_SIZE;
   entranceFromIndex?: number;
+  /** Newest pitch first (mobile feed). */
+  reverse?: boolean;
   className?: string;
 }) {
   const styles = FEED_SIZE[size];
 
   if (pitches.length === 0) return null;
 
+  const orderedPitches = reverse ? [...pitches].reverse() : pitches;
+
   return (
     <ul className={cn("divide-y divide-border/40 bg-panel/40", styles.feed, className)} role="list">
-      {pitches.map((pitch, index) => {
+      {orderedPitches.map((pitch, displayIndex) => {
+        const index = reverse ? pitches.length - 1 - displayIndex : displayIndex;
         const color = pitchResultColor(pitch);
         const animate = index >= entranceFromIndex;
 
