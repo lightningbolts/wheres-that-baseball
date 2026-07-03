@@ -13,6 +13,7 @@ import {
   gameZoneRectPercent,
   isAbsStrike,
   plateBandBatterBoxes,
+  sceneZoneToSvgPercent,
   zoneOverlayToSvgPercent,
 } from "@/lib/mlb/strikeZoneMath";
 
@@ -87,16 +88,39 @@ describe("plateBandBatterBoxes", () => {
 });
 
 describe("gamedaySceneLayout", () => {
-  it("anchors LHB to the first-base box", () => {
-    const layout = gamedaySceneLayout("L");
+  const szTop = 3.5;
+  const szBottom = 1.5;
+
+  it("anchors LHB to the first-base side of the native frame", () => {
+    const layout = gamedaySceneLayout("L", szTop, szBottom);
     expect(layout.activeSide).toBe("leftHanded");
-    expect(layout.batterAnchorPercent).toBeGreaterThan(50);
+    expect(layout.batterAnchorX).toBeGreaterThan(50);
   });
 
-  it("anchors RHB to the third-base box", () => {
-    const layout = gamedaySceneLayout("R");
+  it("anchors RHB to the third-base side of the native frame", () => {
+    const layout = gamedaySceneLayout("R", szTop, szBottom);
     expect(layout.activeSide).toBe("rightHanded");
-    expect(layout.batterAnchorPercent).toBeLessThan(50);
+    expect(layout.batterAnchorX).toBeLessThan(50);
+  });
+
+  it("places the strike zone above home plate in the native frame", () => {
+    const layout = gamedaySceneLayout("R", szTop, szBottom);
+    const center = layout.zone.x + layout.zone.width / 2;
+    const zoneBottom = layout.zone.y + layout.zone.height;
+    expect(center).toBeCloseTo(35.5, 0);
+    expect(layout.zone.y).toBeGreaterThan(55);
+    expect(zoneBottom).toBeLessThan(81);
+    expect(layout.batterBottomY).toBeGreaterThan(80);
+  });
+});
+
+describe("sceneZoneToSvgPercent", () => {
+  it("maps a middle strike into the scene zone", () => {
+    const layout = gamedaySceneLayout("R", 3.5, 1.5);
+    const pt = sceneZoneToSvgPercent(0, 2.5, 3.5, 1.5, layout.zone);
+    expect(pt.x).toBeCloseTo(35.5, 0);
+    expect(pt.y).toBeGreaterThan(layout.zone.y);
+    expect(pt.y).toBeLessThan(layout.zone.y + layout.zone.height);
   });
 });
 

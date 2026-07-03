@@ -1,5 +1,7 @@
 import type { PlayPitch } from "@/types/mlb-live";
 
+import { GAMEDAY_FRAME } from "@/lib/mlb/gamedayAssets";
+
 export const VIEW_WIDTH_FT = 4.2;
 /** Wider catcher view for Call It game — fits both batter's boxes. */
 export const GAME_VIEW_WIDTH_FT = 11.5;
@@ -298,28 +300,48 @@ export function plateBandBatterBoxes(
   };
 }
 
-/** Gameday-style scene anchors for the Call It portrait view. */
+/** Gameday-style scene anchors for the Call It landscape view. */
 export interface GamedaySceneLayout {
   activeSide: BatterBoxRects["activeSide"];
-  batterAnchorPercent: number;
-  rightBox: SvgRectPercent;
-  leftBox: SvgRectPercent;
+  batterAnchorX: number;
+  /** Bottom of the batter silhouette on the native frame (percent from top). */
+  batterBottomY: number;
+  batterWidthPercent: number;
+  batterMaxHeightPercent: number;
+  zone: SvgRectPercent;
 }
 
+/** Map overlays into the native Gameday stadium JPEG (2316×888). */
 export function gamedaySceneLayout(
   batSide: string | null | undefined,
+  szTop: number,
+  szBottom: number,
 ): GamedaySceneLayout {
-  const boxes = plateBandBatterBoxes(batSide);
-  const batterAnchorPercent =
+  const boxes = batterBoxRectsPercent(batSide, szTop, szBottom);
+  const gameZone = gameZoneRectPercent(szTop, szBottom);
+
+  const zoneHeight =
+    (gameZone.height / ZONE_BAND_PCT) * GAMEDAY_FRAME.zoneHeight;
+  const zoneBottom = GAMEDAY_FRAME.plateY - GAMEDAY_FRAME.zoneAbovePlate;
+  const zoneY = zoneBottom - zoneHeight;
+
+  const batterAnchorX =
     boxes.activeSide === "rightHanded"
-      ? boxes.rightHanded.x + boxes.rightHanded.width / 2
-      : boxes.leftHanded.x + boxes.leftHanded.width / 2;
+      ? GAMEDAY_FRAME.batterRightX
+      : GAMEDAY_FRAME.batterLeftX;
 
   return {
     activeSide: boxes.activeSide,
-    batterAnchorPercent,
-    rightBox: { x: 4, y: 86, width: 40, height: 12 },
-    leftBox: { x: 56, y: 86, width: 40, height: 12 },
+    batterAnchorX,
+    batterBottomY: GAMEDAY_FRAME.batterBottomY,
+    batterWidthPercent: GAMEDAY_FRAME.batterWidth,
+    batterMaxHeightPercent: GAMEDAY_FRAME.batterHeight,
+    zone: {
+      x: GAMEDAY_FRAME.plateX - gameZone.width / 2,
+      y: zoneY,
+      width: gameZone.width,
+      height: zoneHeight,
+    },
   };
 }
 
@@ -352,5 +374,24 @@ export function zoneOverlayToSvgPercent(
   return {
     x: Math.min(overlay.x + overlay.width, Math.max(overlay.x, x)),
     y: Math.min(overlay.y + overlay.height, Math.max(overlay.y, y)),
+  };
+}
+
+/** Map plate coordinates into a scene-space zone rect (viewBox 0–100). */
+export function sceneZoneToSvgPercent(
+  pX: number,
+  pZ: number,
+  szTop: number,
+  szBottom: number,
+  sceneZone: SvgRectPercent,
+): { x: number; y: number } {
+  const overlay = zoneOverlayRect(szTop, szBottom);
+  const pt = zoneOverlayToSvgPercent(pX, pZ, szTop, szBottom);
+  const relX = (pt.x - overlay.x) / overlay.width;
+  const relY = (pt.y - overlay.y) / overlay.height;
+
+  return {
+    x: sceneZone.x + relX * sceneZone.width,
+    y: sceneZone.y + relY * sceneZone.height,
   };
 }

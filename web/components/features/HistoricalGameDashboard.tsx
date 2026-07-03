@@ -361,23 +361,13 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
             aria-hidden={activeTab !== "callIt"}
           >
             {isLive && gameState ? (
-              <>
-                <Scorebug
-                  gameState={scorebugState}
-                  dueUpBatters={
-                    !gameOver && isHalfInningBreak(gameState.inningState)
-                      ? dueUp?.batters
-                      : undefined
-                  }
-                />
-                <CallItGame
-                  gameState={atBatViewState ?? gameState}
-                  boxScore={boxScore}
-                  paused={showBreakUI || isLingering || isHalfInningBreak(gameState.inningState)}
-                  gameOver={gameOver || isGameOver(gameState)}
-                  className="min-h-0 flex-1"
-                />
-              </>
+              <CallItGame
+                gameState={atBatViewState ?? gameState}
+                boxScore={boxScore}
+                paused={showBreakUI || isLingering || isHalfInningBreak(gameState.inningState)}
+                gameOver={gameOver || isGameOver(gameState)}
+                className="min-h-0 flex-1"
+              />
             ) : null}
           </div>
 

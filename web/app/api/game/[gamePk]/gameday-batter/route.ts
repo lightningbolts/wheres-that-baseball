@@ -76,7 +76,7 @@ export async function GET(request: Request, { params }: RouteParams) {
     const hand = gamedayBatterHand(batSide);
 
     return NextResponse.json({
-      imageUrl: `/api/gameday/batter?code=${encodeURIComponent(jerseyCode)}&hand=${hand}`,
+      imageUrl: `/api/gameday/batter?code=${encodeURIComponent(jerseyCode)}&hand=${hand}&v=3`,
       cdnUrl: gamedayBatterCdnUrl(jerseyCode, hand),
       jerseyCode,
       hand,

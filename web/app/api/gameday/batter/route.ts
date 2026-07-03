@@ -1,14 +1,18 @@
 import { NextResponse } from "next/server";
+import sharp from "sharp";
 
-import {
-  gamedayBatterCdnUrl,
-  type GamedayBatterHand,
-} from "@/lib/mlb/gamedayBatter";
+import { GAMEDAY_FETCH_HEADERS } from "@/lib/mlb/gamedayAssets";
+import { gamedayBatterCdnUrl, type GamedayBatterHand } from "@/lib/mlb/gamedayBatter";
 
 export const dynamic = "force-dynamic";
 
 const imageCache = new Map<string, { bytes: Uint8Array; expiresAt: number }>();
 const CACHE_MS = 60 * 60 * 1000;
+
+async function trimTransparentPadding(bytes: Uint8Array): Promise<Uint8Array> {
+  const trimmed = await sharp(Buffer.from(bytes)).trim().png().toBuffer();
+  return new Uint8Array(trimmed);
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -31,18 +35,14 @@ export async function GET(request: Request) {
   }
 
   const cdnUrl = gamedayBatterCdnUrl(code, hand as GamedayBatterHand);
-  const response = await fetch(cdnUrl, {
-    headers: {
-      Referer: "https://www.mlb.com/",
-      "User-Agent": "mlb-atbat-predictor/1.0",
-    },
-  });
+  const response = await fetch(cdnUrl, { headers: GAMEDAY_FETCH_HEADERS });
 
   if (!response.ok) {
     return NextResponse.json({ error: "Batter image unavailable" }, { status: 502 });
   }
 
-  const bytes = new Uint8Array(await response.arrayBuffer());
+  const raw = new Uint8Array(await response.arrayBuffer());
+  const bytes = await trimTransparentPadding(raw);
   imageCache.set(cacheKey, { bytes, expiresAt: Date.now() + CACHE_MS });
 
   return new NextResponse(Buffer.from(bytes), {

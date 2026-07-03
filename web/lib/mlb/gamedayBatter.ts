@@ -1,5 +1,4 @@
-const GAMEDAY_ASSETS_BASE =
-  "https://prod-gameday.mlbstatic.com/responsive-gameday-assets/1.3.0";
+import { GAMEDAY_ASSETS_BASE } from "@/lib/mlb/gamedayAssets";
 
 export type GamedayBatterHand = "right" | "left";
 

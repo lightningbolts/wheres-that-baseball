@@ -142,19 +142,6 @@ function DashboardContent({ game }: { game: SlateGame }) {
         )}
         aria-hidden={activeTab !== "callIt"}
       >
-        <Scorebug
-          className="shrink-0"
-          gameState={
-            gameState
-              ? { ...gameState, onFirst, onSecond, onThird }
-              : null
-          }
-          dueUpBatters={
-            gameState && !gameOver && isHalfInningBreak(gameState.inningState)
-              ? dueUp?.batters
-              : undefined
-          }
-        />
         {showSkeleton ? (
           <DashboardSkeleton />
         ) : (
