@@ -14,6 +14,18 @@ export function isScoreablePitch(pitch: PlayPitch): boolean {
   return pitch.isPitch && !pitch.isInPlay && (pitch.isBall || pitch.isStrike);
 }
 
+/** Short label for fouls, HBP, in-play events, etc. */
+export function pitchEventLabel(pitch: PlayPitch): string {
+  if (pitch.isInPlay) return pitch.callDescription || "Ball in play";
+  if (pitch.isBall) return pitch.callDescription || "Ball";
+  if (pitch.isStrike) return pitch.callDescription || "Strike";
+  return pitch.callDescription || pitch.typeDescription || "Pitch";
+}
+
+export function endsAtBat(pitch: PlayPitch): boolean {
+  return pitch.isInPlay;
+}
+
 export function pitchActual(pitch: PlayPitch): "strike" | "ball" {
   return pitch.isStrike ? "strike" : "ball";
 }

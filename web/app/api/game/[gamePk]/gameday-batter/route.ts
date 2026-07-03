@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { GAMEDAY_FETCH_HEADERS } from "@/lib/mlb/gamedayAssets";
 import {
   UNIFORMS_GAME_URL,
   UNIFORMS_TEAM_URL,
@@ -8,7 +9,10 @@ import {
   gamedayPantsCdnUrl,
   gamedayPantsCodeFromJersey,
   jerseyCodeForTeam,
+  pantsCandidatesForJersey,
+  pantsCodeForTeam,
   pickJerseyAssetCode,
+  pickPantsAssetCode,
   type UniformsGameResponse,
   type UniformsTeamResponse,
 } from "@/lib/mlb/gamedayBatter";
@@ -30,14 +34,19 @@ async function fetchUniformsGame(gamePk: number): Promise<UniformsGameResponse |
   return (await response.json()) as UniformsGameResponse;
 }
 
-async function fetchTeamJersey(teamId: number): Promise<string | null> {
+async function fetchTeamUniforms(teamId: number): Promise<UniformsTeamResponse["uniforms"]> {
   const response = await fetch(`${UNIFORMS_TEAM_URL}?teamIds=${teamId}`, {
     next: { revalidate: 3600 },
   });
-  if (!response.ok) return null;
+  if (!response.ok) return [];
 
   const data = (await response.json()) as UniformsTeamResponse;
-  const team = data.teams?.find((entry) => entry.team?.id === teamId);
+  return data.uniforms ?? [];
+}
+
+async function fetchTeamJersey(teamId: number): Promise<string | null> {
+  const uniforms = await fetchTeamUniforms(teamId);
+  const team = uniforms.find((entry) => entry.teamId === teamId);
   return pickJerseyAssetCode(team?.uniformAssets);
 }
 
@@ -53,6 +62,37 @@ async function resolveJerseyCode(gamePk: number, teamId: number): Promise<string
 
   jerseyCache.set(cacheKey, { code, expiresAt: Date.now() + CACHE_MS });
   return code;
+}
+
+async function pantsExistsOnCdn(code: string, hand: "right" | "left"): Promise<boolean> {
+  const response = await fetch(gamedayBatterCdnUrl(code, hand), {
+    method: "HEAD",
+    headers: GAMEDAY_FETCH_HEADERS,
+  });
+  return response.ok;
+}
+
+async function resolvePantsCode(
+  gamePk: number,
+  teamId: number,
+  jerseyCode: string,
+  hand: "right" | "left",
+): Promise<string> {
+  const gameData = await fetchUniformsGame(gamePk);
+  const fromGame = pantsCodeForTeam(gameData, teamId, jerseyCode);
+  if (fromGame && (await pantsExistsOnCdn(fromGame, hand))) return fromGame;
+
+  const teamUniforms = await fetchTeamUniforms(teamId);
+  const teamEntry = teamUniforms.find((entry) => entry.teamId === teamId);
+  const fromTeam = pickPantsAssetCode(teamEntry?.uniformAssets, jerseyCode);
+  if (fromTeam && (await pantsExistsOnCdn(fromTeam, hand))) return fromTeam;
+
+  const candidates = pantsCandidatesForJersey(teamEntry?.uniformAssets, jerseyCode);
+  for (const candidate of candidates) {
+    if (await pantsExistsOnCdn(candidate, hand)) return candidate;
+  }
+
+  return gamedayPantsCodeFromJersey(jerseyCode);
 }
 
 export async function GET(request: Request, { params }: RouteParams) {
@@ -76,7 +116,7 @@ export async function GET(request: Request, { params }: RouteParams) {
     }
 
     const hand = gamedayBatterHand(batSide);
-    const pantsCode = gamedayPantsCodeFromJersey(jerseyCode);
+    const pantsCode = await resolvePantsCode(gamePk, teamId, jerseyCode, hand);
 
     return NextResponse.json({
       jerseyUrl: `/api/gameday/batter?code=${encodeURIComponent(jerseyCode)}&hand=${hand}`,

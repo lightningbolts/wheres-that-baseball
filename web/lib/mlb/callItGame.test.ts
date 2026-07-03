@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isScoreablePitch, pitchActual, pitchKey } from "@/lib/mlb/callItGame";
+import { isScoreablePitch, pitchActual, pitchEventLabel, pitchKey } from "@/lib/mlb/callItGame";
 import type { PlayPitch } from "@/types/mlb-live";
 
 function pitch(overrides: Partial<PlayPitch> = {}): PlayPitch {
@@ -47,6 +47,19 @@ describe("pitchActual", () => {
   it("maps MLB flags to strike or ball", () => {
     expect(pitchActual(pitch({ isStrike: true, isBall: false }))).toBe("strike");
     expect(pitchActual(pitch({ isStrike: false, isBall: true }))).toBe("ball");
+  });
+});
+
+describe("pitchEventLabel", () => {
+  it("returns the MLB call description for non-callable pitches", () => {
+    expect(pitchEventLabel(pitch({ callDescription: "Foul", isStrike: false, isBall: false }))).toBe(
+      "Foul",
+    );
+    expect(
+      pitchEventLabel(
+        pitch({ callDescription: "In play, out(s)", isInPlay: true, isStrike: false, isBall: false }),
+      ),
+    ).toBe("In play, out(s)");
   });
 });
 

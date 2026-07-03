@@ -196,28 +196,29 @@ export function Scorebug({
           </span>
         </OverlayStatCell>
 
-        <OverlayStatCell className="flex-col px-2" aria-label={`${safeOuts} outs`}>
-          <span className="mb-0.5 text-[7px] font-semibold text-white/60">OUT</span>
-          <div className="flex gap-0.5">
-            {[0, 1, 2].map((i) => (
-              <span
-                key={i}
-                className={cn(
-                  "h-1.5 w-1.5 rounded-full",
-                  i < safeOuts ? "bg-white" : "bg-white/25",
-                )}
-              />
-            ))}
+        <OverlayStatCell className="gap-2.5 border-r-0 px-2">
+          <div className="flex flex-col items-center" aria-label={`${safeOuts} outs`}>
+            <span className="mb-0.5 text-[7px] font-semibold text-white/60">OUT</span>
+            <div className="flex gap-0.5">
+              {[0, 1, 2].map((i) => (
+                <span
+                  key={i}
+                  className={cn(
+                    "h-1.5 w-1.5 rounded-full",
+                    i < safeOuts ? "bg-white" : "bg-white/25",
+                  )}
+                />
+              ))}
+            </div>
           </div>
-        </OverlayStatCell>
-
-        <OverlayStatCell className="border-r-0 pr-2">
+          <div className="h-5 w-px shrink-0 bg-white/15" aria-hidden />
           <BaseDiamond
             onFirst={onFirst}
             onSecond={onSecond}
             onThird={onThird}
             size="tiny"
             onDark
+            className="shrink-0"
           />
         </OverlayStatCell>
       </div>

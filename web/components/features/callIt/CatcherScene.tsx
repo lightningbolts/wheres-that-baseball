@@ -184,7 +184,7 @@ export function CatcherScene({
       className={cn("flex h-full w-full items-center justify-center", className)}
     >
       <div
-        className={cn("relative overflow-hidden bg-neutral-950", isLefty && "lefty")}
+        className={cn("relative overflow-hidden bg-neutral-900", isLefty && "lefty")}
         style={{
           width: frameSize.width > 0 ? frameSize.width : "100%",
           height: frameSize.height > 0 ? frameSize.height : undefined,

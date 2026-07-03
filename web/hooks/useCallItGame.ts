@@ -6,8 +6,10 @@ import {
   CALL_IT_MODE_STORAGE_KEY,
   CALL_IT_REVEAL_MS,
   callItScoreStorageKey,
+  endsAtBat,
   isScoreablePitch,
   pitchActual,
+  pitchEventLabel,
   pitchKey,
   type CallItMode,
   type CallItPhase,
@@ -28,7 +30,19 @@ export interface CallItReveal {
   absDisagrees: boolean;
 }
 
+export interface CallItPitchNotice {
+  pitch: PlayPitch;
+  label: string;
+  endsAtBat: boolean;
+}
+
+export interface CallItAtBatNotice {
+  batterName: string;
+  description: string;
+}
+
 const REVEAL_MS = CALL_IT_REVEAL_MS;
+const NOTICE_MS = 2200;
 
 function scoreStorageKey(gamePk: number) {
   return callItScoreStorageKey(gamePk);
@@ -64,6 +78,14 @@ function loadMode(): CallItMode {
   return stored === "predictor" ? "predictor" : "umpire";
 }
 
+function latestAtBatForBatter(gameState: LiveGameState, batterId: number) {
+  for (let i = gameState.plays.length - 1; i >= 0; i -= 1) {
+    const play = gameState.plays[i];
+    if (play.isAtBat && play.batterId === batterId) return play;
+  }
+  return null;
+}
+
 export interface UseCallItGameOptions {
   gameState: LiveGameState | null;
   paused: boolean;
@@ -77,6 +99,8 @@ export interface UseCallItGameResult {
   score: CallItScore;
   activePitch: PlayPitch | null;
   reveal: CallItReveal | null;
+  pitchNotice: CallItPitchNotice | null;
+  atBatNotice: CallItAtBatNotice | null;
   canGuess: boolean;
   statusMessage: string;
   guess: (call: "strike" | "ball") => void;
@@ -94,14 +118,33 @@ export function useCallItGame({
   const [score, setScore] = useState<CallItScore>(() => loadScore(gamePk));
   const [activePitch, setActivePitch] = useState<PlayPitch | null>(null);
   const [reveal, setReveal] = useState<CallItReveal | null>(null);
+  const [pitchNotice, setPitchNotice] = useState<CallItPitchNotice | null>(null);
+  const [atBatNotice, setAtBatNotice] = useState<CallItAtBatNotice | null>(null);
   const [pendingGuess, setPendingGuess] = useState<"strike" | "ball" | null>(null);
   const [animatePitchIn, setAnimatePitchIn] = useState(false);
 
   const resolvedRef = useRef<Set<string>>(new Set());
-  const lastBatterRef = useRef<number | null>(null);
+  const lastBatterRef = useRef<{ id: number | null; name: string }>({ id: null, name: "" });
   const lastPitchCountRef = useRef(0);
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const joinedRef = useRef(false);
+
+  const showPitchNotice = useCallback((pitch: PlayPitch) => {
+    setPitchNotice({
+      pitch,
+      label: pitchEventLabel(pitch),
+      endsAtBat: endsAtBat(pitch),
+    });
+    if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+    noticeTimerRef.current = setTimeout(() => setPitchNotice(null), NOTICE_MS);
+  }, []);
+
+  const showAtBatNotice = useCallback((batterName: string, description: string) => {
+    setAtBatNotice({ batterName, description });
+    if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+    noticeTimerRef.current = setTimeout(() => setAtBatNotice(null), NOTICE_MS + 400);
+  }, []);
 
   useEffect(() => {
     setModeState(loadMode());
@@ -117,6 +160,8 @@ export function useCallItGame({
     setPhase("idle");
     setActivePitch(null);
     setReveal(null);
+    setPitchNotice(null);
+    setAtBatNotice(null);
     setPendingGuess(null);
     setAnimatePitchIn(false);
   }, []);
@@ -184,6 +229,7 @@ export function useCallItGame({
   useEffect(() => {
     return () => {
       if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
+      if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
     };
   }, []);
 
@@ -197,8 +243,19 @@ export function useCallItGame({
     }
 
     const batterId = gameState.batterId;
-    if (batterId !== lastBatterRef.current) {
-      lastBatterRef.current = batterId;
+    const batterName = gameState.batterName;
+    if (batterId !== lastBatterRef.current.id) {
+      if (lastBatterRef.current.id != null && gameState.plays.length > 0) {
+        const completed = latestAtBatForBatter(gameState, lastBatterRef.current.id);
+        if (completed) {
+          showAtBatNotice(
+            lastBatterRef.current.name || completed.batterName,
+            completed.description,
+          );
+        }
+      }
+
+      lastBatterRef.current = { id: batterId, name: batterName };
       lastPitchCountRef.current = gameState.atBatPitches.length;
       joinedRef.current = true;
       if (phase !== "revealed") {
@@ -223,10 +280,7 @@ export function useCallItGame({
     if (phase === "revealed") return;
 
     const newPitch = pitches.at(-1);
-    if (!newPitch || !isScoreablePitch(newPitch)) {
-      lastPitchCountRef.current = pitches.length;
-      return;
-    }
+    if (!newPitch) return;
 
     const key = pitchKey(batterId, newPitch.pitchNumber);
     if (resolvedRef.current.has(key)) {
@@ -235,6 +289,20 @@ export function useCallItGame({
     }
 
     lastPitchCountRef.current = pitches.length;
+
+    if (!isScoreablePitch(newPitch)) {
+      resolvedRef.current.add(key);
+      showPitchNotice(newPitch);
+      if (newPitch.hasPlateLocation !== false) {
+        setActivePitch(newPitch);
+        setAnimatePitchIn(true);
+      }
+      if (endsAtBat(newPitch)) {
+        setPhase("idle");
+        setPendingGuess(null);
+      }
+      return;
+    }
 
     if (mode === "predictor" && pendingGuess) {
       resolvedRef.current.add(key);
@@ -250,6 +318,7 @@ export function useCallItGame({
 
     if (newPitch.hasPlateLocation === false) {
       resolvedRef.current.add(key);
+      showPitchNotice(newPitch);
       return;
     }
 
@@ -264,6 +333,8 @@ export function useCallItGame({
     phase,
     pendingGuess,
     recordResult,
+    showPitchNotice,
+    showAtBatNotice,
   ]);
 
   useEffect(() => {
@@ -296,7 +367,9 @@ export function useCallItGame({
     statusMessage = reveal.correct
       ? "Correct!"
       : `Wrong — it was a ${reveal.actual}`;
-  } else if (mode === "umpire") statusMessage = "Waiting for next pitch…";
+  } else if (pitchNotice) statusMessage = pitchNotice.label;
+  else if (atBatNotice) statusMessage = atBatNotice.description;
+  else if (mode === "umpire") statusMessage = "Waiting for next pitch…";
 
   return {
     mode,
@@ -305,6 +378,8 @@ export function useCallItGame({
     score,
     activePitch,
     reveal,
+    pitchNotice,
+    atBatNotice,
     canGuess,
     statusMessage,
     guess,

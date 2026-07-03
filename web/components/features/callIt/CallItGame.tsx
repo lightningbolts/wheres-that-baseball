@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { CatcherScene } from "@/components/features/callIt/CatcherScene";
 import { Scorebug } from "@/components/features/Scorebug";
 import { findBatterBoxLine } from "@/lib/mlb/boxScoreLookup";
 import { CALL_IT_ZONE_STORAGE_KEY } from "@/lib/mlb/callItGame";
+import { computeCallItGameStats } from "@/lib/mlb/callItGameStats";
 import { cn } from "@/lib/utils";
 import {
   useCallItGame,
@@ -97,6 +98,61 @@ function ZoneToggle({
       </span>
       Strike zone
     </button>
+  );
+}
+
+function NerdStatsPanel({ gameState }: { gameState: LiveGameState | null }) {
+  const stats = useMemo(() => computeCallItGameStats(gameState), [gameState]);
+  if (!stats) return null;
+
+  const rows = [
+    {
+      label: "Pitches seen / half-inn",
+      away: stats.away.pitchesSeenPerInning?.toFixed(1) ?? "—",
+      home: stats.home.pitchesSeenPerInning?.toFixed(1) ?? "—",
+    },
+    {
+      label: "Pitches thrown / half-inn",
+      away: stats.away.pitchesThrownPerInning?.toFixed(1) ?? "—",
+      home: stats.home.pitchesThrownPerInning?.toFixed(1) ?? "—",
+    },
+    {
+      label: "Total pitches",
+      away: String(stats.away.pitchesSeen),
+      home: String(stats.home.pitchesSeen),
+    },
+  ];
+
+  return (
+    <div className="rounded-lg border border-border bg-surface-elevated p-2">
+      <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-subtle">
+        Nerd stats
+      </p>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[280px] text-left text-[11px]">
+          <thead>
+            <tr className="text-subtle">
+              <th className="pb-1 pr-2 font-medium">Metric</th>
+              <th className="pb-1 pr-2 font-medium">{stats.away.abbrev}</th>
+              <th className="pb-1 font-medium">{stats.home.abbrev}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.label} className="border-t border-border/70">
+                <td className="py-1 pr-2 text-muted">{row.label}</td>
+                <td className="py-1 pr-2 font-mono tabular-nums">{row.away}</td>
+                <td className="py-1 font-mono tabular-nums">{row.home}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-1.5 text-[10px] text-subtle">
+        {stats.totalPitches} pitches · {stats.scoreablePitches} callable · {stats.foulBalls} fouls ·{" "}
+        {stats.ballsInPlay} in play
+      </p>
+    </div>
   );
 }
 
@@ -196,6 +252,8 @@ export function CallItGame({
     score,
     activePitch,
     reveal,
+    pitchNotice,
+    atBatNotice,
     canGuess,
     statusMessage,
     guess,
@@ -239,10 +297,12 @@ export function CallItGame({
 
   const displayPitches = gameState?.atBatPitches ?? [];
   const showReveal = phase === "revealed" && reveal != null;
+  const showPitchNotice = pitchNotice != null && !showReveal;
+  const showAtBatNotice = atBatNotice != null && !showReveal && !showPitchNotice;
 
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", className)}>
-      <div className="relative min-h-[min(58vh,480px)] min-w-0 flex-1 bg-neutral-950">
+      <div className="relative min-h-[min(58vh,480px)] min-w-0 flex-1 bg-neutral-200 dark:bg-neutral-950">
         <CatcherScene
           pitches={displayPitches}
           batSide={batSide}
@@ -283,10 +343,30 @@ export function CallItGame({
             ) : null}
           </div>
         ) : null}
+
+        {showPitchNotice ? (
+          <div className="pointer-events-none absolute inset-x-3 bottom-3 z-30 rounded-lg border border-white/20 bg-black/75 px-3 py-2.5 text-center text-sm text-white shadow-lg backdrop-blur-md">
+            <p className="font-semibold">{pitchNotice.label}</p>
+            {pitchNotice.endsAtBat ? (
+              <p className="mt-0.5 text-xs text-white/75">Ball in play — not scored</p>
+            ) : (
+              <p className="mt-0.5 text-xs text-white/75">Not a callable pitch</p>
+            )}
+          </div>
+        ) : null}
+
+        {showAtBatNotice ? (
+          <div className="pointer-events-none absolute inset-x-3 bottom-3 z-30 rounded-lg border border-sky-400/40 bg-black/75 px-3 py-2.5 text-center text-white shadow-lg backdrop-blur-md">
+            <p className="text-xs uppercase tracking-wide text-sky-300">At-bat result</p>
+            <p className="mt-0.5 text-sm font-semibold">{atBatNotice.batterName}</p>
+            <p className="mt-1 text-xs text-white/85">{atBatNotice.description}</p>
+          </div>
+        ) : null}
       </div>
 
       <div className="shrink-0 border-t border-border bg-panel p-2 sm:p-3">
         <div className="mx-auto flex max-w-3xl flex-col gap-2">
+          <NerdStatsPanel gameState={gameState} />
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
             <div className="flex flex-wrap items-center gap-2">
               <ModeToggle mode={mode} onChange={setMode} />
