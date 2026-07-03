@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 
 import {
+  blockScrollPersist,
   buildScrollKey,
+  getReturnScrollY,
   getSavedScrollY,
   restoreScrollPosition,
 } from "@/lib/scrollRestoration";
@@ -15,16 +17,19 @@ export function useRestoreScrollWhenReady(ready: boolean, enabled = true): void 
   const scrollKeyRef = useRef("");
   const restoredRef = useRef(false);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const query = window.location.search.replace(/^\?/, "");
     scrollKeyRef.current = buildScrollKey(pathname, query);
     restoredRef.current = false;
+    blockScrollPersist(2000);
   }, [pathname]);
 
   useEffect(() => {
     if (!enabled || !ready || restoredRef.current) return;
 
-    const savedY = getSavedScrollY(scrollKeyRef.current);
+    const query = window.location.search.replace(/^\?/, "");
+    const savedY =
+      getReturnScrollY(pathname, query) ?? getSavedScrollY(scrollKeyRef.current);
     if (savedY === undefined) return;
 
     restoredRef.current = true;

@@ -13,6 +13,7 @@ import {
 } from "@/lib/mlb/nerdStats/counters";
 import { NERD_STAT_DEFINITIONS } from "@/lib/mlb/nerdStats/definitions";
 import { extractNerdCountersFromGame } from "@/lib/mlb/nerdStats/extractGame";
+import { enrichCountersWithSavantBatSpeed } from "@/lib/mlb/nerdStats/savantBatSpeed";
 import type {
   GameNerdSourceRow,
   NerdStatDetail,
@@ -118,7 +119,10 @@ export function writeFullNerdStatsStore(
   }
 }
 
-export function appendGameNerdStatsToStore(season: number, row: GameNerdSourceRow): void {
+export async function appendGameNerdStatsToStore(
+  season: number,
+  row: GameNerdSourceRow,
+): Promise<void> {
   ensureSeasonDir(season);
 
   const manifest = loadNerdStatsManifest(season);
@@ -126,6 +130,7 @@ export function appendGameNerdStatsToStore(season: number, row: GameNerdSourceRo
 
   const counters = loadSeasonCounters(season);
   const gameCounters = extractNerdCountersFromGame(row);
+  await enrichCountersWithSavantBatSpeed(gameCounters, row.game_pk);
   mergeSeasonCounters(counters, gameCounters);
 
   manifest.processedGamePks.push(row.game_pk);

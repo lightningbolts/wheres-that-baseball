@@ -7,6 +7,7 @@ import { AppNav } from "@/components/features/AppNav";
 import { TeamLogo } from "@/components/ui/TeamLogo";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useNerdStatDetail } from "@/hooks/useNerdStats";
+import { blockScrollPersist } from "@/lib/scrollRestoration";
 import { NERD_STAT_CATEGORIES } from "@/lib/mlb/nerdStats/types";
 import { cn } from "@/lib/utils";
 
@@ -46,7 +47,12 @@ export function NerdStatDetailView({ statId }: NerdStatDetailViewProps) {
       <AppNav />
 
       <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-6">
-        <Link href="/nerd" scroll={false} className="text-xs text-muted transition-colors hover:text-foreground">
+        <Link
+          href="/nerd"
+          scroll={false}
+          onClick={() => blockScrollPersist(2000)}
+          className="text-xs text-muted transition-colors hover:text-foreground"
+        >
           ← Nerd Standings
         </Link>
 

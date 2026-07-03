@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 
 import { createEmptySeasonCounters, mergeSeasonCounters } from "../lib/mlb/nerdStats/counters";
+import { enrichCountersWithSavantBatSpeed } from "../lib/mlb/nerdStats/savantBatSpeed";
 import { extractNerdCountersFromGame } from "../lib/mlb/nerdStats/extractGame";
 import type { GameNerdSourceRow } from "../lib/mlb/nerdStats/types";
 import {
@@ -57,6 +58,7 @@ const { resolveDbCredentials } = require(join(REPO_ROOT, "scripts/lib/db.mjs")) 
 
 const PK_PAGE_SIZE = 500;
 const FULL_ROW_BATCH_SIZE = 12;
+const SAVANT_BATCH_SIZE = 10;
 
 const GAME_COLUMNS =
   "game_pk,game_date,season,away_team_id,home_team_id,away_team_abbrev,home_team_abbrev,away_score,home_score,game_state,box_score,feed_synced_at" as const;
@@ -282,7 +284,7 @@ async function main() {
 
     console.log(`Processing ${pending.length} new game(s)…`);
     for (let i = 0; i < pending.length; i += 1) {
-      appendGameNerdStatsToStore(season, pending[i]!);
+      await appendGameNerdStatsToStore(season, pending[i]!);
       if ((i + 1) % 10 === 0 || i + 1 === pending.length) {
         process.stdout.write(`\rProcessed ${i + 1}/${pending.length} games…`);
       }
@@ -299,13 +301,23 @@ async function main() {
   const counters = createEmptySeasonCounters();
   const processed: number[] = [];
 
-  for (let i = 0; i < games.length; i += 1) {
-    const game = games[i]!;
-    mergeSeasonCounters(counters, extractNerdCountersFromGame(game));
-    processed.push(game.game_pk);
-    if ((i + 1) % 50 === 0 || i + 1 === games.length) {
-      process.stdout.write(`\rProcessed ${i + 1}/${games.length} games…`);
+  for (let i = 0; i < games.length; i += SAVANT_BATCH_SIZE) {
+    const batch = games.slice(i, i + SAVANT_BATCH_SIZE);
+    const batchCounters = await Promise.all(
+      batch.map(async (game) => {
+        const gameCounters = extractNerdCountersFromGame(game);
+        await enrichCountersWithSavantBatSpeed(gameCounters, game.game_pk);
+        return { gamePk: game.game_pk, gameCounters };
+      }),
+    );
+
+    for (const { gamePk, gameCounters } of batchCounters) {
+      mergeSeasonCounters(counters, gameCounters);
+      processed.push(gamePk);
     }
+
+    const done = Math.min(i + SAVANT_BATCH_SIZE, games.length);
+    process.stdout.write(`\rProcessed ${done}/${games.length} games…`);
   }
 
   process.stdout.write("\n");

@@ -3,7 +3,7 @@
 import Link from "next/link";
 
 import { TeamLogo } from "@/components/ui/TeamLogo";
-import { saveScrollPosition } from "@/lib/scrollRestoration";
+import { saveReturnScrollPosition, saveScrollPosition } from "@/lib/scrollRestoration";
 import type { NerdStatLeaderboard } from "@/lib/mlb/nerdStats/types";
 import { cn } from "@/lib/utils";
 
@@ -31,7 +31,9 @@ export function NerdStatCard({ stat, season, highlighted, className }: NerdStatC
       onClick={() => {
         const path = window.location.pathname;
         const query = window.location.search.replace(/^\?/, "");
-        saveScrollPosition(query ? `${path}?${query}` : path, window.scrollY);
+        const y = window.scrollY;
+        saveScrollPosition(query ? `${path}?${query}` : path, y);
+        saveReturnScrollPosition(path, y, query);
       }}
       className={cn(
         "group flex flex-col rounded-xl border bg-surface p-4 transition-colors",

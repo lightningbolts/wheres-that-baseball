@@ -8,6 +8,7 @@ import { NerdStatCard } from "@/components/features/NerdStatCard";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useNerdStatsSummary } from "@/hooks/useNerdStats";
 import { useRestoreScrollWhenReady } from "@/hooks/useRestoreScrollWhenReady";
+import { saveReturnScrollPosition, saveScrollPosition } from "@/lib/scrollRestoration";
 import { NERD_STAT_CATEGORIES, type NerdStatCategory } from "@/lib/mlb/nerdStats/types";
 import { MLB_TEAMS } from "@/lib/mlb/teams";
 import { cn } from "@/lib/utils";
@@ -167,7 +168,18 @@ export function NerdStandingsBrowser() {
         {!isLoading && statOfTheDay && (
           <p className="mt-6 text-center text-xs text-subtle">
             Stat of the day:{" "}
-            <Link href={`/nerd/${statOfTheDay.id}`} className="text-secondary hover:underline">
+            <Link
+              href={`/nerd/${statOfTheDay.id}`}
+              scroll={false}
+              onClick={() => {
+                const path = window.location.pathname;
+                const query = window.location.search.replace(/^\?/, "");
+                const y = window.scrollY;
+                saveScrollPosition(query ? `${path}?${query}` : path, y);
+                saveReturnScrollPosition(path, y, query);
+              }}
+              className="text-secondary hover:underline"
+            >
               {statOfTheDay.title}
             </Link>
           </p>

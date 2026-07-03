@@ -1,10 +1,16 @@
 const STORAGE_KEY = "app-scroll-positions";
+const RETURN_SCROLL_PREFIX = "return:";
 const MAX_RESTORE_ATTEMPTS = 48;
 
 let activeRestoreCleanup: (() => void) | null = null;
+let blockPersistUntil = 0;
 
 export function buildScrollKey(pathname: string, search = ""): string {
   return search ? `${pathname}?${search}` : pathname;
+}
+
+export function buildReturnScrollKey(pathname: string, search = ""): string {
+  return `${RETURN_SCROLL_PREFIX}${buildScrollKey(pathname, search)}`;
 }
 
 export function readScrollPositions(): Record<string, number> {
@@ -26,6 +32,27 @@ export function saveScrollPosition(key: string, y: number): void {
   const positions = readScrollPositions();
   positions[key] = y;
   sessionStorage.setItem(STORAGE_KEY, JSON.stringify(positions));
+}
+
+/** Freeze scroll for returning to a parent route; not updated by live scroll tracking. */
+export function saveReturnScrollPosition(pathname: string, y: number, search = ""): void {
+  saveScrollPosition(buildReturnScrollKey(pathname, search), y);
+}
+
+export function getReturnScrollY(pathname: string, search = ""): number | undefined {
+  return getSavedScrollY(buildReturnScrollKey(pathname, search));
+}
+
+export function blockScrollPersist(ms = 1500): void {
+  blockPersistUntil = Date.now() + ms;
+}
+
+export function shouldPersistScroll(): boolean {
+  return Date.now() >= blockPersistUntil;
+}
+
+export function clearScrollPersistBlock(): void {
+  blockPersistUntil = 0;
 }
 
 /** Routes where scroll restore waits for async content (handled by useRestoreScrollWhenReady). */
@@ -87,6 +114,7 @@ export function restoreScrollPosition(
 
     if (closeEnough || (canReach && attempts >= 4)) {
       restoring = false;
+      clearScrollPersistBlock();
       complete();
       return;
     }
@@ -95,6 +123,7 @@ export function restoreScrollPosition(
       rafId = requestAnimationFrame(tryRestore);
     } else {
       restoring = false;
+      clearScrollPersistBlock();
       complete();
     }
   };

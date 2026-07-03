@@ -111,7 +111,7 @@ export const CONTACT_QUALITY_NERD_STAT_DEFINITIONS: NerdStatDefinition[] = [
     category: "contact",
     sort: "desc",
     unit: "mph",
-    formula: "sum of bat speeds ÷ tracked swings (when Statcast provides bat speed)",
+    formula: "sum of bat speeds ÷ tracked swings (Baseball Savant bat tracking)",
     minGames: 20,
     compute: (c) => (c.batSpeedCount > 0 ? c.batSpeedSum / c.batSpeedCount : null),
     formatValue: formatMph,
