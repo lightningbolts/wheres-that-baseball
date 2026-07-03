@@ -1318,12 +1318,3 @@ export const NERD_STAT_DEFINITIONS: NerdStatDefinition[] = [
 export function getNerdStatDefinition(statId: string): NerdStatDefinition | undefined {
   return NERD_STAT_DEFINITIONS.find((stat) => stat.id === statId);
 }
-
-export function pickStatOfTheDay(season: number, stats: { id: string }[]): string {
-  if (stats.length === 0) return NERD_STAT_DEFINITIONS[0]!.id;
-  const dayOfYear = Math.floor(
-    (Date.now() - new Date(`${season}-03-01T12:00:00Z`).getTime()) / 86_400_000,
-  );
-  const index = Math.abs(dayOfYear) % stats.length;
-  return stats[index]!.id;
-}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo } from "react";
 
 import { AppNav } from "@/components/features/AppNav";
+import { NerdShareActions } from "@/components/features/NerdShareActions";
 import { TeamLogo } from "@/components/ui/TeamLogo";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useTeamNerdCard } from "@/hooks/useNerdStats";
@@ -52,14 +53,21 @@ export function TeamNerdCardView({ teamId }: TeamNerdCardViewProps) {
           </div>
         ) : data ? (
           <>
-            <div className="mt-4 flex items-center gap-3">
-              <TeamLogo teamId={data.teamId} size={48} />
-              <div>
-                <h1 className="text-xl font-medium text-foreground">{data.teamName}</h1>
-                <p className="text-sm text-muted">
-                  {CURRENT_SEASON} nerd card · where they rank on every weird stat
-                </p>
+            <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <TeamLogo teamId={data.teamId} size={48} />
+                <div>
+                  <h1 className="text-xl font-medium text-foreground">{data.teamName}</h1>
+                  <p className="text-sm text-muted">
+                    {CURRENT_SEASON} nerd card · where they rank on every weird stat
+                  </p>
+                </div>
               </div>
+              <NerdShareActions
+                sharePath={`/nerd/team/${teamId}`}
+                shareCardQuery={`teamId=${teamId}&season=${CURRENT_SEASON}`}
+                shareTitle={`${data.teamName} Nerd Card`}
+              />
             </div>
 
             <div className="mt-6 space-y-6">

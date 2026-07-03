@@ -168,6 +168,10 @@ export function NerdStandingsBrowser() {
         {!isLoading && statOfTheDay && (
           <p className="mt-6 text-center text-xs text-subtle">
             Stat of the day:{" "}
+            <Link href="/nerd/daily" scroll={false} className="text-secondary hover:underline">
+              {statOfTheDay.title}
+            </Link>
+            {" · "}
             <Link
               href={`/nerd/${statOfTheDay.id}`}
               scroll={false}
@@ -180,7 +184,7 @@ export function NerdStandingsBrowser() {
               }}
               className="text-secondary hover:underline"
             >
-              {statOfTheDay.title}
+              View leaderboard
             </Link>
           </p>
         )}

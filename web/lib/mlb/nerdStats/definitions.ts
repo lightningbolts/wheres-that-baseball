@@ -14,9 +14,9 @@ import { getTeamById, MLB_TEAMS } from "@/lib/mlb/teams";
 export {
   getNerdStatDefinition,
   NERD_STAT_DEFINITIONS,
-  pickStatOfTheDay,
   type NerdStatDefinition,
 } from "@/lib/mlb/nerdStats/statDefinitions";
+export { pickStatOfTheDay } from "@/lib/mlb/nerdStats/socialHabit";
 
 function meetsMinimum(definition: NerdStatDefinition, counters: { finalGamesWithFeed: number }): boolean {
   if (definition.minGames == null) return true;

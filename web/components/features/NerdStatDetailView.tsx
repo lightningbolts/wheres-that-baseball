@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect } from "react";
 
 import { AppNav } from "@/components/features/AppNav";
+import { NerdShareActions } from "@/components/features/NerdShareActions";
 import { TeamLogo } from "@/components/ui/TeamLogo";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useNerdStatDetail } from "@/hooks/useNerdStats";
@@ -19,24 +20,10 @@ interface NerdStatDetailViewProps {
 
 export function NerdStatDetailView({ statId }: NerdStatDetailViewProps) {
   const { data, isLoading, error } = useNerdStatDetail(statId, CURRENT_SEASON);
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [statId]);
-
-  const shareUrl = typeof window !== "undefined" ? `${window.location.origin}/nerd/${statId}` : "";
-
-  const copyLink = useCallback(async () => {
-    if (!shareUrl) return;
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // ignore
-    }
-  }, [shareUrl]);
 
   const categoryLabel =
     NERD_STAT_CATEGORIES.find((item) => item.id === data?.stat.category)?.label ??
@@ -82,13 +69,11 @@ export function NerdStatDetailView({ statId }: NerdStatDetailViewProps) {
                   </p>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={() => void copyLink()}
-                className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs text-secondary hover:bg-hover"
-              >
-                {copied ? "Copied!" : "Copy link"}
-              </button>
+              <NerdShareActions
+                sharePath={`/nerd/${statId}`}
+                shareCardQuery={`statId=${encodeURIComponent(statId)}&season=${CURRENT_SEASON}`}
+                shareTitle={data.stat.title}
+              />
             </div>
 
             <div className="mt-6 overflow-hidden rounded-xl border border-border">

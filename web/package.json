@@ -13,7 +13,8 @@
     "fetch-season-games": "node ../scripts/fetch-season-games.mjs",
     "sync-game-feeds": "tsx scripts/sync-game-feeds.ts",
     "aggregate-ballpark-hits": "tsx scripts/aggregate-ballpark-hits.ts",
-    "aggregate-nerd-stats": "tsx scripts/aggregate-nerd-stats.ts"
+    "aggregate-nerd-stats": "tsx scripts/aggregate-nerd-stats.ts",
+    "daily-nerd-post": "tsx scripts/daily-nerd-social-post.ts"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
