@@ -8,6 +8,7 @@ interface NerdShareActionsProps {
   sharePath: string;
   shareCardQuery: string;
   shareTitle: string;
+  shortShareCardQuery?: string;
   className?: string;
 }
 
@@ -15,10 +16,11 @@ export function NerdShareActions({
   sharePath,
   shareCardQuery,
   shareTitle,
+  shortShareCardQuery,
   className,
 }: NerdShareActionsProps) {
   const [copied, setCopied] = useState(false);
-  const [downloading, setDownloading] = useState(false);
+  const [downloading, setDownloading] = useState<"full" | "short" | null>(null);
   const [shareError, setShareError] = useState<string | null>(null);
 
   const shareUrl =
@@ -36,11 +38,11 @@ export function NerdShareActions({
     }
   }, [shareUrl]);
 
-  const downloadShareCard = useCallback(async () => {
+  const downloadShareCard = useCallback(async (query: string, filename: string, mode: "full" | "short") => {
     setShareError(null);
-    setDownloading(true);
+    setDownloading(mode);
     try {
-      const response = await fetch(`/api/nerd-stats/share-card?${shareCardQuery}`);
+      const response = await fetch(`/api/nerd-stats/share-card?${query}`);
       if (!response.ok) {
         const body = (await response.json().catch(() => null)) as { error?: string } | null;
         throw new Error(body?.error ?? "Failed to generate share card");
@@ -52,7 +54,7 @@ export function NerdShareActions({
       const objectUrl = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = objectUrl;
-      anchor.download = "nerd-standings.png";
+      anchor.download = filename;
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
@@ -62,9 +64,9 @@ export function NerdShareActions({
         error instanceof Error && error.message ? error.message : "Could not download share card",
       );
     } finally {
-      setDownloading(false);
+      setDownloading(null);
     }
-  }, [shareCardQuery]);
+  }, []);
 
   const nativeShare = useCallback(async () => {
     if (!shareUrl || !navigator.share) return;
@@ -91,12 +93,24 @@ export function NerdShareActions({
         </button>
         <button
           type="button"
-          onClick={() => void downloadShareCard()}
-          disabled={downloading}
+          onClick={() => void downloadShareCard(shareCardQuery, "nerd-standings.png", "full")}
+          disabled={downloading !== null}
           className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs text-secondary hover:bg-hover disabled:opacity-60"
         >
-          {downloading ? "Generating…" : "Share card"}
+          {downloading === "full" ? "Generating…" : "Share card"}
         </button>
+        {shortShareCardQuery && (
+          <button
+            type="button"
+            onClick={() =>
+              void downloadShareCard(shortShareCardQuery, "nerd-standings-chaos.png", "short")
+            }
+            disabled={downloading !== null}
+            className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs text-secondary hover:bg-hover disabled:opacity-60"
+          >
+            {downloading === "short" ? "Generating…" : "Short card"}
+          </button>
+        )}
         {canNativeShare && (
           <button
             type="button"

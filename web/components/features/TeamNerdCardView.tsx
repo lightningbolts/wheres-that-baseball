@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { useTeamNerdCard } from "@/hooks/useNerdStats";
 import { useRestoreScrollWhenReady } from "@/hooks/useRestoreScrollWhenReady";
 import { NERD_STAT_CATEGORIES } from "@/lib/mlb/nerdStats/types";
+import { nerdRankBadgeLabel } from "@/lib/mlb/nerdStats/teamNerdHighlights";
 import { cn } from "@/lib/utils";
 
 const CURRENT_SEASON = new Date().getFullYear();
@@ -66,6 +67,7 @@ export function TeamNerdCardView({ teamId }: TeamNerdCardViewProps) {
               <NerdShareActions
                 sharePath={`/nerd/team/${teamId}`}
                 shareCardQuery={`teamId=${teamId}&season=${CURRENT_SEASON}`}
+                shortShareCardQuery={`teamId=${teamId}&season=${CURRENT_SEASON}&variant=highlights`}
                 shareTitle={`${data.teamName} Nerd Card`}
               />
             </div>
@@ -113,19 +115,17 @@ export function TeamNerdCardView({ teamId }: TeamNerdCardViewProps) {
 }
 
 function RankBadge({ rank, sort }: { rank: number; sort: "asc" | "desc" }) {
-  const isElite = rank <= 3;
-  const isCursed = rank >= 28;
-  const label = isElite ? "elite" : isCursed ? "cursed" : null;
+  const label = nerdRankBadgeLabel(rank, sort);
   if (!label) return null;
 
   return (
     <span
       className={cn(
         "text-[10px] uppercase tracking-wide",
-        label === "elite" ? "text-emerald-400" : "text-amber-400",
+        rank <= 3 ? "text-emerald-400" : "text-amber-400",
       )}
     >
-      {label} {sort === "desc" ? "chaos" : "sus"}
+      {label}
     </span>
   );
 }

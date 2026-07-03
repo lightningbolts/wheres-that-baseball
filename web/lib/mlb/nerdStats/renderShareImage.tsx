@@ -1,12 +1,24 @@
 import { ImageResponse } from "next/og";
 
 import { mlbTeamShareLogoUrl } from "@/lib/mlb/teamAssets";
+import { pickEliteCursedTeamStats, nerdRankBadgeLabel } from "@/lib/mlb/nerdStats/teamNerdHighlights";
 import type { NerdStatDetail, TeamNerdCard } from "@/lib/mlb/nerdStats/types";
 import { NERD_STAT_CATEGORIES } from "@/lib/mlb/nerdStats/types";
 import { SITE_NAME, SITE_NAME_SHORT } from "@/lib/site";
 
 export const OG_IMAGE_SIZE = { width: 1200, height: 630 } as const;
 export const SHARE_CARD_SIZE = { width: 1080, height: 1350 } as const;
+
+export type TeamShareCardVariant = "full" | "highlights";
+
+function shareCardHeight(rowCount: number, portrait: boolean): number {
+  const padding = portrait ? 96 : 80;
+  const header = portrait ? 200 : 160;
+  const footer = portrait ? 56 : 48;
+  const rowHeight = portrait ? 68 : 56;
+  const computed = padding + header + footer + rowCount * rowHeight;
+  return Math.min(SHARE_CARD_SIZE.height, Math.max(720, computed));
+}
 
 const COLORS = {
   background: "#0f0f0f",
@@ -140,10 +152,20 @@ export function nerdStatShareElement(detail: NerdStatDetail, portrait: boolean) 
   );
 }
 
-export function teamNerdCardShareElement(card: TeamNerdCard, portrait: boolean) {
-  const highlights = [...card.stats]
-    .sort((a, b) => a.rank - b.rank)
-    .slice(0, portrait ? 10 : 6);
+export function teamNerdCardShareElement(
+  card: TeamNerdCard,
+  portrait: boolean,
+  variant: TeamShareCardVariant = "full",
+) {
+  const highlights =
+    variant === "highlights"
+      ? pickEliteCursedTeamStats(card.stats)
+      : [...card.stats].sort((a, b) => a.rank - b.rank).slice(0, portrait ? 10 : 6);
+
+  const subtitle =
+    variant === "highlights"
+      ? `${card.season} nerd card · elite & cursed chaos only`
+      : `${card.season} nerd card · elite & cursed ranks`;
 
   return (
     <div
@@ -163,9 +185,7 @@ export function teamNerdCardShareElement(card: TeamNerdCard, portrait: boolean) 
         <img src={mlbTeamShareLogoUrl(card.teamId)} alt="" width={portrait ? 96 : 72} height={portrait ? 96 : 72} />
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <span style={{ fontSize: portrait ? 48 : 40, fontWeight: 700 }}>{card.teamName}</span>
-          <span style={{ color: COLORS.muted, fontSize: portrait ? 22 : 18 }}>
-            {card.season} nerd card · elite & cursed ranks
-          </span>
+          <span style={{ color: COLORS.muted, fontSize: portrait ? 22 : 18 }}>{subtitle}</span>
         </div>
       </div>
 
@@ -180,31 +200,54 @@ export function teamNerdCardShareElement(card: TeamNerdCard, portrait: boolean) 
           flex: portrait ? 1 : undefined,
         }}
       >
-        {highlights.map((stat) => {
-          const elite = stat.rank <= 3;
-          const cursed = stat.rank >= 28;
-          return (
-            <div
-              key={stat.statId}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: portrait ? "12px 16px" : "10px 14px",
-                borderBottom: `1px solid ${COLORS.border}`,
-              }}
-            >
-              <div style={{ display: "flex", flexDirection: "column", gap: 4, maxWidth: "72%" }}>
-                <span style={{ fontSize: portrait ? 20 : 18, fontWeight: 600 }}>{stat.title}</span>
-                <span style={{ color: elite ? COLORS.accent : cursed ? COLORS.cursed : COLORS.muted, fontSize: 14 }}>
-                  Rank #{stat.rank}
-                  {elite ? " · elite" : cursed ? " · cursed" : ""}
-                </span>
+        {highlights.length === 0 ? (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: portrait ? "32px 16px" : "24px 14px",
+              color: COLORS.muted,
+              fontSize: portrait ? 20 : 18,
+            }}
+          >
+            No elite or cursed chaos yet — check back later.
+          </div>
+        ) : (
+          highlights.map((stat) => {
+            const elite = stat.rank <= 3;
+            const cursed = stat.rank >= 28;
+            const badge = nerdRankBadgeLabel(stat.rank, stat.sort);
+            return (
+              <div
+                key={stat.statId}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: portrait ? "12px 16px" : "10px 14px",
+                  borderBottom: `1px solid ${COLORS.border}`,
+                }}
+              >
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, maxWidth: "72%" }}>
+                  <span style={{ fontSize: portrait ? 20 : 18, fontWeight: 600 }}>{stat.title}</span>
+                  <span
+                    style={{
+                      color: elite ? COLORS.accent : cursed ? COLORS.cursed : COLORS.muted,
+                      fontSize: 14,
+                      textTransform: "uppercase",
+                      letterSpacing: 1,
+                    }}
+                  >
+                    Rank #{stat.rank}
+                    {badge ? ` · ${badge}` : ""}
+                  </span>
+                </div>
+                <span style={{ fontSize: portrait ? 22 : 20, fontWeight: 700 }}>{stat.displayValue}</span>
               </div>
-              <span style={{ fontSize: portrait ? 22 : 20, fontWeight: 700 }}>{stat.displayValue}</span>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
 
       <div
@@ -228,7 +271,21 @@ export async function renderNerdStatImage(detail: NerdStatDetail, portrait: bool
   return new ImageResponse(nerdStatShareElement(detail, portrait), size);
 }
 
-export async function renderTeamNerdCardImage(card: TeamNerdCard, portrait: boolean) {
-  const size = portrait ? SHARE_CARD_SIZE : OG_IMAGE_SIZE;
-  return new ImageResponse(teamNerdCardShareElement(card, portrait), size);
+export async function renderTeamNerdCardImage(
+  card: TeamNerdCard,
+  portrait: boolean,
+  variant: TeamShareCardVariant = "full",
+) {
+  const highlights =
+    variant === "highlights"
+      ? pickEliteCursedTeamStats(card.stats)
+      : [...card.stats].sort((a, b) => a.rank - b.rank).slice(0, portrait ? 10 : 6);
+  const rowCount = Math.max(highlights.length, 1);
+  const size =
+    portrait && variant === "highlights"
+      ? { width: SHARE_CARD_SIZE.width, height: shareCardHeight(rowCount, true) }
+      : portrait
+        ? SHARE_CARD_SIZE
+        : OG_IMAGE_SIZE;
+  return new ImageResponse(teamNerdCardShareElement(card, portrait, variant), size);
 }

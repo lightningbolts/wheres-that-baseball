@@ -41,16 +41,20 @@ export async function GET(request: Request) {
     if (!Number.isFinite(teamId)) {
       return NextResponse.json({ error: "Invalid teamId" }, { status: 400 });
     }
+    const variantParam = searchParams.get("variant");
+    const variant = variantParam === "highlights" ? "highlights" : "full";
     const card = loadTeamNerdCard(season, teamId);
     if (!card) {
       return NextResponse.json({ error: "Team card not found" }, { status: 404 });
     }
-    const image = await renderTeamNerdCardImage(card, true);
+    const image = await renderTeamNerdCardImage(card, true, variant);
+    const filename =
+      variant === "highlights" ? `nerd-card-${teamId}-chaos.png` : `nerd-card-${teamId}.png`;
     return new NextResponse(image.body, {
       status: 200,
       headers: {
         "Content-Type": "image/png",
-        "Content-Disposition": `attachment; filename="nerd-card-${teamId}.png"`,
+        "Content-Disposition": `attachment; filename="${filename}"`,
         "Cache-Control": "public, max-age=3600",
       },
     });
