@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/react";
 import { Suspense } from "react";
 
 import { ScrollRestoration } from "@/components/providers/ScrollRestoration";
@@ -50,6 +51,7 @@ export default function RootLayout({
           </Suspense>
           {children}
         </ThemeProvider>
+        <Analytics />
       </body>
     </html>
   );
