@@ -12,7 +12,7 @@ import {
   type CallItMode,
 } from "@/hooks/useCallItGame";
 import { useGamedayBatterImage } from "@/hooks/useGamedayBatterImage";
-import { useGamedayStadiumImage } from "@/hooks/useGamedayStadiumImage";
+import { useGamedayInfieldImage, useGamedayStadiumImage } from "@/hooks/useGamedayStadiumImage";
 import type { GameBoxScore } from "@/types/mlb-boxscore";
 import type { LiveGameState } from "@/types/mlb-live";
 
@@ -156,8 +156,8 @@ function GuessButtons({
           "rounded-lg border-2 py-3 text-base font-semibold transition-colors sm:py-3.5",
           canGuess
             ? lockedGuess === "ball"
-              ? "border-emerald-400 bg-emerald-500/25 text-emerald-100"
-              : "border-emerald-500/60 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20"
+              ? "border-emerald-600 bg-emerald-500/20 text-emerald-900 dark:border-emerald-400 dark:bg-emerald-500/25 dark:text-emerald-100"
+              : "border-emerald-600/70 bg-emerald-500/10 text-emerald-800 hover:bg-emerald-500/20 dark:border-emerald-500/60 dark:text-emerald-200"
             : "cursor-not-allowed border-border bg-overlay text-muted",
         )}
       >
@@ -171,8 +171,8 @@ function GuessButtons({
           "rounded-lg border-2 py-3 text-base font-semibold transition-colors sm:py-3.5",
           canGuess
             ? lockedGuess === "strike"
-              ? "border-red-400 bg-red-500/25 text-red-100"
-              : "border-red-500/60 bg-red-500/10 text-red-200 hover:bg-red-500/20"
+              ? "border-red-600 bg-red-500/20 text-red-900 dark:border-red-400 dark:bg-red-500/25 dark:text-red-100"
+              : "border-red-600/70 bg-red-500/10 text-red-800 hover:bg-red-500/20 dark:border-red-500/60 dark:text-red-200"
             : "cursor-not-allowed border-border bg-overlay text-muted",
         )}
       >
@@ -229,115 +229,91 @@ export function CallItGame({
     gameState?.offenseTeamId,
   );
   const batSide = batterLine?.batSide ?? "R";
-  const batterImageUrl = useGamedayBatterImage(
+  const batterAssets = useGamedayBatterImage(
     gameState?.gamePk,
     gameState?.offenseTeamId,
     batSide,
   );
   const stadiumImageUrl = useGamedayStadiumImage(gameState?.venueId);
+  const infieldImageUrl = useGamedayInfieldImage(gameState?.venueId);
 
   const displayPitches = gameState?.atBatPitches ?? [];
   const showReveal = phase === "revealed" && reveal != null;
 
   return (
-    <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row", className)}>
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <div className="shrink-0 space-y-2 border-b border-border bg-panel p-2 sm:p-3 md:hidden">
-          <div className="flex flex-wrap items-center gap-2">
-            <ModeToggle mode={mode} onChange={setMode} />
-            <ZoneToggle showZone={showStrikeZone} onChange={handleZoneToggle} />
-          </div>
-          <p className="truncate text-xs text-muted">
-            {gameState?.batterName ?? "—"} vs {gameState?.pitcherName ?? "—"}
-          </p>
-          <Scoreboard
-            correct={score.correct}
-            total={score.total}
-            streak={score.streak}
-            bestStreak={score.bestStreak}
-          />
-          <p className="text-center text-sm text-secondary">{statusMessage}</p>
-        </div>
+    <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", className)}>
+      <div className="relative min-h-[min(58vh,480px)] min-w-0 flex-1 bg-neutral-950">
+        <CatcherScene
+          pitches={displayPitches}
+          batSide={batSide}
+          jerseyImageUrl={batterAssets.jerseyUrl}
+          pantsImageUrl={batterAssets.pantsUrl}
+          stadiumImageUrl={stadiumImageUrl}
+          infieldImageUrl={infieldImageUrl}
+          activePitch={activePitch}
+          revealCall={showReveal}
+          animatePitchIn={animatePitchIn}
+          showStrikeZone={showStrikeZone}
+          className="h-full w-full"
+        >
+          <Scorebug gameState={gameState} variant="overlay" />
+        </CatcherScene>
 
-        <div className="relative min-h-0 flex-1 bg-neutral-950">
-          <CatcherScene
-            pitches={displayPitches}
-            batSide={batSide}
-            batterImageUrl={batterImageUrl}
-            stadiumImageUrl={stadiumImageUrl}
-            activePitch={activePitch}
-            revealCall={showReveal}
-            animatePitchIn={animatePitchIn}
-            showStrikeZone={showStrikeZone}
-            className="absolute inset-0"
-          />
-
-          <Scorebug
-            gameState={gameState}
-            className="absolute left-2 top-2 z-30 max-w-[min(100%,22rem)] rounded-lg border border-white/15 bg-black/70 shadow-lg backdrop-blur-md lg:left-3 lg:top-3"
-          />
-
-          {showReveal ? (
+        {showReveal ? (
           <div
             className={cn(
-              "pointer-events-none absolute inset-x-3 bottom-[5.5rem] z-30 rounded-lg border px-3 py-2.5 text-center shadow-lg backdrop-blur-sm sm:px-4 sm:py-3 md:bottom-4",
-                reveal.correct
-                  ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-100"
-                  : "border-red-500/40 bg-red-500/15 text-red-100",
-              )}
-            >
-              <p className="text-sm font-semibold">
-                {reveal.correct ? "Correct!" : `Wrong — it was a ${reveal.actual}`}
+              "pointer-events-none absolute inset-x-3 bottom-3 z-30 rounded-lg border px-3 py-2.5 text-center shadow-lg backdrop-blur-md sm:px-4 sm:py-3",
+              reveal.correct
+                ? "border-emerald-400/50 bg-black/70 text-emerald-100"
+                : "border-red-400/50 bg-black/70 text-red-100",
+            )}
+          >
+            <p className="text-sm font-semibold">
+              {reveal.correct ? "Correct!" : `Wrong — it was a ${reveal.actual}`}
+            </p>
+            {!reveal.correct && reveal.absDisagrees ? (
+              <p className="mt-1 text-xs opacity-90">
+                ABS zone says {reveal.absSaysStrike ? "strike" : "ball"}
               </p>
-              {!reveal.correct && reveal.absDisagrees ? (
-                <p className="mt-1 text-xs opacity-90">
-                  ABS zone says {reveal.absSaysStrike ? "strike" : "ball"}
-                </p>
-              ) : null}
-              {reveal.pitch.review ? (
-                <p className="mt-1 text-xs opacity-90">
-                  {reveal.pitch.review.isOverturned ? "ABS overturned" : "ABS confirmed"}
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-
-          <div className="absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/90 via-black/55 to-transparent p-3 pt-8 md:hidden">
-            <GuessButtons
-              canGuess={canGuess}
-              lockedGuess={lockedGuess}
-              onGuess={handleGuess}
-            />
+            ) : null}
+            {reveal.pitch.review ? (
+              <p className="mt-1 text-xs opacity-90">
+                {reveal.pitch.review.isOverturned ? "ABS overturned" : "ABS confirmed"}
+              </p>
+            ) : null}
           </div>
-        </div>
+        ) : null}
       </div>
 
-      <aside className="hidden w-64 shrink-0 flex-col gap-2 border-l border-border bg-panel p-3 md:flex lg:w-72 xl:w-80">
-        <div className="flex flex-wrap items-center gap-2">
-          <ModeToggle mode={mode} onChange={setMode} />
-          <ZoneToggle showZone={showStrikeZone} onChange={handleZoneToggle} />
+      <div className="shrink-0 border-t border-border bg-panel p-2 sm:p-3">
+        <div className="mx-auto flex max-w-3xl flex-col gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <ModeToggle mode={mode} onChange={setMode} />
+              <ZoneToggle showZone={showStrikeZone} onChange={handleZoneToggle} />
+            </div>
+            <p className="truncate text-xs text-muted">
+              {gameState?.batterName ?? "—"} vs {gameState?.pitcherName ?? "—"}
+            </p>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+            <Scoreboard
+              correct={score.correct}
+              total={score.total}
+              streak={score.streak}
+              bestStreak={score.bestStreak}
+            />
+            <p className="text-center text-sm text-secondary sm:text-right">{statusMessage}</p>
+          </div>
+
+          <GuessButtons
+            canGuess={canGuess}
+            lockedGuess={lockedGuess}
+            onGuess={handleGuess}
+          />
         </div>
-
-        <p className="truncate text-xs text-muted">
-          {gameState?.batterName ?? "—"} vs {gameState?.pitcherName ?? "—"}
-        </p>
-
-        <Scoreboard
-          correct={score.correct}
-          total={score.total}
-          streak={score.streak}
-          bestStreak={score.bestStreak}
-        />
-
-        <p className="text-center text-sm text-secondary">{statusMessage}</p>
-
-        <GuessButtons
-          canGuess={canGuess}
-          lockedGuess={lockedGuess}
-          onGuess={handleGuess}
-          className="mt-auto"
-        />
-      </aside>
+      </div>
     </div>
   );
 }

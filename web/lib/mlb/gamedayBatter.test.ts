@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   gamedayBatterCdnUrl,
   gamedayBatterHand,
+  gamedayPantsCdnUrl,
+  gamedayPantsCodeFromJersey,
   jerseyCodeForTeam,
   pickJerseyAssetCode,
   yearFromUniformAssetCode,
@@ -20,6 +22,13 @@ describe("gamedayBatterCdnUrl", () => {
     expect(gamedayBatterCdnUrl("119_jersey_4_2024", "right")).toBe(
       "https://prod-gameday.mlbstatic.com/responsive-gameday-assets/1.3.0/images/batters/2024/right/119_jersey_4_2024.png",
     );
+  });
+});
+
+describe("gamedayPantsCodeFromJersey", () => {
+  it("derives the pants asset code from a jersey code", () => {
+    expect(gamedayPantsCodeFromJersey("114_jersey_1_2026")).toBe("114_pants_1_2026");
+    expect(gamedayPantsCdnUrl("114_jersey_1_2026", "left")).toContain("/left/114_pants_1_2026.png");
   });
 });
 

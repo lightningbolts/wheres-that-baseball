@@ -41,6 +41,15 @@ export function gamedayBatterCdnUrl(code: string, hand: GamedayBatterHand): stri
   return `${GAMEDAY_ASSETS_BASE}/images/batters/${year}/${hand}/${code}.png`;
 }
 
+/** Pants asset code paired with a jersey code from the uniforms API. */
+export function gamedayPantsCodeFromJersey(jerseyCode: string): string {
+  return jerseyCode.replace("_jersey_", "_pants_");
+}
+
+export function gamedayPantsCdnUrl(jerseyCode: string, hand: GamedayBatterHand): string {
+  return gamedayBatterCdnUrl(gamedayPantsCodeFromJersey(jerseyCode), hand);
+}
+
 export function pickJerseyAssetCode(assets: UniformAssetRaw[] | undefined): string | null {
   if (!assets?.length) return null;
 

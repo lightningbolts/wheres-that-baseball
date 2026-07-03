@@ -5,6 +5,8 @@ import {
   UNIFORMS_TEAM_URL,
   gamedayBatterCdnUrl,
   gamedayBatterHand,
+  gamedayPantsCdnUrl,
+  gamedayPantsCodeFromJersey,
   jerseyCodeForTeam,
   pickJerseyAssetCode,
   type UniformsGameResponse,
@@ -74,11 +76,16 @@ export async function GET(request: Request, { params }: RouteParams) {
     }
 
     const hand = gamedayBatterHand(batSide);
+    const pantsCode = gamedayPantsCodeFromJersey(jerseyCode);
 
     return NextResponse.json({
-      imageUrl: `/api/gameday/batter?code=${encodeURIComponent(jerseyCode)}&hand=${hand}&v=3`,
+      jerseyUrl: `/api/gameday/batter?code=${encodeURIComponent(jerseyCode)}&hand=${hand}`,
+      pantsUrl: `/api/gameday/batter?code=${encodeURIComponent(pantsCode)}&hand=${hand}`,
+      imageUrl: `/api/gameday/batter?code=${encodeURIComponent(jerseyCode)}&hand=${hand}`,
       cdnUrl: gamedayBatterCdnUrl(jerseyCode, hand),
+      pantsCdnUrl: gamedayPantsCdnUrl(jerseyCode, hand),
       jerseyCode,
+      pantsCode,
       hand,
     });
   } catch (error) {

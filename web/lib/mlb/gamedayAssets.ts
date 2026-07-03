@@ -1,27 +1,27 @@
 export const GAMEDAY_ASSETS_BASE =
   "https://prod-gameday.mlbstatic.com/responsive-gameday-assets/1.3.0";
 
-/** Native @2x stadium JPEG dimensions — all venues share this frame. */
+/** Native @2x stadium JPEG dimensions — sky/stands layer in pitch-fx. */
 export const GAMEDAY_STADIUM_WIDTH = 2316;
 export const GAMEDAY_STADIUM_HEIGHT = 888;
 
-/** Overlay anchors measured on the native 2316×888 stadium JPEG. */
-export const GAMEDAY_FRAME = {
-  /** Home-plate center in the panorama (percent from top / left). */
-  plateY: 80.7,
-  plateX: 35.5,
-  /** Bottom of the batter silhouette — waist line on the infield dirt. */
-  batterBottomY: 81.5,
-  /** Strike-zone height as a percent of frame height. */
-  zoneHeight: 13,
-  /** Gap between zone bottom and plate center. */
-  zoneAbovePlate: 1.5,
-  /** Batter silhouette width / max-height (percent of frame). */
-  batterWidth: 24,
-  batterHeight: 52,
-  /** RHB / LHB anchor X on the native frame. */
-  batterRightX: 19,
-  batterLeftX: 81,
+/** Gameday pitch-fx view uses a 4:3 field (not the full panorama aspect). */
+export const GAMEDAY_PITCH_FX_ASPECT = 4 / 3;
+
+/** Layered backgrounds and player slot from MLB responsive-pitch-fx CSS. */
+export const GAMEDAY_PITCH_FX = {
+  infieldBgPosition: "50% 100%",
+  stadiumBgPosition: "50% 0%",
+  playerWidth: 19,
+  playerPaddingBottom: 38.6895,
+  playerTop: 16.0795,
+  playerSide: 25.5665,
+  domMarginTop: 6,
+  /** Strike zone canvas in the 4:3 pitch-fx frame (percent of field). */
+  zoneX: 42,
+  zoneY: 40,
+  zoneWidth: 16,
+  zoneHeight: 22,
 } as const;
 
 export const GAMEDAY_FETCH_HEADERS = {
@@ -29,7 +29,7 @@ export const GAMEDAY_FETCH_HEADERS = {
   "User-Agent": "mlb-atbat-predictor/1.0",
 } as const;
 
-/** Night stadium photo used behind the Gameday pitch view. */
+/** Night stands layer behind the infield dirt. */
 export function gamedayStadiumCdnUrl(venueId: number | null | undefined): string {
   const id = venueId && venueId > 0 ? venueId : "default";
   return `${GAMEDAY_ASSETS_BASE}/images/stadiums/night/${id}@2x.jpg`;
@@ -38,4 +38,15 @@ export function gamedayStadiumCdnUrl(venueId: number | null | undefined): string
 export function gamedayStadiumProxyUrl(venueId: number | null | undefined): string {
   const id = venueId && venueId > 0 ? venueId : "default";
   return `/api/gameday/stadium?venueId=${encodeURIComponent(String(id))}`;
+}
+
+/** Infield dirt / plate layer composited at the bottom of pitch-fx. */
+export function gamedayInfieldCdnUrl(venueId: number | null | undefined): string {
+  const id = venueId && venueId > 0 ? venueId : "default";
+  return `${GAMEDAY_ASSETS_BASE}/images/stadiums/infield-full/${id}@2x.jpg`;
+}
+
+export function gamedayInfieldProxyUrl(venueId: number | null | undefined): string {
+  const id = venueId && venueId > 0 ? venueId : "default";
+  return `/api/gameday/infield?venueId=${encodeURIComponent(String(id))}`;
 }

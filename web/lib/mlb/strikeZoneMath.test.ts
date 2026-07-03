@@ -8,7 +8,7 @@ import {
   PLATE_BAND_PCT,
   ZONE_BAND_PCT,
   batterBoxRectsPercent,
-  gamedaySceneLayout,
+  pitchFxSceneLayout,
   gameToSvgPercent,
   gameZoneRectPercent,
   isAbsStrike,
@@ -87,38 +87,30 @@ describe("plateBandBatterBoxes", () => {
   });
 });
 
-describe("gamedaySceneLayout", () => {
+describe("pitchFxSceneLayout", () => {
   const szTop = 3.5;
   const szBottom = 1.5;
 
-  it("anchors LHB to the first-base side of the native frame", () => {
-    const layout = gamedaySceneLayout("L", szTop, szBottom);
-    expect(layout.activeSide).toBe("leftHanded");
-    expect(layout.batterAnchorX).toBeGreaterThan(50);
-  });
-
-  it("anchors RHB to the third-base side of the native frame", () => {
-    const layout = gamedaySceneLayout("R", szTop, szBottom);
-    expect(layout.activeSide).toBe("rightHanded");
-    expect(layout.batterAnchorX).toBeLessThan(50);
-  });
-
-  it("places the strike zone above home plate in the native frame", () => {
-    const layout = gamedaySceneLayout("R", szTop, szBottom);
+  it("centers the strike zone in the pitch-fx frame", () => {
+    const layout = pitchFxSceneLayout("R", szTop, szBottom);
     const center = layout.zone.x + layout.zone.width / 2;
-    const zoneBottom = layout.zone.y + layout.zone.height;
-    expect(center).toBeCloseTo(35.5, 0);
-    expect(layout.zone.y).toBeGreaterThan(55);
-    expect(zoneBottom).toBeLessThan(81);
-    expect(layout.batterBottomY).toBeGreaterThan(80);
+    expect(center).toBeCloseTo(50, 0);
+    expect(layout.zone.y).toBe(40);
+    expect(layout.zone.height).toBe(22);
+    expect(layout.zone.y + layout.zone.height).toBeLessThan(70);
+  });
+
+  it("tracks batter handedness for player placement", () => {
+    expect(pitchFxSceneLayout("L", szTop, szBottom).activeSide).toBe("leftHanded");
+    expect(pitchFxSceneLayout("R", szTop, szBottom).activeSide).toBe("rightHanded");
   });
 });
 
 describe("sceneZoneToSvgPercent", () => {
   it("maps a middle strike into the scene zone", () => {
-    const layout = gamedaySceneLayout("R", 3.5, 1.5);
+    const layout = pitchFxSceneLayout("R", 3.5, 1.5);
     const pt = sceneZoneToSvgPercent(0, 2.5, 3.5, 1.5, layout.zone);
-    expect(pt.x).toBeCloseTo(35.5, 0);
+    expect(pt.x).toBeCloseTo(50, 0);
     expect(pt.y).toBeGreaterThan(layout.zone.y);
     expect(pt.y).toBeLessThan(layout.zone.y + layout.zone.height);
   });

@@ -2,16 +2,24 @@
 
 import { useEffect, useState } from "react";
 
+export interface GamedayBatterAssets {
+  jerseyUrl: string | null;
+  pantsUrl: string | null;
+}
+
 export function useGamedayBatterImage(
   gamePk: number | null | undefined,
   teamId: number | null | undefined,
   batSide: string | null | undefined,
-): string | null {
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
+): GamedayBatterAssets {
+  const [assets, setAssets] = useState<GamedayBatterAssets>({
+    jerseyUrl: null,
+    pantsUrl: null,
+  });
 
   useEffect(() => {
     if (!gamePk || !teamId) {
-      setImageUrl(null);
+      setAssets({ jerseyUrl: null, pantsUrl: null });
       return;
     }
 
@@ -28,13 +36,22 @@ export function useGamedayBatterImage(
           { signal: controller.signal },
         );
         if (!response.ok) {
-          setImageUrl(null);
+          setAssets({ jerseyUrl: null, pantsUrl: null });
           return;
         }
-        const data = (await response.json()) as { imageUrl?: string };
-        setImageUrl(data.imageUrl ?? null);
+        const data = (await response.json()) as {
+          jerseyUrl?: string;
+          pantsUrl?: string;
+          imageUrl?: string;
+        };
+        setAssets({
+          jerseyUrl: data.jerseyUrl ?? data.imageUrl ?? null,
+          pantsUrl: data.pantsUrl ?? null,
+        });
       } catch {
-        if (!controller.signal.aborted) setImageUrl(null);
+        if (!controller.signal.aborted) {
+          setAssets({ jerseyUrl: null, pantsUrl: null });
+        }
       }
     }
 
@@ -42,5 +59,5 @@ export function useGamedayBatterImage(
     return () => controller.abort();
   }, [gamePk, teamId, batSide]);
 
-  return imageUrl;
+  return assets;
 }

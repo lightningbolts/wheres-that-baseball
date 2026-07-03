@@ -1,24 +1,19 @@
 "use client";
 
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 
-import {
-  GAMEDAY_STADIUM_HEIGHT,
-  GAMEDAY_STADIUM_WIDTH,
-} from "@/lib/mlb/gamedayAssets";
+import { GAMEDAY_PITCH_FX_ASPECT } from "@/lib/mlb/gamedayAssets";
 
-const GAMEDAY_ASPECT = GAMEDAY_STADIUM_WIDTH / GAMEDAY_STADIUM_HEIGHT;
-
-export interface GamedayFrameSize {
+export interface PitchFxFrameSize {
   width: number;
   height: number;
 }
 
-/** Fit the native Gameday JPEG aspect ratio inside a measured container. */
-export function useGamedayFrameSize(
+/** Fit the Gameday 4:3 pitch-fx field inside a container. */
+export function usePitchFxFrameSize(
   containerRef: RefObject<HTMLElement | null>,
-): GamedayFrameSize {
-  const [size, setSize] = useState<GamedayFrameSize>({ width: 0, height: 0 });
+): PitchFxFrameSize {
+  const [size, setSize] = useState<PitchFxFrameSize>({ width: 0, height: 0 });
 
   useEffect(() => {
     const element = containerRef.current;
@@ -31,10 +26,10 @@ export function useGamedayFrameSize(
       }
 
       let frameWidth = width;
-      let frameHeight = frameWidth / GAMEDAY_ASPECT;
+      let frameHeight = frameWidth / GAMEDAY_PITCH_FX_ASPECT;
       if (frameHeight > height) {
         frameHeight = height;
-        frameWidth = frameHeight * GAMEDAY_ASPECT;
+        frameWidth = frameHeight * GAMEDAY_PITCH_FX_ASPECT;
       }
 
       setSize({

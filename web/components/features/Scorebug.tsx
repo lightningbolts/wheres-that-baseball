@@ -10,6 +10,8 @@ import type { LiveGameState } from "@/types/mlb-live";
 interface ScorebugProps {
   gameState: LiveGameState | null;
   dueUpBatters?: DueUpBatter[];
+  /** Full-width bar for dashboard headers; compact chip for scene overlays. */
+  variant?: "bar" | "overlay";
   className?: string;
 }
 
@@ -30,6 +32,25 @@ function StatCell({
     <div
       className={cn(
         "flex shrink-0 items-center justify-center border-r border-border px-2 md:px-2.5",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+function OverlayStatCell({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex shrink-0 items-center justify-center border-r border-white/15",
         className,
       )}
     >
@@ -97,11 +118,23 @@ function MatchupLine({
 }
 
 /** Fox-style broadcast scorebug with score, inning, count, outs, bases, matchup. */
-export function Scorebug({ gameState, dueUpBatters, className }: ScorebugProps) {
+export function Scorebug({
+  gameState,
+  dueUpBatters,
+  variant = "bar",
+  className,
+}: ScorebugProps) {
   if (!gameState) {
     return (
-      <div className={cn("h-11 border-b border-border bg-scorebug lg:h-14", className)}>
-        <div className="h-full animate-pulse bg-overlay" />
+      <div
+        className={cn(
+          variant === "overlay"
+            ? "h-9 w-48 animate-pulse rounded-md bg-black/50"
+            : "h-11 border-b border-border bg-scorebug lg:h-14",
+          className,
+        )}
+      >
+        {variant === "bar" ? <div className="h-full animate-pulse bg-overlay" /> : null}
       </div>
     );
   }
@@ -128,6 +161,68 @@ export function Scorebug({ gameState, dueUpBatters, className }: ScorebugProps) 
   const isBreak = isBetweenHalfInnings(gameState);
   const gameEnded = isGameOver(gameState);
   const safeOuts = Math.min(3, Math.max(0, outs));
+
+  if (variant === "overlay") {
+    return (
+      <div
+        className={cn(
+          "pointer-events-none absolute left-2 top-2 z-40 flex h-9 w-max max-w-[calc(100%-1rem)] items-stretch overflow-hidden rounded-md border border-white/20 bg-black/75 text-white shadow-lg backdrop-blur-md",
+          className,
+        )}
+      >
+        <OverlayStatCell className="min-w-[40px] flex-col gap-0 px-1.5 py-0.5">
+          <TeamLogo abbrev={awayAbbrev} size={14} />
+          <span className="font-mono text-sm font-bold leading-none tabular-nums">{awayRuns}</span>
+        </OverlayStatCell>
+
+        <OverlayStatCell className="min-w-[40px] flex-col gap-0 px-1.5 py-0.5">
+          <TeamLogo abbrev={homeAbbrev} size={14} />
+          <span className="font-mono text-sm font-bold leading-none tabular-nums">{homeRuns}</span>
+        </OverlayStatCell>
+
+        <OverlayStatCell className="min-w-[44px] px-2">
+          <span className="font-mono text-[10px] font-semibold tracking-wide">
+            {gameEnded ? "FINAL" : inningLabel(inning, inningHalf)}
+          </span>
+        </OverlayStatCell>
+
+        <OverlayStatCell className="gap-0.5 px-2">
+          <span className="font-mono text-sm font-bold tabular-nums text-green-400">
+            {isBreak ? "–" : balls}
+          </span>
+          <span className="text-[9px] text-white/50">–</span>
+          <span className="font-mono text-sm font-bold tabular-nums text-red-400">
+            {isBreak ? "–" : strikes}
+          </span>
+        </OverlayStatCell>
+
+        <OverlayStatCell className="flex-col px-2" aria-label={`${safeOuts} outs`}>
+          <span className="mb-0.5 text-[7px] font-semibold text-white/60">OUT</span>
+          <div className="flex gap-0.5">
+            {[0, 1, 2].map((i) => (
+              <span
+                key={i}
+                className={cn(
+                  "h-1.5 w-1.5 rounded-full",
+                  i < safeOuts ? "bg-white" : "bg-white/25",
+                )}
+              />
+            ))}
+          </div>
+        </OverlayStatCell>
+
+        <OverlayStatCell className="border-r-0 pr-2">
+          <BaseDiamond
+            onFirst={onFirst}
+            onSecond={onSecond}
+            onThird={onThird}
+            size="tiny"
+            onDark
+          />
+        </OverlayStatCell>
+      </div>
+    );
+  }
 
   return (
     <div

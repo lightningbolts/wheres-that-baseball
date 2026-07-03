@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import sharp from "sharp";
 
 import { GAMEDAY_FETCH_HEADERS } from "@/lib/mlb/gamedayAssets";
 import { gamedayBatterCdnUrl, type GamedayBatterHand } from "@/lib/mlb/gamedayBatter";
@@ -8,11 +7,6 @@ export const dynamic = "force-dynamic";
 
 const imageCache = new Map<string, { bytes: Uint8Array; expiresAt: number }>();
 const CACHE_MS = 60 * 60 * 1000;
-
-async function trimTransparentPadding(bytes: Uint8Array): Promise<Uint8Array> {
-  const trimmed = await sharp(Buffer.from(bytes)).trim().png().toBuffer();
-  return new Uint8Array(trimmed);
-}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -41,8 +35,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Batter image unavailable" }, { status: 502 });
   }
 
-  const raw = new Uint8Array(await response.arrayBuffer());
-  const bytes = await trimTransparentPadding(raw);
+  const bytes = new Uint8Array(await response.arrayBuffer());
   imageCache.set(cacheKey, { bytes, expiresAt: Date.now() + CACHE_MS });
 
   return new NextResponse(Buffer.from(bytes), {

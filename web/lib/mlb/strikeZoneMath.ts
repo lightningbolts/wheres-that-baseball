@@ -1,6 +1,6 @@
 import type { PlayPitch } from "@/types/mlb-live";
 
-import { GAMEDAY_FRAME } from "@/lib/mlb/gamedayAssets";
+import { GAMEDAY_PITCH_FX } from "@/lib/mlb/gamedayAssets";
 
 export const VIEW_WIDTH_FT = 4.2;
 /** Wider catcher view for Call It game — fits both batter's boxes. */
@@ -300,47 +300,27 @@ export function plateBandBatterBoxes(
   };
 }
 
-/** Gameday-style scene anchors for the Call It landscape view. */
-export interface GamedaySceneLayout {
+/** Gameday pitch-fx scene layout (4:3 field, canvas strike zone). */
+export interface PitchFxSceneLayout {
   activeSide: BatterBoxRects["activeSide"];
-  batterAnchorX: number;
-  /** Bottom of the batter silhouette on the native frame (percent from top). */
-  batterBottomY: number;
-  batterWidthPercent: number;
-  batterMaxHeightPercent: number;
   zone: SvgRectPercent;
 }
 
-/** Map overlays into the native Gameday stadium JPEG (2316×888). */
-export function gamedaySceneLayout(
+/** Strike zone placement in the MLB responsive-pitch-fx 4:3 frame. */
+export function pitchFxSceneLayout(
   batSide: string | null | undefined,
-  szTop: number,
-  szBottom: number,
-): GamedaySceneLayout {
-  const boxes = batterBoxRectsPercent(batSide, szTop, szBottom);
-  const gameZone = gameZoneRectPercent(szTop, szBottom);
-
-  const zoneHeight =
-    (gameZone.height / ZONE_BAND_PCT) * GAMEDAY_FRAME.zoneHeight;
-  const zoneBottom = GAMEDAY_FRAME.plateY - GAMEDAY_FRAME.zoneAbovePlate;
-  const zoneY = zoneBottom - zoneHeight;
-
-  const batterAnchorX =
-    boxes.activeSide === "rightHanded"
-      ? GAMEDAY_FRAME.batterRightX
-      : GAMEDAY_FRAME.batterLeftX;
+  _szTop: number,
+  _szBottom: number,
+): PitchFxSceneLayout {
+  const boxes = batterBoxRectsPercent(batSide, _szTop, _szBottom);
 
   return {
     activeSide: boxes.activeSide,
-    batterAnchorX,
-    batterBottomY: GAMEDAY_FRAME.batterBottomY,
-    batterWidthPercent: GAMEDAY_FRAME.batterWidth,
-    batterMaxHeightPercent: GAMEDAY_FRAME.batterHeight,
     zone: {
-      x: GAMEDAY_FRAME.plateX - gameZone.width / 2,
-      y: zoneY,
-      width: gameZone.width,
-      height: zoneHeight,
+      x: GAMEDAY_PITCH_FX.zoneX,
+      y: GAMEDAY_PITCH_FX.zoneY,
+      width: GAMEDAY_PITCH_FX.zoneWidth,
+      height: GAMEDAY_PITCH_FX.zoneHeight,
     },
   };
 }

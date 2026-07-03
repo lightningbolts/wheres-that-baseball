@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
-import { useGamedayFrameSize } from "@/hooks/useGamedayFrameSize";
-import { GAMEDAY_STADIUM_HEIGHT, GAMEDAY_STADIUM_WIDTH } from "@/lib/mlb/gamedayAssets";
+import { usePitchFxFrameSize } from "@/hooks/useGamedayFrameSize";
+import {
+  GAMEDAY_PITCH_FX,
+} from "@/lib/mlb/gamedayAssets";
 import { cn } from "@/lib/utils";
 import {
   PITCH_NEUTRAL_COLOR,
-  gamedaySceneLayout,
+  pitchFxSceneLayout,
   pitchResultColor,
   sceneZoneToSvgPercent,
   type SvgRectPercent,
@@ -17,13 +19,16 @@ import type { PlayPitch } from "@/types/mlb-live";
 interface CatcherSceneProps {
   pitches: PlayPitch[];
   batSide: string | null;
-  batterImageUrl: string | null;
+  jerseyImageUrl: string | null;
+  pantsImageUrl: string | null;
   stadiumImageUrl: string | null;
+  infieldImageUrl: string | null;
   activePitch: PlayPitch | null;
   revealCall: boolean;
   animatePitchIn?: boolean;
   showStrikeZone?: boolean;
   className?: string;
+  children?: ReactNode;
 }
 
 function ZoneGridLines({ zone }: { zone: SvgRectPercent }) {
@@ -134,112 +139,133 @@ function PitchDot({
 export function CatcherScene({
   pitches,
   batSide,
-  batterImageUrl,
+  jerseyImageUrl,
+  pantsImageUrl,
   stadiumImageUrl,
+  infieldImageUrl,
   activePitch,
   revealCall,
   animatePitchIn = false,
   showStrikeZone = true,
   className,
+  children,
 }: CatcherSceneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const frameSize = useGamedayFrameSize(containerRef);
+  const frameSize = usePitchFxFrameSize(containerRef);
+  const isLefty = batSide?.toUpperCase() === "L";
   const plotted = pitches.filter((p) => p.isPitch && p.hasPlateLocation !== false);
   const szTop = activePitch?.strikeZoneTop ?? plotted.at(-1)?.strikeZoneTop ?? 3.5;
   const szBottom = activePitch?.strikeZoneBottom ?? plotted.at(-1)?.strikeZoneBottom ?? 1.5;
-  const layout = gamedaySceneLayout(batSide, szTop, szBottom);
+  const layout = pitchFxSceneLayout(batSide, szTop, szBottom);
 
   const priorPitches = activePitch
     ? plotted.filter((p) => p.pitchNumber < activePitch.pitchNumber)
     : plotted;
 
+  const playerStyle = {
+    width: `${GAMEDAY_PITCH_FX.playerWidth}%`,
+    paddingBottom: `${GAMEDAY_PITCH_FX.playerPaddingBottom}%`,
+    top: `${GAMEDAY_PITCH_FX.playerTop}%`,
+    ...(isLefty
+      ? { right: `${GAMEDAY_PITCH_FX.playerSide}%` }
+      : { left: `${GAMEDAY_PITCH_FX.playerSide}%` }),
+    transformOrigin: isLefty ? "25% 100%" : "75% 100%",
+    backgroundImage: [
+      jerseyImageUrl ? `url("${jerseyImageUrl}")` : null,
+      pantsImageUrl ? `url("${pantsImageUrl}")` : null,
+    ]
+      .filter(Boolean)
+      .join(", "),
+  } as const;
+
   return (
-    <div ref={containerRef} className={cn("flex h-full w-full items-end justify-center", className)}>
+    <div
+      ref={containerRef}
+      className={cn("flex h-full w-full items-center justify-center", className)}
+    >
       <div
-        className="relative overflow-hidden bg-neutral-950"
+        className={cn("relative overflow-hidden bg-neutral-950", isLefty && "lefty")}
         style={{
           width: frameSize.width > 0 ? frameSize.width : "100%",
           height: frameSize.height > 0 ? frameSize.height : undefined,
-          aspectRatio: `${GAMEDAY_STADIUM_WIDTH} / ${GAMEDAY_STADIUM_HEIGHT}`,
+          aspectRatio: frameSize.width > 0 ? undefined : `${4} / ${3}`,
           maxWidth: "100%",
           maxHeight: "100%",
+          backgroundImage: [
+            infieldImageUrl ? `url("${infieldImageUrl}")` : null,
+            stadiumImageUrl ? `url("${stadiumImageUrl}")` : null,
+          ]
+            .filter(Boolean)
+            .join(", "),
+          backgroundSize: "calc(100% + 1px), calc(100% + 1px)",
+          backgroundPosition: `${GAMEDAY_PITCH_FX.infieldBgPosition}, ${GAMEDAY_PITCH_FX.stadiumBgPosition}`,
+          backgroundRepeat: "no-repeat, no-repeat",
         }}
         aria-label="Gameday pitch view"
       >
-      {stadiumImageUrl ? (
-        <img
-          src={stadiumImageUrl}
-          alt=""
-          className="absolute inset-0 h-full w-full"
-          width={GAMEDAY_STADIUM_WIDTH}
-          height={GAMEDAY_STADIUM_HEIGHT}
-          draggable={false}
-        />
-      ) : null}
+        {children}
 
-      {batterImageUrl ? (
         <div
-          className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full"
-          style={{
-            left: `${layout.batterAnchorX}%`,
-            top: `${layout.batterBottomY}%`,
-            width: `${layout.batterWidthPercent}%`,
-            height: `${layout.batterMaxHeightPercent}%`,
-          }}
+          className="absolute inset-0"
+          style={{ marginTop: `${GAMEDAY_PITCH_FX.domMarginTop}%` }}
         >
-          <img
-            src={batterImageUrl}
-            alt=""
-            className="h-full w-full object-contain object-bottom drop-shadow-[0_8px_28px_rgb(0_0_0/0.5)]"
-            draggable={false}
-          />
-        </div>
-      ) : null}
-
-      <svg
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-        className="pointer-events-none absolute inset-0 z-20 h-full w-full"
-        aria-hidden
-      >
-        {showStrikeZone ? (
-          <>
-            <rect
-              x={layout.zone.x}
-              y={layout.zone.y}
-              width={layout.zone.width}
-              height={layout.zone.height}
-              fill="rgb(0 0 0 / 0.28)"
+          {jerseyImageUrl || pantsImageUrl ? (
+            <div
+              className="absolute z-20 box-border bg-no-repeat"
+              style={{
+                ...playerStyle,
+                backgroundPosition: "center bottom, center bottom",
+                backgroundSize: "100%, 100%",
+              }}
+              role="presentation"
             />
-            <ZoneGridLines zone={layout.zone} />
-          </>
-        ) : null}
+          ) : null}
 
-        {priorPitches.map((pitch) => (
-          <PitchDot
-            key={`${pitch.pitchNumber}-${pitch.callCode}`}
-            pitch={pitch}
-            szTop={szTop}
-            szBottom={szBottom}
-            sceneZone={layout.zone}
-            revealCall={false}
-            animateIn={false}
-            showNumber={showStrikeZone}
-          />
-        ))}
+          <svg
+            viewBox="0 0 100 100"
+            preserveAspectRatio="xMidYMid meet"
+            className="pointer-events-none absolute inset-0 z-30 h-full w-full"
+            aria-hidden
+          >
+            {showStrikeZone ? (
+              <>
+                <rect
+                  x={layout.zone.x}
+                  y={layout.zone.y}
+                  width={layout.zone.width}
+                  height={layout.zone.height}
+                  fill="rgb(0 0 0 / 0.28)"
+                />
+                <ZoneGridLines zone={layout.zone} />
+              </>
+            ) : null}
 
-        {activePitch && activePitch.hasPlateLocation !== false ? (
-          <PitchDot
-            pitch={activePitch}
-            szTop={szTop}
-            szBottom={szBottom}
-            sceneZone={layout.zone}
-            revealCall={revealCall}
-            animateIn={animatePitchIn && !revealCall}
-            showNumber={showStrikeZone && revealCall}
-          />
-        ) : null}
-      </svg>
+            {priorPitches.map((pitch) => (
+              <PitchDot
+                key={`${pitch.pitchNumber}-${pitch.callCode}`}
+                pitch={pitch}
+                szTop={szTop}
+                szBottom={szBottom}
+                sceneZone={layout.zone}
+                revealCall={false}
+                animateIn={false}
+                showNumber={showStrikeZone}
+              />
+            ))}
+
+            {activePitch && activePitch.hasPlateLocation !== false ? (
+              <PitchDot
+                pitch={activePitch}
+                szTop={szTop}
+                szBottom={szBottom}
+                sceneZone={layout.zone}
+                revealCall={revealCall}
+                animateIn={animatePitchIn && !revealCall}
+                showNumber={showStrikeZone && revealCall}
+              />
+            ) : null}
+          </svg>
+        </div>
       </div>
     </div>
   );
