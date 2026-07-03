@@ -2,10 +2,9 @@ import { ImageResponse } from "next/og";
 
 import { mlbTeamShareLogoUrl } from "@/lib/mlb/teamAssets";
 import {
-  isCursedNerdRank,
-  isEliteNerdRank,
   nerdRankBadgeLabel,
-  pickEliteCursedTeamStats,
+  pickFullShareCardStats,
+  splitShareableChaosStats,
 } from "@/lib/mlb/nerdStats/teamNerdHighlights";
 import type { NerdStatDetail, TeamNerdCard } from "@/lib/mlb/nerdStats/types";
 import { NERD_STAT_CATEGORIES, type NerdStatCategory } from "@/lib/mlb/nerdStats/types";
@@ -15,20 +14,7 @@ export const OG_IMAGE_SIZE = { width: 1200, height: 630 } as const;
 export const STAT_SHARE_SIZE = { width: 1080, height: 920 } as const;
 export const CHAOS_SHARE_WIDTH = 1080;
 
-function chaosShareHeight(eliteCount: number, cursedCount: number): number {
-  const rows = Math.max(eliteCount, cursedCount, 1);
-  const rowHeight = 68;
-  const columnHeader = 45;
-  const teamHeader = 100;
-  const footer = 36;
-  const padding = 96;
-  const accent = 5;
-  return accent + padding + teamHeader + columnHeader + rows * rowHeight + footer + 24;
-}
-
 export type TeamShareCardVariant = "full" | "highlights";
-
-const MAX_CHAOS_PER_SIDE = 4;
 
 const COLORS = {
   background: "#0c0c0c",
@@ -74,11 +60,52 @@ function podiumColor(rank: number): string | null {
 }
 
 function splitChaosStats(stats: TeamNerdStat[]) {
-  const picked = pickEliteCursedTeamStats(stats);
-  return {
-    elite: picked.filter((stat) => isEliteNerdRank(stat.rank)).slice(0, MAX_CHAOS_PER_SIDE),
-    cursed: picked.filter((stat) => isCursedNerdRank(stat.rank)).slice(0, MAX_CHAOS_PER_SIDE),
-  };
+  return splitShareableChaosStats(stats);
+}
+
+function teamShareHeight(rowCount: number, twoColumn: boolean): number {
+  const rows = Math.max(rowCount, 1);
+  const rowHeight = 64;
+  const columnHeader = twoColumn ? 45 : 0;
+  const teamHeader = 100;
+  const footer = 36;
+  const padding = 96;
+  const accent = 5;
+  return accent + padding + teamHeader + columnHeader + rows * rowHeight + footer + 24;
+}
+
+function chaosShareHeight(eliteCount: number, cursedCount: number): number {
+  return teamShareHeight(Math.max(eliteCount, cursedCount, 1), true);
+}
+
+function teamLogo(teamId: number, size: number) {
+  const inner = Math.round(size * 0.8);
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        background: COLORS.surfaceRaised,
+        border: `1px solid ${COLORS.border}`,
+        flexShrink: 0,
+        overflow: "hidden",
+      }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={mlbTeamShareLogoUrl(teamId)}
+        style={{
+          objectFit: "contain",
+          width: inner,
+          height: inner,
+        }}
+      />
+    </div>
+  );
 }
 
 function accentBar(accent: string, width: number) {
@@ -244,8 +271,7 @@ export function teamChaosShareElement(card: TeamNerdCard, height: number) {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 20, width: contentWidth }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={mlbTeamShareLogoUrl(card.teamId)} alt="" width={72} height={72} />
+          {teamLogo(card.teamId, 72)}
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <span style={{ display: "flex", fontSize: 38, fontWeight: 800, lineHeight: 1.05 }}>
               {card.teamName}
@@ -309,8 +335,7 @@ function leaderRow(
         >
           {leader.rank}
         </span>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={mlbTeamShareLogoUrl(leader.teamId)} alt="" width={36} height={36} />
+        {teamLogo(leader.teamId, 36)}
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <span style={{ display: "flex", fontSize: 20, fontWeight: 600 }}>{leader.abbrev}</span>
           <span style={{ display: "flex", fontSize: 14, color: COLORS.muted }}>{leader.teamName}</span>
@@ -405,8 +430,7 @@ export function nerdStatShareElement(detail: NerdStatDetail, portrait: boolean) 
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={mlbTeamShareLogoUrl(top.teamId)} alt="" width={52} height={52} />
+              {teamLogo(top.teamId, 52)}
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 <span
                   style={{
@@ -476,9 +500,10 @@ export function nerdStatShareElement(detail: NerdStatDetail, portrait: boolean) 
   );
 }
 
-export function teamNerdCardShareElement(card: TeamNerdCard, portrait: boolean) {
-  const highlights = [...card.stats].sort((a, b) => a.rank - b.rank).slice(0, portrait ? 8 : 6);
-  const { width, height } = portrait ? { width: 1080, height: 900 } : OG_IMAGE_SIZE;
+export function teamNerdCardShareElement(card: TeamNerdCard, portrait: boolean, height: number) {
+  const highlights = pickFullShareCardStats(card.stats);
+  const width = CHAOS_SHARE_WIDTH;
+  const contentWidth = width - 88;
 
   return (
     <div
@@ -499,17 +524,17 @@ export function teamNerdCardShareElement(card: TeamNerdCard, portrait: boolean) 
           display: "flex",
           flexDirection: "column",
           width,
-          flex: 1,
-          padding: portrait ? "36px 44px 28px" : "32px 40px",
+          padding: "36px 44px 28px",
           gap: 20,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 18, width: width - 88 }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={mlbTeamShareLogoUrl(card.teamId)} alt="" width={64} height={64} />
+        <div style={{ display: "flex", alignItems: "center", gap: 18, width: contentWidth }}>
+          {teamLogo(card.teamId, 64)}
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <span style={{ display: "flex", fontSize: 34, fontWeight: 800 }}>{card.teamName}</span>
-            <span style={{ display: "flex", fontSize: 16, color: COLORS.muted }}>{card.season} nerd card</span>
+            <span style={{ display: "flex", fontSize: 16, color: COLORS.muted }}>
+              {card.season} nerd card · elite & cursed chaos
+            </span>
           </div>
         </div>
 
@@ -517,66 +542,78 @@ export function teamNerdCardShareElement(card: TeamNerdCard, portrait: boolean) 
           style={{
             display: "flex",
             flexDirection: "column",
-            width: width - 88,
+            width: contentWidth,
             border: `1px solid ${COLORS.border}`,
             borderRadius: 12,
             overflow: "hidden",
             background: COLORS.surface,
           }}
         >
-          {highlights.map((stat, index) => {
-            const elite = stat.rank <= 3;
-            const cursed = stat.rank >= 28;
-            const badge = nerdRankBadgeLabel(stat.rank, stat.sort);
-            const isLast = index === highlights.length - 1;
+          {highlights.length === 0 ? (
+            <div
+              style={{
+                display: "flex",
+                padding: "32px 18px",
+                color: COLORS.muted,
+                fontSize: 16,
+              }}
+            >
+              No shareable chaos yet.
+            </div>
+          ) : (
+            highlights.map((stat, index) => {
+              const elite = stat.rank <= 3;
+              const cursed = stat.rank >= 28;
+              const badge = nerdRankBadgeLabel(stat.rank, stat.sort);
+              const isLast = index === highlights.length - 1;
 
-            return (
-              <div
-                key={stat.statId}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  width: "100%",
-                  gap: 12,
-                  padding: "12px 18px",
-                  borderBottom: isLast ? "none" : `1px solid ${COLORS.border}`,
-                  background: elite || cursed ? COLORS.surfaceRaised : COLORS.surface,
-                }}
-              >
-                <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
-                  <span style={{ display: "flex", fontSize: 17, fontWeight: 600 }}>{stat.title}</span>
-                  {badge && (
-                    <span
-                      style={{
-                        display: "flex",
-                        color: elite ? COLORS.elite : COLORS.cursed,
-                        fontSize: 11,
-                        textTransform: "uppercase",
-                        letterSpacing: 1,
-                        fontWeight: 700,
-                      }}
-                    >
-                      #{stat.rank} · {badge}
-                    </span>
-                  )}
+              return (
+                <div
+                  key={stat.statId}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    width: contentWidth,
+                    gap: 12,
+                    padding: "12px 18px",
+                    borderBottom: isLast ? "none" : `1px solid ${COLORS.border}`,
+                    background: elite || cursed ? COLORS.surfaceRaised : COLORS.surface,
+                  }}
+                >
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4, width: contentWidth - 120 }}>
+                    <span style={{ display: "flex", fontSize: 17, fontWeight: 600 }}>{stat.title}</span>
+                    {badge && (
+                      <span
+                        style={{
+                          display: "flex",
+                          color: elite ? COLORS.elite : COLORS.cursed,
+                          fontSize: 11,
+                          textTransform: "uppercase",
+                          letterSpacing: 1,
+                          fontWeight: 700,
+                        }}
+                      >
+                        #{stat.rank} · {badge}
+                      </span>
+                    )}
+                  </div>
+                  <span style={{ display: "flex", fontSize: 20, fontWeight: 700, flexShrink: 0 }}>
+                    {stat.displayValue}
+                  </span>
                 </div>
-                <span style={{ display: "flex", fontSize: 20, fontWeight: 700, flexShrink: 0 }}>
-                  {stat.displayValue}
-                </span>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
 
         <div
           style={{
             display: "flex",
             justifyContent: "space-between",
-            width: width - 88,
+            width: contentWidth,
             color: COLORS.faint,
             fontSize: 14,
-            marginTop: "auto",
           }}
         >
           <span style={{ display: "flex" }}>Actually, your team is…</span>
@@ -606,6 +643,6 @@ export async function renderTeamNerdCardImage(
     });
   }
 
-  const size = portrait ? { width: 1080, height: 900 } : OG_IMAGE_SIZE;
-  return new ImageResponse(teamNerdCardShareElement(card, portrait), size);
+  const size = portrait ? { width: 1080, height: teamShareHeight(pickFullShareCardStats(card.stats).length, false) } : OG_IMAGE_SIZE;
+  return new ImageResponse(teamNerdCardShareElement(card, portrait, size.height), size);
 }

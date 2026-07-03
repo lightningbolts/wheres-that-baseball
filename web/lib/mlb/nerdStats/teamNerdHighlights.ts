@@ -2,9 +2,23 @@ import type { TeamNerdCard } from "@/lib/mlb/nerdStats/types";
 
 type TeamNerdStat = TeamNerdCard["stats"][number];
 
+/** Pitch-type movement/spin/velo stats — too inside-baseball for social share cards. */
+const PITCH_NERD_STAT_PATTERN = /-avg-(velocity|spin|h-break|v-break)$/;
+
+export const MAX_CHAOS_PER_SIDE = 4;
+export const MAX_FULL_SHARE_STATS = 8;
+
 export function isBlankNerdDisplayValue(displayValue: string): boolean {
   const trimmed = displayValue.trim();
   return trimmed === "" || trimmed === "—" || trimmed === "---" || trimmed === "–" || trimmed === "N/A";
+}
+
+export function isPitchNerdStat(statId: string): boolean {
+  return PITCH_NERD_STAT_PATTERN.test(statId);
+}
+
+export function isShareWorthyTeamStat(stat: TeamNerdStat): boolean {
+  return !isPitchNerdStat(stat.statId) && !isBlankNerdDisplayValue(stat.displayValue);
 }
 
 export function isEliteNerdRank(rank: number): boolean {
@@ -25,10 +39,10 @@ export function nerdRankBadgeLabel(rank: number, sort: "asc" | "desc"): string |
   return null;
 }
 
-/** Elite (top 3) and cursed (bottom 3) stats with real values — for short share cards. */
+/** Elite/cursed stats that are fun enough to post — no pitch movement grids. */
 export function pickEliteCursedTeamStats(stats: TeamNerdStat[]): TeamNerdStat[] {
   return stats
-    .filter((stat) => isEliteOrCursedNerdRank(stat.rank) && !isBlankNerdDisplayValue(stat.displayValue))
+    .filter((stat) => isShareWorthyTeamStat(stat) && isEliteOrCursedNerdRank(stat.rank))
     .sort((a, b) => {
       const aElite = isEliteNerdRank(a.rank);
       const bElite = isEliteNerdRank(b.rank);
@@ -37,4 +51,17 @@ export function pickEliteCursedTeamStats(stats: TeamNerdStat[]): TeamNerdStat[] 
       if (bElite) return 1;
       return b.rank - a.rank;
     });
+}
+
+/** Single-column full share card — top elite/cursed chaos highlights. */
+export function pickFullShareCardStats(stats: TeamNerdStat[]): TeamNerdStat[] {
+  return pickEliteCursedTeamStats(stats).slice(0, MAX_FULL_SHARE_STATS);
+}
+
+export function splitShareableChaosStats(stats: TeamNerdStat[]) {
+  const picked = pickEliteCursedTeamStats(stats);
+  return {
+    elite: picked.filter((stat) => isEliteNerdRank(stat.rank)).slice(0, MAX_CHAOS_PER_SIDE),
+    cursed: picked.filter((stat) => isCursedNerdRank(stat.rank)).slice(0, MAX_CHAOS_PER_SIDE),
+  };
 }
