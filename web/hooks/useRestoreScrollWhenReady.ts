@@ -28,6 +28,7 @@ export function useRestoreScrollWhenReady(ready: boolean, enabled = true): void 
     if (savedY === undefined) return;
 
     restoredRef.current = true;
+    window.scrollTo(0, 0);
     return restoreScrollPosition(savedY);
   }, [enabled, ready, pathname]);
 }

@@ -9,6 +9,10 @@ import {
   pct,
   ratePer1000,
 } from "@/lib/mlb/nerdStats/format";
+import {
+  CONTACT_QUALITY_NERD_STAT_DEFINITIONS,
+  PITCH_TYPE_NERD_STAT_DEFINITIONS,
+} from "@/lib/mlb/nerdStats/pitchTypeStatDefinitions";
 import type { NerdStatCategory, TeamNerdCounters } from "@/lib/mlb/nerdStats/types";
 
 export interface NerdStatDefinition {
@@ -459,17 +463,6 @@ export const NERD_STAT_DEFINITIONS: NerdStatDefinition[] = [
     sort: "desc",
     unit: "hits",
     compute: (c) => c.infieldSingles,
-    formatValue: formatCount,
-  },
-  {
-    id: "pitcher-hits",
-    title: "Pitcher Hit Parade",
-    subtitle: "Hits by pitchers (yes, really).",
-    category: "contact",
-    sort: "desc",
-    unit: "hits",
-    formula: "Hits by a pitcher batting (roster ID or play description starting with “Pitcher …”)",
-    compute: (c) => c.pitcherHits,
     formatValue: formatCount,
   },
   {
@@ -1227,16 +1220,16 @@ export const NERD_STAT_DEFINITIONS: NerdStatDefinition[] = [
     formatValue: (v) => formatPercent(v),
   },
   {
-    id: "strikeouts-per-game",
+    id: "swinging-strikes-per-game",
     title: "Whiff Rate Per Game",
-    subtitle: "Team strikeouts per game.",
+    subtitle: "Swinging strikes per game as the batting team.",
     category: "chaos",
     sort: "desc",
-    unit: "K/G",
-    formula: "strikeouts ÷ games with feed",
+    unit: "whiffs/G",
+    formula: "swinging strikes ÷ games with feed",
     minGames: 20,
     compute: (c) =>
-      c.finalGamesWithFeed > 0 ? c.strikeouts / c.finalGamesWithFeed : null,
+      c.finalGamesWithFeed > 0 ? c.swingingStrikes / c.finalGamesWithFeed : null,
     formatValue: (v) => v.toFixed(1),
   },
   {
@@ -1318,6 +1311,8 @@ export const NERD_STAT_DEFINITIONS: NerdStatDefinition[] = [
     compute: (c) => pct(c.zeroWalkGames, c.finalGamesWithFeed),
     formatValue: (v) => formatPercent(v),
   },
+  ...CONTACT_QUALITY_NERD_STAT_DEFINITIONS,
+  ...PITCH_TYPE_NERD_STAT_DEFINITIONS,
 ];
 
 export function getNerdStatDefinition(statId: string): NerdStatDefinition | undefined {

@@ -28,6 +28,14 @@ export interface NotableNerdEvent {
   value?: number;
 }
 
+export interface PitchTypeAccumulator {
+  count: number;
+  velocitySum: number;
+  spinSum: number;
+  hBreakSum: number;
+  vBreakSum: number;
+}
+
 export interface TeamNerdCounters {
   gamesPlayed: number;
   finalGamesWithFeed: number;
@@ -78,7 +86,13 @@ export interface TeamNerdCounters {
   barrelBalls: number;
   chopBalls: number;
   popupBalls: number;
-  pitcherHits: number;
+  exitVeloSum: number;
+  exitVeloCount: number;
+  launchAngleSum: number;
+  launchAngleCount: number;
+  batSpeedSum: number;
+  batSpeedCount: number;
+  pitchTypesThrown: Record<string, PitchTypeAccumulator>;
   stolenBases: number;
   caughtStealing: number;
   pickoffs: number;

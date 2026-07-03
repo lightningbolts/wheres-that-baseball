@@ -57,6 +57,7 @@ export interface HitData {
   breakVerticalInduced?: number;
   pfxX?: number;
   pfxZ?: number;
+  batSpeed?: number;
 }
 
 export interface BaseOccupancy {
@@ -248,6 +249,7 @@ interface PitchEventRaw {
     hardness?: string;
     location?: string;
     coordinates?: { coordX?: number; coordY?: number };
+    batSpeed?: number;
   };
 }
 

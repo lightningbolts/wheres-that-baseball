@@ -883,6 +883,7 @@ function parseHitData(
     breakVerticalInduced: breaks?.breakVerticalInduced,
     pfxX: coords?.pfxX,
     pfxZ: coords?.pfxZ,
+    batSpeed: raw.batSpeed,
   };
 }
 

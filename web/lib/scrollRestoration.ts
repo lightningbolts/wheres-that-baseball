@@ -34,7 +34,8 @@ export function isAsyncScrollRoute(pathname: string): boolean {
     pathname === "/nerd" ||
     pathname === "/ballparks" ||
     /^\/ballparks\/\d+$/.test(pathname) ||
-    /^\/nerd\/team\/\d+$/.test(pathname)
+    /^\/nerd\/team\/\d+$/.test(pathname) ||
+    /^\/nerd\/[^/]+$/.test(pathname)
   );
 }
 
@@ -48,14 +49,15 @@ export function restoreScrollPosition(
   let cancelled = false;
   let rafId = 0;
   let programmaticScroll = false;
+  let restoring = true;
 
   const complete = () => {
     if (cancelled) return;
     cancelled = true;
+    restoring = false;
     if (rafId) cancelAnimationFrame(rafId);
     observer.disconnect();
     timeouts.forEach((id) => window.clearTimeout(id));
-    window.removeEventListener("scroll", onScroll);
     window.removeEventListener("wheel", onUserIntent, true);
     window.removeEventListener("touchstart", onUserIntent, true);
     window.removeEventListener("keydown", onUserIntent, true);
@@ -64,11 +66,7 @@ export function restoreScrollPosition(
   };
 
   const onUserIntent = () => {
-    complete();
-  };
-
-  const onScroll = () => {
-    if (cancelled || programmaticScroll) return;
+    if (restoring) return;
     complete();
   };
 
@@ -88,6 +86,7 @@ export function restoreScrollPosition(
     const canReach = maxScroll >= targetY - 8;
 
     if (closeEnough || (canReach && attempts >= 4)) {
+      restoring = false;
       complete();
       return;
     }
@@ -95,11 +94,11 @@ export function restoreScrollPosition(
     if (attempts < MAX_RESTORE_ATTEMPTS) {
       rafId = requestAnimationFrame(tryRestore);
     } else {
+      restoring = false;
       complete();
     }
   };
 
-  window.addEventListener("scroll", onScroll, { passive: true });
   window.addEventListener("wheel", onUserIntent, { passive: true, capture: true });
   window.addEventListener("touchstart", onUserIntent, { passive: true, capture: true });
   window.addEventListener("keydown", onUserIntent, { capture: true });

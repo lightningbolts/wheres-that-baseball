@@ -6,7 +6,6 @@ import {
 } from "@/lib/mlb/nerdStats/counters";
 import {
   battingTeamId,
-  buildPitcherBatterIds,
   extractPinchHitterName,
   fieldingTeamId,
   findWalkOffPlay,
@@ -20,7 +19,6 @@ import {
   isNoDoubterHr,
   isPassedBall,
   isPickoff,
-  isPitcherHit,
   isRallyKillerGidp,
   isStolenBase,
   isTriplePlay,
@@ -31,6 +29,7 @@ import {
   teamWon,
 } from "@/lib/mlb/nerdStats/extractHelpers";
 import { recordPitchCounters } from "@/lib/mlb/nerdStats/pitchCounters";
+import { recordPitchTypeThrown } from "@/lib/mlb/nerdStats/pitchTypeStats";
 import type { GameNerdSourceRow, SeasonNerdCounters } from "@/lib/mlb/nerdStats/types";
 import type { GameBoxScore } from "@/types/mlb-boxscore";
 import type { PlayByPlayEntry } from "@/types/mlb-live";
@@ -382,7 +381,6 @@ export function extractNerdCountersFromGame(row: GameNerdSourceRow): SeasonNerdC
 
   const plays = state.plays;
   const boxScore = row.box_score as GameBoxScore | null;
-  const pitcherBatterIds = buildPitcherBatterIds(boxScore);
   const maxInning = gameInningCount(plays, boxScore);
 
   if (maxInning > 9) {
@@ -437,6 +435,7 @@ export function extractNerdCountersFromGame(row: GameNerdSourceRow): SeasonNerdC
 
       for (const pitch of play.detail.pitches) {
         recordPitchCounters(offense, defense, pitch);
+        recordPitchTypeThrown(defense, pitch);
       }
 
       if (isHitEvent(play.event)) {
@@ -581,20 +580,17 @@ export function extractNerdCountersFromGame(row: GameNerdSourceRow): SeasonNerdC
         offense.infieldSingles += 1;
       }
 
-      if (isPitcherHit(play, pitcherBatterIds)) {
-        offense.pitcherHits += 1;
-        pushNotable(offense, {
-          statId: "pitcher-hits",
-          gamePk: row.game_pk,
-          gameDate: row.game_date,
-          label: `${play.batterName} — pitcher hit`,
-          detail: play.description,
-        });
-      }
-
       if (hasBattedBallData(play)) {
         const hit = play.detail.hit!;
         offense.battedBallEvents += 1;
+        offense.exitVeloSum += hit.launchSpeed;
+        offense.exitVeloCount += 1;
+        offense.launchAngleSum += hit.launchAngle;
+        offense.launchAngleCount += 1;
+        if (hit.batSpeed != null && hit.batSpeed > 0) {
+          offense.batSpeedSum += hit.batSpeed;
+          offense.batSpeedCount += 1;
+        }
         if (isBarrel(hit)) offense.barrelBalls += 1;
         if (hit.launchAngle < 5) offense.chopBalls += 1;
         if (hit.launchAngle > 50) offense.popupBalls += 1;

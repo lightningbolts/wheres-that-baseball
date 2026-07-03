@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { AppNav } from "@/components/features/AppNav";
 import { TeamLogo } from "@/components/ui/TeamLogo";
@@ -19,6 +19,10 @@ interface NerdStatDetailViewProps {
 export function NerdStatDetailView({ statId }: NerdStatDetailViewProps) {
   const { data, isLoading, error } = useNerdStatDetail(statId, CURRENT_SEASON);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [statId]);
 
   const shareUrl = typeof window !== "undefined" ? `${window.location.origin}/nerd/${statId}` : "";
 

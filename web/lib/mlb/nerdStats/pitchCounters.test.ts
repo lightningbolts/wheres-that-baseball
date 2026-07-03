@@ -33,16 +33,32 @@ describe("classifyPitch", () => {
     expect(classifyPitch(basePitch({ isPitch: false }))).toBeNull();
   });
 
-  it("classifies fouls when not ball, strike, or in play", () => {
+  it("classifies fouls even when MLB marks isStrike true", () => {
     const foul = classifyPitch(
       basePitch({
-        isStrike: false,
+        isStrike: true,
         isBall: false,
         isInPlay: false,
         callDescription: "Foul",
+        callCode: "F",
       }),
     );
     expect(foul?.isFoul).toBe(true);
+    expect(foul?.isStrike).toBe(false);
+  });
+
+  it("classifies foul bunts by call code", () => {
+    const foulBunt = classifyPitch(
+      basePitch({
+        isStrike: true,
+        isBall: false,
+        isInPlay: false,
+        callDescription: "Foul Bunt",
+        callCode: "L",
+      }),
+    );
+    expect(foulBunt?.isFoul).toBe(true);
+    expect(foulBunt?.isStrike).toBe(false);
   });
 
   it("detects swinging and called strikes", () => {
@@ -67,10 +83,11 @@ describe("recordPitchCounters", () => {
       offense,
       defense,
       basePitch({
-        isStrike: false,
+        isStrike: true,
         isBall: false,
         isInPlay: false,
         callDescription: "Foul",
+        callCode: "F",
       }),
     );
     recordPitchCounters(

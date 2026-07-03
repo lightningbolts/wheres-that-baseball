@@ -1,3 +1,4 @@
+import { createEmptyPitchTypesThrown, mergePitchTypesThrown } from "@/lib/mlb/nerdStats/pitchTypeStats";
 import type { NotableNerdEvent, SeasonNerdCounters, TeamNerdCounters } from "@/lib/mlb/nerdStats/types";
 import { MLB_TEAMS } from "@/lib/mlb/teams";
 
@@ -52,7 +53,13 @@ export function createEmptyTeamCounters(): TeamNerdCounters {
     barrelBalls: 0,
     chopBalls: 0,
     popupBalls: 0,
-    pitcherHits: 0,
+    exitVeloSum: 0,
+    exitVeloCount: 0,
+    launchAngleSum: 0,
+    launchAngleCount: 0,
+    batSpeedSum: 0,
+    batSpeedCount: 0,
+    pitchTypesThrown: createEmptyPitchTypesThrown(),
     stolenBases: 0,
     caughtStealing: 0,
     pickoffs: 0,
@@ -121,11 +128,16 @@ export function createEmptySeasonCounters(): SeasonNerdCounters {
 /** Backfill counters saved before new fields were added to TeamNerdCounters. */
 export function normalizeTeamCounters(partial: Partial<TeamNerdCounters>): TeamNerdCounters {
   const empty = createEmptyTeamCounters();
-  return {
+  const merged = {
     ...empty,
     ...partial,
     notableEvents: partial.notableEvents ?? empty.notableEvents,
+    pitchTypesThrown: { ...empty.pitchTypesThrown },
   };
+  if (partial.pitchTypesThrown) {
+    mergePitchTypesThrown(merged.pitchTypesThrown, partial.pitchTypesThrown);
+  }
+  return merged;
 }
 
 export function normalizeSeasonCounters(partial: SeasonNerdCounters): SeasonNerdCounters {
@@ -196,7 +208,13 @@ export function mergeTeamCounters(target: TeamNerdCounters, source: TeamNerdCoun
   target.barrelBalls += source.barrelBalls;
   target.chopBalls += source.chopBalls;
   target.popupBalls += source.popupBalls;
-  target.pitcherHits += source.pitcherHits;
+  target.exitVeloSum += source.exitVeloSum;
+  target.exitVeloCount += source.exitVeloCount;
+  target.launchAngleSum += source.launchAngleSum;
+  target.launchAngleCount += source.launchAngleCount;
+  target.batSpeedSum += source.batSpeedSum;
+  target.batSpeedCount += source.batSpeedCount;
+  mergePitchTypesThrown(target.pitchTypesThrown, source.pitchTypesThrown);
   target.stolenBases += source.stolenBases;
   target.caughtStealing += source.caughtStealing;
   target.pickoffs += source.pickoffs;
