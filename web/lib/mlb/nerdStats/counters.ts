@@ -118,6 +118,28 @@ export function createEmptySeasonCounters(): SeasonNerdCounters {
   return counters;
 }
 
+/** Backfill counters saved before new fields were added to TeamNerdCounters. */
+export function normalizeTeamCounters(partial: Partial<TeamNerdCounters>): TeamNerdCounters {
+  const empty = createEmptyTeamCounters();
+  return {
+    ...empty,
+    ...partial,
+    notableEvents: partial.notableEvents ?? empty.notableEvents,
+  };
+}
+
+export function normalizeSeasonCounters(partial: SeasonNerdCounters): SeasonNerdCounters {
+  const counters = createEmptySeasonCounters();
+  for (const team of MLB_TEAMS) {
+    const key = String(team.id);
+    const teamPartial = partial[key];
+    if (teamPartial) {
+      counters[key] = normalizeTeamCounters(teamPartial);
+    }
+  }
+  return counters;
+}
+
 function mergeMinNullable(target: number | null, source: number | null): number | null {
   if (source == null) return target;
   return target == null ? source : Math.min(target, source);

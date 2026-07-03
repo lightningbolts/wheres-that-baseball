@@ -14,6 +14,7 @@ import {
   pickJerseyAssetCode,
   pickPantsAssetCode,
   type UniformsGameResponse,
+  type UniformsTeamEntry,
   type UniformsTeamResponse,
 } from "@/lib/mlb/gamedayBatter";
 
@@ -34,7 +35,7 @@ async function fetchUniformsGame(gamePk: number): Promise<UniformsGameResponse |
   return (await response.json()) as UniformsGameResponse;
 }
 
-async function fetchTeamUniforms(teamId: number): Promise<UniformsTeamResponse["uniforms"]> {
+async function fetchTeamUniforms(teamId: number): Promise<UniformsTeamEntry[]> {
   const response = await fetch(`${UNIFORMS_TEAM_URL}?teamIds=${teamId}`, {
     next: { revalidate: 3600 },
   });

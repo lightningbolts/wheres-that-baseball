@@ -9,6 +9,7 @@ import {
 import {
   createEmptySeasonCounters,
   mergeSeasonCounters,
+  normalizeSeasonCounters,
 } from "@/lib/mlb/nerdStats/counters";
 import { NERD_STAT_DEFINITIONS } from "@/lib/mlb/nerdStats/definitions";
 import { extractNerdCountersFromGame } from "@/lib/mlb/nerdStats/extractGame";
@@ -83,7 +84,9 @@ export function loadTeamNerdCard(season: number, teamId: number): TeamNerdCard |
 }
 
 export function loadSeasonCounters(season: number): SeasonNerdCounters {
-  return readJson<SeasonNerdCounters>(countersPath(season)) ?? createEmptySeasonCounters();
+  const raw = readJson<SeasonNerdCounters>(countersPath(season));
+  if (!raw) return createEmptySeasonCounters();
+  return normalizeSeasonCounters(raw);
 }
 
 export function writeFullNerdStatsStore(
