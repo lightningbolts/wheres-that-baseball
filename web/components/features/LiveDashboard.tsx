@@ -14,6 +14,7 @@ import { DueUpDialog } from "@/components/features/DueUpDialog";
 import { GameDetailTabs, type GameDetailTab } from "@/components/features/GameDetailTabs";
 import { GameHitsView } from "@/components/features/GameHitsView";
 import { GameFinalDialog } from "@/components/features/GameFinalDialog";
+import { NerdInsightToasts } from "@/components/features/NerdInsightToasts";
 import { PlayByPlay } from "@/components/features/PlayByPlay";
 import { ProbabilityChart } from "@/components/features/ProbabilityChart";
 import { Scorebug } from "@/components/features/Scorebug";
@@ -24,6 +25,7 @@ import { useBatterVsPitcher } from "@/hooks/useBatterVsPitcher";
 import { useBreakLinger } from "@/hooks/useBreakLinger";
 import { useLiveGameOverlays } from "@/hooks/useLiveGameOverlays";
 import { useLiveGameState } from "@/hooks/useLiveGameState";
+import { useNerdInsights } from "@/hooks/useNerdInsights";
 import { useGameBoxScore } from "@/hooks/useGameBoxScore";
 import { useLivePredictions } from "@/hooks/useLivePredictions";
 import { useOutcomeOdds } from "@/hooks/useOutcomeOdds";
@@ -52,6 +54,10 @@ function DashboardContent({ game }: { game: SlateGame }) {
   const { atBatViewState, showBreakUI, isLingering } = useBreakLinger(gameState);
   const { dueUp, showDueUp, dismissDueUp, showFinal, dismissFinal, gameOver } =
     useLiveGameOverlays(gameState, boxScore, showBreakUI);
+  const { toasts: nerdInsightToasts, dismissToast: dismissNerdInsight } = useNerdInsights(
+    gameState,
+    { gameOver },
+  );
   useArchiveFinishedGame(selectedGamePk, gameOver);
   const { predictions, isLoading: isPredictionsLoading, error, connectionStatus } =
     useLivePredictions(selectedGamePk, {
@@ -386,6 +392,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
         open={showFinal}
         onClose={dismissFinal}
       />
+      <NerdInsightToasts toasts={nerdInsightToasts} onDismiss={dismissNerdInsight} />
     </div>
   );
 }

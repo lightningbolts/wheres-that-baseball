@@ -1,0 +1,1 @@
+{"season":2026,"stat":{"id":"pitch-bip-rate","title":"Pitch Contact Rate","subtitle":"Share of pitches put in play (not foul, ball, or whiff).","category":"contact","sort":"desc","unit":"%","formula":"balls in play ÷ pitches seen × 100","leagueAverage":null,"leagueAverageDisplay":null,"leaders":[]},"allTeams":[],"notableEvents":[],"generatedAt":"2026-07-03T02:00:42.438Z"}
