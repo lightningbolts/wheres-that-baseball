@@ -3,6 +3,7 @@ export type NerdStatCategory =
   | "misfortune"
   | "baserunning"
   | "contact"
+  | "pace"
   | "defense"
   | "chaos"
   | "vibes";
@@ -12,6 +13,7 @@ export const NERD_STAT_CATEGORIES: Array<{ id: NerdStatCategory; label: string }
   { id: "misfortune", label: "Misfortune" },
   { id: "baserunning", label: "Baserunning" },
   { id: "contact", label: "Contact" },
+  { id: "pace", label: "Pace" },
   { id: "defense", label: "Defense" },
   { id: "chaos", label: "Chaos" },
   { id: "vibes", label: "Vibes" },
@@ -114,6 +116,22 @@ export interface TeamNerdCounters {
   rispPlateAppearances: number;
   pitchingStrikeouts: number;
   backToBackHrSequences: number;
+  pitchesSeen: number;
+  pitchesThrown: number;
+  battingHalfInnings: number;
+  pitchingHalfInnings: number;
+  foulBalls: number;
+  foulsInduced: number;
+  ballsInPlay: number;
+  ballsInPlayAllowed: number;
+  pitchBalls: number;
+  pitchStrikes: number;
+  pitchBallsThrown: number;
+  pitchStrikesThrown: number;
+  swingingStrikes: number;
+  calledStrikes: number;
+  swingingStrikesInduced: number;
+  calledStrikesInduced: number;
   notableEvents: NotableNerdEvent[];
 }
 

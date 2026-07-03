@@ -90,6 +90,22 @@ export function createEmptyTeamCounters(): TeamNerdCounters {
     rispPlateAppearances: 0,
     pitchingStrikeouts: 0,
     backToBackHrSequences: 0,
+    pitchesSeen: 0,
+    pitchesThrown: 0,
+    battingHalfInnings: 0,
+    pitchingHalfInnings: 0,
+    foulBalls: 0,
+    foulsInduced: 0,
+    ballsInPlay: 0,
+    ballsInPlayAllowed: 0,
+    pitchBalls: 0,
+    pitchStrikes: 0,
+    pitchBallsThrown: 0,
+    pitchStrikesThrown: 0,
+    swingingStrikes: 0,
+    calledStrikes: 0,
+    swingingStrikesInduced: 0,
+    calledStrikesInduced: 0,
     notableEvents: [],
   };
 }
@@ -194,6 +210,22 @@ export function mergeTeamCounters(target: TeamNerdCounters, source: TeamNerdCoun
   target.rispPlateAppearances += source.rispPlateAppearances;
   target.pitchingStrikeouts += source.pitchingStrikeouts;
   target.backToBackHrSequences += source.backToBackHrSequences;
+  target.pitchesSeen += source.pitchesSeen;
+  target.pitchesThrown += source.pitchesThrown;
+  target.battingHalfInnings += source.battingHalfInnings;
+  target.pitchingHalfInnings += source.pitchingHalfInnings;
+  target.foulBalls += source.foulBalls;
+  target.foulsInduced += source.foulsInduced;
+  target.ballsInPlay += source.ballsInPlay;
+  target.ballsInPlayAllowed += source.ballsInPlayAllowed;
+  target.pitchBalls += source.pitchBalls;
+  target.pitchStrikes += source.pitchStrikes;
+  target.pitchBallsThrown += source.pitchBallsThrown;
+  target.pitchStrikesThrown += source.pitchStrikesThrown;
+  target.swingingStrikes += source.swingingStrikes;
+  target.calledStrikes += source.calledStrikes;
+  target.swingingStrikesInduced += source.swingingStrikesInduced;
+  target.calledStrikesInduced += source.calledStrikesInduced;
   target.maxHbpInGame = Math.max(target.maxHbpInGame, source.maxHbpInGame);
 
   target.hardestHitAllowedMph = mergeMaxNullable(target.hardestHitAllowedMph, source.hardestHitAllowedMph);

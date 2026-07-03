@@ -1,4 +1,5 @@
 import type { LiveGameState } from "@/types/mlb-live";
+import { classifyPitch } from "@/lib/mlb/pitchClassification";
 
 export interface TeamPitchPace {
   abbrev: string;
@@ -41,14 +42,15 @@ function countPitchesInPlays(gameState: LiveGameState) {
     else homeHalves.add(halfKey);
 
     for (const pitch of play.detail.pitches) {
-      if (!pitch.isPitch) continue;
+      const kind = classifyPitch(pitch);
+      if (!kind) continue;
       total += 1;
       if (top) awaySeen += 1;
       else homeSeen += 1;
 
-      if (pitch.isInPlay) inPlay += 1;
-      else if (pitch.isBall || pitch.isStrike) scoreable += 1;
-      else fouls += 1;
+      if (kind.isInPlay) inPlay += 1;
+      else if (kind.isBall || kind.isStrike) scoreable += 1;
+      else if (kind.isFoul) fouls += 1;
     }
   }
 
@@ -64,14 +66,15 @@ function countPitchesInPlays(gameState: LiveGameState) {
     else homeHalves.add(halfKey);
 
     for (const pitch of currentAb) {
-      if (!pitch.isPitch) continue;
+      const kind = classifyPitch(pitch);
+      if (!kind) continue;
       total += 1;
       if (top) awaySeen += 1;
       else homeSeen += 1;
 
-      if (pitch.isInPlay) inPlay += 1;
-      else if (pitch.isBall || pitch.isStrike) scoreable += 1;
-      else fouls += 1;
+      if (kind.isInPlay) inPlay += 1;
+      else if (kind.isBall || kind.isStrike) scoreable += 1;
+      else if (kind.isFoul) fouls += 1;
     }
   }
 

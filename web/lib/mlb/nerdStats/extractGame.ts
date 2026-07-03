@@ -30,6 +30,7 @@ import {
   runsForBattingTeam,
   teamWon,
 } from "@/lib/mlb/nerdStats/extractHelpers";
+import { recordPitchCounters } from "@/lib/mlb/nerdStats/pitchCounters";
 import type { GameNerdSourceRow, SeasonNerdCounters } from "@/lib/mlb/nerdStats/types";
 import type { GameBoxScore } from "@/types/mlb-boxscore";
 import type { PlayByPlayEntry } from "@/types/mlb-live";
@@ -423,6 +424,8 @@ export function extractNerdCountersFromGame(row: GameNerdSourceRow): SeasonNerdC
         basesLoadedSeen: basesLoaded(play.situationBefore),
         runs: 0,
       };
+      offense.battingHalfInnings += 1;
+      defense.pitchingHalfInnings += 1;
       offenseGame.firstAbOfHalf = true;
     } else if (basesLoaded(play.situationBefore)) {
       halfTracker.basesLoadedSeen = true;
@@ -431,6 +434,10 @@ export function extractNerdCountersFromGame(row: GameNerdSourceRow): SeasonNerdC
     if (play.isAtBat) {
       offense.plateAppearances += 1;
       recordHitType(offenseGame, play.event, play.batterId, play.batterName);
+
+      for (const pitch of play.detail.pitches) {
+        recordPitchCounters(offense, defense, pitch);
+      }
 
       if (isHitEvent(play.event)) {
         defenseGame.hitsAllowed += 1;
