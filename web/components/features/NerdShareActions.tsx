@@ -42,17 +42,25 @@ export function NerdShareActions({
     try {
       const response = await fetch(`/api/nerd-stats/share-card?${shareCardQuery}`);
       if (!response.ok) {
-        throw new Error("Failed to generate share card");
+        const body = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error ?? "Failed to generate share card");
       }
       const blob = await response.blob();
+      if (!blob.type.startsWith("image/")) {
+        throw new Error("Invalid share card response");
+      }
       const objectUrl = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = objectUrl;
       anchor.download = "nerd-standings.png";
+      document.body.appendChild(anchor);
       anchor.click();
+      anchor.remove();
       URL.revokeObjectURL(objectUrl);
-    } catch {
-      setShareError("Could not download share card");
+    } catch (error) {
+      setShareError(
+        error instanceof Error && error.message ? error.message : "Could not download share card",
+      );
     } finally {
       setDownloading(false);
     }

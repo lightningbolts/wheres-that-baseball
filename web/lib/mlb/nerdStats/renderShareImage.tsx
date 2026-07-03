@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-import { mlbTeamLogoUrl } from "@/lib/mlb/teamAssets";
+import { mlbTeamShareLogoUrl } from "@/lib/mlb/teamAssets";
 import type { NerdStatDetail, TeamNerdCard } from "@/lib/mlb/nerdStats/types";
 import { NERD_STAT_CATEGORIES } from "@/lib/mlb/nerdStats/types";
 import { SITE_NAME, SITE_NAME_SHORT } from "@/lib/site";
@@ -43,7 +43,7 @@ function leaderRow(
         <span style={{ width: 24, color: COLORS.muted, fontSize: compact ? 16 : 18 }}>{leader.rank}</span>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={mlbTeamLogoUrl(leader.teamId, "dark")}
+          src={mlbTeamShareLogoUrl(leader.teamId)}
           alt=""
           width={logoSize}
           height={logoSize}
@@ -112,6 +112,8 @@ export function nerdStatShareElement(detail: NerdStatDetail, portrait: boolean) 
 
       <div
         style={{
+          display: "flex",
+          flexDirection: "column",
           marginTop: portrait ? 36 : 28,
           border: `1px solid ${COLORS.border}`,
           borderRadius: 16,
@@ -158,7 +160,7 @@ export function teamNerdCardShareElement(card: TeamNerdCard, portrait: boolean) 
     >
       <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={mlbTeamLogoUrl(card.teamId, "dark")} alt="" width={portrait ? 96 : 72} height={portrait ? 96 : 72} />
+        <img src={mlbTeamShareLogoUrl(card.teamId)} alt="" width={portrait ? 96 : 72} height={portrait ? 96 : 72} />
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <span style={{ fontSize: portrait ? 48 : 40, fontWeight: 700 }}>{card.teamName}</span>
           <span style={{ color: COLORS.muted, fontSize: portrait ? 22 : 18 }}>
@@ -169,6 +171,8 @@ export function teamNerdCardShareElement(card: TeamNerdCard, portrait: boolean) 
 
       <div
         style={{
+          display: "flex",
+          flexDirection: "column",
           marginTop: portrait ? 36 : 28,
           border: `1px solid ${COLORS.border}`,
           borderRadius: 16,
@@ -219,12 +223,12 @@ export function teamNerdCardShareElement(card: TeamNerdCard, portrait: boolean) 
   );
 }
 
-export function renderNerdStatImage(detail: NerdStatDetail, portrait: boolean) {
+export async function renderNerdStatImage(detail: NerdStatDetail, portrait: boolean) {
   const size = portrait ? SHARE_CARD_SIZE : OG_IMAGE_SIZE;
   return new ImageResponse(nerdStatShareElement(detail, portrait), size);
 }
 
-export function renderTeamNerdCardImage(card: TeamNerdCard, portrait: boolean) {
+export async function renderTeamNerdCardImage(card: TeamNerdCard, portrait: boolean) {
   const size = portrait ? SHARE_CARD_SIZE : OG_IMAGE_SIZE;
   return new ImageResponse(teamNerdCardShareElement(card, portrait), size);
 }

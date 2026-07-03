@@ -26,8 +26,15 @@ export async function GET(request: Request) {
       if (!detail) {
         return NextResponse.json({ error: "Stat data not found" }, { status: 404 });
       }
-      const image = renderNerdStatImage(detail, true);
-      return image;
+      const image = await renderNerdStatImage(detail, true);
+      return new NextResponse(image.body, {
+        status: 200,
+        headers: {
+          "Content-Type": "image/png",
+          "Content-Disposition": `attachment; filename="nerd-standings-${statId}.png"`,
+          "Cache-Control": "public, max-age=3600",
+        },
+      });
     }
 
     const teamId = Number.parseInt(teamIdParam!, 10);
@@ -38,7 +45,15 @@ export async function GET(request: Request) {
     if (!card) {
       return NextResponse.json({ error: "Team card not found" }, { status: 404 });
     }
-    return renderTeamNerdCardImage(card, true);
+    const image = await renderTeamNerdCardImage(card, true);
+    return new NextResponse(image.body, {
+      status: 200,
+      headers: {
+        "Content-Type": "image/png",
+        "Content-Disposition": `attachment; filename="nerd-card-${teamId}.png"`,
+        "Cache-Control": "public, max-age=3600",
+      },
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to render share card";
     return NextResponse.json({ error: message }, { status: 500 });
