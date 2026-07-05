@@ -31,6 +31,8 @@
     "three": "^0.184.0"
   },
   "devDependencies": {
+    "@emnapi/core": "1.11.1",
+    "@emnapi/runtime": "1.11.1",
     "@types/pg": "^8.15.4",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
@@ -44,9 +46,5 @@
     "tsx": "^4.20.3",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"
-  },
-  "overrides": {
-    "@emnapi/core": "1.11.1",
-    "@emnapi/runtime": "1.11.1"
   }
 }
