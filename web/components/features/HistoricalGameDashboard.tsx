@@ -33,7 +33,7 @@ import { useBreakLinger } from "@/hooks/useBreakLinger";
 import { useLiveGameOverlays } from "@/hooks/useLiveGameOverlays";
 import { formatGameDate, formatMatchup, formatScore, isLiveStatus } from "@/lib/games/format";
 import { buildSeasonHistoryHref } from "@/lib/mlb/schedule";
-import { gameStateForAtBat } from "@/lib/games/replay";
+import { gameStateForAtBat, findPlayByAtBatIndex } from "@/lib/games/replay";
 import { isGameOver } from "@/lib/mlb/gameOver";
 import { isHalfInningBreak } from "@/lib/mlb/lineup";
 import { isPlayByPlayAtBat } from "@/lib/mlb/liveFeed";
@@ -140,9 +140,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
 
   const selectedPlay = useMemo<PlayByPlayEntry | null>(() => {
     if (!gameState || selectedAtBatIndex == null) return null;
-    const play = gameState.plays.find((p) => p.atBatIndex === selectedAtBatIndex);
-    if (!play || !isPlayByPlayAtBat(play)) return null;
-    return play;
+    return findPlayByAtBatIndex(gameState.plays, selectedAtBatIndex) ?? null;
   }, [gameState, selectedAtBatIndex]);
 
   const replayState = useMemo(() => {
@@ -150,7 +148,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
     return gameStateForAtBat(gameState, selectedPlay);
   }, [gameState, selectedPlay, isLive]);
 
-  const displayState = isLive ? atBatViewState : (replayState ?? gameState);
+  const displayState = isLive ? atBatViewState : replayState;
 
   const lastPitch = selectedPlay?.detail.pitches.at(-1);
   const { predictionForAtBat, predictions: archivedPredictions, isLoading: archivedPredictionsLoading } =
@@ -460,53 +458,62 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
                   flushMobile
                   className="order-1 min-h-0 flex-1 overflow-hidden md:order-none md:min-h-[380px]"
                 >
-                  {displayState && (
-                    <div className="hidden md:block">
-                      <BatterVsPitcherRecord
-                        batterName={displayState.batterName}
-                        pitcherName={displayState.pitcherName}
-                        record={matchupRecord}
-                        isLoading={isMatchupLoading}
-                      />
-                      {runnersInScoringPosition && (
-                        <BatterRispRecord
+                  {displayState ? (
+                    <>
+                      <div className="hidden md:block">
+                        <BatterVsPitcherRecord
                           batterName={displayState.batterName}
-                          stats={rispStats}
-                          isLoading={isRispLoading}
+                          pitcherName={displayState.pitcherName}
+                          record={matchupRecord}
+                          isLoading={isMatchupLoading}
                         />
+                        {runnersInScoringPosition && (
+                          <BatterRispRecord
+                            batterName={displayState.batterName}
+                            stats={rispStats}
+                            isLoading={isRispLoading}
+                          />
+                        )}
+                      </div>
+                      {(displayState.atBatPitches.length ?? 0) === 0 ? (
+                        <div className="shrink-0 md:hidden">
+                          <PitchSequence
+                            key={`zone-mobile-${selectedAtBatIndex ?? "none"}`}
+                            pitches={[]}
+                            layout="zone"
+                            zoneFirst
+                            batterZones={batterHotZones ?? undefined}
+                          />
+                        </div>
+                      ) : (
+                        <div className="shrink-0 md:hidden">
+                          <PitchSequence
+                            key={`zone-mobile-${selectedAtBatIndex ?? "none"}`}
+                            pitches={displayState.atBatPitches}
+                            layout="zone"
+                            zoneFirst
+                            batterZones={batterHotZones ?? undefined}
+                          />
+                        </div>
                       )}
-                    </div>
-                  )}
-                  {(displayState?.atBatPitches.length ?? 0) === 0 ? (
-                    <div className="shrink-0 md:hidden">
-                      <PitchSequence
-                        pitches={[]}
-                        layout="zone"
-                        zoneFirst
-                        batterZones={batterHotZones ?? undefined}
-                      />
-                    </div>
+                      <div className="hidden min-h-0 flex-1 md:flex">
+                        <PitchSequence
+                          key={`zone-desktop-${selectedAtBatIndex ?? "none"}`}
+                          pitches={displayState.atBatPitches}
+                          size="large"
+                          layout="dashboard"
+                          scrollToLatest={isLive}
+                          batterZones={batterHotZones ?? undefined}
+                          dashboardFooter={renderOutcomeOdds()}
+                          className="min-h-0 flex-1"
+                        />
+                      </div>
+                    </>
                   ) : (
-                    <div className="shrink-0 md:hidden">
-                      <PitchSequence
-                        pitches={displayState?.atBatPitches ?? []}
-                        layout="zone"
-                        zoneFirst
-                        batterZones={batterHotZones ?? undefined}
-                      />
-                    </div>
+                    <p className="px-3 py-6 text-center text-sm text-muted">
+                      Select an at-bat from play-by-play.
+                    </p>
                   )}
-                  <div className="hidden min-h-0 flex-1 md:flex">
-                    <PitchSequence
-                      pitches={displayState?.atBatPitches ?? []}
-                      size="large"
-                      layout="dashboard"
-                      scrollToLatest={isLive}
-                      batterZones={batterHotZones ?? undefined}
-                      dashboardFooter={renderOutcomeOdds()}
-                      className="min-h-0 flex-1"
-                    />
-                  </div>
                 </Panel>
 
                 <div className="order-2 flex min-h-0 flex-1 flex-col md:hidden">

@@ -371,7 +371,8 @@ function PlayFeedRow({
   reverseOrder?: boolean;
 }) {
   const showSituationAfter = entryShowsSituationAfter(play);
-  const selected = selectedAtBatIndex === play.atBatIndex;
+  const selected =
+    selectedAtBatIndex === play.atBatIndex && play.isAtBat !== false;
 
   return (
     <div className={cn(animate && "animate-play_in")}>
@@ -672,6 +673,7 @@ function PlayOutcomeCard({
           "min-h-[88px] w-full border-t border-border/50 px-3 py-4 text-left hover:bg-hover",
           play.isScoringPlay && "border-l-2 border-l-amber-600/60",
           selectedAtBatIndex === play.atBatIndex &&
+            play.isAtBat !== false &&
             "bg-overlay ring-1 ring-inset ring-border-strong",
         )}
       >

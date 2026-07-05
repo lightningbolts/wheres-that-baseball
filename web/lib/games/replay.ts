@@ -31,5 +31,7 @@ export function findPlayByAtBatIndex(
   plays: PlayByPlayEntry[],
   atBatIndex: number,
 ): PlayByPlayEntry | undefined {
-  return plays.find((play) => play.atBatIndex === atBatIndex);
+  return plays.find(
+    (play) => play.atBatIndex === atBatIndex && play.isAtBat !== false,
+  );
 }
