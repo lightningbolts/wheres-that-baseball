@@ -153,13 +153,29 @@ function AbsChallengesField({
   awayAbbrev,
   homeAbbrev,
   overlay = false,
+  compact = false,
 }: {
   awayRemaining: number;
   homeRemaining: number;
   awayAbbrev: string;
   homeAbbrev: string;
   overlay?: boolean;
+  compact?: boolean;
 }) {
+  if (overlay && compact) {
+    return (
+      <div
+        className="flex items-center gap-1"
+        aria-label={`${awayAbbrev} ${awayRemaining} ABS challenges remaining, ${homeAbbrev} ${homeRemaining} ABS challenges remaining`}
+      >
+        <span className="text-[6px] font-semibold uppercase leading-none text-white/70">ABS</span>
+        <AbsChallengeDots remaining={awayRemaining} overlay />
+        <span className="text-[6px] leading-none text-white/35">|</span>
+        <AbsChallengeDots remaining={homeRemaining} overlay />
+      </div>
+    );
+  }
+
   return (
     <div
       className="flex flex-col items-center"
@@ -252,37 +268,38 @@ export function Scorebug({
     return (
       <div
         className={cn(
-          "pointer-events-none absolute left-2 top-2 z-40 flex h-9 w-max max-w-[calc(100%-1rem)] items-stretch overflow-hidden rounded-md border border-white/20 bg-black/75 text-white shadow-lg backdrop-blur-md",
+          "pointer-events-none absolute left-2 top-2 z-40 flex h-9 w-max max-w-[calc(100%-1rem)] items-center overflow-hidden rounded-md border border-white/20 bg-black/75 text-white shadow-lg backdrop-blur-md",
           className,
         )}
       >
-        <OverlayStatCell className="min-w-[40px] flex-col gap-0 px-1.5 py-0.5">
-          <TeamLogo abbrev={awayAbbrev} size={14} />
+        <OverlayStatCell className="min-w-[36px] flex-row gap-1 px-1.5 py-0">
+          <TeamLogo abbrev={awayAbbrev} size={12} />
           <span className="font-mono text-sm font-bold leading-none tabular-nums">{awayRuns}</span>
         </OverlayStatCell>
 
-        <OverlayStatCell className="min-w-[40px] flex-col gap-0 px-1.5 py-0.5">
-          <TeamLogo abbrev={homeAbbrev} size={14} />
+        <OverlayStatCell className="min-w-[36px] flex-row gap-1 px-1.5 py-0">
+          <TeamLogo abbrev={homeAbbrev} size={12} />
           <span className="font-mono text-sm font-bold leading-none tabular-nums">{homeRuns}</span>
         </OverlayStatCell>
 
-        <OverlayStatCell className="px-2 py-0.5">
+        <OverlayStatCell className="px-1.5 py-0">
           <AbsChallengesField
             awayRemaining={awayAbsChallengesRemaining}
             homeRemaining={homeAbsChallengesRemaining}
             awayAbbrev={awayAbbrev}
             homeAbbrev={homeAbbrev}
             overlay
+            compact
           />
         </OverlayStatCell>
 
-        <OverlayStatCell className="min-w-[44px] px-2">
+        <OverlayStatCell className="min-w-[40px] px-1.5 py-0">
           <span className="font-mono text-[10px] font-semibold tracking-wide">
             {gameEnded ? "FINAL" : inningLabel(inning, inningHalf)}
           </span>
         </OverlayStatCell>
 
-        <OverlayStatCell className="gap-0.5 px-2">
+        <OverlayStatCell className="gap-0.5 px-1.5 py-0">
           <span className="font-mono text-sm font-bold tabular-nums text-green-400">
             {isBreak ? "–" : balls}
           </span>
@@ -292,22 +309,19 @@ export function Scorebug({
           </span>
         </OverlayStatCell>
 
-        <OverlayStatCell className="gap-2.5 border-r-0 px-2">
-          <div className="flex flex-col items-center" aria-label={`${safeOuts} outs`}>
-            <span className="mb-0.5 text-[7px] font-semibold text-white/60">OUT</span>
-            <div className="flex gap-0.5">
-              {[0, 1, 2].map((i) => (
-                <span
-                  key={i}
-                  className={cn(
-                    "h-1.5 w-1.5 rounded-full",
-                    i < safeOuts ? "bg-white" : "bg-white/25",
-                  )}
-                />
-              ))}
-            </div>
+        <OverlayStatCell className="gap-2 border-r-0 px-1.5 py-0">
+          <div className="flex items-center gap-0.5" aria-label={`${safeOuts} outs`}>
+            {[0, 1, 2].map((i) => (
+              <span
+                key={i}
+                className={cn(
+                  "h-1.5 w-1.5 rounded-full",
+                  i < safeOuts ? "bg-white" : "bg-white/25",
+                )}
+              />
+            ))}
           </div>
-          <div className="h-5 w-px shrink-0 bg-white/15" aria-hidden />
+          <div className="h-4 w-px shrink-0 bg-white/15" aria-hidden />
           <BaseDiamond
             onFirst={onFirst}
             onSecond={onSecond}

@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState, forwardRef, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AppNav } from "@/components/features/AppNav";
 import { GameHitsSprayChart } from "@/components/features/GameHitsSprayChart";
@@ -51,23 +51,19 @@ function fmtNum(value: number | null, digits = 1, suffix = ""): string {
   return `${value.toFixed(digits)}${suffix}`;
 }
 
-const HitRow = forwardRef(function HitRow(
-  {
-    venueHit,
-    selected,
-    onSelect,
-  }: {
-    venueHit: VenueHit;
-    selected: boolean;
-    onSelect: () => void;
-  },
-  ref: React.ForwardedRef<HTMLButtonElement>,
-) {
+function HitRow({
+  venueHit,
+  selected,
+  onSelect,
+}: {
+  venueHit: VenueHit;
+  selected: boolean;
+  onSelect: () => void;
+}) {
   const { hit } = venueHit;
 
   return (
     <button
-      ref={ref}
       type="button"
       onClick={onSelect}
       className={cn(
@@ -104,7 +100,7 @@ const HitRow = forwardRef(function HitRow(
       </div>
     </button>
   );
-});
+}
 
 function SelectedHitBanner({
   hitKey,
@@ -193,7 +189,7 @@ function LazyTrajectorySection({
   venueId: number;
   getHitKey: (hit: { hitKey?: string; atBatIndex: number }) => string;
   selectedHitKey: string | null;
-  selectedHitBanner?: ReactNode;
+  selectedHitBanner?: React.ReactNode;
   onSelectHit?: (hit: SprayChartHit) => void;
   className?: string;
 }) {
@@ -219,7 +215,7 @@ function LazyTrajectorySection({
   }, []);
 
   return (
-    <section ref={sectionRef} className="bg-panel p-3 sm:p-4">
+    <section ref={sectionRef} className="border-t border-border bg-panel p-3 sm:p-4">
       <p className="mb-3 text-[10px] font-medium uppercase tracking-wide text-muted">
         3D trajectories
       </p>
@@ -255,7 +251,7 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
   const [selectedHitKey, setSelectedHitKey] = useState<string | null>(null);
   const [detailPlay, setDetailPlay] = useState<PlayDetail | null>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
-  const hitRowRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+  const hitsScrollRef = useRef<HTMLDivElement>(null);
 
   const getHitKey = (hit: { hitKey?: string; atBatIndex: number }) =>
     "hitKey" in hit && hit.hitKey ? hit.hitKey : String(hit.atBatIndex);
@@ -270,12 +266,6 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
     },
     [toggleHitSelection],
   );
-
-  useEffect(() => {
-    if (!selectedHitKey) return;
-    const row = hitRowRefs.current.get(selectedHitKey);
-    row?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [selectedHitKey, data?.hits.length]);
 
   const chartHits = useMemo(() => {
     if (!data) return [];
@@ -304,14 +294,15 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
   );
 
   useEffect(() => {
+    const root = hitsScrollRef.current;
     const node = loadMoreRef.current;
-    if (!node || !hasMore) return;
+    if (!root || !node || !hasMore) return;
 
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry?.isIntersecting) void loadMore();
       },
-      { rootMargin: "120px" },
+      { root, rootMargin: "120px" },
     );
 
     observer.observe(node);
@@ -401,93 +392,109 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
               </dl>
             </div>
 
-            <div className="mt-4 grid gap-px overflow-hidden rounded-xl border border-border bg-border xl:grid-cols-[minmax(0,1fr)_minmax(260px,320px)] xl:items-start">
-              <div className="flex flex-col gap-px bg-border">
-                <section className="bg-panel p-3 sm:p-4">
-                  <p className="mb-3 text-[10px] font-medium uppercase tracking-wide text-muted">
-                    Season spray chart
-                  </p>
-                  <GameHitsSprayChart
+            <div className="mt-4 overflow-hidden rounded-xl border border-border">
+              <div className="grid min-h-0 gap-px bg-border lg:grid-cols-[minmax(0,1fr)_minmax(260px,320px)] lg:items-stretch">
+                <div className="min-h-0 min-w-0 bg-panel">
+                  <section className="p-3 sm:p-4">
+                    <p className="mb-3 text-[10px] font-medium uppercase tracking-wide text-muted">
+                      Season spray chart
+                    </p>
+                    <GameHitsSprayChart
+                      hits={chartHits}
+                      venueId={data.park.venueId}
+                      getHitKey={getHitKey}
+                      selectedHitKey={selectedHitKey}
+                      onSelectHit={handleSelectHit}
+                      showLines={false}
+                      ballRadius={1.2}
+                      className="mx-auto w-full max-w-[min(100%,480px)]"
+                    />
+                  </section>
+
+                  <LazyTrajectorySection
                     hits={chartHits}
                     venueId={data.park.venueId}
                     getHitKey={getHitKey}
                     selectedHitKey={selectedHitKey}
                     onSelectHit={handleSelectHit}
-                    showLines={false}
-                    ballRadius={1.2}
-                    className="mx-auto w-full max-w-[min(100%,480px)]"
+                    selectedHitBanner={
+                      selectedHitMeta ? (
+                        <SelectedHitBanner
+                          hitKey={getHitKey(selectedHitMeta)}
+                          batterName={selectedHitMeta.batterName}
+                          event={selectedHitMeta.event}
+                          awayAbbrev={
+                            "awayAbbrev" in selectedHitMeta ? selectedHitMeta.awayAbbrev : undefined
+                          }
+                          homeAbbrev={
+                            "homeAbbrev" in selectedHitMeta ? selectedHitMeta.homeAbbrev : undefined
+                          }
+                          awayScore={selectedHitMeta.awayScore}
+                          homeScore={selectedHitMeta.homeScore}
+                          gameDate={
+                            "gameDate" in selectedHitMeta ? selectedHitMeta.gameDate : undefined
+                          }
+                          inning={selectedHitMeta.inning}
+                          halfInning={selectedHitMeta.halfInning}
+                          launchSpeed={selectedHitMeta.hit.launchSpeed}
+                          onOpenDetail={(hitKey) => void openHitDetail(hitKey)}
+                          onClear={() => setSelectedHitKey(null)}
+                        />
+                      ) : null
+                    }
+                    className="mx-auto w-full max-w-4xl"
                   />
-                </section>
+                </div>
 
-                <LazyTrajectorySection
-                  hits={chartHits}
-                  venueId={data.park.venueId}
-                  getHitKey={getHitKey}
-                  selectedHitKey={selectedHitKey}
-                  onSelectHit={handleSelectHit}
-                  selectedHitBanner={
-                    selectedHitMeta ? (
-                      <SelectedHitBanner
-                        hitKey={getHitKey(selectedHitMeta)}
-                        batterName={selectedHitMeta.batterName}
-                        event={selectedHitMeta.event}
-                        awayAbbrev={
-                          "awayAbbrev" in selectedHitMeta ? selectedHitMeta.awayAbbrev : undefined
-                        }
-                        homeAbbrev={
-                          "homeAbbrev" in selectedHitMeta ? selectedHitMeta.homeAbbrev : undefined
-                        }
-                        awayScore={selectedHitMeta.awayScore}
-                        homeScore={selectedHitMeta.homeScore}
-                        gameDate={"gameDate" in selectedHitMeta ? selectedHitMeta.gameDate : undefined}
-                        inning={selectedHitMeta.inning}
-                        halfInning={selectedHitMeta.halfInning}
-                        launchSpeed={selectedHitMeta.hit.launchSpeed}
-                        onOpenDetail={(hitKey) => void openHitDetail(hitKey)}
-                        onClear={() => setSelectedHitKey(null)}
-                      />
-                    ) : null
-                  }
-                  className="mx-auto w-full max-w-4xl"
-                />
-              </div>
-
-              <aside className="bg-surface xl:justify-self-start">
-                <div className="xl:sticky xl:top-4 xl:max-h-[calc(100dvh-2rem)] xl:overflow-y-auto xl:overscroll-y-contain">
-                  <div className="border-b border-border px-3 py-2">
+                <aside className="flex min-h-0 flex-col overflow-hidden border-t border-border bg-surface lg:border-l lg:border-t-0">
+                  <div className="shrink-0 border-b border-border px-3 py-2">
                     <h3 className="text-xs font-medium text-muted">
                       All hits{" "}
                       <span className="font-mono tabular-nums text-subtle">
-                        ({data.hitsTotal ?? data.hits.length}
-                        {(data.hitsTotal ?? data.hits.length) !== data.stats.total
-                          ? ` of ${data.stats.total}`
+                        ({data.hits.length}
+                        {(data.hitsTotal ?? data.stats.total) > data.hits.length
+                          ? ` of ${data.hitsTotal ?? data.stats.total}`
                           : ""}
                         )
                       </span>
                     </h3>
                   </div>
-                  {data.hits.map((venueHit) => (
-                    <HitRow
-                      key={venueHit.hitKey}
-                      venueHit={venueHit}
-                      selected={selectedHitKey === venueHit.hitKey}
-                      onSelect={() => handleSelectHit(venueHit)}
-                      ref={(node) => {
-                        if (node) hitRowRefs.current.set(venueHit.hitKey, node);
-                        else hitRowRefs.current.delete(venueHit.hitKey);
-                      }}
-                    />
-                  ))}
-                  {hasMore && (
-                    <div
-                      ref={loadMoreRef}
-                      className="flex items-center justify-center border-t border-border px-3 py-4 text-xs text-muted"
-                    >
-                      {isLoadingMore ? "Loading more hits…" : "Loading more…"}
+                  <div
+                    ref={hitsScrollRef}
+                    className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain max-lg:max-h-[min(50vh,28rem)]"
+                  >
+                    {data.hits.map((venueHit) => (
+                      <HitRow
+                        key={venueHit.hitKey}
+                        venueHit={venueHit}
+                        selected={selectedHitKey === venueHit.hitKey}
+                        onSelect={() => handleSelectHit(venueHit)}
+                      />
+                    ))}
+                    {hasMore && (
+                      <div
+                        ref={loadMoreRef}
+                        className="flex items-center justify-center border-t border-border px-3 py-3 text-xs text-muted"
+                        aria-hidden
+                      />
+                    )}
+                  </div>
+                  {hasMore ? (
+                    <div className="shrink-0 border-t border-border bg-surface px-3 py-2">
+                      <button
+                        type="button"
+                        onClick={() => void loadMore()}
+                        disabled={isLoadingMore}
+                        className="w-full rounded-md border border-border bg-panel px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-hover disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {isLoadingMore
+                          ? "Loading more hits…"
+                          : `Load more (${data.hits.length} of ${data.hitsTotal ?? data.stats.total})`}
+                      </button>
                     </div>
-                  )}
-                </div>
-              </aside>
+                  ) : null}
+                </aside>
+              </div>
             </div>
           </>
         ) : data ? (

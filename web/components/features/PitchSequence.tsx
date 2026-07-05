@@ -76,7 +76,7 @@ const SIZE_STYLES = {
 
 /** Desktop dashboard: pitch feed + outcome odds stay narrow; zone gets the rest. */
 export const PITCH_FEED_COLUMN_CLASS =
-  "flex w-full min-w-0 shrink-0 flex-col gap-3 overflow-hidden md:w-[33.333%] md:max-w-[38%]";
+  "flex w-full min-h-0 min-w-0 shrink-0 flex-col gap-3 overflow-hidden md:w-[33.333%] md:max-w-[38%] md:self-stretch";
 
 function BatterZoneOpsLabel({ className }: { className?: string }) {
   return (
@@ -92,7 +92,7 @@ function BatterZoneOpsLabel({ className }: { className?: string }) {
 }
 
 function ZoneWithOpsLabel({
-  batterZones,
+  batterZones: _batterZones,
   className,
   children,
 }: {
@@ -100,10 +100,6 @@ function ZoneWithOpsLabel({
   className?: string;
   children: React.ReactNode;
 }) {
-  if (!batterZones?.length) {
-    return <>{children}</>;
-  }
-
   return (
     <div className={cn("flex min-h-0 flex-col", className)}>
       <BatterZoneOpsLabel className="mb-1 px-1" />
@@ -404,8 +400,8 @@ function PitchFeedColumn({
 
   return (
     <div className={cn("flex min-h-0 flex-col overflow-hidden", className)}>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [scrollbar-gutter:stable]">
-        <div className="pr-2">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain pl-1 pr-3 [scrollbar-gutter:stable]">
+        <div>
           <PitchFeed
             pitches={pitches}
             size={resolvedSize}
@@ -449,12 +445,14 @@ function DashboardGridLayout({
           contained
           scrollToLatest={scrollToLatest}
           entranceFromIndex={entranceFromIndex}
-          className="min-h-0 flex-1 overflow-hidden"
+          className="min-h-0 flex-1 basis-0 overflow-hidden"
         />
         {dashboardFooter ? (
-          <div className="flex w-full shrink-0 flex-col overflow-hidden">
-            <h4 className="mb-2 shrink-0 text-xs font-medium text-muted">Outcome odds</h4>
-            <div className="max-h-[220px] min-h-0 overflow-hidden">{dashboardFooter}</div>
+          <div className="flex h-[min(220px,38vh)] min-h-0 shrink-0 flex-col">
+            <h4 className="mb-2 shrink-0 px-1 text-xs font-medium text-muted">Outcome odds</h4>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain pl-1 pr-4 [scrollbar-gutter:stable]">
+              {dashboardFooter}
+            </div>
           </div>
         ) : null}
       </div>

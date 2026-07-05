@@ -209,7 +209,10 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
     displayState?.batterId,
     runnersInScoringPosition,
   );
-  const { zones: batterHotZones } = useBatterHotZones(displayState?.batterId);
+  const { zones: batterHotZones } = useBatterHotZones(
+    displayState?.batterId,
+    game.season,
+  );
 
   const score = formatScore(game);
   const seasonHistoryHref = buildSeasonHistoryHref({
@@ -254,8 +257,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
             key={`${atBatViewState.batterId ?? 0}-${atBatViewState.inning}`}
             probabilities={outcomeProbabilities}
             compact={compact}
-            contained={!compact}
-            className={compact ? undefined : "min-h-0 flex-1"}
+            contained={false}
           />
         );
       }
@@ -276,8 +278,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
         <ProbabilityChart
           probabilities={outcomeProbabilities}
           compact={compact}
-          contained={!compact}
-          className={compact ? undefined : "min-h-0 flex-1"}
+          contained={false}
         />
       );
     }

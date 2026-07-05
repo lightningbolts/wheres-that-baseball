@@ -168,7 +168,7 @@ interface GameHitsTrajectory3DProps {
 }
 
 const TRAJECTORY_CANVAS_CLASS =
-  "h-[min(56vh,520px)] overflow-hidden rounded border border-border bg-field-chart-canvas sm:h-[min(62vh,580px)] xl:h-[min(68vh,640px)]";
+  "h-[min(44vh,420px)] overflow-hidden rounded border border-border bg-field-chart-canvas sm:h-[min(48vh,460px)] xl:h-[min(52vh,500px)]";
 
 export function GameHitsTrajectory3D({
   hits,
@@ -181,9 +181,9 @@ export function GameHitsTrajectory3D({
 }: GameHitsTrajectory3DProps) {
   const cameraPosition = useMemo((): Vec3 => {
     const bounds = combinedBounds(hits, venueId);
-    const [cx, cy, cz] = bounds.center;
-    const pullBack = Math.max(bounds.radius * 1.35, 5.5);
-    return [cx * 0.2, pullBack * 0.55, cz * 0.2 - pullBack];
+    const [cx, , cz] = bounds.center;
+    const pullBack = Math.max(bounds.radius * 1.2, 5);
+    return [cx * 0.15, pullBack * 0.72, cz * 0.15 - pullBack];
   }, [hits, venueId]);
 
   if (hits.length === 0) {

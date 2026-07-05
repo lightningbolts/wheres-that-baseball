@@ -84,7 +84,8 @@ function DashboardContent({ game }: { game: SlateGame }) {
     atBatViewState?.batterId,
     runnersInScoringPosition,
   );
-  const { zones: batterHotZones } = useBatterHotZones(atBatViewState?.batterId);
+  const gameSeason = new Date(game.gameDate).getFullYear();
+  const { zones: batterHotZones } = useBatterHotZones(atBatViewState?.batterId, gameSeason);
 
   const showSkeleton = isFeedLoading && !gameState && isPredictionsLoading && predictions.length === 0;
   const showBatterHighlights =
@@ -108,8 +109,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
       <ProbabilityChart
         key={`${atBatViewState.batterId ?? 0}-${atBatViewState.inning}`}
         probabilities={probabilities}
-        contained
-        className="min-h-0 flex-1"
+        contained={false}
       />
     ) : (
       <p className="py-2 text-center text-sm text-muted">

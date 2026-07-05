@@ -86,13 +86,13 @@ export const ProbabilityChart = memo(function ProbabilityChart({
   );
 
   if (!contained) {
-    return <div className={className}>{chart}</div>;
+    return <div className={cn("pr-2", className)}>{chart}</div>;
   }
 
   return (
     <div className={cn("flex min-h-0 flex-col overflow-hidden", className)}>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [scrollbar-gutter:stable]">
-        <div className="pr-2">{chart}</div>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain pl-1 pr-4 [scrollbar-gutter:stable]">
+        {chart}
       </div>
     </div>
   );
