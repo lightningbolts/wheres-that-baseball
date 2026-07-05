@@ -44,6 +44,26 @@ const NON_ABS_CHALLENGE_DESCRIPTION =
 
 const ABS_PITCH_CALL_DESCRIPTION = /^ABS (?:confirmed|overturned)/i;
 
+const PITCH_CALL_REVIEW_DESCRIPTION =
+  /^(?:called strike|ball|foul|swinging strike|missed bunt|ABS (?:confirmed|overturned))/i;
+
+export interface AbsChallengeFeedData {
+  absChallenges?: {
+    hasChallenges?: boolean;
+    away?: { usedSuccessful?: number; usedFailed?: number; remaining?: number };
+    home?: { usedSuccessful?: number; usedFailed?: number; remaining?: number };
+  };
+  review?: {
+    hasChallenges?: boolean;
+    away?: { used?: number; remaining?: number };
+    home?: { used?: number; remaining?: number };
+  };
+  teams: {
+    away: { id?: number; name: string; abbreviation?: string };
+    home: { id?: number; name: string; abbreviation?: string };
+  };
+}
+
 function isAbsChallengeDescription(description: string): boolean {
   if (NON_ABS_CHALLENGE_DESCRIPTION.test(description)) return false;
   return ABS_CHALLENGE_DESCRIPTION.test(description);
@@ -184,6 +204,22 @@ function isCalledStrikeDescription(description: string | undefined): boolean {
   return /called strike/i.test(description ?? "");
 }
 
+function isPitchCallReviewDescription(description: string | undefined): boolean {
+  return PITCH_CALL_REVIEW_DESCRIPTION.test(description ?? "");
+}
+
+function countOptionsFromFeed(gameData: AbsChallengeFeedData): AbsChallengeCountOptions {
+  const teams = gameData.teams;
+  return {
+    awayTeamId: teams.away.id,
+    homeTeamId: teams.home.id,
+    awayTeamName: teams.away.name,
+    homeTeamName: teams.home.name,
+    awayAbbrev: teams.away.abbreviation,
+    homeAbbrev: teams.home.abbreviation,
+  };
+}
+
 function countFailedAbsChallengesOnPlay(
   play: AbsChallengePlay,
   options: AbsChallengeCountOptions | undefined,
@@ -257,6 +293,14 @@ function isAbsPitchReviewEvent(
 
   if (review.reviewType === "MJ" && isAbsChallengeDescription(description)) return true;
 
+  if (
+    (review.reviewType === "MJ" || review.reviewType === "ABS") &&
+    review.challengeTeamId != null &&
+    isPitchCallReviewDescription(callDescription)
+  ) {
+    return true;
+  }
+
   return false;
 }
 
@@ -285,13 +329,25 @@ export function resolveAbsChallengesUsed(
   homeTeamId: number | undefined,
   reviewAwayUsed?: number,
   reviewHomeUsed?: number,
-  options?: AbsChallengeCountOptions & { hasChallenges?: boolean },
+  options?: AbsChallengeCountOptions & {
+    hasChallenges?: boolean;
+    absChallenges?: AbsChallengeFeedData["absChallenges"];
+  },
 ): { away: number; home: number } {
   const mergedOptions: AbsChallengeCountOptions = {
     ...options,
     awayTeamId: options?.awayTeamId ?? awayTeamId,
     homeTeamId: options?.homeTeamId ?? homeTeamId,
   };
+
+  const absChallenges = options?.absChallenges;
+  if (absChallenges?.hasChallenges) {
+    const awayFailed = absChallenges.away?.usedFailed;
+    const homeFailed = absChallenges.home?.usedFailed;
+    if (awayFailed != null && homeFailed != null) {
+      return { away: awayFailed, home: homeFailed };
+    }
+  }
 
   const fromPlays = allPlays?.length
     ? countAbsChallengesUsedFromPlays(allPlays, mergedOptions)
@@ -314,6 +370,57 @@ export function resolveAbsChallengesUsed(
   }
 
   return fromPlays;
+}
+
+/** Resolve used counts from feed metadata, preferring absChallenges.usedFailed. */
+export function resolveAbsChallengesUsedFromFeed(
+  gameData: AbsChallengeFeedData,
+  allPlays: AbsChallengePlay[] | undefined,
+): { away: number; home: number } {
+  const options = countOptionsFromFeed(gameData);
+  return resolveAbsChallengesUsed(
+    allPlays,
+    options.awayTeamId,
+    options.homeTeamId,
+    gameData.review?.away?.used,
+    gameData.review?.home?.used,
+    {
+      ...options,
+      hasChallenges: gameData.review?.hasChallenges,
+      absChallenges: gameData.absChallenges,
+    },
+  );
+}
+
+/** Resolve remaining ABS challenges from feed metadata and play-by-play fallback. */
+export function resolveAbsChallengesRemaining(
+  gameData: AbsChallengeFeedData,
+  allPlays: AbsChallengePlay[] | undefined,
+  inning: number,
+): { away: number; home: number } {
+  const absChallenges = gameData.absChallenges;
+  if (absChallenges?.hasChallenges) {
+    const awayRemaining = absChallenges.away?.remaining;
+    const homeRemaining = absChallenges.home?.remaining;
+    if (awayRemaining != null && homeRemaining != null) {
+      return { away: awayRemaining, home: homeRemaining };
+    }
+
+    const awayFailed = absChallenges.away?.usedFailed;
+    const homeFailed = absChallenges.home?.usedFailed;
+    if (awayFailed != null && homeFailed != null) {
+      return {
+        away: computeAbsChallengesRemaining(awayFailed, inning),
+        home: computeAbsChallengesRemaining(homeFailed, inning),
+      };
+    }
+  }
+
+  const used = resolveAbsChallengesUsedFromFeed(gameData, allPlays);
+  return {
+    away: computeAbsChallengesRemaining(used.away, inning),
+    home: computeAbsChallengesRemaining(used.home, inning),
+  };
 }
 
 /** Remaining ABS challenges: 2 to start, +1 per extra inning, capped at 2. */
