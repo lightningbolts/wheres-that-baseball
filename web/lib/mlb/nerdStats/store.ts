@@ -90,11 +90,24 @@ export function loadSeasonCounters(season: number): SeasonNerdCounters {
   return normalizeSeasonCounters(raw);
 }
 
-export function writeFullNerdStatsStore(
+export interface WriteNerdStatsStoreOptions {
+  /** When set, only these stat detail JSON files are written. */
+  statIds?: string[];
+  /** Skip rewriting per-team nerd card files. */
+  skipTeamCards?: boolean;
+}
+
+export function listMissingStatIds(season: number): string[] {
+  const stored = new Set(listStoredStatIds(season));
+  return NERD_STAT_DEFINITIONS.map((definition) => definition.id).filter((id) => !stored.has(id));
+}
+
+export function writeNerdStatsStore(
   season: number,
   counters: SeasonNerdCounters,
   processedGamePks: number[],
-): void {
+  options: WriteNerdStatsStoreOptions = {},
+): { writtenStatIds: string[] } {
   ensureSeasonDir(season);
 
   const manifest: NerdStatsManifest = {
@@ -104,19 +117,36 @@ export function writeFullNerdStatsStore(
   };
 
   const summary = buildNerdStatsSummary(season, counters, manifest.processedGamePks.length);
+  const statIds = options.statIds ?? NERD_STAT_DEFINITIONS.map((definition) => definition.id);
+  const writtenStatIds: string[] = [];
 
   writeJson(manifestPath(season), manifest);
   writeJson(countersPath(season), counters);
   writeJson(summaryPath(season), summary);
 
-  for (const definition of NERD_STAT_DEFINITIONS) {
-    const detail = buildNerdStatDetail(season, definition.id, counters);
-    if (detail) writeJson(statPath(season, definition.id), detail);
+  for (const statId of statIds) {
+    if (!NERD_STAT_DEFINITIONS.some((definition) => definition.id === statId)) continue;
+    const detail = buildNerdStatDetail(season, statId, counters);
+    if (!detail) continue;
+    writeJson(statPath(season, statId), detail);
+    writtenStatIds.push(statId);
   }
 
-  for (const card of buildAllTeamNerdCards(season, counters)) {
-    writeJson(teamCardPath(season, card.teamId), card);
+  if (!options.skipTeamCards) {
+    for (const card of buildAllTeamNerdCards(season, counters)) {
+      writeJson(teamCardPath(season, card.teamId), card);
+    }
   }
+
+  return { writtenStatIds };
+}
+
+export function writeFullNerdStatsStore(
+  season: number,
+  counters: SeasonNerdCounters,
+  processedGamePks: number[],
+): void {
+  writeNerdStatsStore(season, counters, processedGamePks);
 }
 
 export async function appendGameNerdStatsToStore(
@@ -135,9 +165,8 @@ export async function appendGameNerdStatsToStore(
 
   manifest.processedGamePks.push(row.game_pk);
   manifest.processedGamePks.sort((a, b) => a - b);
-  manifest.generatedAt = new Date().toISOString();
 
-  writeFullNerdStatsStore(season, counters, manifest.processedGamePks);
+  writeNerdStatsStore(season, counters, manifest.processedGamePks);
 }
 
 export function getEmptyNerdStatsSummary(season: number): NerdStatsSummary {

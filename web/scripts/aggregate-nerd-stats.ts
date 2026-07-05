@@ -6,8 +6,19 @@
  *   npm run aggregate-nerd-stats -- --season=2026 --since=2026-06-30
  *   npm run aggregate-nerd-stats -- --season=2026 --rebuild-store
  *
- * Full season rebuild re-fetches every final game. Incremental mode (--since/--until)
- * only processes games not yet in the manifest.
+ * After adding new stat definitions (fast path — manifest games only):
+ *   npm run aggregate-nerd-stats -- --season=2026 --backfill-counters --skip-savant
+ *
+ * Rewrite specific stat JSON files from existing counters (no DB fetch):
+ *   npm run aggregate-nerd-stats -- --season=2026 --rebuild-store --stats=errors-committed,fielding-errors
+ *
+ * Flags:
+ *   --backfill-counters   Re-extract counters for games already in manifest.json
+ *   --skip-savant         Skip Baseball Savant bat-speed fetches (fine for PBP-only stats)
+ *   --stats=id1,id2       Only write these stat detail files (default with backfill: new stats only)
+ *   --full-store          Write every stat file + team cards (default backfill skips existing stat files)
+ *   --team-cards          Also rewrite team nerd card JSON files
+ *   --rebuild-store       Rebuild store from counters.json without re-fetching games
  */
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -19,12 +30,14 @@ import { createClient } from "@supabase/supabase-js";
 import { createEmptySeasonCounters, mergeSeasonCounters } from "../lib/mlb/nerdStats/counters";
 import { enrichCountersWithSavantBatSpeed } from "../lib/mlb/nerdStats/savantBatSpeed";
 import { extractNerdCountersFromGame } from "../lib/mlb/nerdStats/extractGame";
-import type { GameNerdSourceRow } from "../lib/mlb/nerdStats/types";
+import type { GameNerdSourceRow, SeasonNerdCounters } from "../lib/mlb/nerdStats/types";
 import {
   appendGameNerdStatsToStore,
+  listMissingStatIds,
   loadNerdStatsManifest,
   loadSeasonCounters,
-  writeFullNerdStatsStore,
+  type WriteNerdStatsStoreOptions,
+  writeNerdStatsStore,
 } from "../lib/mlb/nerdStats/store";
 
 const WEB_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -77,8 +90,99 @@ function hasFlag(name: string): boolean {
   return process.argv.includes(`--${name}`);
 }
 
+function readCsvArg(name: string): string[] | undefined {
+  const value = readArg(name);
+  if (!value) return undefined;
+  const ids = value.split(",").map((part) => part.trim()).filter(Boolean);
+  return ids.length > 0 ? ids : undefined;
+}
+
 function readDateRange(): { since?: string; until?: string } {
   return { since: readArg("since"), until: readArg("until") };
+}
+
+function resolveStoreOptions(
+  season: number,
+  explicitStatIds?: string[],
+  options?: { fullStore?: boolean; teamCards?: boolean },
+): WriteNerdStatsStoreOptions {
+  const onlyNewStats = !options?.fullStore && !explicitStatIds;
+
+  return {
+    statIds: explicitStatIds ?? (onlyNewStats ? listMissingStatIds(season) : undefined),
+    skipTeamCards: !options?.teamCards && !options?.fullStore,
+  };
+}
+
+async function processGamesIntoCounters(
+  games: GameNerdSourceRow[],
+  skipSavant: boolean,
+): Promise<SeasonNerdCounters> {
+  const counters = createEmptySeasonCounters();
+
+  for (let i = 0; i < games.length; i += SAVANT_BATCH_SIZE) {
+    const batch = games.slice(i, i + SAVANT_BATCH_SIZE);
+    const batchCounters = await Promise.all(
+      batch.map(async (game) => {
+        const gameCounters = extractNerdCountersFromGame(game);
+        if (!skipSavant) {
+          await enrichCountersWithSavantBatSpeed(gameCounters, game.game_pk);
+        }
+        return gameCounters;
+      }),
+    );
+
+    for (const gameCounters of batchCounters) {
+      mergeSeasonCounters(counters, gameCounters);
+    }
+
+    const done = Math.min(i + SAVANT_BATCH_SIZE, games.length);
+    process.stdout.write(`\rProcessed ${done}/${games.length} games…`);
+  }
+
+  process.stdout.write("\n");
+  return counters;
+}
+
+async function backfillCountersFromManifest(
+  season: number,
+  creds: BulkCreds,
+  options: {
+    skipSavant: boolean;
+    storeOptions: WriteNerdStatsStoreOptions;
+  },
+): Promise<void> {
+  const manifest = loadNerdStatsManifest(season);
+  if (manifest.processedGamePks.length === 0) {
+    console.log("No processed games in manifest — run a full aggregate first.");
+    return;
+  }
+
+  console.log(
+    `Backfilling counters for ${manifest.processedGamePks.length} manifest game(s)…`,
+  );
+  if (options.skipSavant) {
+    console.log("Skipping Baseball Savant bat-speed enrichment.");
+  }
+
+  const games = await fetchGamesForPks(creds, manifest.processedGamePks);
+  const counters = await processGamesIntoCounters(games, options.skipSavant);
+  const { writtenStatIds } = writeNerdStatsStore(
+    season,
+    counters,
+    manifest.processedGamePks,
+    options.storeOptions,
+  );
+
+  console.log(`Updated counters.json and summary.json`);
+  if (writtenStatIds.length > 0) {
+    console.log(`Wrote ${writtenStatIds.length} stat file(s): ${writtenStatIds.join(", ")}`);
+  } else {
+    console.log("No stat detail files rewritten (use --stats= or --full-store to force).");
+  }
+  if (options.storeOptions.skipTeamCards) {
+    console.log("Skipped team cards (pass --team-cards to include).");
+  }
 }
 
 type BulkCreds =
@@ -242,6 +346,24 @@ async function main() {
   const dateRange = readDateRange();
   const incremental = Boolean(dateRange.since || dateRange.until);
   const rebuildStore = hasFlag("rebuild-store");
+  const backfillCounters = hasFlag("backfill-counters");
+  const skipSavant = hasFlag("skip-savant");
+  const fullStore = hasFlag("full-store");
+  const teamCards = hasFlag("team-cards");
+  const explicitStatIds = readCsvArg("stats");
+  const storeOptions = resolveStoreOptions(season, explicitStatIds, {
+    fullStore,
+    teamCards,
+  });
+
+  if (backfillCounters) {
+    const creds = resolveBulkReadCredentials();
+    await backfillCountersFromManifest(season, creds, {
+      skipSavant,
+      storeOptions,
+    });
+    return;
+  }
 
   if (rebuildStore) {
     const manifest = loadNerdStatsManifest(season);
@@ -250,10 +372,22 @@ async function main() {
       console.log("No processed games in manifest — run a full aggregate first.");
       return;
     }
-    writeFullNerdStatsStore(season, counters, manifest.processedGamePks);
+
+    const { writtenStatIds } = writeNerdStatsStore(
+      season,
+      counters,
+      manifest.processedGamePks,
+      storeOptions,
+    );
     console.log(
       `Rebuilt nerd stats store from counters for ${manifest.processedGamePks.length} games.`,
     );
+    if (writtenStatIds.length > 0) {
+      console.log(`Wrote ${writtenStatIds.length} stat file(s).`);
+    }
+    if (storeOptions.skipTeamCards) {
+      console.log("Skipped team cards (pass --team-cards to include).");
+    }
     return;
   }
 
@@ -297,31 +431,14 @@ async function main() {
 
   console.log(`Fetching full game payloads in batches of ${FULL_ROW_BATCH_SIZE}…`);
   const games = await fetchGamesForPks(creds, gamePks);
+  const counters = await processGamesIntoCounters(games, skipSavant);
+  const processed = games.map((game) => game.game_pk);
 
-  const counters = createEmptySeasonCounters();
-  const processed: number[] = [];
-
-  for (let i = 0; i < games.length; i += SAVANT_BATCH_SIZE) {
-    const batch = games.slice(i, i + SAVANT_BATCH_SIZE);
-    const batchCounters = await Promise.all(
-      batch.map(async (game) => {
-        const gameCounters = extractNerdCountersFromGame(game);
-        await enrichCountersWithSavantBatSpeed(gameCounters, game.game_pk);
-        return { gamePk: game.game_pk, gameCounters };
-      }),
-    );
-
-    for (const { gamePk, gameCounters } of batchCounters) {
-      mergeSeasonCounters(counters, gameCounters);
-      processed.push(gamePk);
-    }
-
-    const done = Math.min(i + SAVANT_BATCH_SIZE, games.length);
-    process.stdout.write(`\rProcessed ${done}/${games.length} games…`);
-  }
-
-  process.stdout.write("\n");
-  writeFullNerdStatsStore(season, counters, processed);
+  const fullRebuildStoreOptions = resolveStoreOptions(season, explicitStatIds, {
+    fullStore: true,
+    teamCards: true,
+  });
+  writeNerdStatsStore(season, counters, processed, fullRebuildStoreOptions);
   console.log(`Wrote nerd stats for ${processed.length} games to data/nerd-stats/${season}/`);
 }
 
