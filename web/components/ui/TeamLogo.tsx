@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { useTheme } from "@/components/providers/ThemeProvider";
-import { mlbTeamLogoUrl } from "@/lib/mlb/teamAssets";
+import { mlbTeamLogoUrl, type TeamLogoTheme } from "@/lib/mlb/teamAssets";
 import { getTeamByAbbrev, getTeamById } from "@/lib/mlb/teams";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +13,8 @@ interface TeamLogoProps {
   size?: number;
   className?: string;
   title?: string;
+  /** Force logo variant for the surface behind the mark (e.g. scorebug overlay on dark glass). */
+  surface?: TeamLogoTheme;
 }
 
 export function TeamLogo({
@@ -21,8 +23,10 @@ export function TeamLogo({
   size = 28,
   className,
   title,
+  surface,
 }: TeamLogoProps) {
   const { theme } = useTheme();
+  const logoTheme: TeamLogoTheme = surface ?? theme;
   const team =
     (teamId != null ? getTeamById(teamId) : undefined) ??
     (abbrev ? getTeamByAbbrev(abbrev) : undefined);
@@ -46,8 +50,8 @@ export function TeamLogo({
 
   return (
     <img
-      key={`${team.id}-${theme}`}
-      src={mlbTeamLogoUrl(team.id, theme)}
+      key={`${team.id}-${logoTheme}`}
+      src={mlbTeamLogoUrl(team.id, logoTheme)}
       alt=""
       width={size}
       height={size}

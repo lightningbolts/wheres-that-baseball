@@ -273,12 +273,12 @@ export function Scorebug({
         )}
       >
         <OverlayStatCell className="min-w-[36px] flex-row gap-1 px-1.5 py-0">
-          <TeamLogo abbrev={awayAbbrev} size={12} />
+          <TeamLogo abbrev={awayAbbrev} size={12} surface="dark" />
           <span className="font-mono text-sm font-bold leading-none tabular-nums">{awayRuns}</span>
         </OverlayStatCell>
 
         <OverlayStatCell className="min-w-[36px] flex-row gap-1 px-1.5 py-0">
-          <TeamLogo abbrev={homeAbbrev} size={12} />
+          <TeamLogo abbrev={homeAbbrev} size={12} surface="dark" />
           <span className="font-mono text-sm font-bold leading-none tabular-nums">{homeRuns}</span>
         </OverlayStatCell>
 

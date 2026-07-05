@@ -4,12 +4,13 @@ import { cachedStatsFetch } from "@/lib/mlb/statsCache";
 
 const MLB_STATS_BASE = "https://statsapi.mlb.com/api/v1";
 
-/** Request every param; MLB maps stat.name inconsistently by player/season. */
-const HOT_COLD_ZONE_PARAMS = [
-  "sluggingPercentage",
+/** Fallback params when the default hotColdZones response is sparse. */
+const HOT_COLD_ZONE_FALLBACK_PARAMS = [
   "onBasePlusSlugging",
+  "sluggingPercentage",
   "onBasePercentage",
   "battingAverage",
+  "strikeouts",
 ] as const;
 
 const STRIKE_ZONE_IDS = ["01", "02", "03", "04", "05", "06", "07", "08", "09"] as const;
@@ -61,35 +62,60 @@ function zoneMapFromStat(zones: HotColdZoneRaw[] | undefined): Map<string, HotCo
   return map;
 }
 
+function mergeCatalogEntry(
+  catalog: Map<string, Map<string, HotColdZoneRaw>>,
+  statName: string,
+  zones: HotColdZoneRaw[] | undefined,
+): void {
+  if (!zones?.length) return;
+  const next = zoneMapFromStat(zones);
+  const existing = catalog.get(statName);
+  if (!existing || next.size > existing.size) {
+    catalog.set(statName, next);
+  }
+}
+
+function ingestHotColdResponse(
+  catalog: Map<string, Map<string, HotColdZoneRaw>>,
+  data: HotColdZonesResponse,
+): void {
+  for (const split of data.stats?.[0]?.splits ?? []) {
+    const stat = split.stat;
+    if (!stat?.name) continue;
+    mergeCatalogEntry(catalog, stat.name, stat.zones);
+  }
+}
+
+async function fetchHotColdZonesUrl(url: string): Promise<HotColdZonesResponse | null> {
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) return null;
+  return (await response.json()) as HotColdZonesResponse;
+}
+
 async function fetchZoneStatCatalog(
   batterId: number,
   season: number,
 ): Promise<Map<string, Map<string, HotColdZoneRaw>>> {
   const catalog = new Map<string, Map<string, HotColdZoneRaw>>();
 
-  await Promise.all(
-    HOT_COLD_ZONE_PARAMS.map(async (statParam) => {
-      const url = new URL(`${MLB_STATS_BASE}/people/${batterId}/stats`);
-      url.searchParams.set("stats", "hotColdZones");
-      url.searchParams.set("group", "hitting");
-      url.searchParams.set("season", String(season));
-      url.searchParams.set("hotColdZoneStat", statParam);
+  const baseUrl = new URL(`${MLB_STATS_BASE}/people/${batterId}/stats`);
+  baseUrl.searchParams.set("stats", "hotColdZones");
+  baseUrl.searchParams.set("group", "hitting");
+  baseUrl.searchParams.set("season", String(season));
 
-      const response = await fetch(url, { cache: "no-store" });
-      if (!response.ok) {
-        throw new Error(`MLB hot/cold zones failed: ${response.status}`);
-      }
+  const primary = await fetchHotColdZonesUrl(baseUrl.toString());
+  if (primary) ingestHotColdResponse(catalog, primary);
 
-      const data = (await response.json()) as HotColdZonesResponse;
-      const stat = data.stats?.[0]?.splits?.[0]?.stat;
-      const statName = stat?.name;
-      if (!statName || !stat.zones?.length) return;
-
-      if (!catalog.has(statName)) {
-        catalog.set(statName, zoneMapFromStat(stat.zones));
-      }
-    }),
-  );
+  if (!catalog.has("onBasePlusSlugging") && !(catalog.has("onBasePercentage") && catalog.has("sluggingPercentage"))) {
+    await Promise.all(
+      HOT_COLD_ZONE_FALLBACK_PARAMS.map(async (statParam) => {
+        const url = new URL(baseUrl.toString());
+        url.searchParams.set("hotColdZoneStat", statParam);
+        const data = await fetchHotColdZonesUrl(url.toString());
+        if (data) ingestHotColdResponse(catalog, data);
+      }),
+    );
+  }
 
   return catalog;
 }
@@ -140,17 +166,16 @@ function cellsFromDirectOps(opsZones: Map<string, HotColdZoneRaw>): BatterHotZon
 function cellsFromCatalog(
   catalog: Map<string, Map<string, HotColdZoneRaw>>,
 ): BatterHotZoneCell[] | null {
-  const obpZones = catalog.get("onBasePercentage");
-  const slgZones = catalog.get("sluggingPercentage");
   const opsZones = catalog.get("onBasePlusSlugging");
-
-  if (obpZones && slgZones) {
-    const cells = combineObpSlgZones(obpZones, slgZones);
+  if (opsZones) {
+    const cells = cellsFromDirectOps(opsZones);
     if (cells.length > 0) return cells;
   }
 
-  if (opsZones) {
-    const cells = cellsFromDirectOps(opsZones);
+  const obpZones = catalog.get("onBasePercentage");
+  const slgZones = catalog.get("sluggingPercentage");
+  if (obpZones && slgZones) {
+    const cells = combineObpSlgZones(obpZones, slgZones);
     if (cells.length > 0) return cells;
   }
 
@@ -170,13 +195,15 @@ export async function fetchBatterHotZones(
   season: number,
 ): Promise<BatterHotZoneCell[] | null> {
   return cachedStatsFetch(
-    [`hotZones`, "ops-obp-slg-v4", String(batterId), String(season)],
+    [`hotZones`, "ops-all-splits-v6", String(batterId), String(season)],
     async () => {
-      const current = await fetchBatterHotZonesForSeason(batterId, season);
-      if (current) return current;
+      const seasons = [season, new Date().getFullYear(), season - 1, season + 1].filter(
+        (value, index, array) => value >= 2008 && array.indexOf(value) === index,
+      );
 
-      if (season > 2008) {
-        return fetchBatterHotZonesForSeason(batterId, season - 1);
+      for (const trySeason of seasons) {
+        const zones = await fetchBatterHotZonesForSeason(batterId, trySeason);
+        if (zones?.length) return zones;
       }
 
       return null;

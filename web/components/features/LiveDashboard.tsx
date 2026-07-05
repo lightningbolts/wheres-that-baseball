@@ -85,7 +85,18 @@ function DashboardContent({ game }: { game: SlateGame }) {
     runnersInScoringPosition,
   );
   const gameSeason = new Date(game.gameDate).getFullYear();
-  const { zones: batterHotZones } = useBatterHotZones(atBatViewState?.batterId, gameSeason);
+  const zoneBatterId = useMemo(() => {
+    if (atBatViewState?.batterId != null && atBatViewState.batterId > 0) {
+      return atBatViewState.batterId;
+    }
+    const lastAtBat = gameState?.plays.filter(isPlayByPlayAtBat).at(-1);
+    if (lastAtBat?.batterId != null && lastAtBat.batterId > 0) return lastAtBat.batterId;
+    if (lastAtBat?.detail.batterId != null && lastAtBat.detail.batterId > 0) {
+      return lastAtBat.detail.batterId;
+    }
+    return null;
+  }, [atBatViewState?.batterId, gameState?.plays]);
+  const { zones: batterHotZones } = useBatterHotZones(zoneBatterId, gameSeason);
 
   const showSkeleton = isFeedLoading && !gameState && isPredictionsLoading && predictions.length === 0;
   const showBatterHighlights =
@@ -308,6 +319,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
                     <>
                       <div className="shrink-0 md:hidden">
                         <PitchSequence
+                          key={`zone-mobile-${zoneBatterId ?? "none"}`}
                           pitches={atBatViewState?.atBatPitches ?? []}
                           layout="zone"
                           size="large"
@@ -319,6 +331,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
                       </div>
                       <div className="hidden min-h-0 flex-1 md:flex">
                         <PitchSequence
+                          key={`zone-desktop-${zoneBatterId ?? "none"}`}
                           pitches={atBatViewState?.atBatPitches ?? []}
                           size="large"
                           layout="dashboard"

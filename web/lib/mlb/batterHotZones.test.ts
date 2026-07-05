@@ -18,6 +18,50 @@ describe("fetchBatterHotZones", () => {
     clearStatsCache();
   });
 
+  it("reads every split from a hotColdZones response", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        stats: [
+          {
+            splits: [
+              {
+                stat: {
+                  name: "onBasePercentage",
+                  zones: [{ zone: "01", color: "blue", temp: "cold", value: ".273" }],
+                },
+              },
+              {
+                stat: {
+                  name: "sluggingPercentage",
+                  zones: [{ zone: "01", color: "blue", temp: "cold", value: ".563" }],
+                },
+              },
+              {
+                stat: {
+                  name: "onBasePlusSlugging",
+                  zones: [{ zone: "05", color: "red", temp: "hot", value: "1.343" }],
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    } as Response);
+
+    const cells = await fetchBatterHotZones(660271, 2025);
+    expect(cells).toEqual([
+      {
+        zoneId: "05",
+        color: "red",
+        temp: "hot",
+        value: "1.343",
+      },
+    ]);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    fetchSpy.mockRestore();
+  });
+
   it("fetches OBP and SLG zones and combines them into OPS", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = String(input);

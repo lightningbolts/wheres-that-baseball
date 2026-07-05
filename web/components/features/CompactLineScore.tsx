@@ -21,57 +21,66 @@ export function CompactLineScore({ boxScore, className }: CompactLineScoreProps)
   const inningNums = lineScore.innings.map((inning) => inning.num);
 
   return (
-    <div className={cn("w-full", className)}>
-      <table className="w-full table-fixed border-collapse text-[11px]">
+    <div className={cn("w-full overflow-x-auto", className)}>
+      <table className="w-full min-w-[20rem] border-collapse text-[11px]">
+        <colgroup>
+          <col className="w-[5.25rem]" />
+          {inningNums.map((num) => (
+            <col key={num} className="w-7" />
+          ))}
+          <col className="w-7" />
+          <col className="w-7" />
+          <col className="w-7" />
+        </colgroup>
         <thead>
           <tr className="text-muted">
             <th className="px-1.5 py-1 text-left font-medium" />
             {inningNums.map((num) => (
-              <th key={num} className="px-1 py-1 text-center font-medium tabular-nums">
+              <th key={num} className="px-0.5 py-1 text-center font-medium tabular-nums">
                 {num}
               </th>
             ))}
-            <th className="px-1.5 py-1 text-center font-semibold text-foreground">R</th>
-            <th className="px-1.5 py-1 text-center font-semibold text-foreground">H</th>
-            <th className="px-1.5 py-1 text-center font-semibold text-foreground">E</th>
+            <th className="px-0.5 py-1 text-center font-semibold text-foreground">R</th>
+            <th className="px-0.5 py-1 text-center font-semibold text-foreground">H</th>
+            <th className="px-0.5 py-1 text-center font-semibold text-foreground">E</th>
           </tr>
         </thead>
         <tbody>
           <tr className="border-t border-border/60">
             <td className="px-1.5 py-1">
-              <div className="flex items-center gap-1.5">
-                <TeamLogo abbrev={awayAbbrev} size={16} />
-                <span className="font-semibold text-foreground">{awayAbbrev}</span>
+              <div className="flex min-w-0 items-center gap-1">
+                <TeamLogo abbrev={awayAbbrev} size={16} className="shrink-0" />
+                <span className="truncate font-semibold text-foreground">{awayAbbrev}</span>
               </div>
             </td>
             {lineScore.innings.map((inning) => (
-              <td key={`away-${inning.num}`} className="px-1 py-1 text-center tabular-nums">
+              <td key={`away-${inning.num}`} className="px-0.5 py-1 text-center tabular-nums">
                 {formatInningRuns(inning.awayRuns)}
               </td>
             ))}
-            <td className="px-1.5 py-1 text-center font-semibold tabular-nums">
+            <td className="px-0.5 py-1 text-center font-semibold tabular-nums">
               {lineScore.away.runs}
             </td>
-            <td className="px-1.5 py-1 text-center tabular-nums">{lineScore.away.hits}</td>
-            <td className="px-1.5 py-1 text-center tabular-nums">{lineScore.away.errors}</td>
+            <td className="px-0.5 py-1 text-center tabular-nums">{lineScore.away.hits}</td>
+            <td className="px-0.5 py-1 text-center tabular-nums">{lineScore.away.errors}</td>
           </tr>
           <tr className="border-t border-border/60">
             <td className="px-1.5 py-1">
-              <div className="flex items-center gap-1.5">
-                <TeamLogo abbrev={homeAbbrev} size={16} />
-                <span className="font-semibold text-foreground">{homeAbbrev}</span>
+              <div className="flex min-w-0 items-center gap-1">
+                <TeamLogo abbrev={homeAbbrev} size={16} className="shrink-0" />
+                <span className="truncate font-semibold text-foreground">{homeAbbrev}</span>
               </div>
             </td>
             {lineScore.innings.map((inning) => (
-              <td key={`home-${inning.num}`} className="px-1 py-1 text-center tabular-nums">
+              <td key={`home-${inning.num}`} className="px-0.5 py-1 text-center tabular-nums">
                 {formatInningRuns(inning.homeRuns, inning.homeSkipped)}
               </td>
             ))}
-            <td className="px-1.5 py-1 text-center font-semibold tabular-nums">
+            <td className="px-0.5 py-1 text-center font-semibold tabular-nums">
               {lineScore.home.runs}
             </td>
-            <td className="px-1.5 py-1 text-center tabular-nums">{lineScore.home.hits}</td>
-            <td className="px-1.5 py-1 text-center tabular-nums">{lineScore.home.errors}</td>
+            <td className="px-0.5 py-1 text-center tabular-nums">{lineScore.home.hits}</td>
+            <td className="px-0.5 py-1 text-center tabular-nums">{lineScore.home.errors}</td>
           </tr>
         </tbody>
       </table>

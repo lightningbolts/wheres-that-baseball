@@ -209,10 +209,15 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
     displayState?.batterId,
     runnersInScoringPosition,
   );
-  const { zones: batterHotZones } = useBatterHotZones(
-    displayState?.batterId,
-    game.season,
-  );
+  const zoneBatterId = useMemo(() => {
+    if (displayState?.batterId != null && displayState.batterId > 0) return displayState.batterId;
+    if (selectedPlay?.batterId != null && selectedPlay.batterId > 0) return selectedPlay.batterId;
+    if (selectedPlay?.detail.batterId != null && selectedPlay.detail.batterId > 0) {
+      return selectedPlay.detail.batterId;
+    }
+    return null;
+  }, [displayState?.batterId, selectedPlay?.batterId, selectedPlay?.detail.batterId]);
+  const { zones: batterHotZones } = useBatterHotZones(zoneBatterId, game.season);
 
   const score = formatScore(game);
   const seasonHistoryHref = buildSeasonHistoryHref({
@@ -482,7 +487,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
                       {(displayState.atBatPitches.length ?? 0) === 0 ? (
                         <div className="shrink-0 md:hidden">
                           <PitchSequence
-                            key={`zone-mobile-${selectedAtBatIndex ?? "none"}`}
+                            key={`zone-mobile-${zoneBatterId ?? selectedAtBatIndex ?? "none"}`}
                             pitches={[]}
                             layout="zone"
                             zoneFirst
@@ -492,7 +497,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
                       ) : (
                         <div className="shrink-0 md:hidden">
                           <PitchSequence
-                            key={`zone-mobile-${selectedAtBatIndex ?? "none"}`}
+                            key={`zone-mobile-${zoneBatterId ?? selectedAtBatIndex ?? "none"}`}
                             pitches={displayState.atBatPitches}
                             layout="zone"
                             zoneFirst
@@ -502,7 +507,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
                       )}
                       <div className="hidden min-h-0 flex-1 md:flex">
                         <PitchSequence
-                          key={`zone-desktop-${selectedAtBatIndex ?? "none"}`}
+                          key={`zone-desktop-${zoneBatterId ?? selectedAtBatIndex ?? "none"}`}
                           pitches={displayState.atBatPitches}
                           size="large"
                           layout="dashboard"
