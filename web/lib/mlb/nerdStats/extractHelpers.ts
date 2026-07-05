@@ -133,6 +133,24 @@ export function isPassedBall(play: PlayByPlayEntry): boolean {
   return /passed ball/i.test(`${play.event} ${play.description}`);
 }
 
+export function errorInPlay(play: PlayByPlayEntry): boolean {
+  return /error/i.test(`${play.event} ${play.description}`);
+}
+
+export function isFieldingError(play: PlayByPlayEntry): boolean {
+  return play.event === "Field Error" || /fielding error/i.test(play.description);
+}
+
+export function countThrowingErrors(play: PlayByPlayEntry): number {
+  const matches = play.description.match(/throwing error/gi);
+  return matches?.length ?? 0;
+}
+
+export function batterReachedOnError(play: PlayByPlayEntry): boolean {
+  if (play.event === "Field Error") return true;
+  return /reaches on (?:a )?(?:fielding )?error/i.test(play.description);
+}
+
 export function isBarrel(hit: { launchSpeed: number; launchAngle: number }): boolean {
   return hit.launchSpeed >= 98 && hit.launchAngle >= 8 && hit.launchAngle <= 50;
 }

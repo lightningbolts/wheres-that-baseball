@@ -6,6 +6,8 @@ import {
 } from "@/lib/mlb/nerdStats/counters";
 import {
   battingTeamId,
+  batterReachedOnError,
+  countThrowingErrors,
   extractPinchHitterName,
   fieldingTeamId,
   findWalkOffPlay,
@@ -14,6 +16,7 @@ import {
   isBarrel,
   isBloopSingle,
   isCaughtStealing,
+  isFieldingError,
   isGidp,
   isInfieldSingle,
   isNoDoubterHr,
@@ -761,6 +764,7 @@ export function extractNerdCountersFromGame(row: GameNerdSourceRow): SeasonNerdC
 
       if (/error/i.test(`${play.event} ${play.description}`)) {
         offense.errorRunBenefits += runsForOffense;
+        defense.errorRunsAllowed += runsForOffense;
         pushNotable(offense, {
           statId: "error-assisted-runs",
           gamePk: row.game_pk,
@@ -768,6 +772,53 @@ export function extractNerdCountersFromGame(row: GameNerdSourceRow): SeasonNerdC
           label: "Error-assisted runs",
           detail: play.description,
           value: runsForOffense,
+        });
+        if (runsForOffense > 0) {
+          pushNotable(defense, {
+            statId: "error-runs-allowed",
+            gamePk: row.game_pk,
+            gameDate: row.game_date,
+            label: "Error-aided run(s) allowed",
+            detail: play.description,
+            value: runsForOffense,
+          });
+        }
+      }
+    }
+
+    if (play.isAtBat) {
+      if (batterReachedOnError(play)) {
+        offense.reachedOnError += 1;
+        pushNotable(offense, {
+          statId: "reached-on-error",
+          gamePk: row.game_pk,
+          gameDate: row.game_date,
+          label: `${play.batterName} reached on error`,
+          detail: play.description,
+        });
+      }
+
+      if (isFieldingError(play)) {
+        defense.fieldingErrors += 1;
+        pushNotable(defense, {
+          statId: "fielding-errors",
+          gamePk: row.game_pk,
+          gameDate: row.game_date,
+          label: "Fielding error",
+          detail: play.description,
+        });
+      }
+
+      const throwingErrors = countThrowingErrors(play);
+      if (throwingErrors > 0) {
+        defense.throwingErrors += throwingErrors;
+        pushNotable(defense, {
+          statId: "throwing-errors",
+          gamePk: row.game_pk,
+          gameDate: row.game_date,
+          label: throwingErrors === 1 ? "Throwing error" : `${throwingErrors} throwing errors`,
+          detail: play.description,
+          value: throwingErrors,
         });
       }
     }
@@ -894,6 +945,34 @@ export function extractNerdCountersFromGame(row: GameNerdSourceRow): SeasonNerdC
 
   finalizeGameTeamState(counters, row.away_team_id, awayGame, row);
   finalizeGameTeamState(counters, row.home_team_id, homeGame, row);
+
+  if (boxScore?.lineScore) {
+    const awayErrors = boxScore.lineScore.away.errors;
+    const homeErrors = boxScore.lineScore.home.errors;
+
+    away.errorsCommitted += awayErrors;
+    home.errorsCommitted += homeErrors;
+
+    for (const [team, errors] of [
+      [away, awayErrors],
+      [home, homeErrors],
+    ] as const) {
+      if (errors === 0) {
+        team.errorFreeGames += 1;
+      } else {
+        team.errorGames += 1;
+        if (errors >= 2) team.multiErrorGames += 1;
+        pushNotable(team, {
+          statId: "errors-committed",
+          gamePk: row.game_pk,
+          gameDate: row.game_date,
+          label: errors === 1 ? "1 error" : `${errors} errors`,
+          detail: `${row.away_team_abbrev} ${awayScore}, ${row.home_team_abbrev} ${homeScore}`,
+          value: errors,
+        });
+      }
+    }
+  }
 
   const walkoffPlay = findWalkOffPlay(plays, homeScore, awayScore);
   if (walkoffPlay) {

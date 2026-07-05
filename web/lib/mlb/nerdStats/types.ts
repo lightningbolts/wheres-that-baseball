@@ -100,6 +100,14 @@ export interface TeamNerdCounters {
   wildPitchBenefits: number;
   passedBallBenefits: number;
   errorRunBenefits: number;
+  errorsCommitted: number;
+  fieldingErrors: number;
+  throwingErrors: number;
+  reachedOnError: number;
+  errorRunsAllowed: number;
+  errorGames: number;
+  multiErrorGames: number;
+  errorFreeGames: number;
   basesLoadedNoRuns: number;
   cycleGames: number;
   backToBackHrGames: number;

@@ -67,6 +67,14 @@ export function createEmptyTeamCounters(): TeamNerdCounters {
     wildPitchBenefits: 0,
     passedBallBenefits: 0,
     errorRunBenefits: 0,
+    errorsCommitted: 0,
+    fieldingErrors: 0,
+    throwingErrors: 0,
+    reachedOnError: 0,
+    errorRunsAllowed: 0,
+    errorGames: 0,
+    multiErrorGames: 0,
+    errorFreeGames: 0,
     basesLoadedNoRuns: 0,
     cycleGames: 0,
     backToBackHrGames: 0,
@@ -222,6 +230,14 @@ export function mergeTeamCounters(target: TeamNerdCounters, source: TeamNerdCoun
   target.wildPitchBenefits += source.wildPitchBenefits;
   target.passedBallBenefits += source.passedBallBenefits;
   target.errorRunBenefits += source.errorRunBenefits;
+  target.errorsCommitted += source.errorsCommitted;
+  target.fieldingErrors += source.fieldingErrors;
+  target.throwingErrors += source.throwingErrors;
+  target.reachedOnError += source.reachedOnError;
+  target.errorRunsAllowed += source.errorRunsAllowed;
+  target.errorGames += source.errorGames;
+  target.multiErrorGames += source.multiErrorGames;
+  target.errorFreeGames += source.errorFreeGames;
   target.basesLoadedNoRuns += source.basesLoadedNoRuns;
   target.cycleGames += source.cycleGames;
   target.backToBackHrGames += source.backToBackHrGames;
