@@ -140,6 +140,12 @@ export interface TeamNerdCounters {
   rispHits: number;
   rispAtBats: number;
   rispPlateAppearances: number;
+  fullCountHits: number;
+  fullCountAtBats: number;
+  fullCountWalks: number;
+  fullCountHbp: number;
+  fullCountSacFlies: number;
+  fullCountTotalBases: number;
   pitchingStrikeouts: number;
   backToBackHrSequences: number;
   pitchesSeen: number;

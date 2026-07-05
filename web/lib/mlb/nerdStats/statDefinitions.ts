@@ -7,6 +7,7 @@ import {
   formatMph,
   formatPercent,
   formatRatePer1000,
+  formatSlashStat,
   pct,
   rate,
   ratePer1000,
@@ -28,6 +29,34 @@ export interface NerdStatDefinition {
   minGames?: number;
   compute: (counters: TeamNerdCounters) => number | null;
   formatValue: (value: number) => string;
+}
+
+function fullCountObpDenominator(counters: TeamNerdCounters): number {
+  return (
+    counters.fullCountAtBats +
+    counters.fullCountWalks +
+    counters.fullCountHbp +
+    counters.fullCountSacFlies
+  );
+}
+
+function fullCountObpNumerator(counters: TeamNerdCounters): number {
+  return counters.fullCountHits + counters.fullCountWalks + counters.fullCountHbp;
+}
+
+function computeFullCountObp(counters: TeamNerdCounters): number | null {
+  return rate(fullCountObpNumerator(counters), fullCountObpDenominator(counters));
+}
+
+function computeFullCountSlg(counters: TeamNerdCounters): number | null {
+  return rate(counters.fullCountTotalBases, counters.fullCountAtBats);
+}
+
+function computeFullCountOps(counters: TeamNerdCounters): number | null {
+  const obp = computeFullCountObp(counters);
+  const slg = computeFullCountSlg(counters);
+  if (obp == null || slg == null) return null;
+  return obp + slg;
 }
 
 export const NERD_STAT_DEFINITIONS: NerdStatDefinition[] = [
@@ -1181,6 +1210,42 @@ export const NERD_STAT_DEFINITIONS: NerdStatDefinition[] = [
     minGames: 20,
     compute: (c) => rate(c.rispHits, c.rispAtBats),
     formatValue: formatBattingAverage,
+  },
+  {
+    id: "full-count-obp",
+    title: "Full Count On-Base Artists",
+    subtitle: "On-base percentage in plate appearances that reached 3-2.",
+    category: "drama",
+    sort: "desc",
+    unit: "OBP",
+    formula: "(H + BB + HBP) ÷ (AB + BB + HBP + SF) in full-count PAs",
+    minGames: 20,
+    compute: computeFullCountObp,
+    formatValue: formatSlashStat,
+  },
+  {
+    id: "full-count-slg",
+    title: "Full Count Slug Squad",
+    subtitle: "Slugging percentage in full-count at-bats.",
+    category: "drama",
+    sort: "desc",
+    unit: "SLG",
+    formula: "total bases in full-count ABs ÷ full-count at-bats",
+    minGames: 20,
+    compute: computeFullCountSlg,
+    formatValue: formatSlashStat,
+  },
+  {
+    id: "full-count-ops",
+    title: "Full Count OPS Merchants",
+    subtitle: "On-base plus slugging in plate appearances that reached 3-2.",
+    category: "drama",
+    sort: "desc",
+    unit: "OPS",
+    formula: "full-count OBP + full-count SLG",
+    minGames: 20,
+    compute: computeFullCountOps,
+    formatValue: formatSlashStat,
   },
   {
     id: "pitching-k-per-game",

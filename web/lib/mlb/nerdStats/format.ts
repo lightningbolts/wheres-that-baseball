@@ -44,6 +44,11 @@ export function formatBattingAverage(value: number): string {
   return `.${thousandths.toString().padStart(3, "0")}`;
 }
 
+export function formatSlashStat(value: number): string {
+  if (!Number.isFinite(value)) return "—";
+  return value.toFixed(3).replace(/^0/, "");
+}
+
 export function ratePer1000(numerator: number, denominator: number): number | null {
   if (denominator <= 0) return null;
   return (numerator / denominator) * 1000;

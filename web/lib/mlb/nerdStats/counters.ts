@@ -125,6 +125,12 @@ export function createEmptyTeamCounters(): TeamNerdCounters {
     rispHits: 0,
     rispAtBats: 0,
     rispPlateAppearances: 0,
+    fullCountHits: 0,
+    fullCountAtBats: 0,
+    fullCountWalks: 0,
+    fullCountHbp: 0,
+    fullCountSacFlies: 0,
+    fullCountTotalBases: 0,
     pitchingStrikeouts: 0,
     backToBackHrSequences: 0,
     pitchesSeen: 0,
@@ -290,6 +296,12 @@ export function mergeTeamCounters(target: TeamNerdCounters, source: TeamNerdCoun
   target.rispHits += source.rispHits;
   target.rispAtBats += source.rispAtBats;
   target.rispPlateAppearances += source.rispPlateAppearances;
+  target.fullCountHits += source.fullCountHits;
+  target.fullCountAtBats += source.fullCountAtBats;
+  target.fullCountWalks += source.fullCountWalks;
+  target.fullCountHbp += source.fullCountHbp;
+  target.fullCountSacFlies += source.fullCountSacFlies;
+  target.fullCountTotalBases += source.fullCountTotalBases;
   target.pitchingStrikeouts += source.pitchingStrikeouts;
   target.backToBackHrSequences += source.backToBackHrSequences;
   target.pitchesSeen += source.pitchesSeen;

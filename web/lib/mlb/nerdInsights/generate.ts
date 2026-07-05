@@ -194,6 +194,22 @@ const rules: Rule[] = [
 
   (ctx, away, home) => {
     if (ctx.trigger.type !== "pitch-thrown" || ctx.balls !== 3 || ctx.strikes !== 2) return null;
+    const offense = profileForTeam({ away, home }, ctx.offenseTeamId);
+    const ops = getTeamStat(offense, "full-count-ops");
+    if (!isEliteRank(ops, 6)) return null;
+
+    return fullInsight(ctx, {
+      id: `${ctx.gamePk}-fcops-${ctx.trigger.atBatIndex}`,
+      eyebrow: "3-2 chess match",
+      title: "Full count merchants",
+      message: `${ctx.offenseAbbrev} post a ${ops.displayValue} OPS in full-count PAs (${rankLabel(ops.rank)} in MLB). Every pitch matters now.`,
+      teamId: ctx.offenseTeamId,
+      statId: "full-count-ops",
+    });
+  },
+
+  (ctx, away, home) => {
+    if (ctx.trigger.type !== "pitch-thrown" || ctx.balls !== 3 || ctx.strikes !== 2) return null;
     const defense = profileForTeam({ away, home }, ctx.defenseTeamId);
     const freeze = getTeamStat(defense, "called-strike-rate");
     if (!isEliteRank(freeze, 6)) return null;
@@ -401,6 +417,8 @@ const MINI_LABELS: Record<string, (abbrev: string, count: number, display: strin
     `Deep AB — ${abbrev} see ${display} per PA (${rankLabel(rank)}).`,
   "ball-rate": (abbrev, _count, display, rank) =>
     `3-2 again — ${abbrev} ${display} ball rate (${rankLabel(rank)}).`,
+  "full-count-ops": (abbrev, _count, display, rank) =>
+    `3-2 again — ${abbrev} ${display} full-count OPS (${rankLabel(rank)}).`,
   "called-strike-rate": (abbrev, _count, display, rank) =>
     `3-2 freeze — ${abbrev} ${display} called-strike rate (${rankLabel(rank)}).`,
   "runs-with-two-outs-pct": (abbrev, count, display, rank) =>

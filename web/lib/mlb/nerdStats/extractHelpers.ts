@@ -1,4 +1,29 @@
-import type { PlayByPlayEntry } from "@/types/mlb-live";
+import type { PlayByPlayEntry, PlayPitch } from "@/types/mlb-live";
+
+export function reachedFullCount(pitches: PlayPitch[]): boolean {
+  return pitches.some((pitch) => pitch.balls === 3 && pitch.strikes === 2);
+}
+
+export function hitTotalBases(event: string): number {
+  switch (event) {
+    case "Single":
+      return 1;
+    case "Double":
+      return 2;
+    case "Triple":
+      return 3;
+    case "Home Run":
+      return 4;
+    default:
+      return 0;
+  }
+}
+
+const HIT_EVENTS = new Set(["Single", "Double", "Triple", "Home Run"]);
+
+export function isHitEvent(event: string): boolean {
+  return HIT_EVENTS.has(event);
+}
 
 export function battingTeamId(
   play: PlayByPlayEntry,

@@ -14,7 +14,10 @@ import {
   fieldingTeamId,
   findWalkOffPlay,
   hasBattedBallData,
+  hitTotalBases,
   isBalk,
+  isHitEvent,
+  reachedFullCount,
   isBarrel,
   isBloopSingle,
   isCaughtStealing,
@@ -423,9 +426,6 @@ export function extractNerdCountersFromGame(
   let halfTracker: HalfInningTracker | null = null;
   const halfInningStrikeouts = new Map<string, { offenseId: number; count: number }>();
 
-  const isHitEvent = (event: string) =>
-    ["Single", "Double", "Triple", "Home Run"].includes(event);
-
   for (const play of plays) {
     const offenseId = battingTeamId(play, row.away_team_id, row.home_team_id);
     const defenseId = fieldingTeamId(play, row.away_team_id, row.home_team_id);
@@ -507,6 +507,25 @@ export function extractNerdCountersFromGame(
         offense.rispPlateAppearances += 1;
         if (isOfficialAtBat(play.event)) offense.rispAtBats += 1;
         if (isHitEvent(play.event)) offense.rispHits += 1;
+      }
+
+      if (reachedFullCount(play.detail.pitches)) {
+        if (isHitEvent(play.event)) {
+          offense.fullCountHits += 1;
+          offense.fullCountTotalBases += hitTotalBases(play.event);
+        }
+        if (isOfficialAtBat(play.event)) offense.fullCountAtBats += 1;
+        if (
+          play.event === "Walk" ||
+          play.event === "Intent Walk" ||
+          play.event === "Intentional Walk"
+        ) {
+          offense.fullCountWalks += 1;
+        }
+        if (play.event === "Hit By Pitch") offense.fullCountHbp += 1;
+        if (play.event === "Sacrifice Fly" || play.event === "Sac Fly") {
+          offense.fullCountSacFlies += 1;
+        }
       }
 
       if (play.event === "Strikeout") {

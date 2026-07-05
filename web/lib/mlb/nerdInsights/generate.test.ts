@@ -115,6 +115,31 @@ describe("generateNerdInsight", () => {
     expect(insight?.anchor).toEqual({ type: "live" });
   });
 
+  it("fires full-count OPS insight when ball-rate is not elite", () => {
+    const away = profile(100, "AWY", {
+      "full-count-ops": {
+        rank: 2,
+        displayValue: ".912",
+        value: 0.912,
+        title: "Full Count OPS Merchants",
+      },
+    });
+
+    const insight = generateNerdInsight(
+      baseContext({
+        trigger: { type: "pitch-thrown", atBatIndex: 2, pitchNumber: 6 },
+        balls: 3,
+        strikes: 2,
+      }),
+      away,
+      null,
+    );
+
+    expect(insight?.statId).toBe("full-count-ops");
+    expect(insight?.title).toContain("Full count");
+    expect(insight?.anchor).toEqual({ type: "live" });
+  });
+
   it("anchors at-bat-end insights to the completed at-bat", () => {
     const away = profile(100, "AWY", {
       "walks-per-game": {
