@@ -1,7 +1,7 @@
 "use client";
 
 import { Line } from "@react-three/drei";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, type ThreeEvent } from "@react-three/fiber";
 import { useMemo } from "react";
 
 import {
@@ -15,7 +15,7 @@ import {
   getParkSceneMapper,
   trajectorySceneBounds,
 } from "@/lib/mlb/ballparkScene";
-import type { GameHit, SprayChartHit } from "@/lib/mlb/gameHits";
+import type { SprayChartHit } from "@/lib/mlb/gameHits";
 import type { Vec3 } from "@/lib/mlb/ballTrajectory";
 import { cn } from "@/lib/utils";
 
@@ -23,10 +23,14 @@ function TrajectoryPath({
   gameHit,
   venueId,
   selected,
+  dimmed,
+  onSelect,
 }: {
   gameHit: SprayChartHit;
   venueId?: number | null;
   selected: boolean;
+  dimmed: boolean;
+  onSelect?: () => void;
 }) {
   const { points, landing } = useMemo(() => {
     const mapper = getParkSceneMapper(venueId);
@@ -35,9 +39,16 @@ function TrajectoryPath({
     return { points: scenePoints, landing: end };
   }, [gameHit.hit, venueId]);
 
-  const opacity = selected ? 1 : 0.55;
-  const lineWidth = selected ? 2.8 : 1.6;
-  const sphereRadius = selected ? 0.12 : 0.08;
+  const opacity = selected ? 1 : dimmed ? 0.14 : 1;
+  const lineWidth = selected ? 4.5 : dimmed ? 1.1 : 2.4;
+  const sphereRadius = selected ? 0.2 : dimmed ? 0.05 : 0.09;
+  const pickRadius = selected ? 0.42 : 0.34;
+
+  const handlePointerDown = (event: ThreeEvent<PointerEvent>) => {
+    if (!onSelect) return;
+    event.stopPropagation();
+    onSelect();
+  };
 
   return (
     <group>
@@ -48,12 +59,21 @@ function TrajectoryPath({
         transparent={opacity < 1}
         opacity={opacity}
       />
+      <mesh
+        position={landing}
+        onPointerDown={onSelect ? handlePointerDown : undefined}
+        onPointerOver={onSelect ? (event) => { event.stopPropagation(); document.body.style.cursor = "pointer"; } : undefined}
+        onPointerOut={onSelect ? () => { document.body.style.cursor = ""; } : undefined}
+      >
+        <sphereGeometry args={[pickRadius, 12, 12]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
       <mesh position={landing}>
         <sphereGeometry args={[sphereRadius, 16, 16]} />
         <meshStandardMaterial
           color={gameHit.color}
           emissive={gameHit.color}
-          emissiveIntensity={selected ? 0.4 : 0.2}
+          emissiveIntensity={selected ? 0.95 : dimmed ? 0.08 : 0.35}
           transparent={opacity < 1}
           opacity={opacity}
         />
@@ -79,33 +99,55 @@ function Scene({
   selectedAtBatIndex,
   getHitKey,
   selectedHitKey,
+  onSelectHit,
 }: {
   hits: SprayChartHit[];
   venueId?: number | null;
   selectedAtBatIndex?: number | null;
   getHitKey?: (hit: SprayChartHit) => string | number;
   selectedHitKey?: string | number | null;
+  onSelectHit?: (hit: SprayChartHit) => void;
 }) {
   const { canvasBg } = useFieldChartColors();
   const bounds = useMemo(() => combinedBounds(hits, venueId), [hits, venueId]);
   const resolveKey = getHitKey ?? ((hit: SprayChartHit) => hit.atBatIndex);
   const activeKey = selectedHitKey ?? selectedAtBatIndex;
+  const hasSelection = activeKey != null;
+
+  const orderedHits = useMemo(() => {
+    if (!hasSelection) return hits;
+    const selected = hits.filter((hit) => resolveKey(hit) === activeKey);
+    const rest = hits.filter((hit) => resolveKey(hit) !== activeKey);
+    return [...rest, ...selected];
+  }, [activeKey, hasSelection, hits, resolveKey]);
 
   return (
     <>
       <color attach="background" args={[canvasBg]} />
-      <ambientLight intensity={0.55} />
-      <directionalLight position={[8, 14, 6]} intensity={0.9} />
+      <ambientLight intensity={hasSelection ? 0.45 : 0.55} />
+      <directionalLight position={[8, 14, 6]} intensity={hasSelection ? 0.75 : 0.9} />
       <directionalLight position={[-6, 8, -4]} intensity={0.25} />
       <TrajectoryParkField venueId={venueId} />
-      {hits.map((gameHit) => (
-        <TrajectoryPath
-          key={resolveKey(gameHit)}
-          gameHit={gameHit}
-          venueId={venueId}
-          selected={activeKey == null || activeKey === resolveKey(gameHit)}
-        />
-      ))}
+      {orderedHits.map((gameHit) => {
+        const key = resolveKey(gameHit);
+        const selected = hasSelection && key === activeKey;
+        const dimmed = hasSelection && key !== activeKey;
+
+        return (
+          <TrajectoryPath
+            key={key}
+            gameHit={gameHit}
+            venueId={venueId}
+            selected={selected}
+            dimmed={dimmed}
+            onSelect={
+              onSelectHit
+                ? () => onSelectHit(gameHit)
+                : undefined
+            }
+          />
+        );
+      })}
       <TrajectoryOrbitControls
         target={bounds.center}
         boundsRadius={bounds.radius}
@@ -121,6 +163,7 @@ interface GameHitsTrajectory3DProps {
   selectedAtBatIndex?: number | null;
   getHitKey?: (hit: SprayChartHit) => string | number;
   selectedHitKey?: string | number | null;
+  onSelectHit?: (hit: SprayChartHit) => void;
   className?: string;
 }
 
@@ -133,6 +176,7 @@ export function GameHitsTrajectory3D({
   selectedAtBatIndex = null,
   getHitKey,
   selectedHitKey = null,
+  onSelectHit,
   className,
 }: GameHitsTrajectory3DProps) {
   const cameraPosition = useMemo((): Vec3 => {
@@ -176,13 +220,14 @@ export function GameHitsTrajectory3D({
             selectedAtBatIndex={selectedAtBatIndex}
             getHitKey={getHitKey}
             selectedHitKey={selectedHitKey}
+            onSelectHit={onSelectHit}
           />
         </Canvas>
       </div>
       <p className="mt-1.5 text-center text-[10px] text-subtle">
-        <span className="sm:hidden">Drag to rotate · pinch to zoom</span>
+        <span className="sm:hidden">Drag to rotate · pinch to zoom · tap a landing spot to select</span>
         <span className="hidden sm:inline">
-          {TRAJECTORY_CONTROLS_HINT} · estimated paths from launch angle &amp; distance
+          {TRAJECTORY_CONTROLS_HINT} · click a trajectory to select · estimated paths from launch angle &amp; distance
         </span>
         <span className="sm:hidden"> · estimated paths</span>
       </p>

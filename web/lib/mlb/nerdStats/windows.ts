@@ -44,3 +44,25 @@ export function gameDateInNerdWindow(
   if (!since) return true;
   return gameDate >= since;
 }
+
+/** Scale season-long minimums down for short rolling windows (~6 games/team in 7d). */
+export function windowEffectiveMinGames(
+  seasonMinGames: number,
+  windowId: NerdStatWindowId,
+): number {
+  if (windowId === "season") return seasonMinGames;
+  const days = NERD_STAT_WINDOWS.find((window) => window.id === windowId)?.days;
+  if (!days) return seasonMinGames;
+  return Math.max(1, Math.round((seasonMinGames * days) / 50));
+}
+
+/** Scale pitch-type sample minimums for rolling windows. */
+export function windowEffectiveMinPitches(
+  seasonMinPitches: number,
+  windowId: NerdStatWindowId,
+): number {
+  if (windowId === "season") return seasonMinPitches;
+  const days = NERD_STAT_WINDOWS.find((window) => window.id === windowId)?.days;
+  if (!days) return seasonMinPitches;
+  return Math.max(8, Math.round((seasonMinPitches * days) / 30));
+}

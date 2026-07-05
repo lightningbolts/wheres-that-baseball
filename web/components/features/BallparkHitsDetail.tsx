@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, forwardRef, type ReactNode } from "react";
 
 import { AppNav } from "@/components/features/AppNav";
 import { GameHitsSprayChart } from "@/components/features/GameHitsSprayChart";
@@ -15,6 +15,7 @@ import {
   HIT_TYPE_COLORS,
   HIT_TYPE_LABELS,
   type HitType,
+  type SprayChartHit,
 } from "@/lib/mlb/gameHits";
 import type { SprayPreviewHit, VenueHit } from "@/lib/mlb/ballparkHits";
 import { cn, formatInningHalf } from "@/lib/utils";
@@ -50,19 +51,23 @@ function fmtNum(value: number | null, digits = 1, suffix = ""): string {
   return `${value.toFixed(digits)}${suffix}`;
 }
 
-function HitRow({
-  venueHit,
-  selected,
-  onSelect,
-}: {
-  venueHit: VenueHit;
-  selected: boolean;
-  onSelect: () => void;
-}) {
+const HitRow = forwardRef(function HitRow(
+  {
+    venueHit,
+    selected,
+    onSelect,
+  }: {
+    venueHit: VenueHit;
+    selected: boolean;
+    onSelect: () => void;
+  },
+  ref: React.ForwardedRef<HTMLButtonElement>,
+) {
   const { hit } = venueHit;
 
   return (
     <button
+      ref={ref}
       type="button"
       onClick={onSelect}
       className={cn(
@@ -99,6 +104,80 @@ function HitRow({
       </div>
     </button>
   );
+});
+
+function SelectedHitBanner({
+  hitKey,
+  batterName,
+  event,
+  awayAbbrev,
+  homeAbbrev,
+  awayScore,
+  homeScore,
+  gameDate,
+  inning,
+  halfInning,
+  launchSpeed,
+  onOpenDetail,
+  onClear,
+}: {
+  hitKey: string;
+  batterName: string;
+  event: HitType;
+  awayAbbrev?: string;
+  homeAbbrev?: string;
+  awayScore: number;
+  homeScore: number;
+  gameDate?: string;
+  inning: number;
+  halfInning: string;
+  launchSpeed?: number;
+  onOpenDetail: (hitKey: string) => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface px-3 py-2.5">
+      <div className="min-w-0">
+        <p className="text-[13px] font-medium text-foreground">
+          {batterName}
+          <span className="ml-2 font-mono text-[11px] font-normal text-muted">
+            {HIT_TYPE_LABELS[event]}
+          </span>
+        </p>
+        <p className="mt-0.5 text-[11px] text-muted">
+          {awayAbbrev && homeAbbrev ? (
+            <span className="font-mono tabular-nums">
+              {awayAbbrev} {awayScore}–{homeScore} {homeAbbrev}
+            </span>
+          ) : null}
+          {gameDate ? <span className="ml-2">{gameDate}</span> : null}
+          <span className="ml-2 font-mono tabular-nums">
+            {inning} {formatInningHalf(halfInning)}
+          </span>
+          {launchSpeed != null && launchSpeed > 0 ? (
+            <span className="ml-2 font-mono tabular-nums">{launchSpeed.toFixed(0)} mph EV</span>
+          ) : null}
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center gap-3">
+        <button
+          type="button"
+          onClick={() => onOpenDetail(hitKey)}
+          className="text-[11px] font-medium text-secondary underline-offset-2 hover:underline"
+        >
+          Play details
+        </button>
+        <button
+          type="button"
+          onClick={onClear}
+          className="text-[11px] text-muted hover:text-foreground"
+          aria-label="Clear selection"
+        >
+          Clear
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function LazyTrajectorySection({
@@ -106,12 +185,16 @@ function LazyTrajectorySection({
   venueId,
   getHitKey,
   selectedHitKey,
+  selectedHitBanner,
+  onSelectHit,
   className,
 }: {
   hits: SprayPreviewHit[];
   venueId: number;
   getHitKey: (hit: { hitKey?: string; atBatIndex: number }) => string;
   selectedHitKey: string | null;
+  selectedHitBanner?: ReactNode;
+  onSelectHit?: (hit: SprayChartHit) => void;
   className?: string;
 }) {
   const sectionRef = useRef<HTMLElement>(null);
@@ -141,13 +224,17 @@ function LazyTrajectorySection({
         3D trajectories
       </p>
       {shouldRender ? (
-        <GameHitsTrajectory3D
-          hits={hits}
-          venueId={venueId}
-          getHitKey={getHitKey}
-          selectedHitKey={selectedHitKey}
-          className={className}
-        />
+        <>
+          <GameHitsTrajectory3D
+            hits={hits}
+            venueId={venueId}
+            getHitKey={getHitKey}
+            selectedHitKey={selectedHitKey}
+            onSelectHit={onSelectHit}
+            className={className}
+          />
+          {selectedHitBanner}
+        </>
       ) : (
         <div className="flex h-[240px] items-center justify-center rounded border border-border bg-field-chart-canvas text-xs text-subtle sm:h-[300px] xl:h-[360px]">
           Scroll to load 3D view…
@@ -168,6 +255,27 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
   const [selectedHitKey, setSelectedHitKey] = useState<string | null>(null);
   const [detailPlay, setDetailPlay] = useState<PlayDetail | null>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
+  const hitRowRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+
+  const getHitKey = (hit: { hitKey?: string; atBatIndex: number }) =>
+    "hitKey" in hit && hit.hitKey ? hit.hitKey : String(hit.atBatIndex);
+
+  const toggleHitSelection = useCallback((hitKey: string) => {
+    setSelectedHitKey((current) => (current === hitKey ? null : hitKey));
+  }, []);
+
+  const handleSelectHit = useCallback(
+    (hit: SprayChartHit) => {
+      toggleHitSelection(getHitKey(hit));
+    },
+    [toggleHitSelection],
+  );
+
+  useEffect(() => {
+    if (!selectedHitKey) return;
+    const row = hitRowRefs.current.get(selectedHitKey);
+    row?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [selectedHitKey, data?.hits.length]);
 
   const chartHits = useMemo(() => {
     if (!data) return [];
@@ -175,13 +283,17 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
     return data.hits;
   }, [data]);
 
-  const selectedHit = useMemo(
-    () => data?.hits.find((hit) => hit.hitKey === selectedHitKey) ?? null,
-    [data?.hits, selectedHitKey],
-  );
+  const selectedHitMeta = useMemo(() => {
+    if (!selectedHitKey || !data) return null;
 
-  const getHitKey = (hit: { hitKey?: string; atBatIndex: number }) =>
-    "hitKey" in hit && hit.hitKey ? hit.hitKey : String(hit.atBatIndex);
+    const venueHit = data.hits.find((hit) => hit.hitKey === selectedHitKey);
+    if (venueHit) return venueHit;
+
+    const chartHit = chartHits.find((hit) => getHitKey(hit) === selectedHitKey);
+    if (!chartHit || !("batterName" in chartHit) || !chartHit.batterName) return null;
+
+    return chartHit;
+  }, [chartHits, data, selectedHitKey]);
 
   const openHitDetail = useCallback(
     async (hitKey: string) => {
@@ -289,7 +401,7 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
               </dl>
             </div>
 
-            <div className="mt-4 grid gap-px overflow-hidden rounded-xl border border-border bg-border xl:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]">
+            <div className="mt-4 grid gap-px overflow-hidden rounded-xl border border-border bg-border xl:grid-cols-[minmax(0,1fr)_minmax(260px,320px)] xl:items-start">
               <div className="flex flex-col gap-px bg-border">
                 <section className="bg-panel p-3 sm:p-4">
                   <p className="mb-3 text-[10px] font-medium uppercase tracking-wide text-muted">
@@ -300,10 +412,7 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
                     venueId={data.park.venueId}
                     getHitKey={getHitKey}
                     selectedHitKey={selectedHitKey}
-                    onSelectHit={(hit) => {
-                      const key = (hit as VenueHit).hitKey;
-                      setSelectedHitKey((current) => (current === key ? null : key));
-                    }}
+                    onSelectHit={handleSelectHit}
                     showLines={false}
                     ballRadius={1.2}
                     className="mx-auto w-full max-w-[min(100%,480px)]"
@@ -315,46 +424,58 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
                   venueId={data.park.venueId}
                   getHitKey={getHitKey}
                   selectedHitKey={selectedHitKey}
+                  onSelectHit={handleSelectHit}
+                  selectedHitBanner={
+                    selectedHitMeta ? (
+                      <SelectedHitBanner
+                        hitKey={getHitKey(selectedHitMeta)}
+                        batterName={selectedHitMeta.batterName}
+                        event={selectedHitMeta.event}
+                        awayAbbrev={
+                          "awayAbbrev" in selectedHitMeta ? selectedHitMeta.awayAbbrev : undefined
+                        }
+                        homeAbbrev={
+                          "homeAbbrev" in selectedHitMeta ? selectedHitMeta.homeAbbrev : undefined
+                        }
+                        awayScore={selectedHitMeta.awayScore}
+                        homeScore={selectedHitMeta.homeScore}
+                        gameDate={"gameDate" in selectedHitMeta ? selectedHitMeta.gameDate : undefined}
+                        inning={selectedHitMeta.inning}
+                        halfInning={selectedHitMeta.halfInning}
+                        launchSpeed={selectedHitMeta.hit.launchSpeed}
+                        onOpenDetail={(hitKey) => void openHitDetail(hitKey)}
+                        onClear={() => setSelectedHitKey(null)}
+                      />
+                    ) : null
+                  }
                   className="mx-auto w-full max-w-4xl"
                 />
-
-                {selectedHit && (
-                  <div className="border-t border-border bg-panel px-3 py-2 sm:px-4">
-                    <button
-                      type="button"
-                      onClick={() => void openHitDetail(selectedHit.hitKey)}
-                      className="text-[11px] text-secondary underline-offset-2 hover:underline"
-                    >
-                      {selectedHit.batterName} — {selectedHit.event} details
-                    </button>
-                  </div>
-                )}
               </div>
 
-              <aside className="flex max-h-none flex-col bg-surface xl:max-h-[calc(100dvh-12rem)] xl:sticky xl:top-0">
-                <div className="shrink-0 border-b border-border px-3 py-2">
-                  <h3 className="text-xs font-medium text-muted">
-                    All hits{" "}
-                    <span className="font-mono tabular-nums text-subtle">
-                      ({data.hitsTotal ?? data.hits.length}
-                      {(data.hitsTotal ?? data.hits.length) !== data.stats.total
-                        ? ` of ${data.stats.total}`
-                        : ""}
-                      )
-                    </span>
-                  </h3>
-                </div>
-                <div className="min-h-0 flex-1 xl:overflow-y-auto xl:overscroll-y-contain">
+              <aside className="bg-surface xl:justify-self-start">
+                <div className="xl:sticky xl:top-4 xl:max-h-[calc(100dvh-2rem)] xl:overflow-y-auto xl:overscroll-y-contain">
+                  <div className="border-b border-border px-3 py-2">
+                    <h3 className="text-xs font-medium text-muted">
+                      All hits{" "}
+                      <span className="font-mono tabular-nums text-subtle">
+                        ({data.hitsTotal ?? data.hits.length}
+                        {(data.hitsTotal ?? data.hits.length) !== data.stats.total
+                          ? ` of ${data.stats.total}`
+                          : ""}
+                        )
+                      </span>
+                    </h3>
+                  </div>
                   {data.hits.map((venueHit) => (
                     <HitRow
                       key={venueHit.hitKey}
                       venueHit={venueHit}
                       selected={selectedHitKey === venueHit.hitKey}
-                      onSelect={() =>
-                        setSelectedHitKey((current) =>
-                          current === venueHit.hitKey ? null : venueHit.hitKey,
-                        )
-                      }
+                      onSelect={() => handleSelectHit(venueHit)}
+                      ref={(node) => {
+                        if (node) hitRowRefs.current.set(venueHit.hitKey, node);
+                        else hitRowRefs.current.delete(venueHit.hitKey);
+                      }}
                     />
                   ))}
                   {hasMore && (

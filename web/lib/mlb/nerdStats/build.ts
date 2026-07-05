@@ -4,6 +4,7 @@ import {
   collectNotableEventsForStat,
   NERD_STAT_DEFINITIONS,
   pickStatOfTheDay,
+  withNerdStatWindow,
 } from "@/lib/mlb/nerdStats/definitions";
 import type {
   NerdStatDetail,
@@ -12,34 +13,39 @@ import type {
   TeamNerdCard,
 } from "@/lib/mlb/nerdStats/types";
 import { getTeamById, MLB_TEAMS } from "@/lib/mlb/teams";
+import type { NerdStatWindowId } from "@/lib/mlb/nerdStats/windows";
 
 export function buildNerdStatsSummary(
   season: number,
   counters: SeasonNerdCounters,
   indexedGameCount: number,
+  window: NerdStatWindowId = "season",
 ): NerdStatsSummary {
-  const stats = NERD_STAT_DEFINITIONS.map((definition) =>
-    buildStatLeaderboard(definition, counters, 5),
-  );
+  return withNerdStatWindow(window, () => {
+    const stats = NERD_STAT_DEFINITIONS.map((definition) =>
+      buildStatLeaderboard(definition, counters, 5),
+    );
 
-  return {
-    season,
-    generatedAt: new Date().toISOString(),
-    indexedGameCount,
-    stats,
-    statOfTheDayId: pickStatOfTheDay(season, stats),
-  };
+    return {
+      season,
+      generatedAt: new Date().toISOString(),
+      indexedGameCount,
+      stats,
+      statOfTheDayId: pickStatOfTheDay(season, stats),
+    };
+  });
 }
 
 export function buildNerdStatDetail(
   season: number,
   statId: string,
   counters: SeasonNerdCounters,
+  window: NerdStatWindowId = "season",
 ): NerdStatDetail | null {
   const definition = NERD_STAT_DEFINITIONS.find((stat) => stat.id === statId);
   if (!definition) return null;
 
-  const stat = buildFullStatLeaderboard(definition, counters);
+  const stat = withNerdStatWindow(window, () => buildFullStatLeaderboard(definition, counters));
 
   return {
     season,

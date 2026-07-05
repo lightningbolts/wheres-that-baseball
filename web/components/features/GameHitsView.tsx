@@ -244,6 +244,7 @@ export function GameHitsView({
                     hits={hits}
                     venueId={venueId}
                     selectedAtBatIndex={selectedAtBatIndex}
+                    onSelectHit={handleSelectHit}
                     className="mx-auto w-full max-w-4xl"
                   />
                 </section>

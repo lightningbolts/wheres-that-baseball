@@ -18,7 +18,8 @@
  *   --stats=id1,id2       Only write these stat detail files (default with backfill: new stats only)
  *   --full-store          Write every stat file + team cards (default backfill skips existing stat files)
  *   --team-cards          Also rewrite team nerd card JSON files
- *   --rebuild-store       Rebuild store from counters.json without re-fetching games
+ *   --rebuild-windows     Re-emit rolling window stat files from existing window counters
+ *   --backfill-savant     Re-fetch Baseball Savant bat speed for manifest games + windows
  */
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -35,7 +36,10 @@ import {
   appendGameNerdStatsToStore,
   listMissingStatIds,
   loadNerdStatsManifest,
+  loadNerdStatsSummary,
   loadSeasonCounters,
+  loadWindowCounters,
+  rebuildWindowStoresFromCounters,
   type WriteNerdStatsStoreOptions,
   writeNerdStatsStore,
   writeWindowNerdStatsStore,
@@ -217,6 +221,80 @@ async function backfillCountersFromManifest(
   await buildRollingWindowStores(season, games, options.skipSavant, options.storeOptions);
 }
 
+async function refreshWindowBatSpeedFromSavant(
+  season: number,
+  games: GameNerdSourceRow[],
+  storeOptions: WriteNerdStatsStoreOptions,
+): Promise<void> {
+  for (const window of NERD_STAT_WINDOWS) {
+    if (window.id === "season") continue;
+
+    const filtered = games.filter((game) => gameDateInNerdWindow(game.game_date, window.id));
+    if (filtered.length === 0) continue;
+
+    const counters = loadWindowCounters(season, window.id);
+    resetBatSpeedCounters(counters);
+
+    const gamePks = filtered.map((game) => game.game_pk);
+    for (let i = 0; i < gamePks.length; i += SAVANT_BATCH_SIZE) {
+      const batch = gamePks.slice(i, i + SAVANT_BATCH_SIZE);
+      await Promise.all(batch.map((gamePk) => enrichCountersWithSavantBatSpeed(counters, gamePk)));
+    }
+
+    const existing = loadNerdStatsSummary(season, window.id);
+    writeWindowNerdStatsStore(season, window.id, counters, gamePks, {
+      ...storeOptions,
+      skipTeamCards: true,
+      indexedGameCount: existing?.indexedGameCount ?? gamePks.length,
+    });
+    console.log(`  Updated ${window.label} bat speed (${gamePks.length} games).`);
+  }
+}
+
+function resetBatSpeedCounters(counters: SeasonNerdCounters): void {
+  for (const team of Object.values(counters)) {
+    if (!team || typeof team !== "object") continue;
+    team.batSpeedSum = 0;
+    team.batSpeedCount = 0;
+  }
+}
+
+async function backfillSavantBatSpeedFromManifest(
+  season: number,
+  creds: BulkCreds,
+  storeOptions: WriteNerdStatsStoreOptions,
+): Promise<void> {
+  const manifest = loadNerdStatsManifest(season);
+  if (manifest.processedGamePks.length === 0) {
+    console.log("No processed games in manifest — run a full aggregate first.");
+    return;
+  }
+
+  const counters = loadSeasonCounters(season);
+  resetBatSpeedCounters(counters);
+
+  const gamePks = manifest.processedGamePks;
+  console.log(`Backfilling Savant bat speed for ${gamePks.length} game(s)…`);
+
+  for (let i = 0; i < gamePks.length; i += SAVANT_BATCH_SIZE) {
+    const batch = gamePks.slice(i, i + SAVANT_BATCH_SIZE);
+    await Promise.all(batch.map((gamePk) => enrichCountersWithSavantBatSpeed(counters, gamePk)));
+    const done = Math.min(i + SAVANT_BATCH_SIZE, gamePks.length);
+    process.stdout.write(`\rFetched Savant bat speed for ${done}/${gamePks.length} games…`);
+  }
+  process.stdout.write("\n");
+
+  const { writtenStatIds } = writeNerdStatsStore(season, counters, gamePks, {
+    ...storeOptions,
+    skipTeamCards: storeOptions.skipTeamCards ?? false,
+  });
+  console.log(`Updated season counters with Savant bat speed (${writtenStatIds.length} stat file(s)).`);
+
+  console.log("Refreshing rolling window bat speed from Savant…");
+  const games = await fetchGamesForPks(creds, gamePks);
+  await refreshWindowBatSpeedFromSavant(season, games, storeOptions);
+}
+
 type BulkCreds =
   | { mode: "postgres"; databaseUrl: string }
   | { mode: "rest"; supabaseUrl: string; serviceRoleKey: string };
@@ -378,6 +456,8 @@ async function main() {
   const dateRange = readDateRange();
   const incremental = Boolean(dateRange.since || dateRange.until);
   const rebuildStore = hasFlag("rebuild-store");
+  const rebuildWindows = hasFlag("rebuild-windows");
+  const backfillSavant = hasFlag("backfill-savant");
   const backfillCounters = hasFlag("backfill-counters");
   const skipSavant = hasFlag("skip-savant");
   const fullStore = hasFlag("full-store");
@@ -394,6 +474,22 @@ async function main() {
       skipSavant,
       storeOptions,
     });
+    return;
+  }
+
+  if (backfillSavant) {
+    const creds = resolveBulkReadCredentials();
+    await backfillSavantBatSpeedFromManifest(season, creds, storeOptions);
+    return;
+  }
+
+  if (rebuildWindows) {
+    const { rebuiltWindows } = rebuildWindowStoresFromCounters(season, storeOptions);
+    if (rebuiltWindows.length === 0) {
+      console.log("No rolling window data to rebuild — run a full aggregate first.");
+    } else {
+      console.log(`Rebuilt nerd stats for windows: ${rebuiltWindows.join(", ")}`);
+    }
     return;
   }
 
@@ -442,22 +538,28 @@ async function main() {
 
     if (pendingPks.length === 0) {
       console.log("No new games to process.");
-      return;
-    }
+    } else {
+      console.log(`Fetching ${pendingPks.length} new game(s)…`);
+      const pending = await fetchGamesForPks(creds, pendingPks);
 
-    console.log(`Fetching ${pendingPks.length} new game(s)…`);
-    const pending = await fetchGamesForPks(creds, pendingPks);
-
-    console.log(`Processing ${pending.length} new game(s)…`);
-    for (let i = 0; i < pending.length; i += 1) {
-      await appendGameNerdStatsToStore(season, pending[i]!);
-      if ((i + 1) % 10 === 0 || i + 1 === pending.length) {
-        process.stdout.write(`\rProcessed ${i + 1}/${pending.length} games…`);
+      console.log(`Processing ${pending.length} new game(s)…`);
+      for (let i = 0; i < pending.length; i += 1) {
+        await appendGameNerdStatsToStore(season, pending[i]!);
+        if ((i + 1) % 10 === 0 || i + 1 === pending.length) {
+          process.stdout.write(`\rProcessed ${i + 1}/${pending.length} games…`);
+        }
       }
+
+      process.stdout.write("\n");
+      console.log(`Updated nerd stats with ${pending.length} game(s) in data/nerd-stats/${season}/`);
     }
 
-    process.stdout.write("\n");
-    console.log(`Updated nerd stats with ${pending.length} game(s) in data/nerd-stats/${season}/`);
+    const manifest = loadNerdStatsManifest(season);
+    if (manifest.processedGamePks.length > 0) {
+      console.log("Refreshing rolling window stores…");
+      const allGames = await fetchGamesForPks(creds, manifest.processedGamePks);
+      await buildRollingWindowStores(season, allGames, skipSavant, storeOptions);
+    }
     return;
   }
 

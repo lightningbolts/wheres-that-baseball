@@ -16,8 +16,22 @@ export interface VenueHit extends GameHit {
 }
 
 /** Lightweight hit for spray-chart previews on the index page. */
-export type SprayPreviewHit = Pick<GameHit, "atBatIndex" | "event" | "hit" | "color"> & {
+export type SprayPreviewHit = Pick<
+  GameHit,
+  | "atBatIndex"
+  | "event"
+  | "hit"
+  | "color"
+  | "batterName"
+  | "inning"
+  | "halfInning"
+  | "awayScore"
+  | "homeScore"
+> & {
   hitKey: string;
+  gameDate?: string;
+  awayAbbrev?: string;
+  homeAbbrev?: string;
 };
 
 export interface BallparkHitsSummary {

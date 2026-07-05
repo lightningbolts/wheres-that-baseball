@@ -24,6 +24,7 @@ import type {
 } from "@/lib/mlb/nerdStats/types";
 import {
   nerdStatWindowLabel,
+  NERD_STAT_WINDOWS,
   parseNerdStatWindow,
   type NerdStatWindowId,
 } from "@/lib/mlb/nerdStats/windows";
@@ -119,7 +120,7 @@ export function loadNerdStatDetail(
 
   const counters =
     window === "season" ? loadSeasonCounters(season) : loadWindowCounters(season, window);
-  const detail = buildNerdStatDetail(season, statId, counters);
+  const detail = buildNerdStatDetail(season, statId, counters, window);
   return detail;
 }
 
@@ -145,6 +146,8 @@ export interface WriteNerdStatsStoreOptions {
   statIds?: string[];
   /** Skip rewriting per-team nerd card files. */
   skipTeamCards?: boolean;
+  /** Override game count written into summary (e.g. when rebuilding from counters). */
+  indexedGameCount?: number;
 }
 
 export function listMissingStatIds(season: number): string[] {
@@ -185,7 +188,8 @@ function writeNerdStatsStoreAtPath(
 
   const statIds = options.statIds ?? NERD_STAT_DEFINITIONS.map((definition) => definition.id);
   const writtenStatIds: string[] = [];
-  const summary = buildNerdStatsSummary(season, counters, processedGamePks.length);
+  const indexedGameCount = options.indexedGameCount ?? processedGamePks.length;
+  const summary = buildNerdStatsSummary(season, counters, indexedGameCount, window);
   const summaryWithWindow: NerdStatsSummary = {
     ...summary,
     window,
@@ -209,7 +213,7 @@ function writeNerdStatsStoreAtPath(
 
   for (const statId of statIds) {
     if (!NERD_STAT_DEFINITIONS.some((definition) => definition.id === statId)) continue;
-    const detail = buildNerdStatDetail(season, statId, counters);
+    const detail = buildNerdStatDetail(season, statId, counters, window);
     if (!detail) continue;
     const path =
       window === "season" ? statPath(season, statId) : windowStatPath(season, window, statId);
@@ -295,4 +299,30 @@ export function listStoredStatIds(season: number): string[] {
   return readdirSync(statsDir)
     .filter((file) => file.endsWith(".json"))
     .map((file) => file.replace(".json", ""));
+}
+
+/** Re-emit window summary + stat files from existing window counters (no game re-fetch). */
+export function rebuildWindowStoresFromCounters(
+  season: number,
+  options: WriteNerdStatsStoreOptions = {},
+): { rebuiltWindows: NerdStatWindowId[] } {
+  const rebuiltWindows: NerdStatWindowId[] = [];
+
+  for (const window of NERD_STAT_WINDOWS) {
+    if (window.id === "season") continue;
+
+    const counters = loadWindowCounters(season, window.id);
+    const summary = loadNerdStatsSummary(season, window.id);
+    const indexedGameCount = summary?.indexedGameCount ?? 0;
+    if (indexedGameCount === 0) continue;
+
+    writeWindowNerdStatsStore(season, window.id, counters, [], {
+      ...options,
+      indexedGameCount,
+      skipTeamCards: true,
+    });
+    rebuiltWindows.push(window.id);
+  }
+
+  return { rebuiltWindows };
 }

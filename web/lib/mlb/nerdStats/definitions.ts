@@ -10,6 +10,26 @@ import {
 } from "@/lib/mlb/nerdStats/statDefinitions";
 import { sortNotableEvents } from "@/lib/mlb/nerdStats/notableEvents";
 import { getTeamById, MLB_TEAMS } from "@/lib/mlb/teams";
+import {
+  type NerdStatWindowId,
+  windowEffectiveMinGames,
+} from "@/lib/mlb/nerdStats/windows";
+
+let activeNerdStatWindow: NerdStatWindowId = "season";
+
+export function getActiveNerdStatWindow(): NerdStatWindowId {
+  return activeNerdStatWindow;
+}
+
+export function withNerdStatWindow<T>(windowId: NerdStatWindowId, fn: () => T): T {
+  const previous = activeNerdStatWindow;
+  activeNerdStatWindow = windowId;
+  try {
+    return fn();
+  } finally {
+    activeNerdStatWindow = previous;
+  }
+}
 
 export {
   getNerdStatDefinition,
@@ -20,7 +40,8 @@ export { pickStatOfTheDay } from "@/lib/mlb/nerdStats/socialHabit";
 
 function meetsMinimum(definition: NerdStatDefinition, counters: { finalGamesWithFeed: number }): boolean {
   if (definition.minGames == null) return true;
-  return counters.finalGamesWithFeed >= definition.minGames;
+  const minGames = windowEffectiveMinGames(definition.minGames, activeNerdStatWindow);
+  return counters.finalGamesWithFeed >= minGames;
 }
 
 function computeLeagueAverage(

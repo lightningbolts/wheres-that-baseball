@@ -51,6 +51,14 @@ function toSprayPreview(hit: VenueHit): SprayPreviewHit {
     hit: hit.hit,
     color: hit.color,
     hitKey: hit.hitKey,
+    batterName: hit.batterName,
+    inning: hit.inning,
+    halfInning: hit.halfInning,
+    awayScore: hit.awayScore,
+    homeScore: hit.homeScore,
+    gameDate: hit.gameDate,
+    awayAbbrev: hit.awayAbbrev,
+    homeAbbrev: hit.homeAbbrev,
   };
 }
 

@@ -8,6 +8,14 @@ export function toChartHit(hit: VenueHit): SprayPreviewHit {
     event: hit.event,
     hit: hit.hit,
     color: hit.color,
+    batterName: hit.batterName,
+    inning: hit.inning,
+    halfInning: hit.halfInning,
+    awayScore: hit.awayScore,
+    homeScore: hit.homeScore,
+    gameDate: hit.gameDate,
+    awayAbbrev: hit.awayAbbrev,
+    homeAbbrev: hit.homeAbbrev,
   };
 }
 

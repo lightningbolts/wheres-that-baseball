@@ -1,3 +1,4 @@
+import { getActiveNerdStatWindow } from "@/lib/mlb/nerdStats/definitions";
 import {
   formatDegrees,
   formatMph,
@@ -5,8 +6,13 @@ import {
 import type { NerdStatDefinition } from "@/lib/mlb/nerdStats/statDefinitions";
 import { TRACKED_PITCH_TYPES } from "@/lib/mlb/nerdStats/pitchTypeStats";
 import type { TeamNerdCounters } from "@/lib/mlb/nerdStats/types";
+import { windowEffectiveMinPitches } from "@/lib/mlb/nerdStats/windows";
 
-const MIN_PITCHES_PER_TYPE = 100;
+const SEASON_MIN_PITCHES_PER_TYPE = 100;
+
+function minPitchesPerType(): number {
+  return windowEffectiveMinPitches(SEASON_MIN_PITCHES_PER_TYPE, getActiveNerdStatWindow());
+}
 
 function pitchTypeAcc(counters: TeamNerdCounters, code: string) {
   return counters.pitchTypesThrown[code];
@@ -18,7 +24,7 @@ function avgPitchMetric(
   field: "velocitySum" | "spinSum" | "hBreakSum" | "vBreakSum",
 ): number | null {
   const acc = pitchTypeAcc(counters, code);
-  if (!acc || acc.count < MIN_PITCHES_PER_TYPE) return null;
+  if (!acc || acc.count < minPitchesPerType()) return null;
   if (field === "spinSum" && acc.spinSum <= 0) return null;
   return acc[field] / acc.count;
 }
@@ -34,7 +40,7 @@ export const PITCH_TYPE_NERD_STAT_DEFINITIONS: NerdStatDefinition[] = TRACKED_PI
         category: "defense" as const,
         sort: "desc" as const,
         unit: "mph",
-        formula: `sum of ${label} velocities ÷ ${label} count (min ${MIN_PITCHES_PER_TYPE} pitches)`,
+        formula: `sum of ${label} velocities ÷ ${label} count (min ${SEASON_MIN_PITCHES_PER_TYPE} pitches)`,
         minGames: 20,
         compute: (c) => avgPitchMetric(c, code, "velocitySum"),
         formatValue: formatMph,
@@ -46,7 +52,7 @@ export const PITCH_TYPE_NERD_STAT_DEFINITIONS: NerdStatDefinition[] = TRACKED_PI
         category: "defense" as const,
         sort: "desc" as const,
         unit: "rpm",
-        formula: `sum of ${label} spin rates ÷ ${label} count (min ${MIN_PITCHES_PER_TYPE} pitches)`,
+        formula: `sum of ${label} spin rates ÷ ${label} count (min ${SEASON_MIN_PITCHES_PER_TYPE} pitches)`,
         minGames: 20,
         compute: (c) => avgPitchMetric(c, code, "spinSum"),
         formatValue: (v) => `${Math.round(v)} rpm`,
@@ -58,7 +64,7 @@ export const PITCH_TYPE_NERD_STAT_DEFINITIONS: NerdStatDefinition[] = TRACKED_PI
         category: "defense" as const,
         sort: "desc" as const,
         unit: "in",
-        formula: `sum of ${label} horizontal break ÷ ${label} count (min ${MIN_PITCHES_PER_TYPE} pitches)`,
+        formula: `sum of ${label} horizontal break ÷ ${label} count (min ${SEASON_MIN_PITCHES_PER_TYPE} pitches)`,
         minGames: 20,
         compute: (c) => avgPitchMetric(c, code, "hBreakSum"),
         formatValue: (v) => `${v.toFixed(1)} in`,
@@ -70,7 +76,7 @@ export const PITCH_TYPE_NERD_STAT_DEFINITIONS: NerdStatDefinition[] = TRACKED_PI
         category: "defense" as const,
         sort: "desc" as const,
         unit: "in",
-        formula: `sum of ${label} induced vertical break ÷ ${label} count (min ${MIN_PITCHES_PER_TYPE} pitches)`,
+        formula: `sum of ${label} induced vertical break ÷ ${label} count (min ${SEASON_MIN_PITCHES_PER_TYPE} pitches)`,
         minGames: 20,
         compute: (c) => avgPitchMetric(c, code, "vBreakSum"),
         formatValue: (v) => `${v.toFixed(1)} in`,
