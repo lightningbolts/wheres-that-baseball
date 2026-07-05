@@ -138,6 +138,7 @@ export interface TeamNerdCounters {
   doubles: number;
   triples: number;
   rispHits: number;
+  rispAtBats: number;
   rispPlateAppearances: number;
   pitchingStrikeouts: number;
   backToBackHrSequences: number;

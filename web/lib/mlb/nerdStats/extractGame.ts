@@ -1,4 +1,5 @@
 import { parseStoredGameState } from "@/lib/games/gameState";
+import { isOfficialAtBat } from "@/lib/mlb/liveFeed";
 import {
   createEmptySeasonCounters,
   createEmptyTeamCounters,
@@ -485,12 +486,11 @@ export function extractNerdCountersFromGame(row: GameNerdSourceRow): SeasonNerdC
         });
       }
 
-      if (play.isAtBat) {
-        const risp = play.situationBefore.onSecond || play.situationBefore.onThird;
-        if (risp) {
-          offense.rispPlateAppearances += 1;
-          if (isHitEvent(play.event)) offense.rispHits += 1;
-        }
+      const risp = play.situationBefore.onSecond || play.situationBefore.onThird;
+      if (risp) {
+        offense.rispPlateAppearances += 1;
+        if (isOfficialAtBat(play.event)) offense.rispAtBats += 1;
+        if (isHitEvent(play.event)) offense.rispHits += 1;
       }
 
       if (play.event === "Strikeout") {

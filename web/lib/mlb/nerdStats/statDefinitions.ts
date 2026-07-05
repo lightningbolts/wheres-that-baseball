@@ -1177,9 +1177,9 @@ export const NERD_STAT_DEFINITIONS: NerdStatDefinition[] = [
     category: "drama",
     sort: "desc",
     unit: "AVG",
-    formula: "hits with RISP ÷ plate appearances with RISP",
+    formula: "hits with RISP ÷ at-bats with RISP",
     minGames: 20,
-    compute: (c) => rate(c.rispHits, c.rispPlateAppearances),
+    compute: (c) => rate(c.rispHits, c.rispAtBats),
     formatValue: formatBattingAverage,
   },
   {

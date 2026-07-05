@@ -105,6 +105,7 @@ export function createEmptyTeamCounters(): TeamNerdCounters {
     doubles: 0,
     triples: 0,
     rispHits: 0,
+    rispAtBats: 0,
     rispPlateAppearances: 0,
     pitchingStrikeouts: 0,
     backToBackHrSequences: 0,
@@ -269,6 +270,7 @@ export function mergeTeamCounters(target: TeamNerdCounters, source: TeamNerdCoun
   target.doubles += source.doubles;
   target.triples += source.triples;
   target.rispHits += source.rispHits;
+  target.rispAtBats += source.rispAtBats;
   target.rispPlateAppearances += source.rispPlateAppearances;
   target.pitchingStrikeouts += source.pitchingStrikeouts;
   target.backToBackHrSequences += source.backToBackHrSequences;

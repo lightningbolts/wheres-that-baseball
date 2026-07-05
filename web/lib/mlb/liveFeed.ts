@@ -62,6 +62,8 @@ const HIT_EVENTS = new Set(["Single", "Double", "Triple", "Home Run"]);
 
 const NON_AB_EVENTS = new Set([
   "Walk",
+  "Intent Walk",
+  "Intentional Walk",
   "Hit By Pitch",
   "Sacrifice Fly",
   "Sacrifice Bunt",
@@ -69,6 +71,11 @@ const NON_AB_EVENTS = new Set([
   "Catcher Interference",
   "Defensive Indifference",
 ]);
+
+/** Terminal PA outcomes that count toward official at-bats (hits ÷ at-bats). */
+export function isOfficialAtBat(event: string): boolean {
+  return isPlateAppearanceEvent(event) && !NON_AB_EVENTS.has(event);
+}
 
 /** Events that represent terminal plate appearance outcomes (shown in play-by-play). */
 const PLATE_APPEARANCE_EVENTS = new Set([
