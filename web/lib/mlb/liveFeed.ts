@@ -1,7 +1,11 @@
 import { parseBoxScore } from "@/lib/mlb/boxScore";
 import {
+  computeAbsChallengesRemaining,
+  countAbsChallengesUsedFromPlays,
   resolveAbsChallengesRemaining,
   resolveAbsChallengesUsedFromFeed,
+  type AbsChallengeCountOptions,
+  type AbsChallengePlay,
 } from "@/lib/mlb/absChallenges";
 import { buildCardPitchersFromBoxScore } from "@/lib/mlb/cardPitchers";
 import type { GameBoxScore } from "@/types/mlb-boxscore";
@@ -53,6 +57,8 @@ export interface PlayByPlayParseState {
   rawPlayCount: number;
   loggedGameEventKeys: Set<string>;
   loggedAtBatIndices: Set<number>;
+  absChallengeOptions?: AbsChallengeCountOptions;
+  absUsed: { away: number; home: number };
 }
 
 type PitchEventRaw = NonNullable<AllPlayRaw["playEvents"]>[number];
@@ -1339,7 +1345,9 @@ function initialGameSituation(): GameSituation {
   };
 }
 
-export function createPlayByPlayParseState(): PlayByPlayParseState {
+export function createPlayByPlayParseState(
+  absChallengeOptions?: AbsChallengeCountOptions,
+): PlayByPlayParseState {
   return {
     entries: [],
     batterStats: new Map(),
@@ -1348,6 +1356,43 @@ export function createPlayByPlayParseState(): PlayByPlayParseState {
     rawPlayCount: 0,
     loggedGameEventKeys: new Set(),
     loggedAtBatIndices: new Set(),
+    absChallengeOptions,
+    absUsed: { away: 0, home: 0 },
+  };
+}
+
+function absRemainingSnapshot(
+  absUsed: { away: number; home: number },
+  inning: number,
+): { away: number; home: number } {
+  return {
+    away: computeAbsChallengesRemaining(absUsed.away, inning),
+    home: computeAbsChallengesRemaining(absUsed.home, inning),
+  };
+}
+
+function advanceAbsUsedForRawPlay(
+  state: PlayByPlayParseState,
+  play: AllPlayRaw,
+): { away: number; home: number } {
+  if (!state.absChallengeOptions) return state.absUsed;
+  const playUsed = countAbsChallengesUsedFromPlays(
+    [play as AbsChallengePlay],
+    state.absChallengeOptions,
+  );
+  return {
+    away: state.absUsed.away + playUsed.away,
+    home: state.absUsed.home + playUsed.home,
+  };
+}
+
+function withCompletedRawPlayAbs(
+  state: PlayByPlayParseState,
+  play: AllPlayRaw,
+): PlayByPlayParseState {
+  return {
+    ...state,
+    absUsed: advanceAbsUsedForRawPlay(state, play),
   };
 }
 
@@ -1406,26 +1451,32 @@ function parsePlayEntry(
   const atBatIndex = resolvedPlay.about?.atBatIndex ?? playIndex;
 
   if (!isAtBat && event && (terminalCoveredByPlayEvents(resolvedPlay) || gameEventEntries.length > 0)) {
+    const stateAfterAbs = withCompletedRawPlayAbs(state, resolvedPlay);
     return {
       entries: dedupePlayByPlayEntries(mergedEntries),
-      batterStats: state.batterStats,
+      batterStats: stateAfterAbs.batterStats,
       situation,
       currentHalf,
       rawPlayCount: playIndex + 1,
-      loggedGameEventKeys: state.loggedGameEventKeys,
-      loggedAtBatIndices: state.loggedAtBatIndices,
+      loggedGameEventKeys: stateAfterAbs.loggedGameEventKeys,
+      loggedAtBatIndices: stateAfterAbs.loggedAtBatIndices,
+      absChallengeOptions: stateAfterAbs.absChallengeOptions,
+      absUsed: stateAfterAbs.absUsed,
     };
   }
 
   if (isAtBat && state.loggedAtBatIndices.has(atBatIndex)) {
+    const stateAfterAbs = withCompletedRawPlayAbs(state, resolvedPlay);
     return {
       entries: dedupePlayByPlayEntries(mergedEntries),
-      batterStats: state.batterStats,
+      batterStats: stateAfterAbs.batterStats,
       situation,
       currentHalf,
       rawPlayCount: playIndex + 1,
-      loggedGameEventKeys: state.loggedGameEventKeys,
-      loggedAtBatIndices: state.loggedAtBatIndices,
+      loggedGameEventKeys: stateAfterAbs.loggedGameEventKeys,
+      loggedAtBatIndices: stateAfterAbs.loggedAtBatIndices,
+      absChallengeOptions: stateAfterAbs.absChallengeOptions,
+      absUsed: stateAfterAbs.absUsed,
     };
   }
 
@@ -1436,30 +1487,38 @@ function parsePlayEntry(
   const detail = parsePlayDetail(resolvedPlay, batterLine, batterId);
   if (!detail) {
     if (gameEventEntries.length > 0 || entriesMutated) {
+      const stateAfterAbs = superseded ? withCompletedRawPlayAbs(state, resolvedPlay) : state;
       return {
         entries: dedupePlayByPlayEntries(mergedEntries),
-        batterStats: state.batterStats,
+        batterStats: stateAfterAbs.batterStats,
         situation,
         currentHalf,
         rawPlayCount: superseded ? playIndex + 1 : state.rawPlayCount,
-        loggedGameEventKeys: state.loggedGameEventKeys,
-        loggedAtBatIndices: state.loggedAtBatIndices,
+        loggedGameEventKeys: stateAfterAbs.loggedGameEventKeys,
+        loggedAtBatIndices: stateAfterAbs.loggedAtBatIndices,
+        absChallengeOptions: stateAfterAbs.absChallengeOptions,
+        absUsed: stateAfterAbs.absUsed,
       };
     }
     if (!superseded) {
       return state;
     }
-    // Superseded PA without a parseable result yet — do not advance rawPlayCount.
+    const stateAfterAbs = withCompletedRawPlayAbs(state, resolvedPlay);
     return {
       entries: mergedEntries,
-      batterStats: state.batterStats,
+      batterStats: stateAfterAbs.batterStats,
       situation,
       currentHalf,
       rawPlayCount: state.rawPlayCount,
-      loggedGameEventKeys: state.loggedGameEventKeys,
-      loggedAtBatIndices: state.loggedAtBatIndices,
+      loggedGameEventKeys: stateAfterAbs.loggedGameEventKeys,
+      loggedAtBatIndices: stateAfterAbs.loggedAtBatIndices,
+      absChallengeOptions: stateAfterAbs.absChallengeOptions,
+      absUsed: stateAfterAbs.absUsed,
     };
   }
+
+  const stateAfterAbs = withCompletedRawPlayAbs(state, resolvedPlay);
+  const absRemaining = absRemainingSnapshot(stateAfterAbs.absUsed, detail.inning);
 
   const entry: PlayByPlayEntry = {
     atBatIndex: detail.atBatIndex,
@@ -1481,10 +1540,12 @@ function parsePlayEntry(
     situationBefore: situationAtPlayStart,
     isScoringPlay: detail.isScoringPlay,
     isAtBat,
+    awayAbsChallengesRemaining: absRemaining.away,
+    homeAbsChallengesRemaining: absRemaining.home,
     detail,
   };
 
-  const loggedAtBatIndices = new Set(state.loggedAtBatIndices);
+  const loggedAtBatIndices = new Set(stateAfterAbs.loggedAtBatIndices);
   if (isAtBat) loggedAtBatIndices.add(atBatIndex);
 
   return {
@@ -1493,8 +1554,10 @@ function parsePlayEntry(
     situation,
     currentHalf,
     rawPlayCount: playIndex + 1,
-    loggedGameEventKeys: state.loggedGameEventKeys,
+    loggedGameEventKeys: stateAfterAbs.loggedGameEventKeys,
     loggedAtBatIndices,
+    absChallengeOptions: stateAfterAbs.absChallengeOptions,
+    absUsed: stateAfterAbs.absUsed,
   };
 }
 
@@ -1517,10 +1580,18 @@ export function appendPlayByPlay(
   return next;
 }
 
-function parsePlayByPlay(allPlays: AllPlayRaw[] | undefined): PlayByPlayEntry[] {
+function parsePlayByPlay(
+  allPlays: AllPlayRaw[] | undefined,
+  absChallengeOptions?: AbsChallengeCountOptions,
+): PlayByPlayEntry[] {
   if (!allPlays?.length) return [];
   return normalizePlayByPlay(
-    appendPlayByPlay(createPlayByPlayParseState(), allPlays, 0, allPlays.length).entries,
+    appendPlayByPlay(
+      createPlayByPlayParseState(absChallengeOptions),
+      allPlays,
+      0,
+      allPlays.length,
+    ).entries,
   );
 }
 
@@ -1652,7 +1723,16 @@ export function parseLiveFeed(
     awayAbsChallengesRemaining: absChallenges.away,
     homeAbsChallengesRemaining: absChallenges.home,
     atBatPitches: parseAtBatPitchesFromFeed(feed, isBreak),
-    plays: plays ?? parsePlayByPlay(feed.liveData.plays.allPlays),
+    plays:
+      plays ??
+      parsePlayByPlay(feed.liveData.plays.allPlays, {
+        awayTeamId: teams.away.id,
+        homeTeamId: teams.home.id,
+        awayTeamName: teams.away.name,
+        homeTeamName: teams.home.name,
+        awayAbbrev: teams.away.abbreviation,
+        homeAbbrev: teams.home.abbreviation,
+      }),
     observedAt: observedAtFromFeed(feed),
   };
 }

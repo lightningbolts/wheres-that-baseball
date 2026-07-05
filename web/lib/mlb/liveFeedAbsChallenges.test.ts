@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { gameStateForAtBat } from "@/lib/games/replay";
 import {
   buildLiveFeedSnapshot,
   parseLiveFeed,
@@ -34,10 +35,17 @@ const GAME_824902_FEED: MLBLiveFeedResponse = {
     plays: {
       allPlays: [
         {
-          about: { halfInning: "top", inning: 2 },
+          about: { halfInning: "top", inning: 2, atBatIndex: 0, isComplete: true },
+          matchup: {
+            batter: { id: 665487, fullName: "Juan Soto" },
+            pitcher: { id: 686948, fullName: "Drake Baldwin" },
+          },
           result: {
+            event: "Single",
             description:
               "Juan Soto singles on a line drive to right fielder Mike Yastrzemski. Brett Baty scores. Francisco Lindor scores.",
+            awayScore: 2,
+            homeScore: 0,
           },
           playEvents: [
             {
@@ -53,10 +61,17 @@ const GAME_824902_FEED: MLBLiveFeedResponse = {
           ],
         },
         {
-          about: { halfInning: "top", inning: 2 },
+          about: { halfInning: "top", inning: 2, atBatIndex: 1, isComplete: true },
+          matchup: {
+            batter: { id: 668901, fullName: "Mark Vientos" },
+            pitcher: { id: 686948, fullName: "Drake Baldwin" },
+          },
           result: {
+            event: "Grounded Into DP",
             description:
               "Mark Vientos grounds into a double play, shortstop Jim Jarvis to second baseman Ozzie Albies to first baseman Matt Olson.",
+            awayScore: 2,
+            homeScore: 0,
           },
           playEvents: [
             {
@@ -75,6 +90,10 @@ const GAME_824902_FEED: MLBLiveFeedResponse = {
       currentPlay: {
         about: { halfInning: "bottom", inning: 2 },
         count: { balls: 0, strikes: 0, outs: 0 },
+        matchup: {
+          batter: { fullName: "Batter" },
+          pitcher: { fullName: "Pitcher" },
+        },
       },
     },
   },
@@ -100,5 +119,30 @@ describe("live feed ABS snapshot round-trip", () => {
     const state = parseLiveFeed(824902, reconstructed);
     expect(state.awayAbsChallengesRemaining).toBe(1);
     expect(state.homeAbsChallengesRemaining).toBe(2);
+  });
+
+  it("stamps replay ABS counts on each at-bat for season history scrubbing", () => {
+    const state = parseLiveFeed(824902, GAME_824902_FEED);
+    const atBats = state.plays.filter((play) => play.isAtBat !== false);
+    expect(atBats).toHaveLength(2);
+
+    expect(atBats[0]?.awayAbsChallengesRemaining).toBe(2);
+    expect(atBats[0]?.homeAbsChallengesRemaining).toBe(2);
+    expect(atBats[1]?.awayAbsChallengesRemaining).toBe(1);
+    expect(atBats[1]?.homeAbsChallengesRemaining).toBe(2);
+
+    const earlyReplay = gameStateForAtBat(state, atBats[0]!, {
+      awayTeamId: 121,
+      homeTeamId: 144,
+    });
+    const afterChallenge = gameStateForAtBat(state, atBats[1]!, {
+      awayTeamId: 121,
+      homeTeamId: 144,
+    });
+
+    expect(earlyReplay.awayAbsChallengesRemaining).toBe(2);
+    expect(earlyReplay.homeAbsChallengesRemaining).toBe(2);
+    expect(afterChallenge.awayAbsChallengesRemaining).toBe(1);
+    expect(afterChallenge.homeAbsChallengesRemaining).toBe(2);
   });
 });

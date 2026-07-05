@@ -123,6 +123,9 @@ export interface PlayByPlayEntry {
   affectsSituation?: boolean;
   /** Stable key for refreshing non-at-bat rows when MLB backfills runner data. */
   gameEventKey?: string;
+  /** ABS challenges remaining after this play (for season history replay). */
+  awayAbsChallengesRemaining?: number;
+  homeAbsChallengesRemaining?: number;
   detail: PlayDetail;
 }
 

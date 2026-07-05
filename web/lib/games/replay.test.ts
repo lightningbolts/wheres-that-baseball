@@ -268,4 +268,35 @@ describe("gameStateForAtBat", () => {
     expect(replay.homeAbsChallengesRemaining).toBe(2);
     expect(base.awayAbsChallengesRemaining).toBe(0);
   });
+
+  it("prefers stamped ABS remaining on the selected play entry", () => {
+    const plays = [
+      makePlay({
+        atBatIndex: 0,
+        description: "Ground out.",
+        awayAbsChallengesRemaining: 2,
+        homeAbsChallengesRemaining: 2,
+      }),
+      makePlay({
+        atBatIndex: 1,
+        description: "Strikeout after failed challenge.",
+        awayAbsChallengesRemaining: 2,
+        homeAbsChallengesRemaining: 0,
+      }),
+    ];
+
+    const base = makeBaseState(plays);
+    const early = gameStateForAtBat(base, plays[0]!, {
+      awayTeamId: 141,
+      homeTeamId: 136,
+    });
+    const afterChallenge = gameStateForAtBat(base, plays[1]!, {
+      awayTeamId: 141,
+      homeTeamId: 136,
+    });
+
+    expect(early.awayAbsChallengesRemaining).toBe(2);
+    expect(early.homeAbsChallengesRemaining).toBe(2);
+    expect(afterChallenge.homeAbsChallengesRemaining).toBe(0);
+  });
 });

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ChangeEventHandler, type ReactNode } from "react";
 
 import { AppNav } from "@/components/features/AppNav";
 import { NerdStatCard } from "@/components/features/NerdStatCard";
@@ -150,8 +150,8 @@ export function NerdStandingsBrowser() {
           )}
         </div>
 
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap gap-1.5">
+        <div className="mb-4 flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-3">
+          <div className="-mx-1 flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <CategoryChip
               active={category === "all"}
               onClick={() => setCategory("all")}
@@ -167,25 +167,23 @@ export function NerdStandingsBrowser() {
             ))}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <select
+          <div className="-mx-1 flex shrink-0 items-center gap-2 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <NerdFilterSelect
               value={timeWindow}
               onChange={(event) => handleWindowChange(parseNerdStatWindow(event.target.value))}
-              className="rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-foreground"
             >
               {NERD_STAT_WINDOWS.map((window) => (
                 <option key={window.id} value={window.id}>
                   {window.label}
                 </option>
               ))}
-            </select>
+            </NerdFilterSelect>
             {timeWindow === "season" && (
-              <select
+              <NerdFilterSelect
                 value={venueSplit}
                 onChange={(event) =>
                   handleSplitChange(parseNerdStatSplit(event.target.value))
                 }
-                className="rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-foreground"
               >
                 <option value="all">All games</option>
                 {NERD_STAT_SPLITS.map((split) => (
@@ -193,21 +191,18 @@ export function NerdStandingsBrowser() {
                     {split.label}
                   </option>
                 ))}
-              </select>
+              </NerdFilterSelect>
             )}
-            <input
-              type="search"
+            <NerdFilterSearch
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search stats…"
-              className="w-full rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-foreground placeholder:text-subtle sm:w-48"
             />
-            <select
-              value={teamId ?? ""}
+            <NerdFilterSelect
+              value={teamId != null ? String(teamId) : ""}
               onChange={(event) =>
                 setTeamId(event.target.value ? Number.parseInt(event.target.value, 10) : null)
               }
-              className="rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-foreground"
             >
               <option value="">Team nerd card</option>
               {MLB_TEAMS.map((team) => (
@@ -215,11 +210,11 @@ export function NerdStandingsBrowser() {
                   {team.abbrev}
                 </option>
               ))}
-            </select>
+            </NerdFilterSelect>
             {teamId != null && (
               <Link
                 href={`/nerd/team/${teamId}`}
-                className="rounded-md border border-border bg-surface-elevated px-3 py-1.5 text-xs text-foreground hover:bg-hover"
+                className="inline-flex h-8 shrink-0 items-center rounded-full border border-border bg-surface-elevated px-3 text-xs text-foreground transition-colors hover:border-border-strong hover:bg-hover"
               >
                 View card
               </Link>
@@ -306,7 +301,7 @@ function CategoryChip({
       type="button"
       onClick={onClick}
       className={cn(
-        "rounded-full px-3 py-1 text-xs transition-colors",
+        "shrink-0 rounded-full px-3 py-1 text-xs transition-colors",
         active
           ? "bg-surface-elevated text-foreground"
           : "text-muted hover:bg-hover hover:text-foreground",
@@ -314,5 +309,73 @@ function CategoryChip({
     >
       {label}
     </button>
+  );
+}
+
+const nerdFilterControlClass =
+  "h-8 appearance-none rounded-full border border-border bg-surface-elevated text-xs text-foreground transition-colors hover:border-border-strong focus:border-border-strong focus:outline-none focus:ring-1 focus:ring-border-strong";
+
+function NerdFilterSelect({
+  value,
+  onChange,
+  children,
+}: {
+  value: string;
+  onChange: ChangeEventHandler<HTMLSelectElement>;
+  children: ReactNode;
+}) {
+  return (
+    <div className="relative shrink-0">
+      <select
+        value={value}
+        onChange={onChange}
+        className={cn(nerdFilterControlClass, "cursor-pointer py-0 pl-3 pr-7")}
+      >
+        {children}
+      </select>
+      <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-subtle" />
+    </div>
+  );
+}
+
+function NerdFilterSearch({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: ChangeEventHandler<HTMLInputElement>;
+  placeholder: string;
+}) {
+  return (
+    <input
+      type="search"
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      className={cn(
+        nerdFilterControlClass,
+        "w-full min-w-[9rem] px-3 py-0 placeholder:text-subtle sm:w-36",
+      )}
+    />
+  );
+}
+
+function ChevronDownIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      className={className}
+    >
+      <path d="m6 9 6 6 6-6" />
+    </svg>
   );
 }

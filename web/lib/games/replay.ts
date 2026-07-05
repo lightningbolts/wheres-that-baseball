@@ -77,7 +77,13 @@ export function gameStateForAtBat(
   let awayAbsChallengesRemaining = base.awayAbsChallengesRemaining;
   let homeAbsChallengesRemaining = base.homeAbsChallengesRemaining;
 
-  if (base.plays.length > 0) {
+  if (
+    play.awayAbsChallengesRemaining != null &&
+    play.homeAbsChallengesRemaining != null
+  ) {
+    awayAbsChallengesRemaining = play.awayAbsChallengesRemaining;
+    homeAbsChallengesRemaining = play.homeAbsChallengesRemaining;
+  } else if (base.plays.length > 0) {
     const abs = absChallengesRemainingAtReplayPoint(base.plays, play, {
       awayTeamId: options?.awayTeamId,
       homeTeamId: options?.homeTeamId,
