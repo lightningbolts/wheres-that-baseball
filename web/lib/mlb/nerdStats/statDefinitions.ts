@@ -1,4 +1,5 @@
 import {
+  formatBattingAverage,
   formatCount,
   formatDegrees,
   formatFeet,
@@ -7,6 +8,7 @@ import {
   formatPercent,
   formatRatePer1000,
   pct,
+  rate,
   ratePer1000,
 } from "@/lib/mlb/nerdStats/format";
 import {
@@ -1026,11 +1028,11 @@ export const NERD_STAT_DEFINITIONS: NerdStatDefinition[] = [
     subtitle: "Batting average with runners in scoring position.",
     category: "drama",
     sort: "desc",
-    unit: "%",
-    formula: "hits with RISP ÷ plate appearances with RISP × 100",
+    unit: "AVG",
+    formula: "hits with RISP ÷ plate appearances with RISP",
     minGames: 20,
-    compute: (c) => pct(c.rispHits, c.rispPlateAppearances),
-    formatValue: (v) => formatPercent(v),
+    compute: (c) => rate(c.rispHits, c.rispPlateAppearances),
+    formatValue: formatBattingAverage,
   },
   {
     id: "pitching-k-per-game",

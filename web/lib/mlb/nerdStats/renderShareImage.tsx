@@ -277,14 +277,14 @@ export function teamChaosShareElement(card: TeamNerdCard, height: number) {
               {card.teamName}
             </span>
             <span style={{ display: "flex", fontSize: 17, color: COLORS.muted }}>
-              {card.season} nerd card · elite & cursed chaos
+              {card.season} team report
             </span>
           </div>
         </div>
 
         <div style={{ display: "flex", width: contentWidth, gap: 16 }}>
-          {chaosColumn("Elite chaos", COLORS.elite, elite, "elite", (contentWidth - 16) / 2)}
-          {chaosColumn("Cursed chaos", COLORS.cursed, cursed, "cursed", (contentWidth - 16) / 2)}
+          {chaosColumn("Top 3", COLORS.elite, elite, "elite", (contentWidth - 16) / 2)}
+          {chaosColumn("Bottom 3", COLORS.cursed, cursed, "cursed", (contentWidth - 16) / 2)}
         </div>
 
         <div
@@ -492,8 +492,8 @@ export function nerdStatShareElement(detail: NerdStatDetail, portrait: boolean) 
             marginTop: "auto",
           }}
         >
-          <span style={{ display: "flex" }}>Not W–L. Not WAR. Better.</span>
           <span style={{ display: "flex" }}>{SITE_NAME}</span>
+          <span style={{ display: "flex" }}>{detail.stat.category}</span>
         </div>
       </div>
     </div>
@@ -533,7 +533,7 @@ export function teamNerdCardShareElement(card: TeamNerdCard, portrait: boolean, 
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <span style={{ display: "flex", fontSize: 34, fontWeight: 800 }}>{card.teamName}</span>
             <span style={{ display: "flex", fontSize: 16, color: COLORS.muted }}>
-              {card.season} nerd card · elite & cursed chaos
+              {card.season} team report
             </span>
           </div>
         </div>
@@ -558,7 +558,7 @@ export function teamNerdCardShareElement(card: TeamNerdCard, portrait: boolean, 
                 fontSize: 16,
               }}
             >
-              No shareable chaos yet.
+              No standout rankings yet.
             </div>
           ) : (
             highlights.map((stat, index) => {

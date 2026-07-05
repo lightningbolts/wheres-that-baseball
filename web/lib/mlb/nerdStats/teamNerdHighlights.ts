@@ -34,8 +34,8 @@ export function isEliteOrCursedNerdRank(rank: number): boolean {
 }
 
 export function nerdRankBadgeLabel(rank: number, sort: "asc" | "desc"): string | null {
-  if (isEliteNerdRank(rank)) return sort === "desc" ? "elite chaos" : "elite sus";
-  if (isCursedNerdRank(rank)) return sort === "desc" ? "cursed chaos" : "cursed sus";
+  if (isEliteNerdRank(rank)) return sort === "desc" ? "Top 3" : "Best";
+  if (isCursedNerdRank(rank)) return sort === "desc" ? "Bottom 3" : "Worst";
   return null;
 }
 

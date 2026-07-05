@@ -117,6 +117,90 @@ function MatchupLine({
   );
 }
 
+function AbsChallengeDots({
+  remaining,
+  overlay = false,
+}: {
+  remaining: number;
+  overlay?: boolean;
+}) {
+  const filled = Math.min(2, Math.max(0, remaining));
+
+  return (
+    <div className="flex gap-0.5 lg:gap-1" aria-hidden>
+      {[0, 1].map((i) => (
+        <span
+          key={i}
+          className={cn(
+            "h-2 w-2 rounded-full border lg:h-2.5 lg:w-2.5",
+            i < filled
+              ? overlay
+                ? "border-amber-300 bg-amber-400"
+                : "border-amber-500 bg-amber-400"
+              : overlay
+                ? "border-white/30 bg-white/15"
+                : "border-border-strong bg-faint/40",
+          )}
+        />
+      ))}
+    </div>
+  );
+}
+
+function AbsChallengesField({
+  awayRemaining,
+  homeRemaining,
+  awayAbbrev,
+  homeAbbrev,
+  overlay = false,
+}: {
+  awayRemaining: number;
+  homeRemaining: number;
+  awayAbbrev: string;
+  homeAbbrev: string;
+  overlay?: boolean;
+}) {
+  return (
+    <div
+      className="flex flex-col items-center"
+      aria-label={`${awayAbbrev} ${awayRemaining} ABS challenges remaining, ${homeAbbrev} ${homeRemaining} ABS challenges remaining`}
+    >
+      <span
+        className={cn(
+          "mb-1 text-[8px] font-semibold uppercase tracking-wide lg:mb-1.5 lg:text-[9px]",
+          overlay ? "text-white/80" : "text-scorebug-muted",
+        )}
+      >
+        ABS
+      </span>
+      <div className="flex items-start gap-2 lg:gap-2.5">
+        <div className="flex flex-col items-center gap-0.5">
+          <AbsChallengeDots remaining={awayRemaining} overlay={overlay} />
+          <span
+            className={cn(
+              "font-mono text-[7px] font-semibold tabular-nums lg:text-[8px]",
+              overlay ? "text-white/70" : "text-scorebug-muted",
+            )}
+          >
+            {awayAbbrev}
+          </span>
+        </div>
+        <div className="flex flex-col items-center gap-0.5">
+          <AbsChallengeDots remaining={homeRemaining} overlay={overlay} />
+          <span
+            className={cn(
+              "font-mono text-[7px] font-semibold tabular-nums lg:text-[8px]",
+              overlay ? "text-white/70" : "text-scorebug-muted",
+            )}
+          >
+            {homeAbbrev}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** Fox-style broadcast scorebug with score, inning, count, outs, bases, matchup. */
 export function Scorebug({
   gameState,
@@ -156,6 +240,8 @@ export function Scorebug({
     onFirst,
     onSecond,
     onThird,
+    awayAbsChallengesRemaining,
+    homeAbsChallengesRemaining,
   } = gameState;
 
   const isBreak = isBetweenHalfInnings(gameState);
@@ -178,6 +264,16 @@ export function Scorebug({
         <OverlayStatCell className="min-w-[40px] flex-col gap-0 px-1.5 py-0.5">
           <TeamLogo abbrev={homeAbbrev} size={14} />
           <span className="font-mono text-sm font-bold leading-none tabular-nums">{homeRuns}</span>
+        </OverlayStatCell>
+
+        <OverlayStatCell className="px-2 py-0.5">
+          <AbsChallengesField
+            awayRemaining={awayAbsChallengesRemaining}
+            homeRemaining={homeAbsChallengesRemaining}
+            awayAbbrev={awayAbbrev}
+            homeAbbrev={homeAbbrev}
+            overlay
+          />
         </OverlayStatCell>
 
         <OverlayStatCell className="min-w-[44px] px-2">
@@ -249,6 +345,15 @@ export function Scorebug({
           <span className="font-mono text-xl font-bold leading-none tabular-nums lg:text-2xl">
             {homeRuns}
           </span>
+        </StatCell>
+
+        <StatCell className="min-w-[56px] flex-col py-1 md:min-w-[64px] lg:min-w-[72px] lg:px-3">
+          <AbsChallengesField
+            awayRemaining={awayAbsChallengesRemaining}
+            homeRemaining={homeAbsChallengesRemaining}
+            awayAbbrev={awayAbbrev}
+            homeAbbrev={homeAbbrev}
+          />
         </StatCell>
 
         <StatCell className="min-w-[44px] md:min-w-[52px] lg:min-w-[64px] lg:px-3">

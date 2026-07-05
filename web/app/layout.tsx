@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Serif, Inter, JetBrains_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/react";
 import { Suspense } from "react";
 
@@ -20,6 +20,13 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
+const ibmPlexSerif = IBM_Plex_Serif({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-ibm-plex-serif",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: SITE_NAME,
   description: SITE_DESCRIPTION,
@@ -36,15 +43,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='light')document.documentElement.classList.remove('dark');else if(t==='dark')document.documentElement.classList.add('dark');else if(window.matchMedia('(prefers-color-scheme:light)').matches)document.documentElement.classList.remove('dark')}catch(e){}})()`,
+            __html: `(function(){try{var t=localStorage.getItem('theme');document.documentElement.classList.remove('moneyball-dark','dark','moneyball');if(t==='moneyball-dark'||t==='dark')document.documentElement.classList.add('moneyball-dark','dark')}catch(e){}})()`,
           }}
         />
       </head>
-      <body className={`${inter.variable} ${jetbrainsMono.variable} font-sans`}>
+      <body
+        className={`${inter.variable} ${jetbrainsMono.variable} ${ibmPlexSerif.variable} font-serif`}
+      >
         <ThemeProvider>
           <Suspense fallback={null}>
             <ScrollRestoration />

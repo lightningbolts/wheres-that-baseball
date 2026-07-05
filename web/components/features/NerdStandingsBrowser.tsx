@@ -71,7 +71,7 @@ export function NerdStandingsBrowser() {
         <div className="mb-6">
           <h1 className="text-xl font-medium text-foreground">Nerd Standings</h1>
           <p className="mt-1 text-sm text-muted">
-            Obscure team stats for the {CURRENT_SEASON} season. Not W–L. Not WAR. Better.
+            Team stat standings for the {CURRENT_SEASON} season.
           </p>
           {!isLoading && data && (
             <p className="mt-2 text-xs text-subtle">

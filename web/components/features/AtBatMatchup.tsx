@@ -112,11 +112,11 @@ export function AtBatMatchup({
   return (
     <div
       className={cn(
-        "shrink-0 border-b border-border/60 bg-overlay/40 px-3 py-2.5 md:mb-3 md:rounded md:border md:bg-overlay md:px-3 md:py-2.5",
+        "shrink-0 border-b border-border/60 bg-overlay/40 px-3 py-1.5 md:mb-3 md:rounded md:border md:bg-overlay md:px-3 md:py-2.5",
         className,
       )}
     >
-      <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-1.5 md:gap-2">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-1 md:gap-2">
         <MatchupSide
           playerId={batterId}
           name={batterName}
@@ -137,9 +137,9 @@ export function AtBatMatchup({
       </div>
 
       {isMatchupLoading ? (
-        <StatBlockSkeleton className="mt-2 border-0 bg-transparent p-0" />
+        <StatBlockSkeleton className="mt-2 hidden border-0 bg-transparent p-0 md:block" />
       ) : matchupRecord ? (
-        <div className="mt-2 border-t border-border/50 pt-2">
+        <div className="mt-2 hidden border-t border-border/50 pt-2 md:block">
           <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <span className="text-[10px] font-medium uppercase tracking-wide text-subtle">
               Lifetime vs {pitcherLast}
@@ -149,7 +149,7 @@ export function AtBatMatchup({
           <HittingStatPills line={matchupRecord} />
         </div>
       ) : (
-        <p className="mt-1.5 text-[10px] text-muted md:mt-2 md:text-[11px]">
+        <p className="mt-1 hidden text-[10px] text-muted md:mt-2 md:block md:text-[11px]">
           No MLB history vs {pitcherLast}
         </p>
       )}

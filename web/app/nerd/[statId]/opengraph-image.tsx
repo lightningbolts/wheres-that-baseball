@@ -17,7 +17,7 @@ export default async function Image({ params }: NerdStatOgImageProps) {
         stat: {
           id: statId,
           title: "Nerd Standings",
-          subtitle: "Obscure team stats. Not W–L. Not WAR. Better.",
+          subtitle: "Team stat standings.",
           category: "vibes",
           sort: "desc",
           unit: "",

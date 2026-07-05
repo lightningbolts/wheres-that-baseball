@@ -144,6 +144,14 @@ export interface BatterRispStats extends BatterHittingLine {
   season: string;
 }
 
+/** One cell from MLB hotColdZones (OPS by pitch location). */
+export interface BatterHotZoneCell {
+  zoneId: string;
+  color: string;
+  value: string;
+  temp?: string;
+}
+
 export interface LiveGameState {
   gamePk: number;
   venueId: number | null;
@@ -174,6 +182,8 @@ export interface LiveGameState {
   onFirst: boolean;
   onSecond: boolean;
   onThird: boolean;
+  awayAbsChallengesRemaining: number;
+  homeAbsChallengesRemaining: number;
   atBatPitches: PlayPitch[];
   plays: PlayByPlayEntry[];
   observedAt: string;
@@ -291,6 +301,11 @@ export interface MLBLiveFeedResponse {
   gameData: {
     status: { abstractGameState: string };
     venue?: { id?: number; name?: string };
+    review?: {
+      hasChallenges?: boolean;
+      away?: { used?: number; remaining?: number };
+      home?: { used?: number; remaining?: number };
+    };
     teams: {
       away: { id?: number; name: string; abbreviation?: string };
       home: { id?: number; name: string; abbreviation?: string };

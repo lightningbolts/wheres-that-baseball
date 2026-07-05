@@ -32,6 +32,18 @@ export function pct(numerator: number, denominator: number): number | null {
   return (numerator / denominator) * 100;
 }
 
+export function rate(numerator: number, denominator: number): number | null {
+  if (denominator <= 0) return null;
+  return numerator / denominator;
+}
+
+export function formatBattingAverage(value: number): string {
+  if (!Number.isFinite(value)) return "—";
+  if (value >= 1) return value.toFixed(3);
+  const thousandths = Math.round(value * 1000);
+  return `.${thousandths.toString().padStart(3, "0")}`;
+}
+
 export function ratePer1000(numerator: number, denominator: number): number | null {
   if (denominator <= 0) return null;
   return (numerator / denominator) * 1000;

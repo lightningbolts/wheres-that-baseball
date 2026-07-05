@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { BaseDiamond } from "@/components/features/BaseDiamond";
 import { CompactLineScore } from "@/components/features/CompactLineScore";
@@ -15,6 +15,9 @@ import type { GameBoxScore } from "@/types/mlb-boxscore";
 interface LiveGameCardProps {
   game: SlateGame;
 }
+
+const CARD_PANEL =
+  "w-full rounded-lg border border-border bg-panel transition-colors group-hover:border-border-strong group-hover:bg-surface-elevated";
 
 function formatGameTime(gameDate: string): string {
   return new Intl.DateTimeFormat("en-US", {
@@ -81,11 +84,17 @@ export function LiveGameCard({ game }: LiveGameCardProps) {
       const data = (await response.json()) as { boxScore: GameBoxScore };
       setBoxScore(data.boxScore);
     } catch {
-      // hover overlay is optional
+      // box score panel is optional
     } finally {
       setBoxLoading(false);
     }
   }, [boxScore, boxLoading, game.gamePk]);
+
+  useEffect(() => {
+    if (isLive || isFinal) {
+      void fetchBoxScore();
+    }
+  }, [fetchBoxScore, isFinal, isLive]);
 
   const handleMouseEnter = () => {
     setHovered(true);
@@ -95,13 +104,13 @@ export function LiveGameCard({ game }: LiveGameCardProps) {
   return (
     <Link
       href={`/live/${game.gamePk}`}
-      className="group relative block rounded-lg border border-border bg-panel transition-colors hover:border-border-strong hover:bg-surface-elevated"
+      className="group relative block w-full"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={() => setHovered(false)}
       onFocus={handleMouseEnter}
       onBlur={() => setHovered(false)}
     >
-      <div className="p-4">
+      <div className={cn(CARD_PANEL, "p-4")}>
         <div className="mb-3 flex items-start justify-between gap-2">
           <div>
             {isLive && inning != null ? (
@@ -202,16 +211,28 @@ export function LiveGameCard({ game }: LiveGameCardProps) {
         )}
       </div>
 
+      {(isLive || isFinal) && (
+        <div className={cn(CARD_PANEL, "mt-2 p-4 md:hidden")}>
+          {boxScore ? (
+            <CompactLineScore boxScore={boxScore} className="w-full" />
+          ) : (
+            <p className="py-2 text-center text-xs text-muted">
+              {boxLoading ? "Loading box score…" : "Box score unavailable"}
+            </p>
+          )}
+        </div>
+      )}
+
       <div
         className={cn(
-          "pointer-events-none absolute inset-x-0 top-full z-20 mt-1 rounded-lg border border-border-strong bg-panel p-3 shadow-xl transition-opacity duration-150",
+          "pointer-events-none absolute inset-x-0 top-full z-20 mt-1 rounded-lg border border-border-strong bg-panel p-4 shadow-xl transition-opacity duration-150",
           "hidden md:block",
           hovered ? "opacity-100" : "opacity-0",
         )}
         aria-hidden={!hovered}
       >
         {boxScore ? (
-          <CompactLineScore boxScore={boxScore} />
+          <CompactLineScore boxScore={boxScore} className="w-full" />
         ) : (
           <p className="py-4 text-center text-xs text-muted">
             {boxLoading ? "Loading box score…" : "Hover for box score"}

@@ -20,6 +20,7 @@ import { ProbabilityChart } from "@/components/features/ProbabilityChart";
 import { Scorebug } from "@/components/features/Scorebug";
 import { PitchSequence } from "@/components/features/PitchSequence";
 import { useArchiveFinishedGame } from "@/hooks/useArchiveFinishedGame";
+import { useBatterHotZones } from "@/hooks/useBatterHotZones";
 import { useBatterRisp } from "@/hooks/useBatterRisp";
 import { useBatterVsPitcher } from "@/hooks/useBatterVsPitcher";
 import { useBreakLinger } from "@/hooks/useBreakLinger";
@@ -83,6 +84,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
     atBatViewState?.batterId,
     runnersInScoringPosition,
   );
+  const { zones: batterHotZones } = useBatterHotZones(atBatViewState?.batterId);
 
   const showSkeleton = isFeedLoading && !gameState && isPredictionsLoading && predictions.length === 0;
   const showBatterHighlights =
@@ -101,10 +103,28 @@ function DashboardContent({ game }: { game: SlateGame }) {
     return atBats.at(-1)?.atBatIndex ?? null;
   }, [gameState?.plays]);
 
+  const outcomeOddsFooter =
+    atBatViewState && gameState?.gameStatus === "Live" && !showBreakUI ? (
+      <ProbabilityChart
+        key={`${atBatViewState.batterId ?? 0}-${atBatViewState.inning}`}
+        probabilities={probabilities}
+        contained
+        className="min-h-0 flex-1"
+      />
+    ) : (
+      <p className="py-2 text-center text-sm text-muted">
+        {LIVE_GAME_STATUSES.has(game.status)
+          ? showBreakUI
+            ? "Between innings"
+            : "Waiting for at-bat…"
+          : "Available when live."}
+      </p>
+    );
+
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
       <ConnectionIndicator status={connectionStatus} error={error} />
-      <GameDetailTabs activeTab={activeTab} onTabChange={setActiveTab} />
+      <GameDetailTabs activeTab={activeTab} onTabChange={setActiveTab} compact />
 
       <div
         className={cn(
@@ -204,7 +224,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
               <Panel
                 title={gameOver ? "Final" : showBreakUI ? "Due up" : "Current at-bat"}
                 flushMobile
-                className="order-1 min-h-0 overflow-hidden md:order-none md:min-h-[320px] md:flex-[3] md:shrink-0 max-md:min-h-0"
+                className="order-1 min-h-0 flex-1 overflow-hidden md:order-none md:min-h-[320px] max-md:min-h-0"
               >
                   {gameOver && gameState ? (
                     <div className="flex flex-1 flex-col items-center justify-center gap-3 py-8 text-center">
@@ -242,7 +262,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
                           batterName={atBatViewState.batterName}
                           stats={rispStats}
                           isLoading={isRispLoading}
-                          className="mx-3 mb-2 md:mx-0"
+                          className="mx-3 mb-1 max-md:py-1.5 md:mx-0 md:mb-2"
                         />
                       )}
                     </>
@@ -290,25 +310,22 @@ function DashboardContent({ game }: { game: SlateGame }) {
                         <PitchSequence
                           pitches={atBatViewState?.atBatPitches ?? []}
                           layout="zone"
-                          size="compact"
+                          size="large"
                           zoneFirst
-                          mobileZoneCompact
                           animateEntrance
-                          className={cn(
-                            "w-full",
-                            !atBatInProgress &&
-                              "h-[clamp(7.5rem,26dvh,11rem)]",
-                          )}
+                          batterZones={batterHotZones ?? undefined}
+                          className="h-[clamp(14rem,44dvh,26rem)] w-full"
                         />
                       </div>
                       <div className="hidden min-h-0 flex-1 md:flex">
                         <PitchSequence
                           pitches={atBatViewState?.atBatPitches ?? []}
                           size="large"
-                          layout="split"
+                          layout="dashboard"
                           scrollToLatest
-                          contained
                           animateEntrance
+                          batterZones={batterHotZones ?? undefined}
+                          dashboardFooter={outcomeOddsFooter}
                           className="min-h-0 flex-1"
                         />
                       </div>
@@ -316,28 +333,6 @@ function DashboardContent({ game }: { game: SlateGame }) {
                   )}
                     </>
                   )}
-                </Panel>
-
-                <Panel
-                  title="Outcome odds"
-                  className="order-2 hidden min-h-[140px] shrink-0 md:order-none md:flex lg:flex-1"
-                >
-                  <div className="flex min-h-0 flex-1 flex-col">
-                    {atBatViewState && gameState?.gameStatus === "Live" && !showBreakUI ? (
-                      <ProbabilityChart
-                        key={`${atBatViewState.batterId ?? 0}-${atBatViewState.inning}`}
-                        probabilities={probabilities}
-                        contained
-                        className="min-h-0 flex-1"
-                      />
-                    ) : (
-                      <p className="py-4 text-center text-sm text-muted">
-                        {LIVE_GAME_STATUSES.has(game.status)
-                          ? showBreakUI ? "Between innings" : "Waiting for at-bat…"
-                          : "Available when live."}
-                      </p>
-                    )}
-                  </div>
                 </Panel>
 
                 <div className="order-2 flex min-h-0 flex-1 flex-col md:hidden max-md:flex-none">
@@ -377,6 +372,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
                         </p>
                       )
                     }
+                    feedHeaderCollapsedDefault
                   />
                 </div>
               </div>
@@ -457,14 +453,14 @@ export function LiveGameDashboard({ game }: LiveGameDashboardProps) {
     <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-background text-foreground">
       <AppNav />
       <div className="flex min-h-0 flex-1 flex-col">
-        <div className="shrink-0 border-b border-border bg-surface px-3 py-2 sm:px-4">
+        <div className="shrink-0 border-b border-border bg-surface px-2 py-1 sm:px-4 sm:py-2">
           <Link
             href="/"
-            className="text-xs text-muted transition-colors hover:text-foreground"
+            className="flex items-center gap-1.5 text-xs text-muted transition-colors hover:text-foreground"
           >
-            ← All games
+            <span aria-hidden>←</span>
+            <span className="truncate font-medium text-foreground">{game.label}</span>
           </Link>
-          <p className="mt-0.5 truncate text-sm font-medium text-foreground">{game.label}</p>
         </div>
         <DashboardContent game={game} />
       </div>

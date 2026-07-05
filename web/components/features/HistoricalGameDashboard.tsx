@@ -26,6 +26,7 @@ import { useLivePredictions } from "@/hooks/useLivePredictions";
 import { useGameState } from "@/hooks/useGameState";
 import { useOutcomeOdds } from "@/hooks/useOutcomeOdds";
 import { useArchiveFinishedGame } from "@/hooks/useArchiveFinishedGame";
+import { useBatterHotZones } from "@/hooks/useBatterHotZones";
 import { useBatterRisp } from "@/hooks/useBatterRisp";
 import { useBatterVsPitcher } from "@/hooks/useBatterVsPitcher";
 import { useBreakLinger } from "@/hooks/useBreakLinger";
@@ -207,6 +208,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
     displayState?.batterId,
     runnersInScoringPosition,
   );
+  const { zones: batterHotZones } = useBatterHotZones(displayState?.batterId);
 
   const score = formatScore(game);
   const seasonHistoryHref = buildSeasonHistoryHref({
@@ -456,7 +458,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
                 <Panel
                   title={panelTitle}
                   flushMobile
-                  className="order-1 shrink-0 overflow-hidden md:order-none md:min-h-[380px] md:flex-[3]"
+                  className="order-1 min-h-0 flex-1 overflow-hidden md:order-none md:min-h-[380px]"
                 >
                   {displayState && (
                     <div className="hidden md:block">
@@ -477,38 +479,34 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
                   )}
                   {(displayState?.atBatPitches.length ?? 0) === 0 ? (
                     <div className="shrink-0 md:hidden">
-                      <PitchSequence pitches={[]} layout="zone" zoneFirst />
+                      <PitchSequence
+                        pitches={[]}
+                        layout="zone"
+                        zoneFirst
+                        batterZones={batterHotZones ?? undefined}
+                      />
                     </div>
                   ) : (
-                    <>
-                      <div className="shrink-0 md:hidden">
-                        <PitchSequence
-                          pitches={displayState?.atBatPitches ?? []}
-                          layout="zone"
-                          zoneFirst
-                        />
-                      </div>
-                      <div className="hidden min-h-0 flex-1 md:flex">
-                        <PitchSequence
-                          pitches={displayState?.atBatPitches ?? []}
-                          size="large"
-                          layout="split"
-                          contained
-                          className="min-h-0 flex-1"
-                        />
-                      </div>
-                    </>
+                    <div className="shrink-0 md:hidden">
+                      <PitchSequence
+                        pitches={displayState?.atBatPitches ?? []}
+                        layout="zone"
+                        zoneFirst
+                        batterZones={batterHotZones ?? undefined}
+                      />
+                    </div>
                   )}
-                  {(displayState?.atBatPitches.length ?? 0) === 0 && (
-                    <p className="hidden text-sm text-subtle md:block">No pitch data for this at-bat.</p>
-                  )}
-                </Panel>
-
-                <Panel
-                  title="Outcome odds"
-                  className="order-2 hidden min-h-[140px] shrink-0 md:order-none md:flex lg:flex-1"
-                >
-                  <div className="flex min-h-0 flex-1 flex-col">{renderOutcomeOdds()}</div>
+                  <div className="hidden min-h-0 flex-1 md:flex">
+                    <PitchSequence
+                      pitches={displayState?.atBatPitches ?? []}
+                      size="large"
+                      layout="dashboard"
+                      scrollToLatest={isLive}
+                      batterZones={batterHotZones ?? undefined}
+                      dashboardFooter={renderOutcomeOdds()}
+                      className="min-h-0 flex-1"
+                    />
+                  </div>
                 </Panel>
 
                 <div className="order-2 flex min-h-0 flex-1 flex-col md:hidden">
@@ -539,6 +537,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
                         : selectedAtBatIndex
                     }
                     feedHeader={renderOutcomeOdds(true)}
+                    feedHeaderCollapsedDefault
                   />
                 </div>
               </div>

@@ -1,4 +1,8 @@
 import { parseBoxScore } from "@/lib/mlb/boxScore";
+import {
+  computeAbsChallengesRemaining,
+  resolveAbsChallengesUsed,
+} from "@/lib/mlb/absChallenges";
 import { buildCardPitchersFromBoxScore } from "@/lib/mlb/cardPitchers";
 import type { GameBoxScore } from "@/types/mlb-boxscore";
 import type { CardPitcher } from "@/types/mlb";
@@ -35,6 +39,8 @@ export interface LiveFeedSnapshot {
   allPlaysCount: number;
   awayPitcher: CardPitcher | null;
   homePitcher: CardPitcher | null;
+  awayAbsChallengesUsed: number;
+  homeAbsChallengesUsed: number;
 }
 
 export interface PlayByPlayParseState {
@@ -1538,6 +1544,24 @@ function observedAtFromFeed(feed: MLBLiveFeedResponse): string {
   return new Date().toISOString();
 }
 
+function parseAbsChallengesRemaining(
+  feed: MLBLiveFeedResponse,
+  inning: number,
+): { away: number; home: number } {
+  const review = feed.gameData.review;
+  const used = resolveAbsChallengesUsed(
+    feed.liveData.plays.allPlays,
+    feed.gameData.teams.away.id,
+    feed.gameData.teams.home.id,
+    review?.away?.used,
+    review?.home?.used,
+  );
+  return {
+    away: computeAbsChallengesRemaining(used.away, inning),
+    home: computeAbsChallengesRemaining(used.home, inning),
+  };
+}
+
 export function parseLiveFeed(
   gamePk: number,
   feed: MLBLiveFeedResponse,
@@ -1573,6 +1597,7 @@ export function parseLiveFeed(
     play?.matchup?.pitcher,
     offense.pitcher,
   );
+  const absChallenges = parseAbsChallengesRemaining(feed, inning);
 
   return {
     gamePk,
@@ -1604,6 +1629,8 @@ export function parseLiveFeed(
     onFirst: isBreak ? false : offense.first != null,
     onSecond: isBreak ? false : offense.second != null,
     onThird: isBreak ? false : offense.third != null,
+    awayAbsChallengesRemaining: absChallenges.away,
+    homeAbsChallengesRemaining: absChallenges.home,
     atBatPitches: parseAtBatPitchesFromFeed(feed, isBreak),
     plays: plays ?? parsePlayByPlay(feed.liveData.plays.allPlays),
     observedAt: observedAtFromFeed(feed),
@@ -1623,6 +1650,8 @@ export function liveStateFingerprint(state: LiveGameState): string {
     state.outs,
     state.awayRuns,
     state.homeRuns,
+    state.awayAbsChallengesRemaining,
+    state.homeAbsChallengesRemaining,
     state.batterId,
     state.pitcherId,
     state.onFirst,
@@ -1755,6 +1784,14 @@ export function buildLiveFeedSnapshot(
   const pitchers = boxScore
     ? buildCardPitchersFromBoxScore(boxScore)
     : { away: null, home: null };
+  const review = feed.gameData.review;
+  const absUsed = resolveAbsChallengesUsed(
+    feed.liveData.plays.allPlays,
+    teams.away.id,
+    teams.home.id,
+    review?.away?.used,
+    review?.home?.used,
+  );
 
   return {
     gamePk,
@@ -1770,6 +1807,8 @@ export function buildLiveFeedSnapshot(
     allPlaysCount: feed.liveData.plays.allPlays?.length ?? 0,
     awayPitcher: pitchers.away,
     homePitcher: pitchers.home,
+    awayAbsChallengesUsed: absUsed.away,
+    homeAbsChallengesUsed: absUsed.home,
   };
 }
 
@@ -1787,6 +1826,10 @@ export function reconstructFeedFromParts(
       teams: {
         away: { name: snapshot.awayTeam, abbreviation: snapshot.awayAbbrev },
         home: { name: snapshot.homeTeam, abbreviation: snapshot.homeAbbrev },
+      },
+      review: {
+        away: { used: snapshot.awayAbsChallengesUsed },
+        home: { used: snapshot.homeAbsChallengesUsed },
       },
     },
     liveData: {
@@ -1810,6 +1853,10 @@ function feedFromSnapshot(snapshot: LiveFeedSnapshot): MLBLiveFeedResponse {
       teams: {
         away: { name: snapshot.awayTeam, abbreviation: snapshot.awayAbbrev },
         home: { name: snapshot.homeTeam, abbreviation: snapshot.homeAbbrev },
+      },
+      review: {
+        away: { used: snapshot.awayAbsChallengesUsed },
+        home: { used: snapshot.homeAbsChallengesUsed },
       },
     },
     liveData: {

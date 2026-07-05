@@ -34,6 +34,7 @@ const config: Config = {
       },
       fontFamily: {
         sans: ["var(--font-inter)", "system-ui", "sans-serif"],
+        serif: ["var(--font-ibm-plex-serif)", "Georgia", "serif"],
         mono: ["var(--font-jetbrains)", "ui-monospace", "monospace"],
       },
       keyframes: {

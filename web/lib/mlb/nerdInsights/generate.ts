@@ -91,7 +91,7 @@ const rules: Rule[] = [
       id: `${ctx.gamePk}-risp-${ctx.trigger.atBatIndex}`,
       eyebrow: "Scoring position",
       title: `${ctx.batterName} with runners on`,
-      message: `${ctx.offenseAbbrev} rank ${rankLabel(risp.rank)} in RISP hitting (${risp.displayValue}). The nerd stats like this matchup.`,
+      message: `${ctx.offenseAbbrev} rank ${rankLabel(risp.rank)} in RISP hitting (${risp.displayValue}).`,
       teamId: ctx.offenseTeamId,
       statId: "risp-batting",
     };

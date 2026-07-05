@@ -73,8 +73,8 @@ describe("generateNerdInsight", () => {
     const away = profile(100, "AWY", {
       "risp-batting": {
         rank: 2,
-        displayValue: "34.2%",
-        value: 34.2,
+        displayValue: ".342",
+        value: 0.342,
         title: "RISP Merchants",
       },
     });

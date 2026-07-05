@@ -2,6 +2,7 @@
 
 import type { GameBoxScore } from "@/types/mlb-boxscore";
 import { TeamLogo } from "@/components/ui/TeamLogo";
+import { cn } from "@/lib/utils";
 
 interface CompactLineScoreProps {
   boxScore: GameBoxScore;
@@ -20,8 +21,8 @@ export function CompactLineScore({ boxScore, className }: CompactLineScoreProps)
   const inningNums = lineScore.innings.map((inning) => inning.num);
 
   return (
-    <div className={className}>
-      <table className="w-full min-w-[280px] border-collapse text-[11px]">
+    <div className={cn("w-full", className)}>
+      <table className="w-full table-fixed border-collapse text-[11px]">
         <thead>
           <tr className="text-muted">
             <th className="px-1.5 py-1 text-left font-medium" />

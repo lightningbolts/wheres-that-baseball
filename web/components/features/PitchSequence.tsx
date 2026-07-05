@@ -1,24 +1,26 @@
 "use client";
 
-import { memo, useEffect, useRef } from "react";
+import { memo, useEffect, useRef, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 import { PitchFeedList } from "@/components/features/PitchFeedList";
 import { useEntranceIndex } from "@/hooks/useEntranceIndex";
-import type { PlayPitch } from "@/types/mlb-live";
+import type { BatterHotZoneCell, PlayPitch } from "@/types/mlb-live";
 import {
   homePlatePath,
   pitchResultColor,
+  strikeZoneCellRect,
   toSvgPercent,
   zoneRectPercent,
 } from "@/lib/mlb/strikeZoneMath";
+import { zoneHeatLabelStyle } from "@/lib/mlb/zoneHeatColors";
 
 interface PitchSequenceProps {
   pitches: PlayPitch[];
   className?: string;
   compact?: boolean;
   size?: "compact" | "default" | "large";
-  layout?: "horizontal" | "stacked" | "split" | "zone";
+  layout?: "horizontal" | "stacked" | "split" | "zone" | "dashboard";
   scrollToLatest?: boolean;
   /** When true, pitch list scrolls inside its column (dashboard). When false, expands (dialog). */
   contained?: boolean;
@@ -28,6 +30,10 @@ interface PitchSequenceProps {
   zoneFirst?: boolean;
   /** Shorter strike zone on small screens (live dashboard). */
   mobileZoneCompact?: boolean;
+  /** Batter hot/cold zone overlay (MLB zones 01–09). */
+  batterZones?: BatterHotZoneCell[];
+  /** Outcome odds panel under the pitch feed (desktop dashboard grid). */
+  dashboardFooter?: ReactNode;
 }
 
 function usePitchEntranceIndex(pitches: PlayPitch[], enabled: boolean): number {
@@ -67,6 +73,96 @@ const SIZE_STYLES = {
     rowPy: "py-3",
   },
 } as const;
+
+/** Desktop dashboard: pitch feed + outcome odds stay narrow; zone gets the rest. */
+export const PITCH_FEED_COLUMN_CLASS =
+  "flex w-full min-w-0 shrink-0 flex-col gap-3 overflow-hidden md:w-[33.333%] md:max-w-[38%]";
+
+function BatterZoneOpsLabel({ className }: { className?: string }) {
+  return (
+    <p
+      className={cn(
+        "shrink-0 text-center text-[10px] font-semibold uppercase tracking-wide text-muted",
+        className,
+      )}
+    >
+      Batter OPS by zone
+    </p>
+  );
+}
+
+function ZoneWithOpsLabel({
+  batterZones,
+  className,
+  children,
+}: {
+  batterZones?: BatterHotZoneCell[];
+  className?: string;
+  children: React.ReactNode;
+}) {
+  if (!batterZones?.length) {
+    return <>{children}</>;
+  }
+
+  return (
+    <div className={cn("flex min-h-0 flex-col", className)}>
+      <BatterZoneOpsLabel className="mb-1 px-1" />
+      <div className="min-h-0 flex-1">{children}</div>
+    </div>
+  );
+}
+
+function ZoneHeatCells({
+  zone,
+  cells,
+}: {
+  zone: ReturnType<typeof zoneRectPercent>;
+  cells: BatterHotZoneCell[];
+}) {
+  const byId = new Map(cells.map((cell) => [cell.zoneId.padStart(2, "0"), cell]));
+
+  return (
+    <>
+      {Array.from({ length: 9 }, (_, index) => {
+        const zoneId = String(index + 1).padStart(2, "0");
+        const cell = byId.get(zoneId);
+        if (!cell) return null;
+
+        const rect = strikeZoneCellRect(zone, zoneId);
+        if (!rect) return null;
+
+        const fontSize = Math.min(rect.width, rect.height) * 0.34;
+        const label = zoneHeatLabelStyle(cell.color, cell.temp);
+
+        return (
+          <g key={zoneId}>
+            <rect
+              x={rect.x}
+              y={rect.y}
+              width={rect.width}
+              height={rect.height}
+              fill={cell.color}
+            />
+            <text
+              x={rect.x + rect.width / 2}
+              y={rect.y + rect.height / 2}
+              textAnchor="middle"
+              dominantBaseline="central"
+              fontSize={fontSize}
+              fill={label.fill}
+              fontWeight="600"
+              stroke={label.stroke}
+              strokeWidth={label.strokeWidth}
+              paintOrder="stroke"
+            >
+              {cell.value}
+            </text>
+          </g>
+        );
+      })}
+    </>
+  );
+}
 
 /** Gameday-style mobile strike zone — roughly 40–45% of viewport height */
 const MOBILE_ZONE_FIRST_HEIGHT =
@@ -124,10 +220,12 @@ function EmptyStrikeZone({
   className,
   zoneFirst = false,
   mobileZoneCompact = false,
+  batterZones,
 }: {
   className?: string;
   zoneFirst?: boolean;
   mobileZoneCompact?: boolean;
+  batterZones?: BatterHotZoneCell[];
 }) {
   const szTop = 3.5;
   const szBottom = 1.5;
@@ -158,6 +256,7 @@ function EmptyStrikeZone({
           height={zone.height}
           fill="var(--zone-chart-zone-fill)"
         />
+        {batterZones?.length ? <ZoneHeatCells zone={zone} cells={batterZones} /> : null}
         <ZoneGridLines zone={zone} />
     </svg>
   );
@@ -169,12 +268,14 @@ function StrikeZoneChart({
   size,
   fill,
   entranceFromIndex = pitches.length,
+  batterZones,
 }: {
   pitches: PlayPitch[];
   className?: string;
   size: keyof typeof SIZE_STYLES;
   fill?: boolean;
   entranceFromIndex?: number;
+  batterZones?: BatterHotZoneCell[];
 }) {
   const styles = SIZE_STYLES[size];
   const plotted = pitches.filter((p) => p.isPitch && p.hasPlateLocation !== false);
@@ -205,8 +306,9 @@ function StrikeZoneChart({
         y={zone.y}
         width={zone.width}
         height={zone.height}
-        fill="var(--zone-chart-zone-fill)"
+        fill={batterZones?.length ? "transparent" : "var(--zone-chart-zone-fill)"}
       />
+      {batterZones?.length ? <ZoneHeatCells zone={zone} cells={batterZones} /> : null}
       <ZoneGridLines zone={zone} />
       {plotted.map((pitch, index) => {
         const dot = toSvgPercent(pitch.plateX, pitch.plateZ, szTop, szBottom);
@@ -316,6 +418,63 @@ function PitchFeedColumn({
   );
 }
 
+function DashboardGridLayout({
+  pitches,
+  resolvedSize,
+  scrollToLatest,
+  entranceFromIndex,
+  batterZones,
+  dashboardFooter,
+  className,
+}: {
+  pitches: PlayPitch[];
+  resolvedSize: keyof typeof SIZE_STYLES;
+  scrollToLatest?: boolean;
+  entranceFromIndex: number;
+  batterZones?: BatterHotZoneCell[];
+  dashboardFooter?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex h-full min-h-0 w-full flex-col gap-3 overflow-hidden md:flex-row md:items-stretch",
+        className,
+      )}
+    >
+      <div className={PITCH_FEED_COLUMN_CLASS}>
+        <PitchFeedColumn
+          pitches={pitches}
+          resolvedSize={resolvedSize}
+          contained
+          scrollToLatest={scrollToLatest}
+          entranceFromIndex={entranceFromIndex}
+          className="min-h-0 flex-1 overflow-hidden"
+        />
+        {dashboardFooter ? (
+          <div className="flex w-full shrink-0 flex-col overflow-hidden">
+            <h4 className="mb-2 shrink-0 text-xs font-medium text-muted">Outcome odds</h4>
+            <div className="max-h-[220px] min-h-0 overflow-hidden">{dashboardFooter}</div>
+          </div>
+        ) : null}
+      </div>
+      <ZoneWithOpsLabel
+        batterZones={batterZones}
+        className="min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+      >
+        <MemoStrikeZoneChart
+          pitches={pitches}
+          size="large"
+          fill
+          entranceFromIndex={entranceFromIndex}
+          batterZones={batterZones}
+          className="min-h-0 flex-1"
+        />
+      </ZoneWithOpsLabel>
+    </div>
+  );
+}
+
 function SplitLayout({
   pitches,
   resolvedSize,
@@ -325,6 +484,7 @@ function SplitLayout({
   entranceFromIndex,
   zoneFirst = false,
   mobileZoneCompact = false,
+  batterZones,
 }: {
   pitches: PlayPitch[];
   resolvedSize: keyof typeof SIZE_STYLES;
@@ -334,14 +494,16 @@ function SplitLayout({
   entranceFromIndex: number;
   zoneFirst?: boolean;
   mobileZoneCompact?: boolean;
+  batterZones?: BatterHotZoneCell[];
 }) {
   const styles = SIZE_STYLES[resolvedSize];
   const zoneSize = zoneFirst ? "large" : resolvedSize;
 
   const zoneChart = (
-    <div
+    <ZoneWithOpsLabel
+      batterZones={batterZones}
       className={cn(
-        "flex w-full flex-col",
+        "w-full",
         zoneFirst
           ? cn(mobileZoneHeightClass(mobileZoneCompact), "grow-0 md:h-auto md:min-h-0 md:shrink md:grow")
           : cn("min-h-0", contained ? "h-full" : "w-full md:w-auto", styles.chartMinH),
@@ -353,9 +515,10 @@ function SplitLayout({
         size={zoneSize}
         fill
         entranceFromIndex={entranceFromIndex}
+        batterZones={batterZones}
         className={zoneFirst ? "h-full w-full" : "flex-1"}
       />
-    </div>
+    </ZoneWithOpsLabel>
   );
 
   const pitchFeed = (
@@ -414,6 +577,8 @@ export function PitchSequence({
   animateEntrance = false,
   zoneFirst = false,
   mobileZoneCompact = false,
+  batterZones,
+  dashboardFooter,
 }: PitchSequenceProps) {
   const resolvedSize = size ?? (compact ? "compact" : "default");
   const entranceFromIndex = usePitchEntranceIndex(pitches, animateEntrance);
@@ -421,24 +586,45 @@ export function PitchSequence({
   if (layout === "zone") {
     if (pitches.length === 0) {
       return (
-        <EmptyStrikeZone
-          className={className}
-          zoneFirst={zoneFirst}
-          mobileZoneCompact={mobileZoneCompact}
-        />
+        <ZoneWithOpsLabel batterZones={batterZones} className={className}>
+          <EmptyStrikeZone
+            zoneFirst={zoneFirst}
+            mobileZoneCompact={mobileZoneCompact}
+            batterZones={batterZones}
+            className={cn(
+              zoneFirst ? mobileZoneHeightClass(mobileZoneCompact) : "h-40 w-full",
+            )}
+          />
+        </ZoneWithOpsLabel>
       );
     }
 
     return (
-      <MemoStrikeZoneChart
+      <ZoneWithOpsLabel batterZones={batterZones} className={className}>
+        <MemoStrikeZoneChart
+          pitches={pitches}
+          size="large"
+          fill={false}
+          entranceFromIndex={entranceFromIndex}
+          batterZones={batterZones}
+          className={cn(
+            zoneFirst ? mobileZoneHeightClass(mobileZoneCompact) : "h-40 w-full",
+          )}
+        />
+      </ZoneWithOpsLabel>
+    );
+  }
+
+  if (layout === "dashboard") {
+    return (
+      <DashboardGridLayout
         pitches={pitches}
-        size="large"
-        fill={false}
+        resolvedSize={resolvedSize}
+        scrollToLatest={scrollToLatest}
         entranceFromIndex={entranceFromIndex}
-        className={cn(
-          zoneFirst ? mobileZoneHeightClass(mobileZoneCompact) : "h-40 w-full",
-          className,
-        )}
+        batterZones={batterZones}
+        dashboardFooter={dashboardFooter}
+        className={className}
       />
     );
   }
@@ -454,6 +640,7 @@ export function PitchSequence({
         entranceFromIndex={entranceFromIndex}
         zoneFirst={zoneFirst}
         mobileZoneCompact={mobileZoneCompact}
+        batterZones={batterZones}
       />
     );
   }

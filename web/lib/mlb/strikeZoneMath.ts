@@ -121,6 +121,27 @@ export function zoneRectPercent(szTop: number, szBottom: number) {
   return { x: left, y: top, width: right - left, height: bottom - top };
 }
 
+/** 3×3 grid cell inside the strike zone (MLB zones 01–09). */
+export function strikeZoneCellRect(
+  zone: SvgRectPercent,
+  zoneId: string,
+): SvgRectPercent | null {
+  const num = Number.parseInt(zoneId, 10);
+  if (!Number.isFinite(num) || num < 1 || num > 9) return null;
+
+  const col = (num - 1) % 3;
+  const row = Math.floor((num - 1) / 3);
+  const cellW = zone.width / 3;
+  const cellH = zone.height / 3;
+
+  return {
+    x: zone.x + col * cellW,
+    y: zone.y + row * cellH,
+    width: cellW,
+    height: cellH,
+  };
+}
+
 /** Home plate at ground level (pZ=0), zone width, Gameday-style catcher view. */
 export function homePlatePath(
   zone: { x: number; y: number; width: number; height: number },

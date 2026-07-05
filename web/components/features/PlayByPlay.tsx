@@ -862,7 +862,7 @@ export const PlayByPlay = memo(function PlayByPlay({
           </div>
         ) : null}
 
-        {feedHeader && variant === "feed" && !embeddedScroll ? (
+        {feedHeader && variant === "feed" ? (
           <CollapsibleFeedHeader
             title={feedHeaderTitle}
             defaultOpen={!feedHeaderCollapsedDefault}
@@ -881,9 +881,6 @@ export const PlayByPlay = memo(function PlayByPlay({
         >
           {feedHeader && variant !== "feed" ? (
             <div className="border-b border-border bg-panel px-3 py-3">{feedHeader}</div>
-          ) : null}
-          {feedHeader && variant === "feed" && embeddedScroll ? (
-            <div className="border-b border-border bg-panel px-3 py-2">{feedHeader}</div>
           ) : null}
           {variant === "feed" ? <div ref={latestAnchorRef} aria-hidden className="h-0" /> : null}
           {plays.length === 0 ? (

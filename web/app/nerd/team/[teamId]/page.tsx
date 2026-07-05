@@ -21,8 +21,8 @@ export async function generateMetadata({ params }: TeamNerdPageProps): Promise<M
   const best = card?.stats.slice().sort((a, b) => a.rank - b.rank)[0];
   const title = `${team.name} Nerd Card | ${season}`;
   const description = best
-    ? `Elite at ${best.title} (rank #${best.rank}). Full obscure-stat report card for the ${team.name}.`
-    : `Where the ${team.name} rank on every weird stat in ${season}.`;
+    ? `${team.name} rank #${best.rank} in ${best.title}. Full stat report for ${season}.`
+    : `${team.name} stat rankings for the ${season} season.`;
   const url = `${getSiteUrl()}/nerd/team/${id}`;
 
   return {

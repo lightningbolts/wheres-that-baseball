@@ -60,7 +60,7 @@ export function TeamNerdCardView({ teamId }: TeamNerdCardViewProps) {
                 <div>
                   <h1 className="text-xl font-medium text-foreground">{data.teamName}</h1>
                   <p className="text-sm text-muted">
-                    {CURRENT_SEASON} nerd card · where they rank on every weird stat
+                    {CURRENT_SEASON} team report · rank across every tracked stat
                   </p>
                 </div>
               </div>
