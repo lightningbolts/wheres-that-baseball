@@ -1,0 +1,1 @@
+{"season":2026,"stat":{"id":"ff-avg-spin","title":"Four-Seam Spin","subtitle":"Average four-seam spin rate.","category":"defense","sort":"desc","unit":"rpm","formula":"sum of Four-Seam spin rates ÷ Four-Seam count (min 100 pitches)","leagueAverage":null,"leagueAverageDisplay":null,"leaders":[]},"allTeams":[],"notableEvents":[],"generatedAt":"2026-07-05T17:12:00.586Z"}

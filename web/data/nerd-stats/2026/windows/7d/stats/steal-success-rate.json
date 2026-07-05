@@ -1,0 +1,1 @@
+{"season":2026,"stat":{"id":"steal-success-rate","title":"Swipe Success Rate","subtitle":"Stolen bases per steal attempt.","category":"baserunning","sort":"desc","unit":"%","formula":"stolen bases ÷ (stolen bases + caught stealing) × 100","leagueAverage":null,"leagueAverageDisplay":null,"leaders":[]},"allTeams":[],"notableEvents":[],"generatedAt":"2026-07-05T17:12:00.574Z"}

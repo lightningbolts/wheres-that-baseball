@@ -1,0 +1,1 @@
+{"season":2026,"stat":{"id":"contact-rate","title":"Ball-in-Play Rate","subtitle":"Plate appearances ending in contact (not K, BB, or HR).","category":"contact","sort":"desc","unit":"%","formula":"(PA − K − BB − HR) ÷ plate appearances × 100","leagueAverage":null,"leagueAverageDisplay":null,"leaders":[]},"allTeams":[],"notableEvents":[],"generatedAt":"2026-07-05T17:12:00.657Z"}

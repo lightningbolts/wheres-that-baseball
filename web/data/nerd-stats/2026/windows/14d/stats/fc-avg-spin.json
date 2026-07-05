@@ -1,0 +1,1 @@
+{"season":2026,"stat":{"id":"fc-avg-spin","title":"Cutter Spin","subtitle":"Average cutter spin rate.","category":"defense","sort":"desc","unit":"rpm","formula":"sum of Cutter spin rates ÷ Cutter count (min 100 pitches)","leagueAverage":null,"leagueAverageDisplay":null,"leaders":[]},"allTeams":[],"notableEvents":[],"generatedAt":"2026-07-05T17:12:00.770Z"}

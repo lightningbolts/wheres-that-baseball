@@ -1,0 +1,1 @@
+{"season":2026,"stat":{"id":"sl-avg-velocity","title":"Slider Velo","subtitle":"Average slider velocity thrown.","category":"defense","sort":"desc","unit":"mph","formula":"sum of Slider velocities ÷ Slider count (min 100 pitches)","leagueAverage":null,"leagueAverageDisplay":null,"leaders":[]},"allTeams":[],"notableEvents":[],"generatedAt":"2026-07-05T17:12:00.765Z"}

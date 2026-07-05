@@ -1,0 +1,1 @@
+{"season":2026,"stat":{"id":"first-inning-run-share","title":"First-Inning Ambush Rate","subtitle":"Share of runs scored in the opening frame.","category":"chaos","sort":"desc","unit":"%","formula":"first-inning runs ÷ total runs scored × 100","leagueAverage":null,"leagueAverageDisplay":null,"leaders":[]},"allTeams":[],"notableEvents":[],"generatedAt":"2026-07-05T17:12:00.582Z"}

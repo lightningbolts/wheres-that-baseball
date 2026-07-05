@@ -1,0 +1,1 @@
+{"season":2026,"stat":{"id":"sl-avg-spin","title":"Slider Spin","subtitle":"Average slider spin rate.","category":"defense","sort":"desc","unit":"rpm","formula":"sum of Slider spin rates ÷ Slider count (min 100 pitches)","leagueAverage":null,"leagueAverageDisplay":null,"leaders":[]},"allTeams":[],"notableEvents":[],"generatedAt":"2026-07-05T17:12:00.765Z"}

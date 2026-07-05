@@ -1,0 +1,1 @@
+{"season":2026,"stat":{"id":"cu-avg-velocity","title":"Curveball Velo","subtitle":"Average curveball velocity thrown.","category":"defense","sort":"desc","unit":"mph","formula":"sum of Curveball velocities ÷ Curveball count (min 100 pitches)","leagueAverage":null,"leagueAverageDisplay":null,"leaders":[]},"allTeams":[],"notableEvents":[],"generatedAt":"2026-07-05T17:12:00.587Z"}

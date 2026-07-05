@@ -1,0 +1,1 @@
+{"season":2026,"stat":{"id":"si-avg-spin","title":"Sinker Spin","subtitle":"Average sinker spin rate.","category":"defense","sort":"desc","unit":"rpm","formula":"sum of Sinker spin rates ÷ Sinker count (min 100 pitches)","leagueAverage":null,"leagueAverageDisplay":null,"leaders":[]},"allTeams":[],"notableEvents":[],"generatedAt":"2026-07-05T17:12:00.659Z"}

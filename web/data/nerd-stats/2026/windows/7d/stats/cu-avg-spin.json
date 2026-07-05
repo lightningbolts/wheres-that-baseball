@@ -1,0 +1,1 @@
+{"season":2026,"stat":{"id":"cu-avg-spin","title":"Curveball Spin","subtitle":"Average curveball spin rate.","category":"defense","sort":"desc","unit":"rpm","formula":"sum of Curveball spin rates ÷ Curveball count (min 100 pitches)","leagueAverage":null,"leagueAverageDisplay":null,"leaders":[]},"allTeams":[],"notableEvents":[],"generatedAt":"2026-07-05T17:12:00.587Z"}

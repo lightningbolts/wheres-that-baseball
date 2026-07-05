@@ -1,0 +1,1 @@
+{"season":2026,"stat":{"id":"late-inning-run-share","title":"Late-Inning Panic Rate","subtitle":"Share of runs scored from the 8th on.","category":"chaos","sort":"desc","unit":"%","formula":"8th-inning+ runs ÷ total runs scored × 100","leagueAverage":null,"leagueAverageDisplay":null,"leaders":[]},"allTeams":[],"notableEvents":[],"generatedAt":"2026-07-05T17:12:00.582Z"}

@@ -1,0 +1,1 @@
+{"season":2026,"stat":{"id":"steal-attempt-rate","title":"Green Light Fanatics","subtitle":"Steal attempts per game.","category":"baserunning","sort":"desc","unit":"per game","formula":"(stolen bases + caught stealing) ÷ games with feed","leagueAverage":null,"leagueAverageDisplay":null,"leaders":[]},"allTeams":[],"notableEvents":[],"generatedAt":"2026-07-05T17:12:00.747Z"}

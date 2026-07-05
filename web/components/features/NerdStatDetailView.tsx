@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 
 import { AppNav } from "@/components/features/AppNav";
@@ -10,6 +11,10 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { useNerdStatDetail } from "@/hooks/useNerdStats";
 import { blockScrollPersist } from "@/lib/scrollRestoration";
 import { NERD_STAT_CATEGORIES } from "@/lib/mlb/nerdStats/types";
+import {
+  nerdStatWindowLabel,
+  parseNerdStatWindow,
+} from "@/lib/mlb/nerdStats/windows";
 import { cn } from "@/lib/utils";
 
 const CURRENT_SEASON = new Date().getFullYear();
@@ -19,7 +24,9 @@ interface NerdStatDetailViewProps {
 }
 
 export function NerdStatDetailView({ statId }: NerdStatDetailViewProps) {
-  const { data, isLoading, error } = useNerdStatDetail(statId, CURRENT_SEASON);
+  const searchParams = useSearchParams();
+  const timeWindow = parseNerdStatWindow(searchParams.get("window"));
+  const { data, isLoading, error } = useNerdStatDetail(statId, CURRENT_SEASON, timeWindow);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -35,13 +42,19 @@ export function NerdStatDetailView({ statId }: NerdStatDetailViewProps) {
 
       <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-6">
         <Link
-          href="/nerd"
+          href={timeWindow === "season" ? "/nerd" : `/nerd?window=${timeWindow}`}
           scroll={false}
           onClick={() => blockScrollPersist(2000)}
           className="text-xs text-muted transition-colors hover:text-foreground"
         >
           ← Nerd Standings
         </Link>
+
+        {error && (
+          <div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+            {error}
+          </div>
+        )}
 
         {isLoading ? (
           <div className="mt-4 space-y-4">
@@ -57,6 +70,7 @@ export function NerdStatDetailView({ statId }: NerdStatDetailViewProps) {
                   {categoryLabel}
                 </p>
                 <h1 className="mt-1 text-xl font-medium text-foreground">{data.stat.title}</h1>
+                <p className="mt-1 text-xs text-subtle">{nerdStatWindowLabel(timeWindow)}</p>
                 <p className="mt-2 max-w-2xl text-sm text-muted">{data.stat.subtitle}</p>
                 {data.stat.formula && (
                   <p className="mt-2 max-w-2xl rounded-lg border border-border bg-surface px-3 py-2 font-mono text-xs text-secondary">

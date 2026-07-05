@@ -6,6 +6,7 @@ import {
   loadNerdStatDetail,
   loadNerdStatsSummary,
   loadTeamNerdCard,
+  parseNerdStatsWindowParam,
 } from "@/lib/mlb/nerdStats/store";
 import { getNerdStatDefinition } from "@/lib/mlb/nerdStats/definitions";
 
@@ -16,6 +17,7 @@ export async function GET(request: Request) {
   const seasonParam = searchParams.get("season");
   const statId = searchParams.get("statId");
   const teamIdParam = searchParams.get("teamId");
+  const window = parseNerdStatsWindowParam(searchParams.get("window"));
   const season = seasonParam ? Number.parseInt(seasonParam, 10) : new Date().getFullYear();
   const teamId = teamIdParam ? Number.parseInt(teamIdParam, 10) : undefined;
 
@@ -41,16 +43,23 @@ export async function GET(request: Request) {
       }
       result = card;
     } else if (statId) {
-      const detail = loadNerdStatDetail(season, statId);
+      const detail = loadNerdStatDetail(season, statId, window);
       if (!detail) {
         return NextResponse.json({ error: "Stat data not found" }, { status: 404 });
       }
       result = detail;
     } else {
-      const summary = loadNerdStatsSummary(season);
+      const summary = loadNerdStatsSummary(season, window);
       result = summary
         ? { ...summary, source: "file" as const }
-        : { ...getEmptyNerdStatsSummary(season), source: "empty" as const, backfillPending: true };
+        : window === "season"
+          ? { ...getEmptyNerdStatsSummary(season), source: "empty" as const, backfillPending: true }
+          : {
+              ...getEmptyNerdStatsSummary(season),
+              source: "empty" as const,
+              window,
+              backfillPending: true,
+            };
     }
 
     return NextResponse.json(result, {

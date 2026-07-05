@@ -337,6 +337,9 @@ export function extractNerdCountersFromGame(row: GameNerdSourceRow): SeasonNerdC
   };
   const margin = Math.abs(awayScore - homeScore);
 
+  away.runsAllowed += homeScore;
+  home.runsAllowed += awayScore;
+
   if (teamWon(row.away_team_id, scoreRow)) {
     away.wins += 1;
     home.losses += 1;
@@ -756,10 +759,12 @@ export function extractNerdCountersFromGame(row: GameNerdSourceRow): SeasonNerdC
 
       if (play.inning === 1 && runsForOffense > 0) {
         offense.firstInningRuns += runsForOffense;
+        defense.firstInningRunsAllowed += runsForOffense;
       }
 
       if (play.inning >= 8 && runsForOffense > 0) {
         offense.lateInningRuns += runsForOffense;
+        defense.lateInningRunsAllowed += runsForOffense;
       }
 
       if (/error/i.test(`${play.event} ${play.description}`)) {

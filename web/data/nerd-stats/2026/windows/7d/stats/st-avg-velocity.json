@@ -1,0 +1,1 @@
+{"season":2026,"stat":{"id":"st-avg-velocity","title":"Sweeper Velo","subtitle":"Average sweeper velocity thrown.","category":"defense","sort":"desc","unit":"mph","formula":"sum of Sweeper velocities ÷ Sweeper count (min 100 pitches)","leagueAverage":null,"leagueAverageDisplay":null,"leaders":[]},"allTeams":[],"notableEvents":[],"generatedAt":"2026-07-05T17:12:00.588Z"}

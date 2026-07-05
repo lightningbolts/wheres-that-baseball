@@ -24,6 +24,9 @@ export function createEmptyTeamCounters(): TeamNerdCounters {
     runsWithTwoOuts: 0,
     firstInningRuns: 0,
     lateInningRuns: 0,
+    runsAllowed: 0,
+    firstInningRunsAllowed: 0,
+    lateInningRunsAllowed: 0,
     plateAppearances: 0,
     strikeouts: 0,
     walks: 0,
@@ -191,6 +194,9 @@ export function mergeTeamCounters(target: TeamNerdCounters, source: TeamNerdCoun
   target.runsWithTwoOuts += source.runsWithTwoOuts;
   target.firstInningRuns += source.firstInningRuns;
   target.lateInningRuns += source.lateInningRuns;
+  target.runsAllowed += source.runsAllowed;
+  target.firstInningRunsAllowed += source.firstInningRunsAllowed;
+  target.lateInningRunsAllowed += source.lateInningRunsAllowed;
   target.plateAppearances += source.plateAppearances;
   target.strikeouts += source.strikeouts;
   target.walks += source.walks;

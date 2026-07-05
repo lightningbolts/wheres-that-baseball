@@ -4,17 +4,26 @@ import Link from "next/link";
 
 import { TeamLogo } from "@/components/ui/TeamLogo";
 import { saveReturnScrollPosition, saveScrollPosition } from "@/lib/scrollRestoration";
+import { nerdStatCardSurfaceStyle } from "@/lib/mlb/nerdStats/nerdStatCardSurface";
 import type { NerdStatLeaderboard } from "@/lib/mlb/nerdStats/types";
+import type { NerdStatWindowId } from "@/lib/mlb/nerdStats/windows";
 import { cn } from "@/lib/utils";
 
 interface NerdStatCardProps {
   stat: NerdStatLeaderboard;
   season: number;
+  timeWindow?: NerdStatWindowId;
   highlighted?: boolean;
   className?: string;
 }
 
-export function NerdStatCard({ stat, season, highlighted, className }: NerdStatCardProps) {
+export function NerdStatCard({
+  stat,
+  season,
+  timeWindow = "season",
+  highlighted,
+  className,
+}: NerdStatCardProps) {
   const allZero =
     stat.leaders.length > 0 && stat.leaders.every((leader) => leader.value === 0);
   const emptyMessage =
@@ -26,7 +35,7 @@ export function NerdStatCard({ stat, season, highlighted, className }: NerdStatC
 
   return (
     <Link
-      href={`/nerd/${stat.id}`}
+      href={timeWindow === "season" ? `/nerd/${stat.id}` : `/nerd/${stat.id}?window=${timeWindow}`}
       scroll={false}
       onClick={() => {
         const path = window.location.pathname;
@@ -36,13 +45,16 @@ export function NerdStatCard({ stat, season, highlighted, className }: NerdStatC
         saveReturnScrollPosition(path, y, query);
       }}
       className={cn(
-        "group flex flex-col rounded-xl border bg-surface p-4 transition-colors",
+        "group relative flex flex-col overflow-hidden rounded-xl border p-4 transition-colors",
         highlighted
           ? "border-secondary/40 ring-1 ring-secondary/20"
-          : "border-border hover:border-border-strong hover:bg-surface-elevated",
+          : "border-border hover:border-border-strong hover:bg-surface-elevated/80",
         className,
       )}
+      style={nerdStatCardSurfaceStyle(stat.id, stat.category)}
     >
+      <div className="pointer-events-none absolute inset-0 bg-surface/88" aria-hidden />
+      <div className="relative z-[1] flex min-h-0 flex-1 flex-col">
       <div className="mb-1 flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted">
@@ -90,6 +102,7 @@ export function NerdStatCard({ stat, season, highlighted, className }: NerdStatC
       <span className="mt-3 text-[11px] text-muted group-hover:text-secondary">
         Full leaderboard →
       </span>
+      </div>
     </Link>
   );
 }

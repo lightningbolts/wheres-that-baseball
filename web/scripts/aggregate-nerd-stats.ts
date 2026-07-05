@@ -38,7 +38,9 @@ import {
   loadSeasonCounters,
   type WriteNerdStatsStoreOptions,
   writeNerdStatsStore,
+  writeWindowNerdStatsStore,
 } from "../lib/mlb/nerdStats/store";
+import { gameDateInNerdWindow, NERD_STAT_WINDOWS } from "../lib/mlb/nerdStats/windows";
 
 const WEB_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const REPO_ROOT = join(WEB_ROOT, "..");
@@ -144,6 +146,34 @@ async function processGamesIntoCounters(
   return counters;
 }
 
+async function buildRollingWindowStores(
+  season: number,
+  games: GameNerdSourceRow[],
+  skipSavant: boolean,
+  storeOptions: WriteNerdStatsStoreOptions,
+): Promise<void> {
+  for (const window of NERD_STAT_WINDOWS) {
+    if (window.id === "season") continue;
+
+    const filtered = games.filter((game) => gameDateInNerdWindow(game.game_date, window.id));
+    if (filtered.length === 0) {
+      console.log(`Skipping ${window.label} — no games in range.`);
+      continue;
+    }
+
+    console.log(`Building ${window.label} from ${filtered.length} game(s)…`);
+    const counters = await processGamesIntoCounters(filtered, skipSavant);
+    const { writtenStatIds } = writeWindowNerdStatsStore(
+      season,
+      window.id,
+      counters,
+      filtered.map((game) => game.game_pk),
+      { ...storeOptions, skipTeamCards: true },
+    );
+    console.log(`  Wrote window summary + ${writtenStatIds.length} stat file(s).`);
+  }
+}
+
 async function backfillCountersFromManifest(
   season: number,
   creds: BulkCreds,
@@ -183,6 +213,8 @@ async function backfillCountersFromManifest(
   if (options.storeOptions.skipTeamCards) {
     console.log("Skipped team cards (pass --team-cards to include).");
   }
+
+  await buildRollingWindowStores(season, games, options.skipSavant, options.storeOptions);
 }
 
 type BulkCreds =
@@ -440,6 +472,7 @@ async function main() {
   });
   writeNerdStatsStore(season, counters, processed, fullRebuildStoreOptions);
   console.log(`Wrote nerd stats for ${processed.length} games to data/nerd-stats/${season}/`);
+  await buildRollingWindowStores(season, games, skipSavant, fullRebuildStoreOptions);
 }
 
 main().catch((error) => {

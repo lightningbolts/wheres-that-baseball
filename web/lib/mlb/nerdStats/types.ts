@@ -57,6 +57,9 @@ export interface TeamNerdCounters {
   runsWithTwoOuts: number;
   firstInningRuns: number;
   lateInningRuns: number;
+  runsAllowed: number;
+  firstInningRunsAllowed: number;
+  lateInningRunsAllowed: number;
   plateAppearances: number;
   strikeouts: number;
   walks: number;
@@ -187,6 +190,8 @@ export interface NerdStatsSummary {
   indexedGameCount: number;
   stats: NerdStatLeaderboard[];
   statOfTheDayId: string;
+  window?: string;
+  windowLabel?: string;
   backfillPending?: boolean;
   source?: "file" | "empty";
 }

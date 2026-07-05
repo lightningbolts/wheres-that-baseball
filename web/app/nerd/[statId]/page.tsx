@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+import { Suspense } from "react";
+
 import { NerdStatDetailView } from "@/components/features/NerdStatDetailView";
 import { getNerdStatDefinition } from "@/lib/mlb/nerdStats/definitions";
 import { loadNerdStatDetail } from "@/lib/mlb/nerdStats/store";
@@ -45,5 +47,9 @@ export async function generateMetadata({ params }: NerdStatPageProps): Promise<M
 export default async function NerdStatPage({ params }: NerdStatPageProps) {
   const { statId } = await params;
   if (!getNerdStatDefinition(statId)) notFound();
-  return <NerdStatDetailView statId={statId} />;
+  return (
+    <Suspense fallback={null}>
+      <NerdStatDetailView statId={statId} />
+    </Suspense>
+  );
 }

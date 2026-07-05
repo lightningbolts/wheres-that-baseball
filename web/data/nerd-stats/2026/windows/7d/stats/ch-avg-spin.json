@@ -1,0 +1,1 @@
+{"season":2026,"stat":{"id":"ch-avg-spin","title":"Changeup Spin","subtitle":"Average changeup spin rate.","category":"defense","sort":"desc","unit":"rpm","formula":"sum of Changeup spin rates ÷ Changeup count (min 100 pitches)","leagueAverage":null,"leagueAverageDisplay":null,"leaders":[]},"allTeams":[],"notableEvents":[],"generatedAt":"2026-07-05T17:12:00.587Z"}

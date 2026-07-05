@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { AppNav } from "@/components/features/AppNav";
@@ -10,6 +11,12 @@ import { useNerdStatsSummary } from "@/hooks/useNerdStats";
 import { useRestoreScrollWhenReady } from "@/hooks/useRestoreScrollWhenReady";
 import { saveReturnScrollPosition, saveScrollPosition } from "@/lib/scrollRestoration";
 import { NERD_STAT_CATEGORIES, type NerdStatCategory } from "@/lib/mlb/nerdStats/types";
+import {
+  NERD_STAT_WINDOWS,
+  nerdStatWindowLabel,
+  parseNerdStatWindow,
+  type NerdStatWindowId,
+} from "@/lib/mlb/nerdStats/windows";
 import { MLB_TEAMS } from "@/lib/mlb/teams";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +27,7 @@ interface SavedNerdUi {
   category: NerdStatCategory | "all";
   search: string;
   teamId: number | null;
+  timeWindow: NerdStatWindowId;
 }
 
 function loadSavedNerdUi(): SavedNerdUi | null {
@@ -34,8 +42,14 @@ function loadSavedNerdUi(): SavedNerdUi | null {
 }
 
 export function NerdStandingsBrowser() {
-  const { data, isLoading, error } = useNerdStatsSummary(CURRENT_SEASON);
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const savedUi = useMemo(() => loadSavedNerdUi(), []);
+  const initialWindow = parseNerdStatWindow(
+    searchParams.get("window") ?? savedUi?.timeWindow ?? "season",
+  );
+  const [timeWindow, setTimeWindow] = useState<NerdStatWindowId>(initialWindow);
+  const { data, isLoading, error } = useNerdStatsSummary(CURRENT_SEASON, timeWindow);
   const [category, setCategory] = useState<NerdStatCategory | "all">(savedUi?.category ?? "all");
   const [search, setSearch] = useState(savedUi?.search ?? "");
   const [teamId, setTeamId] = useState<number | null>(savedUi?.teamId ?? null);
@@ -57,11 +71,25 @@ export function NerdStandingsBrowser() {
   useRestoreScrollWhenReady(!isLoading && filteredStats.length > 0);
 
   useEffect(() => {
-    const payload: SavedNerdUi = { category, search, teamId };
+    const fromUrl = parseNerdStatWindow(searchParams.get("window"));
+    setTimeWindow(fromUrl);
+  }, [searchParams]);
+
+  useEffect(() => {
+    const payload: SavedNerdUi = { category, search, teamId, timeWindow };
     sessionStorage.setItem(NERD_UI_STORAGE_KEY, JSON.stringify(payload));
-  }, [category, search, teamId]);
+  }, [category, search, teamId, timeWindow]);
 
   const statOfTheDay = data?.stats.find((stat) => stat.id === data.statOfTheDayId);
+
+  function handleWindowChange(nextWindow: NerdStatWindowId) {
+    setTimeWindow(nextWindow);
+    const params = new URLSearchParams(searchParams.toString());
+    if (nextWindow === "season") params.delete("window");
+    else params.set("window", nextWindow);
+    const query = params.toString();
+    router.replace(query ? `/nerd?${query}` : "/nerd", { scroll: false });
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
@@ -71,7 +99,7 @@ export function NerdStandingsBrowser() {
         <div className="mb-6">
           <h1 className="text-xl font-medium text-foreground">Nerd Standings</h1>
           <p className="mt-1 text-sm text-muted">
-            Team stat standings for the {CURRENT_SEASON} season.
+            Team stat standings · {nerdStatWindowLabel(timeWindow).toLowerCase()}.
           </p>
           {!isLoading && data && (
             <p className="mt-2 text-xs text-subtle">
@@ -102,6 +130,17 @@ export function NerdStandingsBrowser() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={timeWindow}
+              onChange={(event) => handleWindowChange(parseNerdStatWindow(event.target.value))}
+              className="rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-foreground"
+            >
+              {NERD_STAT_WINDOWS.map((window) => (
+                <option key={window.id} value={window.id}>
+                  {window.label}
+                </option>
+              ))}
+            </select>
             <input
               type="search"
               value={search}
@@ -153,7 +192,8 @@ export function NerdStandingsBrowser() {
                 key={stat.id}
                 stat={stat}
                 season={CURRENT_SEASON}
-                highlighted={stat.id === data?.statOfTheDayId}
+                timeWindow={timeWindow}
+                highlighted={stat.id === data?.statOfTheDayId && timeWindow === "season"}
               />
             ))}
           </div>

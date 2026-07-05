@@ -1,0 +1,1 @@
+{"season":2026,"stat":{"id":"error-free-rate","title":"Error-Free Rate","subtitle":"Share of games without an error committed.","category":"defense","sort":"desc","unit":"%","formula":"error-free games ÷ games with feed × 100","leagueAverage":null,"leagueAverageDisplay":null,"leaders":[]},"allTeams":[],"notableEvents":[],"generatedAt":"2026-07-05T17:12:00.649Z"}
