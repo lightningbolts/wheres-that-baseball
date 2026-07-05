@@ -13,6 +13,28 @@ import { parseStoredGameState } from "@/lib/games/gameState";
 const AWAY_ID = 119;
 const HOME_ID = 134;
 
+function makePitch(balls: number, strikes: number) {
+  return {
+    pitchNumber: 1,
+    typeCode: "FF",
+    typeDescription: "Four-Seam",
+    callDescription: "Ball",
+    callCode: "B",
+    balls,
+    strikes,
+    startSpeed: 95,
+    plateX: 0,
+    plateZ: 0,
+    isStrike: false,
+    isBall: true,
+    isInPlay: false,
+    isOut: false,
+    isPitch: true,
+    strikeZoneTop: 3.5,
+    strikeZoneBottom: 1.5,
+  };
+}
+
 function makePlay(overrides: Partial<PlayByPlayEntry>): PlayByPlayEntry {
   return {
     atBatIndex: 0,
@@ -85,8 +107,25 @@ function extractFromPlays(plays: PlayByPlayEntry[]) {
   return extractNerdCountersFromGame(row)[String(AWAY_ID)]!;
 }
 
+function fangraphsObp(counters: {
+  fullCountHits: number;
+  fullCountAtBats: number;
+  fullCountWalks: number;
+  fullCountHbp: number;
+  fullCountSacFlies: number;
+}): number {
+  const numerator =
+    counters.fullCountHits + counters.fullCountWalks + counters.fullCountHbp;
+  const denominator =
+    counters.fullCountAtBats +
+    counters.fullCountWalks +
+    counters.fullCountHbp +
+    counters.fullCountSacFlies;
+  return numerator / denominator;
+}
+
 describe("full-count extraction", () => {
-  it("tracks slash inputs only for plate appearances that reached 3-2", () => {
+  it("uses Fangraphs OBP and SLG inputs for plate appearances that reached 3-2", () => {
     const counters = extractFromPlays([
       makePlay({
         atBatIndex: 0,
@@ -94,84 +133,7 @@ describe("full-count extraction", () => {
         detail: {
           ...makePlay({}).detail,
           event: "Single",
-          pitches: [
-            {
-              pitchNumber: 1,
-              typeCode: "FF",
-              typeDescription: "Four-Seam",
-              callDescription: "Ball",
-              callCode: "B",
-              balls: 1,
-              strikes: 0,
-              startSpeed: 95,
-              plateX: 0,
-              plateZ: 0,
-              isStrike: false,
-              isBall: true,
-              isInPlay: false,
-              isOut: false,
-              isPitch: true,
-              strikeZoneTop: 3.5,
-              strikeZoneBottom: 1.5,
-            },
-            {
-              pitchNumber: 2,
-              typeCode: "FF",
-              typeDescription: "Four-Seam",
-              callDescription: "Ball",
-              callCode: "B",
-              balls: 2,
-              strikes: 0,
-              startSpeed: 95,
-              plateX: 0,
-              plateZ: 0,
-              isStrike: false,
-              isBall: true,
-              isInPlay: false,
-              isOut: false,
-              isPitch: true,
-              strikeZoneTop: 3.5,
-              strikeZoneBottom: 1.5,
-            },
-            {
-              pitchNumber: 3,
-              typeCode: "FF",
-              typeDescription: "Four-Seam",
-              callDescription: "Called Strike",
-              callCode: "C",
-              balls: 2,
-              strikes: 1,
-              startSpeed: 95,
-              plateX: 0,
-              plateZ: 0,
-              isStrike: true,
-              isBall: false,
-              isInPlay: false,
-              isOut: false,
-              isPitch: true,
-              strikeZoneTop: 3.5,
-              strikeZoneBottom: 1.5,
-            },
-            {
-              pitchNumber: 4,
-              typeCode: "FF",
-              typeDescription: "Four-Seam",
-              callDescription: "In play",
-              callCode: "X",
-              balls: 2,
-              strikes: 1,
-              startSpeed: 95,
-              plateX: 0,
-              plateZ: 0,
-              isStrike: false,
-              isBall: false,
-              isInPlay: true,
-              isOut: false,
-              isPitch: true,
-              strikeZoneTop: 3.5,
-              strikeZoneBottom: 1.5,
-            },
-          ],
+          pitches: [makePitch(1, 0), makePitch(2, 0), makePitch(2, 1)],
         },
       }),
       makePlay({
@@ -181,120 +143,12 @@ describe("full-count extraction", () => {
           ...makePlay({}).detail,
           event: "Double",
           pitches: [
-            {
-              pitchNumber: 1,
-              typeCode: "FF",
-              typeDescription: "Four-Seam",
-              callDescription: "Ball",
-              callCode: "B",
-              balls: 1,
-              strikes: 0,
-              startSpeed: 95,
-              plateX: 0,
-              plateZ: 0,
-              isStrike: false,
-              isBall: true,
-              isInPlay: false,
-              isOut: false,
-              isPitch: true,
-              strikeZoneTop: 3.5,
-              strikeZoneBottom: 1.5,
-            },
-            {
-              pitchNumber: 2,
-              typeCode: "FF",
-              typeDescription: "Four-Seam",
-              callDescription: "Called Strike",
-              callCode: "C",
-              balls: 1,
-              strikes: 1,
-              startSpeed: 95,
-              plateX: 0,
-              plateZ: 0,
-              isStrike: true,
-              isBall: false,
-              isInPlay: false,
-              isOut: false,
-              isPitch: true,
-              strikeZoneTop: 3.5,
-              strikeZoneBottom: 1.5,
-            },
-            {
-              pitchNumber: 3,
-              typeCode: "FF",
-              typeDescription: "Four-Seam",
-              callDescription: "Ball",
-              callCode: "B",
-              balls: 2,
-              strikes: 1,
-              startSpeed: 95,
-              plateX: 0,
-              plateZ: 0,
-              isStrike: false,
-              isBall: true,
-              isInPlay: false,
-              isOut: false,
-              isPitch: true,
-              strikeZoneTop: 3.5,
-              strikeZoneBottom: 1.5,
-            },
-            {
-              pitchNumber: 4,
-              typeCode: "FF",
-              typeDescription: "Four-Seam",
-              callDescription: "Called Strike",
-              callCode: "C",
-              balls: 2,
-              strikes: 2,
-              startSpeed: 95,
-              plateX: 0,
-              plateZ: 0,
-              isStrike: true,
-              isBall: false,
-              isInPlay: false,
-              isOut: false,
-              isPitch: true,
-              strikeZoneTop: 3.5,
-              strikeZoneBottom: 1.5,
-            },
-            {
-              pitchNumber: 5,
-              typeCode: "FF",
-              typeDescription: "Four-Seam",
-              callDescription: "Ball",
-              callCode: "B",
-              balls: 3,
-              strikes: 2,
-              startSpeed: 95,
-              plateX: 0,
-              plateZ: 0,
-              isStrike: false,
-              isBall: true,
-              isInPlay: false,
-              isOut: false,
-              isPitch: true,
-              strikeZoneTop: 3.5,
-              strikeZoneBottom: 1.5,
-            },
-            {
-              pitchNumber: 6,
-              typeCode: "FF",
-              typeDescription: "Four-Seam",
-              callDescription: "In play",
-              callCode: "X",
-              balls: 3,
-              strikes: 2,
-              startSpeed: 95,
-              plateX: 0,
-              plateZ: 0,
-              isStrike: false,
-              isBall: false,
-              isInPlay: true,
-              isOut: false,
-              isPitch: true,
-              strikeZoneTop: 3.5,
-              strikeZoneBottom: 1.5,
-            },
+            makePitch(1, 0),
+            makePitch(1, 1),
+            makePitch(2, 1),
+            makePitch(2, 2),
+            makePitch(3, 2),
+            makePitch(3, 2),
           ],
         },
       }),
@@ -304,27 +158,7 @@ describe("full-count extraction", () => {
         detail: {
           ...makePlay({}).detail,
           event: "Walk",
-          pitches: [
-            {
-              pitchNumber: 1,
-              typeCode: "FF",
-              typeDescription: "Four-Seam",
-              callDescription: "Ball",
-              callCode: "B",
-              balls: 3,
-              strikes: 2,
-              startSpeed: 95,
-              plateX: 0,
-              plateZ: 0,
-              isStrike: false,
-              isBall: true,
-              isInPlay: false,
-              isOut: false,
-              isPitch: true,
-              strikeZoneTop: 3.5,
-              strikeZoneBottom: 1.5,
-            },
-          ],
+          pitches: [makePitch(3, 2)],
         },
       }),
       makePlay({
@@ -333,27 +167,7 @@ describe("full-count extraction", () => {
         detail: {
           ...makePlay({}).detail,
           event: "Sacrifice Fly",
-          pitches: [
-            {
-              pitchNumber: 1,
-              typeCode: "FF",
-              typeDescription: "Four-Seam",
-              callDescription: "Ball",
-              callCode: "B",
-              balls: 3,
-              strikes: 2,
-              startSpeed: 95,
-              plateX: 0,
-              plateZ: 0,
-              isStrike: false,
-              isBall: true,
-              isInPlay: false,
-              isOut: false,
-              isPitch: true,
-              strikeZoneTop: 3.5,
-              strikeZoneBottom: 1.5,
-            },
-          ],
+          pitches: [makePitch(3, 2)],
         },
       }),
     ]);
@@ -364,12 +178,7 @@ describe("full-count extraction", () => {
     expect(counters.fullCountSacFlies).toBe(1);
     expect(counters.fullCountTotalBases).toBe(2);
 
-    const obp =
-      (counters.fullCountHits + counters.fullCountWalks + counters.fullCountHbp) /
-      (counters.fullCountAtBats +
-        counters.fullCountWalks +
-        counters.fullCountHbp +
-        counters.fullCountSacFlies);
+    const obp = fangraphsObp(counters);
     const slg = counters.fullCountTotalBases / counters.fullCountAtBats;
 
     expect(obp).toBeCloseTo(2 / 3, 5);
