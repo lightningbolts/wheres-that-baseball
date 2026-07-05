@@ -12,6 +12,11 @@ import { useNerdStatDetail } from "@/hooks/useNerdStats";
 import { blockScrollPersist } from "@/lib/scrollRestoration";
 import { NERD_STAT_CATEGORIES } from "@/lib/mlb/nerdStats/types";
 import {
+  nerdStandingsHref,
+  nerdStatSplitLabel,
+  parseNerdStatSplit,
+} from "@/lib/mlb/nerdStats/splits";
+import {
   nerdStatWindowLabel,
   parseNerdStatWindow,
 } from "@/lib/mlb/nerdStats/windows";
@@ -26,7 +31,13 @@ interface NerdStatDetailViewProps {
 export function NerdStatDetailView({ statId }: NerdStatDetailViewProps) {
   const searchParams = useSearchParams();
   const timeWindow = parseNerdStatWindow(searchParams.get("window"));
-  const { data, isLoading, error } = useNerdStatDetail(statId, CURRENT_SEASON, timeWindow);
+  const venueSplit = parseNerdStatSplit(searchParams.get("split"));
+  const { data, isLoading, error } = useNerdStatDetail(
+    statId,
+    CURRENT_SEASON,
+    timeWindow,
+    venueSplit,
+  );
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -42,7 +53,7 @@ export function NerdStatDetailView({ statId }: NerdStatDetailViewProps) {
 
       <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-6">
         <Link
-          href={timeWindow === "season" ? "/nerd" : `/nerd?window=${timeWindow}`}
+          href={nerdStandingsHref(timeWindow, venueSplit)}
           scroll={false}
           onClick={() => blockScrollPersist(2000)}
           className="text-xs text-muted transition-colors hover:text-foreground"
@@ -70,7 +81,12 @@ export function NerdStatDetailView({ statId }: NerdStatDetailViewProps) {
                   {categoryLabel}
                 </p>
                 <h1 className="mt-1 text-xl font-medium text-foreground">{data.stat.title}</h1>
-                <p className="mt-1 text-xs text-subtle">{nerdStatWindowLabel(timeWindow)}</p>
+                <p className="mt-1 text-xs text-subtle">
+                  {nerdStatWindowLabel(timeWindow)}
+                  {venueSplit !== "all" && timeWindow === "season"
+                    ? ` · ${nerdStatSplitLabel(venueSplit)}`
+                    : ""}
+                </p>
                 <p className="mt-2 max-w-2xl text-sm text-muted">{data.stat.subtitle}</p>
                 {data.stat.formula && (
                   <p className="mt-2 max-w-2xl rounded-lg border border-border bg-surface px-3 py-2 font-mono text-xs text-secondary">

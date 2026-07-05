@@ -193,6 +193,8 @@ export interface NerdStatsSummary {
   statOfTheDayId: string;
   window?: string;
   windowLabel?: string;
+  split?: string;
+  splitLabel?: string;
   backfillPending?: boolean;
   source?: "file" | "empty";
 }

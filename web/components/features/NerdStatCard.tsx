@@ -5,6 +5,8 @@ import Link from "next/link";
 import { TeamLogo } from "@/components/ui/TeamLogo";
 import { saveReturnScrollPosition, saveScrollPosition } from "@/lib/scrollRestoration";
 import { nerdStatCardSurfaceStyle } from "@/lib/mlb/nerdStats/nerdStatCardSurface";
+import { nerdStatDetailHref } from "@/lib/mlb/nerdStats/splits";
+import type { NerdStatSplitFilter } from "@/lib/mlb/nerdStats/splits";
 import type { NerdStatLeaderboard } from "@/lib/mlb/nerdStats/types";
 import type { NerdStatWindowId } from "@/lib/mlb/nerdStats/windows";
 import { cn } from "@/lib/utils";
@@ -13,6 +15,7 @@ interface NerdStatCardProps {
   stat: NerdStatLeaderboard;
   season: number;
   timeWindow?: NerdStatWindowId;
+  venueSplit?: NerdStatSplitFilter;
   highlighted?: boolean;
   className?: string;
 }
@@ -21,6 +24,7 @@ export function NerdStatCard({
   stat,
   season,
   timeWindow = "season",
+  venueSplit = "all",
   highlighted,
   className,
 }: NerdStatCardProps) {
@@ -35,7 +39,7 @@ export function NerdStatCard({
 
   return (
     <Link
-      href={timeWindow === "season" ? `/nerd/${stat.id}` : `/nerd/${stat.id}?window=${timeWindow}`}
+      href={nerdStatDetailHref(stat.id, timeWindow, venueSplit)}
       scroll={false}
       onClick={() => {
         const path = window.location.pathname;

@@ -2,6 +2,24 @@ import { createEmptyPitchTypesThrown, mergePitchTypesThrown } from "@/lib/mlb/ne
 import type { NotableNerdEvent, SeasonNerdCounters, TeamNerdCounters } from "@/lib/mlb/nerdStats/types";
 import { MLB_TEAMS } from "@/lib/mlb/teams";
 
+/** Absorbs counter mutations when a team is excluded from a home/away split pass. */
+export function createDiscardedTeamCounters(): TeamNerdCounters {
+  const sink = createEmptyTeamCounters();
+  return new Proxy(sink, {
+    set(_target, prop, _value) {
+      if (prop === "notableEvents" || prop === "pitchTypesThrown") return true;
+      return true;
+    },
+    get(target, prop) {
+      if (prop === "notableEvents") return [];
+      if (prop === "pitchTypesThrown") return createEmptyPitchTypesThrown();
+      const value = Reflect.get(target, prop);
+      if (typeof value === "number") return 0;
+      return value;
+    },
+  }) as TeamNerdCounters;
+}
+
 export function createEmptyTeamCounters(): TeamNerdCounters {
   return {
     gamesPlayed: 0,

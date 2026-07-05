@@ -14,11 +14,20 @@ import {
   type NerdStatWindowId,
   windowEffectiveMinGames,
 } from "@/lib/mlb/nerdStats/windows";
+import {
+  splitEffectiveMinGames,
+  type NerdStatSplitFilter,
+} from "@/lib/mlb/nerdStats/splits";
 
 let activeNerdStatWindow: NerdStatWindowId = "season";
+let activeNerdStatSplit: NerdStatSplitFilter = "all";
 
 export function getActiveNerdStatWindow(): NerdStatWindowId {
   return activeNerdStatWindow;
+}
+
+export function getActiveNerdStatSplit(): NerdStatSplitFilter {
+  return activeNerdStatSplit;
 }
 
 export function withNerdStatWindow<T>(windowId: NerdStatWindowId, fn: () => T): T {
@@ -31,6 +40,16 @@ export function withNerdStatWindow<T>(windowId: NerdStatWindowId, fn: () => T): 
   }
 }
 
+export function withNerdStatSplit<T>(split: NerdStatSplitFilter, fn: () => T): T {
+  const previous = activeNerdStatSplit;
+  activeNerdStatSplit = split;
+  try {
+    return fn();
+  } finally {
+    activeNerdStatSplit = previous;
+  }
+}
+
 export {
   getNerdStatDefinition,
   NERD_STAT_DEFINITIONS,
@@ -40,7 +59,8 @@ export { pickStatOfTheDay } from "@/lib/mlb/nerdStats/socialHabit";
 
 function meetsMinimum(definition: NerdStatDefinition, counters: { finalGamesWithFeed: number }): boolean {
   if (definition.minGames == null) return true;
-  const minGames = windowEffectiveMinGames(definition.minGames, activeNerdStatWindow);
+  let minGames = windowEffectiveMinGames(definition.minGames, activeNerdStatWindow);
+  minGames = splitEffectiveMinGames(minGames, activeNerdStatSplit);
   return counters.finalGamesWithFeed >= minGames;
 }
 

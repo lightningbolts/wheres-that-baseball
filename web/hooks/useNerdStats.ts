@@ -7,6 +7,7 @@ import type {
   NerdStatsSummary,
   TeamNerdCard,
 } from "@/lib/mlb/nerdStats/types";
+import type { NerdStatSplitFilter } from "@/lib/mlb/nerdStats/splits";
 import type { NerdStatWindowId } from "@/lib/mlb/nerdStats/windows";
 
 interface UseNerdStatsSummaryResult {
@@ -39,15 +40,21 @@ async function fetchNerdStats<T extends object>(params: URLSearchParams): Promis
   return body as T;
 }
 
-function windowParams(season: number, window: NerdStatWindowId): URLSearchParams {
+function nerdStatsParams(
+  season: number,
+  window: NerdStatWindowId,
+  split: NerdStatSplitFilter,
+): URLSearchParams {
   const params = new URLSearchParams({ season: String(season) });
   if (window !== "season") params.set("window", window);
+  if (split !== "all" && window === "season") params.set("split", split);
   return params;
 }
 
 export function useNerdStatsSummary(
   season: number,
   window: NerdStatWindowId = "season",
+  split: NerdStatSplitFilter = "all",
 ): UseNerdStatsSummaryResult {
   const [data, setData] = useState<NerdStatsSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -59,7 +66,9 @@ export function useNerdStatsSummary(
     setIsLoading(true);
     setError(null);
     try {
-      const result = await fetchNerdStats<NerdStatsSummary>(windowParams(season, window));
+      const result = await fetchNerdStats<NerdStatsSummary>(
+        nerdStatsParams(season, window, split),
+      );
       if (requestId !== requestIdRef.current) return;
       setData(result);
     } catch (fetchError) {
@@ -69,7 +78,7 @@ export function useNerdStatsSummary(
     } finally {
       if (requestId === requestIdRef.current) setIsLoading(false);
     }
-  }, [season, window]);
+  }, [season, split, window]);
 
   useEffect(() => {
     void refetch();
@@ -82,6 +91,7 @@ export function useNerdStatDetail(
   statId: string,
   season: number,
   window: NerdStatWindowId = "season",
+  split: NerdStatSplitFilter = "all",
 ): UseNerdStatDetailResult {
   const [data, setData] = useState<NerdStatDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -93,7 +103,7 @@ export function useNerdStatDetail(
     setIsLoading(true);
     setError(null);
     try {
-      const params = windowParams(season, window);
+      const params = nerdStatsParams(season, window, split);
       params.set("statId", statId);
       const result = await fetchNerdStats<NerdStatDetail>(params);
       if (requestId !== requestIdRef.current) return;
@@ -105,7 +115,7 @@ export function useNerdStatDetail(
     } finally {
       if (requestId === requestIdRef.current) setIsLoading(false);
     }
-  }, [season, statId, window]);
+  }, [season, split, statId, window]);
 
   useEffect(() => {
     void refetch();

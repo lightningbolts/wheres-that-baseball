@@ -2,6 +2,7 @@ import { parseStoredGameState } from "@/lib/games/gameState";
 import { isOfficialAtBat } from "@/lib/mlb/liveFeed";
 import {
   createEmptySeasonCounters,
+  createDiscardedTeamCounters,
   createEmptyTeamCounters,
   pushNotable,
 } from "@/lib/mlb/nerdStats/counters";
@@ -34,11 +35,20 @@ import {
 } from "@/lib/mlb/nerdStats/extractHelpers";
 import { recordPitchCounters } from "@/lib/mlb/nerdStats/pitchCounters";
 import { recordPitchTypeThrown } from "@/lib/mlb/nerdStats/pitchTypeStats";
+import { teamPassesSplitFilter, type NerdStatSplitFilter } from "@/lib/mlb/nerdStats/splits";
 import type { GameNerdSourceRow, SeasonNerdCounters } from "@/lib/mlb/nerdStats/types";
 import type { GameBoxScore } from "@/types/mlb-boxscore";
 import type { PlayByPlayEntry } from "@/types/mlb-live";
 
-function teamCounters(counters: SeasonNerdCounters, teamId: number) {
+function teamCounters(
+  counters: SeasonNerdCounters,
+  teamId: number,
+  row: GameNerdSourceRow,
+  split: NerdStatSplitFilter,
+) {
+  if (!teamPassesSplitFilter(teamId, row, split)) {
+    return createDiscardedTeamCounters();
+  }
   const key = String(teamId);
   if (!counters[key]) counters[key] = createEmptyTeamCounters();
   return counters[key]!;
@@ -119,9 +129,11 @@ interface HalfInningTracker {
 function finalizeHalfInning(
   counters: SeasonNerdCounters,
   tracker: HalfInningTracker | null,
+  row: GameNerdSourceRow,
+  split: NerdStatSplitFilter,
 ): void {
   if (!tracker || !tracker.basesLoadedSeen || tracker.runs > 0) return;
-  teamCounters(counters, tracker.offenseId).basesLoadedNoRuns += 1;
+  teamCounters(counters, tracker.offenseId, row, split).basesLoadedNoRuns += 1;
 }
 
 function trackDeficit(
@@ -180,8 +192,9 @@ function finalizeGameTeamState(
   teamId: number,
   state: GameTeamState,
   row: GameNerdSourceRow,
+  split: NerdStatSplitFilter,
 ): void {
-  const team = teamCounters(counters, teamId);
+  const team = teamCounters(counters, teamId, row, split);
 
   if (hasCycle(state.hitTypes)) {
     team.cycleGames += 1;
@@ -313,10 +326,13 @@ function finalizeGameTeamState(
   }
 }
 
-export function extractNerdCountersFromGame(row: GameNerdSourceRow): SeasonNerdCounters {
+export function extractNerdCountersFromGame(
+  row: GameNerdSourceRow,
+  split: NerdStatSplitFilter = "all",
+): SeasonNerdCounters {
   const counters = createEmptySeasonCounters();
-  const away = teamCounters(counters, row.away_team_id);
-  const home = teamCounters(counters, row.home_team_id);
+  const away = teamCounters(counters, row.away_team_id, row, split);
+  const home = teamCounters(counters, row.home_team_id, row, split);
 
   const isFinal =
     row.away_score != null &&
@@ -413,8 +429,8 @@ export function extractNerdCountersFromGame(row: GameNerdSourceRow): SeasonNerdC
   for (const play of plays) {
     const offenseId = battingTeamId(play, row.away_team_id, row.home_team_id);
     const defenseId = fieldingTeamId(play, row.away_team_id, row.home_team_id);
-    const offense = teamCounters(counters, offenseId);
-    const defense = teamCounters(counters, defenseId);
+    const offense = teamCounters(counters, offenseId, row, split);
+    const defense = teamCounters(counters, defenseId, row, split);
     const offenseGame = offenseId === row.away_team_id ? awayGame : homeGame;
     const defenseGame = defenseId === row.away_team_id ? awayGame : homeGame;
 
@@ -422,7 +438,7 @@ export function extractNerdCountersFromGame(row: GameNerdSourceRow): SeasonNerdC
 
     const playHalf = halfKey(play);
     if (!halfTracker || halfTracker.key !== playHalf) {
-      finalizeHalfInning(counters, halfTracker);
+      finalizeHalfInning(counters, halfTracker, row, split);
       halfTracker = {
         key: playHalf,
         offenseId,
@@ -910,12 +926,13 @@ export function extractNerdCountersFromGame(row: GameNerdSourceRow): SeasonNerdC
     }
   }
 
-  finalizeHalfInning(counters, halfTracker);
+  finalizeHalfInning(counters, halfTracker, row, split);
 
   for (const { offenseId, count } of halfInningStrikeouts.values()) {
     if (count >= 3) {
-      teamCounters(counters, offenseId).immaculateInningVictims += 1;
-      pushNotable(teamCounters(counters, offenseId), {
+      const victim = teamCounters(counters, offenseId, row, split);
+      victim.immaculateInningVictims += 1;
+      pushNotable(victim, {
         statId: "immaculate-inning-victim",
         gamePk: row.game_pk,
         gameDate: row.game_date,
@@ -948,8 +965,8 @@ export function extractNerdCountersFromGame(row: GameNerdSourceRow): SeasonNerdC
     });
   }
 
-  finalizeGameTeamState(counters, row.away_team_id, awayGame, row);
-  finalizeGameTeamState(counters, row.home_team_id, homeGame, row);
+  finalizeGameTeamState(counters, row.away_team_id, awayGame, row, split);
+  finalizeGameTeamState(counters, row.home_team_id, homeGame, row, split);
 
   if (boxScore?.lineScore) {
     const awayErrors = boxScore.lineScore.away.errors;

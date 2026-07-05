@@ -1,4 +1,5 @@
-import type { SeasonNerdCounters } from "@/lib/mlb/nerdStats/types";
+import type { GameNerdSourceRow, SeasonNerdCounters } from "@/lib/mlb/nerdStats/types";
+import type { NerdStatSplitFilter } from "@/lib/mlb/nerdStats/splits";
 
 interface SavantPitchRow {
   team_batting_id?: number;
@@ -14,6 +15,7 @@ interface SavantGameFeed {
 export async function enrichCountersWithSavantBatSpeed(
   counters: SeasonNerdCounters,
   gamePk: number,
+  options?: { split?: NerdStatSplitFilter; row?: GameNerdSourceRow },
 ): Promise<void> {
   let feed: SavantGameFeed;
   try {
@@ -26,11 +28,24 @@ export async function enrichCountersWithSavantBatSpeed(
     return;
   }
 
-  const rows = [...(feed.team_home ?? []), ...(feed.team_away ?? [])];
-  for (const row of rows) {
-    const teamId = row.team_batting_id;
-    const speed = row.batSpeed;
+  const split = options?.split ?? "all";
+  const row = options?.row;
+  const homeRows = feed.team_home ?? [];
+  const awayRows = feed.team_away ?? [];
+
+  const rows =
+    split === "home"
+      ? homeRows
+      : split === "away"
+        ? awayRows
+        : [...homeRows, ...awayRows];
+
+  for (const pitchRow of rows) {
+    const teamId = pitchRow.team_batting_id;
+    const speed = pitchRow.batSpeed;
     if (teamId == null || speed == null || speed <= 0) continue;
+    if (row && split === "home" && teamId !== row.home_team_id) continue;
+    if (row && split === "away" && teamId !== row.away_team_id) continue;
 
     const team = counters[String(teamId)];
     if (!team) continue;

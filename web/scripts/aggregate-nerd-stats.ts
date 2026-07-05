@@ -12,6 +12,10 @@
  * Rewrite specific stat JSON files from existing counters (no DB fetch):
  *   npm run aggregate-nerd-stats -- --season=2026 --rebuild-store --stats=errors-committed,fielding-errors
  *
+ * Rebuild home/away split stat files from existing split counters:
+ *   npm run aggregate-nerd-stats -- --season=2026 --rebuild-windows
+ *   (also rebuilds split stores via --rebuild-windows when split counters exist)
+ *
  * Flags:
  *   --backfill-counters   Re-extract counters for games already in manifest.json
  *   --skip-savant         Skip Baseball Savant bat-speed fetches (fine for PBP-only stats)
@@ -38,12 +42,16 @@ import {
   loadNerdStatsManifest,
   loadNerdStatsSummary,
   loadSeasonCounters,
+  loadSplitCounters,
   loadWindowCounters,
+  rebuildSplitStoresFromCounters,
   rebuildWindowStoresFromCounters,
   type WriteNerdStatsStoreOptions,
   writeNerdStatsStore,
+  writeSplitNerdStatsStore,
   writeWindowNerdStatsStore,
 } from "../lib/mlb/nerdStats/store";
+import type { NerdStatSplitId } from "../lib/mlb/nerdStats/splits";
 import { gameDateInNerdWindow, NERD_STAT_WINDOWS } from "../lib/mlb/nerdStats/windows";
 
 const WEB_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -124,22 +132,47 @@ async function processGamesIntoCounters(
   games: GameNerdSourceRow[],
   skipSavant: boolean,
 ): Promise<SeasonNerdCounters> {
-  const counters = createEmptySeasonCounters();
+  const { combined } = await processGamesIntoAllCounters(games, skipSavant);
+  return combined;
+}
+
+async function processGamesIntoAllCounters(
+  games: GameNerdSourceRow[],
+  skipSavant: boolean,
+): Promise<Record<"combined" | NerdStatSplitId, SeasonNerdCounters>> {
+  const combined = createEmptySeasonCounters();
+  const home = createEmptySeasonCounters();
+  const away = createEmptySeasonCounters();
 
   for (let i = 0; i < games.length; i += SAVANT_BATCH_SIZE) {
     const batch = games.slice(i, i + SAVANT_BATCH_SIZE);
     const batchCounters = await Promise.all(
       batch.map(async (game) => {
-        const gameCounters = extractNerdCountersFromGame(game);
+        const gameCombined = extractNerdCountersFromGame(game, "all");
+        const gameHome = extractNerdCountersFromGame(game, "home");
+        const gameAway = extractNerdCountersFromGame(game, "away");
         if (!skipSavant) {
-          await enrichCountersWithSavantBatSpeed(gameCounters, game.game_pk);
+          await enrichCountersWithSavantBatSpeed(gameCombined, game.game_pk, {
+            row: game,
+            split: "all",
+          });
+          await enrichCountersWithSavantBatSpeed(gameHome, game.game_pk, {
+            row: game,
+            split: "home",
+          });
+          await enrichCountersWithSavantBatSpeed(gameAway, game.game_pk, {
+            row: game,
+            split: "away",
+          });
         }
-        return gameCounters;
+        return { gameCombined, gameHome, gameAway };
       }),
     );
 
-    for (const gameCounters of batchCounters) {
-      mergeSeasonCounters(counters, gameCounters);
+    for (const { gameCombined, gameHome, gameAway } of batchCounters) {
+      mergeSeasonCounters(combined, gameCombined);
+      mergeSeasonCounters(home, gameHome);
+      mergeSeasonCounters(away, gameAway);
     }
 
     const done = Math.min(i + SAVANT_BATCH_SIZE, games.length);
@@ -147,7 +180,28 @@ async function processGamesIntoCounters(
   }
 
   process.stdout.write("\n");
-  return counters;
+  return { combined, home, away };
+}
+
+function writeSeasonAndSplitStores(
+  season: number,
+  countersByScope: Record<"combined" | NerdStatSplitId, SeasonNerdCounters>,
+  processedGamePks: number[],
+  options: WriteNerdStatsStoreOptions,
+): { writtenStatIds: string[] } {
+  const { writtenStatIds } = writeNerdStatsStore(
+    season,
+    countersByScope.combined,
+    processedGamePks,
+    options,
+  );
+  const splitOptions: WriteNerdStatsStoreOptions = {
+    ...options,
+    skipTeamCards: true,
+  };
+  writeSplitNerdStatsStore(season, "home", countersByScope.home, processedGamePks, splitOptions);
+  writeSplitNerdStatsStore(season, "away", countersByScope.away, processedGamePks, splitOptions);
+  return { writtenStatIds };
 }
 
 async function buildRollingWindowStores(
@@ -200,10 +254,10 @@ async function backfillCountersFromManifest(
   }
 
   const games = await fetchGamesForPks(creds, manifest.processedGamePks);
-  const counters = await processGamesIntoCounters(games, options.skipSavant);
-  const { writtenStatIds } = writeNerdStatsStore(
+  const countersByScope = await processGamesIntoAllCounters(games, options.skipSavant);
+  const { writtenStatIds } = writeSeasonAndSplitStores(
     season,
-    counters,
+    countersByScope,
     manifest.processedGamePks,
     options.storeOptions,
   );
@@ -485,10 +539,16 @@ async function main() {
 
   if (rebuildWindows) {
     const { rebuiltWindows } = rebuildWindowStoresFromCounters(season, storeOptions);
-    if (rebuiltWindows.length === 0) {
-      console.log("No rolling window data to rebuild — run a full aggregate first.");
+    const { rebuiltSplits } = rebuildSplitStoresFromCounters(season, storeOptions);
+    if (rebuiltWindows.length === 0 && rebuiltSplits.length === 0) {
+      console.log("No rolling window or split data to rebuild — run a full aggregate first.");
     } else {
-      console.log(`Rebuilt nerd stats for windows: ${rebuiltWindows.join(", ")}`);
+      if (rebuiltWindows.length > 0) {
+        console.log(`Rebuilt nerd stats for windows: ${rebuiltWindows.join(", ")}`);
+      }
+      if (rebuiltSplits.length > 0) {
+        console.log(`Rebuilt nerd stats for splits: ${rebuiltSplits.join(", ")}`);
+      }
     }
     return;
   }
@@ -496,14 +556,16 @@ async function main() {
   if (rebuildStore) {
     const manifest = loadNerdStatsManifest(season);
     const counters = loadSeasonCounters(season);
+    const homeCounters = loadSplitCounters(season, "home");
+    const awayCounters = loadSplitCounters(season, "away");
     if (manifest.processedGamePks.length === 0) {
       console.log("No processed games in manifest — run a full aggregate first.");
       return;
     }
 
-    const { writtenStatIds } = writeNerdStatsStore(
+    const { writtenStatIds } = writeSeasonAndSplitStores(
       season,
-      counters,
+      { combined: counters, home: homeCounters, away: awayCounters },
       manifest.processedGamePks,
       storeOptions,
     );
@@ -565,14 +627,14 @@ async function main() {
 
   console.log(`Fetching full game payloads in batches of ${FULL_ROW_BATCH_SIZE}…`);
   const games = await fetchGamesForPks(creds, gamePks);
-  const counters = await processGamesIntoCounters(games, skipSavant);
+  const countersByScope = await processGamesIntoAllCounters(games, skipSavant);
   const processed = games.map((game) => game.game_pk);
 
   const fullRebuildStoreOptions = resolveStoreOptions(season, explicitStatIds, {
     fullStore: true,
     teamCards: true,
   });
-  writeNerdStatsStore(season, counters, processed, fullRebuildStoreOptions);
+  writeSeasonAndSplitStores(season, countersByScope, processed, fullRebuildStoreOptions);
   console.log(`Wrote nerd stats for ${processed.length} games to data/nerd-stats/${season}/`);
   await buildRollingWindowStores(season, games, skipSavant, fullRebuildStoreOptions);
 }
