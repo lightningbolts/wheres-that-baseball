@@ -1,15 +1,27 @@
 import type {
   LiveInsightContext,
-  NerdInsightToast,
+  NerdInsight,
   TeamNerdProfile,
 } from "@/lib/mlb/nerdInsights/types";
+import { anchorFromTrigger } from "@/lib/mlb/nerdInsights/types";
 import { getTeamStat, isEliteRank, rankLabel } from "@/lib/mlb/nerdInsights/profile";
 
 type Rule = (
   ctx: LiveInsightContext,
   away: TeamNerdProfile | null,
   home: TeamNerdProfile | null,
-) => NerdInsightToast | null;
+) => NerdInsight | null;
+
+function fullInsight(
+  ctx: LiveInsightContext,
+  insight: Omit<NerdInsight, "variant" | "anchor">,
+): NerdInsight {
+  return {
+    ...insight,
+    variant: "full",
+    anchor: anchorFromTrigger(ctx.trigger),
+  };
+}
 
 function profileForTeam(
   profiles: { away: TeamNerdProfile | null; home: TeamNerdProfile | null },
@@ -51,14 +63,14 @@ const rules: Rule[] = [
     if (!isEliteRank(pace, 6) || live.seenPerHalf == null) return null;
     if (live.seenPerHalf < pace.value * 1.12) return null;
 
-    return {
+    return fullInsight(ctx, {
       id: `${ctx.gamePk}-pace-${ctx.trigger.halfKey}`,
       eyebrow: "Nerd pace check",
       title: `${ctx.offenseAbbrev} is grinding`,
       message: `This half is moving slow — ${live.seenPerHalf.toFixed(1)} pitches per half so far. They rank ${rankLabel(pace.rank)} league-wide at ${pace.displayValue} per half.`,
       teamId: ctx.offenseTeamId,
       statId: "pitches-seen-per-half",
-    };
+    });
   },
 
   (ctx, away, home) => {
@@ -70,14 +82,14 @@ const rules: Rule[] = [
     const foulStat = getTeamStat(offense, "foul-ball-factory");
     if (!isEliteRank(foulStat, 8)) return null;
 
-    return {
+    return fullInsight(ctx, {
       id: `${ctx.gamePk}-fouls-${ctx.trigger.halfKey}`,
       eyebrow: "Foul ball factory",
       title: "Beer hawk weather",
       message: `${fouls} fouls already in this game. ${ctx.offenseAbbrev} are ${rankLabel(foulStat.rank)} in the league's foul-ball factory (${foulStat.displayValue} on the year).`,
       teamId: ctx.offenseTeamId,
       statId: "foul-ball-factory",
-    };
+    });
   },
 
   // —— At-bat start ——
@@ -87,14 +99,14 @@ const rules: Rule[] = [
     const risp = getTeamStat(offense, "risp-batting");
     if (!isEliteRank(risp, 8)) return null;
 
-    return {
+    return fullInsight(ctx, {
       id: `${ctx.gamePk}-risp-${ctx.trigger.atBatIndex}`,
       eyebrow: "Scoring position",
       title: `${ctx.batterName} with runners on`,
       message: `${ctx.offenseAbbrev} rank ${rankLabel(risp.rank)} in RISP hitting (${risp.displayValue}).`,
       teamId: ctx.offenseTeamId,
       statId: "risp-batting",
-    };
+    });
   },
 
   (ctx, away, home) => {
@@ -105,14 +117,14 @@ const rules: Rule[] = [
     const twoOut = getTeamStat(offense, "runs-with-two-outs-pct");
     if (!isEliteRank(twoOut, 6)) return null;
 
-    return {
+    return fullInsight(ctx, {
       id: `${ctx.gamePk}-two-out-${ctx.trigger.atBatIndex}`,
       eyebrow: "Two-out drama",
       title: "Clutch or bust",
       message: `${ctx.offenseAbbrev} score ${twoOut.displayValue} of their runs with two outs (${rankLabel(twoOut.rank)} in MLB).`,
       teamId: ctx.offenseTeamId,
       statId: "runs-with-two-outs-pct",
-    };
+    });
   },
 
   (ctx, away, home) => {
@@ -121,14 +133,14 @@ const rules: Rule[] = [
     const stranded = getTeamStat(defense, "bases-loaded-no-runs");
     if (!isEliteRank(stranded, 5)) return null;
 
-    return {
+    return fullInsight(ctx, {
       id: `${ctx.gamePk}-loaded-${ctx.trigger.atBatIndex}`,
       eyebrow: "Bases juiced",
       title: "Strand patrol activated",
       message: `${ctx.defenseAbbrev} specialize in bases-loaded heartbreak — ${rankLabel(stranded.rank)} in leaving 'em loaded (${stranded.displayValue} times).`,
       teamId: ctx.defenseTeamId,
       statId: "bases-loaded-no-runs",
-    };
+    });
   },
 
   // —— Pitch milestones ——
@@ -138,14 +150,14 @@ const rules: Rule[] = [
     const perPa = getTeamStat(offense, "pitches-per-pa");
     if (!isEliteRank(perPa, 6)) return null;
 
-    return {
+    return fullInsight(ctx, {
       id: `${ctx.gamePk}-deep-${ctx.trigger.atBatIndex}-${ctx.trigger.pitchNumber}`,
       eyebrow: "Marathon at-bat",
       title: `Pitch ${ctx.trigger.pitchNumber} and counting`,
       message: `${ctx.offenseAbbrev} see ${perPa.displayValue} pitches per plate appearance (${rankLabel(perPa.rank)} in MLB). ${ctx.batterName} is making them work.`,
       teamId: ctx.offenseTeamId,
       statId: "pitches-per-pa",
-    };
+    });
   },
 
   (ctx, away, home) => {
@@ -154,14 +166,14 @@ const rules: Rule[] = [
     const foulRate = getTeamStat(offense, "foul-rate");
     if (!isEliteRank(foulRate, 6)) return null;
 
-    return {
+    return fullInsight(ctx, {
       id: `${ctx.gamePk}-foul-ab-${ctx.trigger.atBatIndex}`,
       eyebrow: "Foul fest",
       title: "Net behind the plate working overtime",
       message: `${ctx.foulsThisAb} fouls this at-bat. ${ctx.offenseAbbrev} foul off ${foulRate.displayValue} of pitches — ${rankLabel(foulRate.rank)} in the league.`,
       teamId: ctx.offenseTeamId,
       statId: "foul-rate",
-    };
+    });
   },
 
   (ctx, away, home) => {
@@ -170,14 +182,14 @@ const rules: Rule[] = [
     const ballHawk = getTeamStat(offense, "ball-rate");
     if (!isEliteRank(ballHawk, 6)) return null;
 
-    return {
+    return fullInsight(ctx, {
       id: `${ctx.gamePk}-fullcount-${ctx.trigger.atBatIndex}`,
       eyebrow: "3-2 chess match",
       title: "Full count standoff",
       message: `${ctx.offenseAbbrev} take balls at a ${ballHawk.displayValue} clip (${rankLabel(ballHawk.rank)} in MLB). Eye discipline meets arm fatigue.`,
       teamId: ctx.offenseTeamId,
       statId: "ball-rate",
-    };
+    });
   },
 
   (ctx, away, home) => {
@@ -186,14 +198,14 @@ const rules: Rule[] = [
     const freeze = getTeamStat(defense, "called-strike-rate");
     if (!isEliteRank(freeze, 6)) return null;
 
-    return {
+    return fullInsight(ctx, {
       id: `${ctx.gamePk}-freeze-${ctx.trigger.atBatIndex}`,
       eyebrow: "3-2 chess match",
       title: "Paint corner incoming?",
       message: `${ctx.defenseAbbrev} rank ${rankLabel(freeze.rank)} in freeze rate (${freeze.displayValue} called strikes per pitch). ${ctx.pitcherName} has the blueprint.`,
       teamId: ctx.defenseTeamId,
       statId: "called-strike-rate",
-    };
+    });
   },
 
   // —— At-bat results ——
@@ -203,14 +215,14 @@ const rules: Rule[] = [
     const whiff = getTeamStat(offense, "swinging-strike-rate");
     if (!isEliteRank(whiff, 6)) return null;
 
-    return {
+    return fullInsight(ctx, {
       id: `${ctx.gamePk}-k-${ctx.trigger.atBatIndex}`,
       eyebrow: "Whiff watch",
       title: "Another swing and miss",
       message: `${ctx.offenseAbbrev} swing through ${whiff.displayValue} of pitches (${rankLabel(whiff.rank)} in MLB). The K column keeps growing.`,
       teamId: ctx.offenseTeamId,
       statId: "swinging-strike-rate",
-    };
+    });
   },
 
   (ctx, away, home) => {
@@ -224,14 +236,14 @@ const rules: Rule[] = [
     const walks = getTeamStat(offense, "walks-per-game");
     if (!isEliteRank(walks, 6)) return null;
 
-    return {
+    return fullInsight(ctx, {
       id: `${ctx.gamePk}-bb-${ctx.trigger.atBatIndex}`,
       eyebrow: "Free pass",
       title: "Take your base",
       message: `${ctx.offenseAbbrev} draw ${walks.displayValue} walks per game (${rankLabel(walks.rank)} in MLB). Patience pays.`,
       teamId: ctx.offenseTeamId,
       statId: "walks-per-game",
-    };
+    });
   },
 
   (ctx, away, home) => {
@@ -242,14 +254,14 @@ const rules: Rule[] = [
     const gidp = getTeamStat(offense, "double-plays-hit-into");
     if (!isEliteRank(gidp, 6)) return null;
 
-    return {
+    return fullInsight(ctx, {
       id: `${ctx.gamePk}-gidp-${ctx.trigger.atBatIndex}`,
       eyebrow: "Rally killer",
       title: "Twin killing trauma",
       message: `${ctx.offenseAbbrev} hit into ${gidp.displayValue} double plays (${rankLabel(gidp.rank)} in MLB). Momentum, deleted.`,
       teamId: ctx.offenseTeamId,
       statId: "double-plays-hit-into",
-    };
+    });
   },
 
   // —— Inning / game situation ——
@@ -262,14 +274,14 @@ const rules: Rule[] = [
     if (!isEliteRank(walkoffs, 6)) return null;
 
     const abbrev = trailingId === ctx.awayTeamId ? ctx.awayAbbrev : ctx.homeAbbrev;
-    return {
+    return fullInsight(ctx, {
       id: `${ctx.gamePk}-walkoff-inn-${ctx.inning}`,
       eyebrow: "Late & close",
       title: "Walk-off weather",
       message: `${abbrev} have ${walkoffs.displayValue} walk-off wins (${rankLabel(walkoffs.rank)} in MLB). One swing could end it.`,
       teamId: trailingId,
       statId: "walk-off-wins",
-    };
+    });
   },
 
   (ctx, away, home) => {
@@ -288,14 +300,14 @@ const rules: Rule[] = [
             : null;
     if (!pick || !isEliteRank(pick.stat, 5)) return null;
 
-    return {
+    return fullInsight(ctx, {
       id: `${ctx.gamePk}-one-run-inn-${ctx.inning}`,
       eyebrow: "Nailbiter nation",
       title: "One-run game alert",
       message: `${pick.abbrev} have played ${pick.stat.displayValue} one-run games (${rankLabel(pick.stat.rank)} in MLB). Buckle up.`,
       teamId: pick.teamId,
       statId: "one-run-games",
-    };
+    });
   },
 
   (ctx, away, home) => {
@@ -314,14 +326,14 @@ const rules: Rule[] = [
             : null;
     if (!pick || !isEliteRank(pick.stat, 6)) return null;
 
-    return {
+    return fullInsight(ctx, {
       id: `${ctx.gamePk}-extras-${ctx.inning}`,
       eyebrow: "Bonus baseball",
       title: "Free baseball favors someone",
       message: `${pick.abbrev} win ${pick.stat.displayValue} of extra-inning games (${rankLabel(pick.stat.rank)} in MLB).`,
       teamId: pick.teamId,
       statId: "extra-inning-win-pct",
-    };
+    });
   },
 
   (ctx, away, home) => {
@@ -333,14 +345,14 @@ const rules: Rule[] = [
     if (!isEliteRank(blowout, 6)) return null;
 
     const abbrev = leader === ctx.awayTeamId ? ctx.awayAbbrev : ctx.homeAbbrev;
-    return {
+    return fullInsight(ctx, {
       id: `${ctx.gamePk}-blowout-${ctx.inning}`,
       eyebrow: "Slugfest alert",
       title: "Running it up",
       message: `${abbrev} have ${blowout.displayValue} blowout wins (${rankLabel(blowout.rank)} in MLB). They don't do subtle.`,
       teamId: leader,
       statId: "blowout-wins",
-    };
+    });
   },
 
   (ctx, away, home) => {
@@ -351,14 +363,14 @@ const rules: Rule[] = [
     if (!isEliteRank(pace, 6) || live.thrownPerHalf == null) return null;
     if (live.thrownPerHalf < pace.value * 1.1) return null;
 
-    return {
+    return fullInsight(ctx, {
       id: `${ctx.gamePk}-staff-grind-${ctx.trigger.halfKey}`,
       eyebrow: "Bullpen meter",
       title: `${ctx.defenseAbbrev} staff is laboring`,
       message: `${live.thrownPerHalf.toFixed(1)} pitches per half thrown today. They rank ${rankLabel(pace.rank)} at ${pace.displayValue} — arms getting the full workout.`,
       teamId: ctx.defenseTeamId,
       statId: "pitches-thrown-per-half",
-    };
+    });
   },
 ];
 
@@ -366,10 +378,70 @@ export function generateNerdInsight(
   ctx: LiveInsightContext,
   awayProfile: TeamNerdProfile | null,
   homeProfile: TeamNerdProfile | null,
-): NerdInsightToast | null {
+): NerdInsight | null {
   for (const rule of rules) {
     const insight = rule(ctx, awayProfile, homeProfile);
     if (insight) return insight;
   }
   return null;
+}
+
+const MINI_LABELS: Record<string, (abbrev: string, count: number, display: string, rank: number) => string> = {
+  "walks-per-game": (abbrev, count, display, rank) =>
+    `Walk #${count} — ${abbrev} still ${rankLabel(rank)} in patience (${display}/G).`,
+  "swinging-strike-rate": (abbrev, count, display, rank) =>
+    `K #${count} — ${abbrev} ${display} whiff rate (${rankLabel(rank)} in MLB).`,
+  "risp-batting": (abbrev, count, display, rank) =>
+    `RISP AB #${count} — ${abbrev} ${display} with runners on (${rankLabel(rank)}).`,
+  "double-plays-hit-into": (abbrev, count, display, rank) =>
+    `GDP #${count} — ${abbrev} ${display} twin killings (${rankLabel(rank)}).`,
+  "foul-rate": (abbrev, count, display, rank) =>
+    `Foul fest again — ${abbrev} ${display} foul rate (${rankLabel(rank)}).`,
+  "pitches-per-pa": (abbrev, _count, display, rank) =>
+    `Deep AB — ${abbrev} see ${display} per PA (${rankLabel(rank)}).`,
+  "ball-rate": (abbrev, _count, display, rank) =>
+    `3-2 again — ${abbrev} ${display} ball rate (${rankLabel(rank)}).`,
+  "called-strike-rate": (abbrev, _count, display, rank) =>
+    `3-2 freeze — ${abbrev} ${display} called-strike rate (${rankLabel(rank)}).`,
+  "runs-with-two-outs-pct": (abbrev, count, display, rank) =>
+    `Two-out spot #${count} — ${abbrev} score ${display} of runs with two outs (${rankLabel(rank)}).`,
+  "bases-loaded-no-runs": (abbrev, count, _display, rank) =>
+    `Bases loaded #${count} — ${abbrev} strand patrol (${rankLabel(rank)}).`,
+};
+
+export function buildMiniInsight(
+  full: NerdInsight,
+  ctx: LiveInsightContext,
+  awayProfile: TeamNerdProfile | null,
+  homeProfile: TeamNerdProfile | null,
+  occurrenceCount: number,
+): NerdInsight {
+  const teamId = full.teamId;
+  const profile =
+    teamId === awayProfile?.teamId
+      ? awayProfile
+      : teamId === homeProfile?.teamId
+        ? homeProfile
+        : null;
+  const abbrev =
+    teamId === ctx.awayTeamId
+      ? ctx.awayAbbrev
+      : teamId === ctx.homeTeamId
+        ? ctx.homeAbbrev
+        : profile?.abbrev ?? "Team";
+  const stat = full.statId ? getTeamStat(profile, full.statId) : undefined;
+
+  const message =
+    full.statId && stat && MINI_LABELS[full.statId]
+      ? MINI_LABELS[full.statId](abbrev, occurrenceCount, stat.displayValue, stat.rank)
+      : `${full.title} — ${abbrev} (${occurrenceCount}× this game).`;
+
+  return {
+    ...full,
+    id: `${full.id}-mini-${occurrenceCount}`,
+    variant: "mini",
+    title: full.eyebrow,
+    message,
+    anchor: anchorFromTrigger(ctx.trigger),
+  };
 }

@@ -26,7 +26,7 @@ import { useBatterVsPitcher } from "@/hooks/useBatterVsPitcher";
 import { useBreakLinger } from "@/hooks/useBreakLinger";
 import { useLiveGameOverlays } from "@/hooks/useLiveGameOverlays";
 import { useLiveGameState } from "@/hooks/useLiveGameState";
-import { useNerdInsights } from "@/hooks/useNerdInsights";
+import { useNerdInsights, buildInsightMaps } from "@/hooks/useNerdInsights";
 import { useGameBoxScore } from "@/hooks/useGameBoxScore";
 import { useLivePredictions } from "@/hooks/useLivePredictions";
 import { useOutcomeOdds } from "@/hooks/useOutcomeOdds";
@@ -55,9 +55,13 @@ function DashboardContent({ game }: { game: SlateGame }) {
   const { atBatViewState, showBreakUI, isLingering } = useBreakLinger(gameState);
   const { dueUp, showDueUp, dismissDueUp, showFinal, dismissFinal, gameOver } =
     useLiveGameOverlays(gameState, boxScore, showBreakUI);
-  const { toasts: nerdInsightToasts, dismissToast: dismissNerdInsight } = useNerdInsights(
+  const { feedInsights, overlayToasts, liveInsight, dismissToast: dismissNerdInsight } = useNerdInsights(
     gameState,
     { gameOver },
+  );
+  const { insightsByAtBat, halfInsights, inningInsights } = useMemo(
+    () => buildInsightMaps(feedInsights),
+    [feedInsights],
   );
   useArchiveFinishedGame(selectedGamePk, gameOver);
   const { predictions, isLoading: isPredictionsLoading, error, connectionStatus } =
@@ -221,6 +225,9 @@ function DashboardContent({ game }: { game: SlateGame }) {
             homeAbbrev={gameState?.homeAbbrev ?? "HME"}
             venueId={gameState?.venueId}
             className="w-full"
+            insightsByAtBat={insightsByAtBat}
+            halfInsights={halfInsights}
+            inningInsights={inningInsights}
           />
         </div>
 
@@ -386,6 +393,10 @@ function DashboardContent({ game }: { game: SlateGame }) {
                       )
                     }
                     feedHeaderCollapsedDefault
+                    insightsByAtBat={insightsByAtBat}
+                    halfInsights={halfInsights}
+                    inningInsights={inningInsights}
+                    liveInsight={liveInsight}
                   />
                 </div>
               </div>
@@ -401,7 +412,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
         open={showFinal}
         onClose={dismissFinal}
       />
-      <NerdInsightToasts toasts={nerdInsightToasts} onDismiss={dismissNerdInsight} />
+      <NerdInsightToasts toasts={overlayToasts} onDismiss={dismissNerdInsight} />
     </div>
   );
 }

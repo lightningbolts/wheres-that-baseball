@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { generateNerdInsight } from "@/lib/mlb/nerdInsights/generate";
-import type { LiveInsightContext, TeamNerdProfile } from "@/lib/mlb/nerdInsights/types";
+import { buildMiniInsight, generateNerdInsight } from "@/lib/mlb/nerdInsights/generate";
+import type { LiveInsightContext, NerdInsight, TeamNerdProfile } from "@/lib/mlb/nerdInsights/types";
+import { anchorFromTrigger } from "@/lib/mlb/nerdInsights/types";
+import { buildInsightMaps } from "@/hooks/useNerdInsights";
 
 function profile(
   teamId: number,
@@ -82,6 +84,8 @@ describe("generateNerdInsight", () => {
     const insight = generateNerdInsight(baseContext(), away, null);
     expect(insight?.statId).toBe("risp-batting");
     expect(insight?.title).toContain("Test Batter");
+    expect(insight?.variant).toBe("full");
+    expect(insight?.anchor).toEqual({ type: "live" });
   });
 
   it("fires full-count ball hawk insight", () => {
@@ -108,6 +112,29 @@ describe("generateNerdInsight", () => {
 
     expect(insight?.statId).toBe("ball-rate");
     expect(insight?.title).toContain("Full count");
+    expect(insight?.anchor).toEqual({ type: "live" });
+  });
+
+  it("anchors at-bat-end insights to the completed at-bat", () => {
+    const away = profile(100, "AWY", {
+      "walks-per-game": {
+        rank: 2,
+        displayValue: "3.8",
+        value: 3.8,
+        title: "Walks Per Game",
+      },
+    });
+
+    const insight = generateNerdInsight(
+      baseContext({
+        trigger: { type: "at-bat-end", atBatIndex: 7, event: "Walk" },
+      }),
+      away,
+      null,
+    );
+
+    expect(insight?.statId).toBe("walks-per-game");
+    expect(insight?.anchor).toEqual({ type: "at-bat", atBatIndex: 7 });
   });
 
   it("returns null when no rules match", () => {
@@ -117,5 +144,99 @@ describe("generateNerdInsight", () => {
       profile(200, "HOM", {}),
     );
     expect(insight).toBeNull();
+  });
+});
+
+describe("buildMiniInsight", () => {
+  it("produces a shorter walk repeat message", () => {
+    const away = profile(100, "AWY", {
+      "walks-per-game": {
+        rank: 2,
+        displayValue: "3.8",
+        value: 3.8,
+        title: "Walks Per Game",
+      },
+    });
+
+    const ctx = baseContext({
+      trigger: { type: "at-bat-end", atBatIndex: 12, event: "Walk" },
+    });
+    const full = generateNerdInsight(ctx, away, null)!;
+
+    const mini = buildMiniInsight(full, ctx, away, null, 3);
+    expect(mini.variant).toBe("mini");
+    expect(mini.message).toContain("Walk #3");
+    expect(mini.message).toContain("AWY");
+    expect(mini.message).toContain("3.8");
+    expect(mini.id).toBe(`${full.id}-mini-3`);
+  });
+
+  it("uses generic fallback for stats without a mini template", () => {
+    const full: NerdInsight = {
+      id: "1-pace-5-Top",
+      variant: "full",
+      eyebrow: "Nerd pace check",
+      title: "AWY is grinding",
+      message: "Long message",
+      teamId: 100,
+      statId: "pitches-seen-per-half",
+      anchor: anchorFromTrigger({ type: "half-break", halfKey: "5-Top" }),
+    };
+
+    const mini = buildMiniInsight(
+      full,
+      baseContext({ trigger: { type: "half-break", halfKey: "5-Top" } }),
+      profile(100, "AWY", {}),
+      null,
+      2,
+    );
+
+    expect(mini.variant).toBe("mini");
+    expect(mini.message).toContain("2× this game");
+  });
+});
+
+describe("buildInsightMaps", () => {
+  it("groups insights by anchor type", () => {
+    const feedInsights: NerdInsight[] = [
+      {
+        id: "a",
+        variant: "full",
+        eyebrow: "Free pass",
+        title: "Walk",
+        message: "msg",
+        anchor: { type: "at-bat", atBatIndex: 3 },
+      },
+      {
+        id: "b",
+        variant: "mini",
+        eyebrow: "Free pass",
+        title: "Walk",
+        message: "mini",
+        anchor: { type: "at-bat", atBatIndex: 8 },
+      },
+      {
+        id: "c",
+        variant: "full",
+        eyebrow: "Late",
+        title: "Close",
+        message: "msg",
+        anchor: { type: "inning", inning: 7 },
+      },
+      {
+        id: "d",
+        variant: "full",
+        eyebrow: "Pace",
+        title: "Grind",
+        message: "msg",
+        anchor: { type: "half", halfKey: "5-Top" },
+      },
+    ];
+
+    const { insightsByAtBat, halfInsights, inningInsights } = buildInsightMaps(feedInsights);
+    expect(insightsByAtBat.get(3)).toHaveLength(1);
+    expect(insightsByAtBat.get(8)).toHaveLength(1);
+    expect(inningInsights.get(7)).toHaveLength(1);
+    expect(halfInsights.get("5-Top")).toHaveLength(1);
   });
 });

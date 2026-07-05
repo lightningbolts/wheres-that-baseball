@@ -1,13 +1,42 @@
 import type { CallItGameStats } from "@/lib/mlb/callItGameStats";
 
-export interface NerdInsightToast {
+export type InsightAnchor =
+  | { type: "at-bat"; atBatIndex: number }
+  | { type: "half"; halfKey: string }
+  | { type: "inning"; inning: number }
+  | { type: "live" };
+
+export interface NerdInsight {
   id: string;
+  variant: "full" | "mini";
   eyebrow: string;
   title: string;
   message: string;
   teamId?: number;
   statId?: string;
   durationMs?: number;
+  anchor: InsightAnchor;
+}
+
+/** @deprecated Use NerdInsight */
+export type NerdInsightToast = NerdInsight;
+
+export function anchorFromTrigger(trigger: InsightTrigger): InsightAnchor {
+  switch (trigger.type) {
+    case "at-bat-end":
+      return { type: "at-bat", atBatIndex: trigger.atBatIndex };
+    case "at-bat-start":
+    case "pitch-thrown":
+      return { type: "live" };
+    case "half-break":
+      return { type: "half", halfKey: trigger.halfKey };
+    case "inning-change":
+      return { type: "inning", inning: trigger.inning };
+  }
+}
+
+export function statThemeKey(statId: string, teamId: number): string {
+  return `${statId}:${teamId}`;
 }
 
 export interface TeamNerdStatEntry {

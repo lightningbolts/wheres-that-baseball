@@ -4,11 +4,11 @@ import Link from "next/link";
 import { useEffect } from "react";
 
 import { TeamLogo } from "@/components/ui/TeamLogo";
-import type { NerdInsightToast } from "@/lib/mlb/nerdInsights/types";
+import type { NerdInsight } from "@/lib/mlb/nerdInsights/types";
 import { cn } from "@/lib/utils";
 
 interface NerdInsightToastsProps {
-  toasts: NerdInsightToast[];
+  toasts: NerdInsight[];
   onDismiss: (id: string) => void;
   className?: string;
 }
@@ -17,7 +17,7 @@ function InsightToastCard({
   toast,
   onDismiss,
 }: {
-  toast: NerdInsightToast;
+  toast: NerdInsight;
   onDismiss: (id: string) => void;
 }) {
   useEffect(() => {

@@ -4,8 +4,10 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { PlayDetailDialog } from "@/components/features/PlayDetailDialog";
 import { BaseDiamond } from "@/components/features/BaseDiamond";
+import { InningInsightMarker, PlayInsightInline } from "@/components/features/PlayInsightInline";
 import { PitchFeedList } from "@/components/features/PitchFeedList";
 import { useEntranceIndex } from "@/hooks/useEntranceIndex";
+import type { NerdInsight } from "@/lib/mlb/nerdInsights/types";
 import { cn } from "@/lib/utils";
 import {
   formatGameScore,
@@ -46,6 +48,14 @@ interface PlayByPlayProps {
   embeddedScroll?: boolean;
   /** Parent scroll container when embeddedScroll is true. */
   parentScrollRef?: React.RefObject<HTMLElement | null>;
+  /** Nerd insights keyed by at-bat index for inline feed rows. */
+  insightsByAtBat?: Map<number, NerdInsight[]>;
+  /** Nerd insights keyed by half-inning (e.g. "5-Top"). */
+  halfInsights?: Map<string, NerdInsight[]>;
+  /** Nerd insights keyed by inning number. */
+  inningInsights?: Map<number, NerdInsight[]>;
+  /** Live at-bat insight shown above in-progress pitches. */
+  liveInsight?: NerdInsight | null;
 }
 
 interface InningGroup {
@@ -358,6 +368,7 @@ function PlayFeedRow({
   embeddedPitches,
   pitchEntranceFromIndex = 0,
   reverseOrder = false,
+  playInsights = [],
 }: {
   play: PlayByPlayEntry;
   awayAbbrev: string;
@@ -369,6 +380,7 @@ function PlayFeedRow({
   embeddedPitches?: PlayPitch[];
   pitchEntranceFromIndex?: number;
   reverseOrder?: boolean;
+  playInsights?: NerdInsight[];
 }) {
   const showSituationAfter = entryShowsSituationAfter(play);
   const selected =
@@ -399,6 +411,9 @@ function PlayFeedRow({
           {formatBatterLine(play.batterHits, play.batterAtBats)}
         </span>
       </button>
+      {playInsights.map((insight) => (
+        <PlayInsightInline key={insight.id} insight={insight} />
+      ))}
       {showSituationAfter && (
         <SituationMarker
           situation={entrySituationAfter(play)}
@@ -520,6 +535,10 @@ function PlayFeed({
   livePitchEntranceFrom,
   embedPitchesAtBatIndex = null,
   reverseOrder = false,
+  insightsByAtBat,
+  halfInsights,
+  inningInsights,
+  liveInsight = null,
 }: {
   plays: PlayByPlayEntry[];
   groups: InningGroup[];
@@ -536,6 +555,10 @@ function PlayFeed({
   livePitchEntranceFrom: number;
   embedPitchesAtBatIndex?: number | null;
   reverseOrder?: boolean;
+  insightsByAtBat?: Map<number, NerdInsight[]>;
+  halfInsights?: Map<string, NerdInsight[]>;
+  inningInsights?: Map<number, NerdInsight[]>;
+  liveInsight?: NerdInsight | null;
 }) {
   const inProgress = livePitches.length > 0;
   const orderedGroups = reverseOrder ? [...groups].reverse() : groups;
@@ -543,11 +566,14 @@ function PlayFeed({
   return (
     <div>
       {reverseOrder && inProgress && (
-        <PitchFeedList
-          pitches={livePitches}
-          entranceFromIndex={livePitchEntranceFrom}
-          reverse
-        />
+        <>
+          {liveInsight && <PlayInsightInline insight={liveInsight} />}
+          <PitchFeedList
+            pitches={livePitches}
+            entranceFromIndex={livePitchEntranceFrom}
+            reverse
+          />
+        </>
       )}
       {orderedGroups.map((group, displayIndex) => {
         const groupIndex = reverseOrder ? groups.length - 1 - displayIndex : displayIndex;
@@ -559,6 +585,11 @@ function PlayFeed({
         const playIndices = reverseOrder
           ? [...group.playIndices].reverse()
           : group.playIndices;
+        const inningNumber = Number(group.key.split("-")[0]);
+        const groupInningInsights = [
+          ...(inningInsights?.get(inningNumber) ?? []),
+          ...(halfInsights?.get(group.key) ?? []),
+        ];
 
         return (
           <section key={group.key}>
@@ -570,6 +601,7 @@ function PlayFeed({
             />
             {isOpen && (
               <>
+                <InningInsightMarker insights={groupInningInsights} />
                 {playIndices.map((playIndex) => {
               const play = plays[playIndex];
               const animate = animateEntrance && playIndex >= entranceFromIndex;
@@ -606,14 +638,18 @@ function PlayFeed({
                   animate={animate}
                   embeddedPitches={embeddedPitches}
                   reverseOrder={reverseOrder}
+                  playInsights={insightsByAtBat?.get(play.atBatIndex) ?? []}
                 />
               );
             })}
             {!reverseOrder && isLatestGroup && inProgress && (
-              <PitchFeedList
-                pitches={livePitches}
-                entranceFromIndex={livePitchEntranceFrom}
-              />
+              <>
+                {liveInsight && <PlayInsightInline insight={liveInsight} />}
+                <PitchFeedList
+                  pitches={livePitches}
+                  entranceFromIndex={livePitchEntranceFrom}
+                />
+              </>
             )}
             {showThreeOuts && lastPlay && (
               <ThreeOutsBlurb
@@ -649,6 +685,7 @@ function PlayOutcomeCard({
   onSelectAtBat,
   setSelectedPlay,
   animate,
+  playInsights = [],
 }: {
   play: PlayByPlayEntry;
   awayAbbrev: string;
@@ -657,6 +694,7 @@ function PlayOutcomeCard({
   onSelectAtBat?: (play: PlayByPlayEntry) => void;
   setSelectedPlay: (play: PlayDetail | null) => void;
   animate: boolean;
+  playInsights?: NerdInsight[];
 }) {
   const showSituationAfter = entryShowsSituationAfter(play);
   const contact = compactContactLine(play.detail.hit);
@@ -693,6 +731,9 @@ function PlayOutcomeCard({
           <p className="mt-1 font-mono text-[11px] text-subtle">{contact}</p>
         )}
       </button>
+      {playInsights.map((insight) => (
+        <PlayInsightInline key={insight.id} insight={insight} />
+      ))}
       {showSituationAfter && (
         <SituationMarker
           situation={entrySituationAfter(play)}
@@ -724,6 +765,10 @@ export const PlayByPlay = memo(function PlayByPlay({
   monitorKey,
   embeddedScroll = false,
   parentScrollRef,
+  insightsByAtBat,
+  halfInsights,
+  inningInsights,
+  liveInsight = null,
 }: PlayByPlayProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -912,6 +957,10 @@ export const PlayByPlay = memo(function PlayByPlay({
               livePitchEntranceFrom={livePitchEntranceFrom}
               embedPitchesAtBatIndex={embedPitchesAtBatIndex}
               reverseOrder
+              insightsByAtBat={insightsByAtBat}
+              halfInsights={halfInsights}
+              inningInsights={inningInsights}
+              liveInsight={liveInsight}
             />
           ) : (
             <div>
@@ -939,6 +988,12 @@ export const PlayByPlay = memo(function PlayByPlay({
 
                     {isOpen && (
                       <>
+                        <InningInsightMarker
+                          insights={[
+                            ...(inningInsights?.get(Number(group.key.split("-")[0])) ?? []),
+                            ...(halfInsights?.get(group.key) ?? []),
+                          ]}
+                        />
                         {group.playIndices.map((playIndex) => {
                           const play = plays[playIndex];
                           const animate =
@@ -966,6 +1021,7 @@ export const PlayByPlay = memo(function PlayByPlay({
                               onSelectAtBat={onSelectAtBat}
                               setSelectedPlay={setSelectedPlay}
                               animate={animate}
+                              playInsights={insightsByAtBat?.get(play.atBatIndex) ?? []}
                             />
                           );
                         })}
