@@ -25,7 +25,7 @@ const GameHitsTrajectory3D = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex h-[240px] items-center justify-center rounded border border-border bg-field-chart-canvas text-xs text-subtle sm:h-[300px] xl:h-[360px]">
+      <div className="flex h-[min(56vh,520px)] items-center justify-center rounded border border-border bg-field-chart-canvas text-xs text-subtle sm:h-[min(62vh,580px)]">
         Loading trajectories…
       </div>
     ),
@@ -209,9 +209,9 @@ export function GameHitsView({
             <p className="text-sm text-subtle">No tracked hits yet.</p>
           </div>
         ) : (
-          <div className="min-h-0 flex-1 touch-pan-y overflow-y-auto">
-            <div className="grid gap-px bg-border xl:grid-cols-[minmax(0,1fr)_minmax(260px,320px)] xl:items-start">
-              <div className="flex flex-col gap-px bg-border">
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <div className="grid h-full min-h-0 gap-px bg-border xl:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]">
+              <div className="min-h-0 overflow-y-auto overscroll-y-contain">
                 <section className="bg-panel p-3 sm:p-4">
                   <p className="mb-3 text-[10px] font-medium uppercase tracking-wide text-muted">
                     Field view
@@ -225,7 +225,7 @@ export function GameHitsView({
                   />
                 </section>
 
-                <section className="bg-panel p-3 sm:p-4">
+                <section className="bg-panel p-3 pb-6 sm:p-4 sm:pb-8">
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                     <p className="text-[10px] font-medium uppercase tracking-wide text-muted">
                       3D trajectories
@@ -249,13 +249,13 @@ export function GameHitsView({
                 </section>
               </div>
 
-              <aside className="flex flex-col bg-surface xl:sticky xl:top-0 xl:max-h-[calc(100dvh-10rem)] xl:min-h-0">
+              <aside className="flex min-h-0 flex-col overflow-y-auto overscroll-y-contain border-t border-border bg-surface xl:border-l xl:border-t-0">
                 <div className="shrink-0 border-b border-border px-3 py-2">
                   <h3 className="text-xs font-medium text-muted">
                     Hits <span className="font-mono tabular-nums text-subtle">({hits.length})</span>
                   </h3>
                 </div>
-                <div className="max-h-[min(50vh,28rem)] overflow-y-auto overscroll-y-contain xl:max-h-none xl:flex-1 xl:min-h-0">
+                <div className="max-h-[min(50vh,28rem)] overflow-y-auto overscroll-y-contain xl:max-h-none">
                   {hits.map((gameHit) => (
                     <HitRow
                       key={gameHit.atBatIndex}

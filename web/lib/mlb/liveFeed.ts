@@ -1028,6 +1028,7 @@ function parseReview(event: PitchEventRaw): PitchReview | undefined {
     isOverturned: review?.isOverturned ?? false,
     reviewType: review?.reviewType ?? "ABS",
     playerName: review?.player?.fullName,
+    challengeTeamId: review?.challengeTeamId,
   };
 }
 
@@ -1039,6 +1040,7 @@ function reviewLabel(review: PitchReview): string {
 function attachChallengeFromDescription(
   pitches: PlayPitch[],
   description?: string,
+  playReviewDetails?: AllPlayRaw["reviewDetails"],
 ): PlayPitch[] {
   if (!description || /challenged/i.test(description) === false) return pitches;
   if (pitches.some((p) => p.review)) return pitches;
@@ -1049,7 +1051,9 @@ function attachChallengeFromDescription(
 
   const review: PitchReview = {
     isOverturned,
-    reviewType: "ABS",
+    reviewType: playReviewDetails?.reviewType ?? "ABS",
+    playerName: playReviewDetails?.player?.fullName,
+    challengeTeamId: playReviewDetails?.challengeTeamId,
   };
 
   let lastPitchIndex = -1;
@@ -1184,6 +1188,7 @@ function parseActionEvent(event: PitchEventRaw, rowNumber: number): PlayPitch | 
 function parsePitchesFromEvents(
   playEvents: PitchEventRaw[] | undefined,
   playDescription?: string,
+  playReviewDetails?: AllPlayRaw["reviewDetails"],
 ): PlayPitch[] {
   if (!playEvents?.length) return [];
 
@@ -1203,7 +1208,7 @@ function parsePitchesFromEvents(
     }
   }
 
-  return attachChallengeFromDescription(rows, playDescription);
+  return attachChallengeFromDescription(rows, playDescription, playReviewDetails);
 }
 
 function parseHitFromEvents(playEvents: PitchEventRaw[] | undefined): HitData | null {
@@ -1267,6 +1272,19 @@ export function wrapMlbFeedForStorage(feed: MLBLiveFeedResponse): { mlbFeed: MLB
   return { mlbFeed: feed };
 }
 
+function parsePlayReview(
+  review: AllPlayRaw["reviewDetails"],
+): PitchReview | undefined {
+  if (!review) return undefined;
+
+  return {
+    isOverturned: review.isOverturned ?? false,
+    reviewType: review.reviewType ?? "ABS",
+    playerName: review.player?.fullName,
+    challengeTeamId: review.challengeTeamId,
+  };
+}
+
 function parsePlayDetail(
   play: AllPlayRaw,
   batterLine: BatterLine,
@@ -1278,7 +1296,7 @@ function parsePlayDetail(
 
   const event = rawEvent ?? desc ?? "";
   const description = desc ?? rawEvent ?? event;
-  const pitches = parsePitchesFromEvents(play.playEvents, description);
+  const pitches = parsePitchesFromEvents(play.playEvents, description, play.reviewDetails);
 
   return {
     atBatIndex: play.about.atBatIndex ?? 0,
@@ -1297,6 +1315,7 @@ function parsePlayDetail(
     isScoringPlay: Boolean(play.about.isScoringPlay),
     pitches,
     hit: parseHitFromEvents(play.playEvents),
+    playReview: parsePlayReview(play.reviewDetails),
   };
 }
 
@@ -1548,13 +1567,32 @@ function parseAbsChallengesRemaining(
   feed: MLBLiveFeedResponse,
   inning: number,
 ): { away: number; home: number } {
+  const absChallenges = feed.gameData.absChallenges;
+  if (absChallenges?.hasChallenges) {
+    const awayRemaining = absChallenges.away?.remaining;
+    const homeRemaining = absChallenges.home?.remaining;
+    if (awayRemaining != null && homeRemaining != null) {
+      return { away: awayRemaining, home: homeRemaining };
+    }
+  }
+
   const review = feed.gameData.review;
+  const teams = feed.gameData.teams;
   const used = resolveAbsChallengesUsed(
     feed.liveData.plays.allPlays,
-    feed.gameData.teams.away.id,
-    feed.gameData.teams.home.id,
+    teams.away.id,
+    teams.home.id,
     review?.away?.used,
     review?.home?.used,
+    {
+      hasChallenges: review?.hasChallenges,
+      awayTeamId: teams.away.id,
+      homeTeamId: teams.home.id,
+      awayTeamName: teams.away.name,
+      homeTeamName: teams.home.name,
+      awayAbbrev: teams.away.abbreviation,
+      homeAbbrev: teams.home.abbreviation,
+    },
   );
   return {
     away: computeAbsChallengesRemaining(used.away, inning),
@@ -1791,6 +1829,15 @@ export function buildLiveFeedSnapshot(
     teams.home.id,
     review?.away?.used,
     review?.home?.used,
+    {
+      hasChallenges: review?.hasChallenges,
+      awayTeamId: teams.away.id,
+      homeTeamId: teams.home.id,
+      awayTeamName: teams.away.name,
+      homeTeamName: teams.home.name,
+      awayAbbrev: teams.away.abbreviation,
+      homeAbbrev: teams.home.abbreviation,
+    },
   );
 
   return {

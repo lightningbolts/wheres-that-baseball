@@ -17,6 +17,7 @@ import {
 } from "@/lib/mlb/ballparkScene";
 import type { GameHit, SprayChartHit } from "@/lib/mlb/gameHits";
 import type { Vec3 } from "@/lib/mlb/ballTrajectory";
+import { cn } from "@/lib/utils";
 
 function TrajectoryPath({
   gameHit,
@@ -123,6 +124,9 @@ interface GameHitsTrajectory3DProps {
   className?: string;
 }
 
+const TRAJECTORY_CANVAS_CLASS =
+  "h-[min(56vh,520px)] overflow-hidden rounded border border-border bg-field-chart-canvas sm:h-[min(62vh,580px)] xl:h-[min(68vh,640px)]";
+
 export function GameHitsTrajectory3D({
   hits,
   venueId,
@@ -140,8 +144,13 @@ export function GameHitsTrajectory3D({
 
   if (hits.length === 0) {
     return (
-      <div className={className}>
-        <div className="flex h-[240px] items-center justify-center rounded border border-border bg-field-chart-canvas text-xs text-subtle sm:h-[300px] xl:h-[360px]">
+      <div className={cn(className)}>
+        <div
+          className={cn(
+            "flex items-center justify-center text-xs text-subtle",
+            TRAJECTORY_CANVAS_CLASS,
+          )}
+        >
           No batted-ball trajectories yet
         </div>
       </div>
@@ -149,8 +158,8 @@ export function GameHitsTrajectory3D({
   }
 
   return (
-    <div className={className}>
-      <div className="h-[240px] overflow-hidden rounded border border-border bg-field-chart-canvas sm:h-[300px] xl:h-[360px]">
+    <div className={cn(className)}>
+      <div className={TRAJECTORY_CANVAS_CLASS}>
         <Canvas
           camera={{
             position: cameraPosition,

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { IBM_Plex_Serif, Inter, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Sans, IBM_Plex_Serif, JetBrains_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/react";
 import { Suspense } from "react";
 
@@ -8,9 +8,10 @@ import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/site";
 import "./globals.css";
 
-const inter = Inter({
+const ibmPlexSans = IBM_Plex_Sans({
   subsets: ["latin"],
-  variable: "--font-inter",
+  weight: ["400", "500", "600"],
+  variable: "--font-ibm-plex-sans",
   display: "swap",
 });
 
@@ -52,7 +53,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${inter.variable} ${jetbrainsMono.variable} ${ibmPlexSerif.variable} font-serif`}
+        className={`${ibmPlexSans.variable} ${jetbrainsMono.variable} ${ibmPlexSerif.variable} font-sans`}
       >
         <ThemeProvider>
           <Suspense fallback={null}>

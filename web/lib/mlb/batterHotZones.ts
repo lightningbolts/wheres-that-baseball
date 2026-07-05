@@ -109,8 +109,8 @@ function combineObpSlgZones(
 
     cells.push({
       zoneId,
-      color: slg.color ?? obp.color ?? "rgba(255, 255, 255, 0.55)",
-      temp: slg.temp ?? obp.temp,
+      color: slg?.color ?? obp?.color ?? "rgba(255, 255, 255, 0.55)",
+      temp: slg?.temp ?? obp?.temp,
       value: formatZoneOps(obpRate, slgRate),
     });
   }
@@ -128,8 +128,8 @@ function cellsFromDirectOps(opsZones: Map<string, HotColdZoneRaw>): BatterHotZon
 
     cells.push({
       zoneId,
-      color: raw.color ?? "rgba(255, 255, 255, 0.55)",
-      temp: raw.temp,
+      color: raw?.color ?? "rgba(255, 255, 255, 0.55)",
+      temp: raw?.temp,
       value: formatDirectOps(opsRate),
     });
   }

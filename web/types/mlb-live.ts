@@ -2,6 +2,7 @@ export interface PitchReview {
   isOverturned: boolean;
   reviewType: string;
   playerName?: string;
+  challengeTeamId?: number;
 }
 
 export interface PlayPitch {
@@ -93,6 +94,8 @@ export interface PlayDetail {
   isScoringPlay: boolean;
   pitches: PlayPitch[];
   hit: HitData | null;
+  /** Terminal ABS review on the plate appearance (may differ from per-pitch reviews). */
+  playReview?: PitchReview;
 }
 
 export interface PlayByPlayEntry {
@@ -200,7 +203,8 @@ interface PitchEventRaw {
     isOverturned?: boolean;
     inProgress?: boolean;
     reviewType?: string;
-    player?: { fullName?: string };
+    challengeTeamId?: number;
+    player?: { id?: number; fullName?: string };
   };
   details?: {
     description?: string;
@@ -283,6 +287,13 @@ export interface AllPlayRaw {
     pitcher?: { id?: number; fullName?: string };
   };
   playEvents?: PitchEventRaw[];
+  reviewDetails?: {
+    inProgress?: boolean;
+    isOverturned?: boolean;
+    reviewType?: string;
+    challengeTeamId?: number;
+    player?: { id?: number; fullName?: string };
+  };
   count?: { balls?: number; strikes?: number; outs?: number };
   runners?: Array<{
     movement?: {
@@ -305,6 +316,11 @@ export interface MLBLiveFeedResponse {
       hasChallenges?: boolean;
       away?: { used?: number; remaining?: number };
       home?: { used?: number; remaining?: number };
+    };
+    absChallenges?: {
+      hasChallenges?: boolean;
+      away?: { usedSuccessful?: number; usedFailed?: number; remaining?: number };
+      home?: { usedSuccessful?: number; usedFailed?: number; remaining?: number };
     };
     teams: {
       away: { id?: number; name: string; abbreviation?: string };

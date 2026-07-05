@@ -126,7 +126,7 @@
   }
 
   body {
-    @apply overflow-x-hidden bg-background font-serif text-foreground antialiased;
+    @apply overflow-x-hidden bg-background font-sans text-foreground antialiased;
     background-image:
       linear-gradient(
         180deg,
@@ -135,6 +135,12 @@
         rgb(0 0 0 / 0.02) 100%
       );
     background-attachment: fixed;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply font-serif;
   }
 
   .moneyball-dark body {

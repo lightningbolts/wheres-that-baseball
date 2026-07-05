@@ -145,8 +145,11 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
 
   const replayState = useMemo(() => {
     if (!gameState || !selectedPlay || isLive) return null;
-    return gameStateForAtBat(gameState, selectedPlay);
-  }, [gameState, selectedPlay, isLive]);
+    return gameStateForAtBat(gameState, selectedPlay, {
+      awayTeamId: game.away_team_id,
+      homeTeamId: game.home_team_id,
+    });
+  }, [game.away_team_id, game.home_team_id, gameState, isLive, selectedPlay]);
 
   const displayState = isLive ? atBatViewState : replayState;
 
