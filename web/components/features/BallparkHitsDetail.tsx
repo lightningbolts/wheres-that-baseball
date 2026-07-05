@@ -393,8 +393,8 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
             </div>
 
             <div className="mt-4 overflow-hidden rounded-xl border border-border">
-              <div className="flex flex-col lg:flex-row lg:items-stretch">
-                <div className="min-w-0 flex-1 bg-panel lg:border-r lg:border-border">
+              <div className="relative">
+                <div className="min-w-0 bg-panel lg:mr-[min(320px,34%)]">
                   <section className="p-3 sm:p-4">
                     <p className="mb-3 text-[10px] font-medium uppercase tracking-wide text-muted">
                       Season spray chart
@@ -446,7 +446,7 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
                   />
                 </div>
 
-                <aside className="flex w-full min-h-0 flex-col overflow-hidden border-t border-border bg-surface lg:w-[min(320px,100%)] lg:shrink-0 lg:border-t-0">
+                <aside className="flex max-h-[min(50vh,28rem)] flex-col overflow-hidden border-t border-border bg-surface lg:absolute lg:inset-y-0 lg:right-0 lg:max-h-none lg:w-[min(320px,34%)] lg:border-l lg:border-t-0">
                   <div className="shrink-0 border-b border-border px-3 py-2">
                     <h3 className="text-xs font-medium text-muted">
                       All hits{" "}
@@ -461,7 +461,7 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
                   </div>
                   <div
                     ref={hitsScrollRef}
-                    className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain max-lg:max-h-[min(50vh,28rem)]"
+                    className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain"
                   >
                     {data.hits.map((venueHit) => (
                       <HitRow
