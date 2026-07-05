@@ -176,6 +176,21 @@ function SelectedHitBanner({
   );
 }
 
+function HitBannerPlaceholder() {
+  return (
+    <div className="invisible flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2.5">
+      <div className="min-w-0">
+        <p className="text-[13px] font-medium text-foreground">Placeholder batter</p>
+        <p className="mt-0.5 text-[11px] text-muted">AWY 0–0 HOM · 2026-01-01 · 1 Top</p>
+      </div>
+      <div className="flex shrink-0 items-center gap-3">
+        <span className="text-[11px] font-medium">Play details</span>
+        <span className="text-[11px]">Clear</span>
+      </div>
+    </div>
+  );
+}
+
 function LazyTrajectorySection({
   hits,
   venueId,
@@ -229,12 +244,19 @@ function LazyTrajectorySection({
             onSelectHit={onSelectHit}
             className={className}
           />
-          {selectedHitBanner}
+          <div className="mt-3">
+            {selectedHitBanner ?? <HitBannerPlaceholder />}
+          </div>
         </>
       ) : (
-        <div className="flex h-[240px] items-center justify-center rounded border border-border bg-field-chart-canvas text-xs text-subtle sm:h-[300px] xl:h-[360px]">
-          Scroll to load 3D view…
-        </div>
+        <>
+          <div className="flex h-[240px] items-center justify-center rounded border border-border bg-field-chart-canvas text-xs text-subtle sm:h-[300px] xl:h-[360px]">
+            Scroll to load 3D view…
+          </div>
+          <div className="mt-3" aria-hidden>
+            <HitBannerPlaceholder />
+          </div>
+        </>
       )}
     </section>
   );
