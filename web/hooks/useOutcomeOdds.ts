@@ -6,6 +6,7 @@ import {
   predictClientOutcomeOdds,
   predictClientStealOdds,
 } from "@/lib/predictions/clientPredictor";
+import { oddsStateKey } from "@/lib/predictions/buildPredictRequest";
 import { selectPredictionForAtBat } from "@/lib/predictions/matchAtBat";
 import {
   DEFAULT_OUTCOME_PROBABILITIES,
@@ -14,6 +15,7 @@ import {
   type Prediction,
   type StealProbabilities,
 } from "@/types/database";
+import type { MlPredictionSnapshot } from "@/hooks/useMlPredictions";
 import type { LiveGameState } from "@/types/mlb-live";
 
 export interface UseOutcomeOddsResult {
@@ -22,7 +24,7 @@ export interface UseOutcomeOddsResult {
   matchedPrediction: Prediction | null;
   /** Stable key for chart re-mount / animation when the pitch state changes. */
   oddsKey: string;
-  source: "ingestor" | "client" | "none";
+  source: "ml" | "ingestor" | "client" | "none";
 }
 
 function hasNonZeroProbabilities(probs: OutcomeProbabilities): boolean {
@@ -31,14 +33,14 @@ function hasNonZeroProbabilities(probs: OutcomeProbabilities): boolean {
 
 /**
  * Instant per-pitch outcome odds derived from the live feed count, with
- * ingestor rows (real ML model output) preferred when they match.
+ * on-demand ML (Render) and ingestor rows preferred when available.
  * Falls back to the client-side heuristic model for all counts including 0-0
- * so that baseline odds are always visible. No network — runs in the same
- * render as pitch updates.
+ * so that baseline odds are always visible while ML cold-starts.
  */
 export function useOutcomeOdds(
   atBatViewState: LiveGameState | null,
   predictions: Prediction[],
+  ml?: MlPredictionSnapshot | null,
 ): UseOutcomeOddsResult {
   return useMemo(() => {
     if (!atBatViewState) {
@@ -76,7 +78,22 @@ export function useOutcomeOdds(
 
     const ingestorMatch = selectPredictionForAtBat(predictions, match);
 
-    const oddsKey = `${atBatViewState.batterId ?? 0}-${balls}-${strikes}-${pitchCount}`;
+    const oddsKey = oddsStateKey(atBatViewState);
+
+    if (
+      ml?.probabilities &&
+      ml.oddsKey === oddsKey &&
+      hasNonZeroProbabilities(ml.probabilities)
+    ) {
+      return {
+        probabilities: ml.probabilities,
+        stealProbabilities:
+          ml.stealProbabilities ?? predictClientStealOdds(situation),
+        matchedPrediction: ingestorMatch,
+        oddsKey: `ml-${oddsKey}`,
+        source: "ml" as const,
+      };
+    }
 
     if (ingestorMatch && hasNonZeroProbabilities(normalizeOutcomeProbabilities(ingestorMatch.outcome_probabilities))) {
       return {
@@ -95,5 +112,5 @@ export function useOutcomeOdds(
       oddsKey,
       source: ingestorMatch ? "ingestor" as const : "client" as const,
     };
-  }, [atBatViewState, predictions]);
+  }, [atBatViewState, predictions, ml]);
 }

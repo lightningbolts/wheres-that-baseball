@@ -1,0 +1,20 @@
+# Deploy ml-engine to Render free tier (sleeps after ~15 min idle).
+# Models and player_stats are gitignored — upload them before first deploy:
+#   models/at_bat_model.joblib, models/steal_model.joblib, data/player_stats.parquet
+#
+# After deploy, set on Vercel:
+#   ML_ENGINE_URL=https://<your-render-service>.onrender.com
+# Optional (avoids Vercel 60s proxy timeout on cold start):
+#   NEXT_PUBLIC_ML_ENGINE_URL=https://<your-render-service>.onrender.com
+
+services:
+  - type: web
+    name: mlb-ml-engine
+    runtime: docker
+    dockerfilePath: ./ml-engine/Dockerfile
+    dockerContext: ./ml-engine
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: ML_ENGINE_CORS_ORIGIN
+        value: "*"

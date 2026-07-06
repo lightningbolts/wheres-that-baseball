@@ -30,6 +30,7 @@ import { useLiveGameState } from "@/hooks/useLiveGameState";
 import { useNerdInsights, buildInsightMaps } from "@/hooks/useNerdInsights";
 import { useGameBoxScore } from "@/hooks/useGameBoxScore";
 import { useLivePredictions } from "@/hooks/useLivePredictions";
+import { useMlPredictions } from "@/hooks/useMlPredictions";
 import { useOutcomeOdds } from "@/hooks/useOutcomeOdds";
 import { isGameOver } from "@/lib/mlb/gameOver";
 import { isHalfInningBreak } from "@/lib/mlb/lineup";
@@ -73,8 +74,13 @@ function DashboardContent({ game }: { game: SlateGame }) {
       strikes: atBatViewState?.strikes,
       pitchCount: atBatViewState?.atBatPitches.length,
     });
+  const mlPredictions = useMlPredictions(atBatViewState, !gameOver);
 
-  const { probabilities, stealProbabilities, matchedPrediction } = useOutcomeOdds(atBatViewState, predictions);
+  const { probabilities, stealProbabilities, matchedPrediction } = useOutcomeOdds(
+    atBatViewState,
+    predictions,
+    mlPredictions,
+  );
 
   const onFirst = matchedPrediction?.on_first ?? gameState?.onFirst ?? false;
   const onSecond = matchedPrediction?.on_second ?? gameState?.onSecond ?? false;

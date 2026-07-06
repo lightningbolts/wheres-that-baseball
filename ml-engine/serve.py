@@ -10,21 +10,36 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from inference import get_artifact, get_steal_artifact, predict_from_game_state, predict_steal_from_game_state
 
-HOST = os.environ.get("ML_ENGINE_HOST", "127.0.0.1")
-PORT = int(os.environ.get("ML_ENGINE_PORT", "8765"))
+HOST = os.environ.get(
+    "ML_ENGINE_HOST",
+    "0.0.0.0" if os.environ.get("PORT") else "127.0.0.1",
+)
+PORT = int(os.environ.get("PORT", os.environ.get("ML_ENGINE_PORT", "8765")))
+CORS_ORIGIN = os.environ.get("ML_ENGINE_CORS_ORIGIN", "*")
 
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt: str, *args) -> None:
         sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
 
+    def _cors_headers(self) -> None:
+        self.send_header("Access-Control-Allow-Origin", CORS_ORIGIN)
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+
     def _send_json(self, status: int, body: dict) -> None:
         payload = json.dumps(body).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
+        self._cors_headers()
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
+
+    def do_OPTIONS(self) -> None:
+        self.send_response(204)
+        self._cors_headers()
+        self.end_headers()
 
     def do_GET(self) -> None:
         if self.path == "/health":
