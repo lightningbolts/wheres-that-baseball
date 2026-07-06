@@ -411,6 +411,7 @@ async function backfillCountersFromManifest(
   }
 
   await buildRollingWindowStores(season, allCaches, options.storeOptions);
+  buildHistoryStores(season, allCaches, options.storeOptions.statIds);
 }
 
 async function refreshWindowBatSpeedFromSavant(

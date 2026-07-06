@@ -58,6 +58,8 @@ jobs:
           SINCE=$(date -u -d '2 days ago' +%Y-%m-%d)
           echo "Aggregating nerd stats for season ${SEASON} since ${SINCE}"
           npm run aggregate-nerd-stats -- --season="$SEASON" --since="$SINCE"
+          echo "Rebuilding daily trend history from per-game caches"
+          npm run aggregate-nerd-stats -- --season="$SEASON" --rebuild-history
 
       - name: Aggregate ballpark hits
         working-directory: web

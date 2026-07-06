@@ -45,6 +45,14 @@ function formatAxisValue(value: number): string {
   return value.toFixed(2);
 }
 
+function hasPlottedValues(points: NerdStatHistorySeriesPoint[]): boolean {
+  return points.some(
+    (point) =>
+      (point.teamValue != null && Number.isFinite(point.teamValue)) ||
+      (point.groupAverage != null && Number.isFinite(point.groupAverage)),
+  );
+}
+
 function buildPath(
   values: Array<number | null>,
   xForIndex: (index: number) => number,
@@ -230,6 +238,20 @@ function HistoryLineChart({
               strokeLinecap="round"
             />
           </>
+        )}
+
+        {points.map((point, index) =>
+          point.teamValue != null && Number.isFinite(point.teamValue) ? (
+            <circle
+              key={`team-dot-${index}`}
+              cx={xForIndex(index)}
+              cy={yForValue(point.teamValue)}
+              r={points.length <= 3 ? 4 : 2.5}
+              fill="var(--secondary)"
+              stroke="var(--background)"
+              strokeWidth={1.5}
+            />
+          ) : null,
         )}
 
         {activeIndex != null && points[activeIndex] && (
@@ -438,11 +460,11 @@ export function NerdStatHistoryChart({
         <div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
           {error}
         </div>
-      ) : !available || !selected || selected.points.length === 0 ? (
+      ) : !available || !selected || selected.points.length === 0 || !hasPlottedValues(selected.points) ? (
         <div className="mt-4 rounded-lg border border-border bg-surface-elevated px-4 py-8 text-center text-sm text-muted">
           Daily history is not available yet. Run{" "}
-          <code className="text-xs text-secondary">aggregate-nerd-stats --rebuild-history</code> to
-          populate trend data.
+          <code className="text-xs text-secondary">npm run aggregate-nerd-stats -- --season={season} --rebuild-history</code>{" "}
+          to populate trend data.
         </div>
       ) : (
         <div className="mt-4">
