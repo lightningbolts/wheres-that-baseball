@@ -71,8 +71,10 @@ import {
 } from "../lib/mlb/nerdStats/store";
 import {
   buildNerdStatHistory,
-  writeNerdStatHistories,
 } from "../lib/mlb/nerdStats/history";
+import {
+  writeNerdStatHistories,
+} from "../lib/mlb/nerdStats/historyStore";
 import type { NerdStatSplitId } from "../lib/mlb/nerdStats/splits";
 import { gameDateInNerdWindow, NERD_STAT_WINDOWS } from "../lib/mlb/nerdStats/windows";
 

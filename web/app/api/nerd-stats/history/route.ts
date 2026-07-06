@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getNerdStatDefinition } from "@/lib/mlb/nerdStats/definitions";
-import { loadNerdStatHistory } from "@/lib/mlb/nerdStats/history";
+import { loadNerdStatHistory } from "@/lib/mlb/nerdStats/historyStore";
 
 export const dynamic = "force-dynamic";
 
