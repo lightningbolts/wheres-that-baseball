@@ -6,24 +6,31 @@
  *   npm run aggregate-nerd-stats -- --season=2026 --since=2026-06-30
  *   npm run aggregate-nerd-stats -- --season=2026 --rebuild-store
  *
- * After adding new stat definitions (fast path — manifest games only):
+ * After adding new PBP-derived stat fields (re-extract from game_state):
  *   npm run aggregate-nerd-stats -- --season=2026 --backfill-counters --skip-savant
+ *   (uses data/nerd-stats/{season}/games/*.json when present — avoids repeat DB egress)
+ *   npm run aggregate-nerd-stats -- --season=2026 --backfill-counters --force-refetch
  *
- * Rewrite specific stat JSON files from existing counters (no DB fetch):
- *   npm run aggregate-nerd-stats -- --season=2026 --rebuild-store --stats=errors-committed,fielding-errors
+ * Rewrite stat JSON from existing season counters only (no DB fetch):
+ *   npm run aggregate-nerd-stats -- --season=2026 --rebuild-store --stats=errors-committed
  *
- * Rebuild home/away split stat files from existing split counters:
+ * Rebuild rolling window / split stat files from existing counters (no DB fetch):
  *   npm run aggregate-nerd-stats -- --season=2026 --rebuild-windows
- *   (also rebuilds split stores via --rebuild-windows when split counters exist)
+ *
+ * Egress: bulk game_state reads over Supabase REST count against the 5 GB free tier.
+ * Prefer DATABASE_URL (Session pooler) in ingestor/.env, or pass --require-postgres to fail
+ * instead of falling back to REST.
  *
  * Flags:
- *   --backfill-counters   Re-extract counters for games already in manifest.json
- *   --skip-savant         Skip Baseball Savant bat-speed fetches (fine for PBP-only stats)
- *   --stats=id1,id2       Only write these stat detail files (default with backfill: new stats only)
- *   --full-store          Write every stat file + team cards (default backfill skips existing stat files)
+ *   --backfill-counters   Re-extract counters for manifest games (cache-first)
+ *   --force-refetch       Ignore per-game cache and re-download game_state from DB
+ *   --require-postgres    Fail when Postgres is unreachable (do not use REST)
+ *   --skip-savant         Skip Baseball Savant bat-speed fetches
+ *   --stats=id1,id2       Only write these stat detail files
+ *   --full-store          Write every stat file + team cards
  *   --team-cards          Also rewrite team nerd card JSON files
- *   --rebuild-windows     Re-emit rolling window stat files from existing window counters
- *   --backfill-savant     Re-fetch Baseball Savant bat speed for manifest games + windows
+ *   --rebuild-windows     Re-emit rolling window + split stores from counters
+ *   --backfill-savant     Re-fetch Savant bat speed for manifest games
  */
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -35,6 +42,15 @@ import { createClient } from "@supabase/supabase-js";
 import { createEmptySeasonCounters, mergeSeasonCounters } from "../lib/mlb/nerdStats/counters";
 import { enrichCountersWithSavantBatSpeed } from "../lib/mlb/nerdStats/savantBatSpeed";
 import { extractNerdCountersFromGame } from "../lib/mlb/nerdStats/extractGame";
+import {
+  countPerGameCachesInWindow,
+  loadPerGameNerdCache,
+  loadPerGameNerdCaches,
+  mergePerGameCaches,
+  mergePerGameCachesForWindow,
+  type PerGameNerdCacheEntry,
+  writePerGameNerdCache,
+} from "../lib/mlb/nerdStats/gameCache";
 import type { GameNerdSourceRow, SeasonNerdCounters } from "../lib/mlb/nerdStats/types";
 import {
   appendGameNerdStatsToStore,
@@ -81,7 +97,11 @@ loadEnvFile(join(WEB_ROOT, ".env.local"));
 loadEnvFile(join(REPO_ROOT, "ingestor", ".env"));
 
 const require = createRequire(join(WEB_ROOT, "package.json"));
-const { resolveDbCredentials } = require(join(REPO_ROOT, "scripts/lib/db.mjs")) as typeof import("../../scripts/lib/db.mjs");
+const {
+  resolveDbCredentials,
+  testPostgresConnection,
+} = require(join(REPO_ROOT, "scripts/lib/db.mjs")) as typeof import("../../scripts/lib/db.mjs");
+const WEB_PKG = join(WEB_ROOT, "package.json");
 
 const PK_PAGE_SIZE = 500;
 const FULL_ROW_BATCH_SIZE = 12;
@@ -128,15 +148,73 @@ function resolveStoreOptions(
   };
 }
 
+async function extractAndCacheGame(
+  season: number,
+  game: GameNerdSourceRow,
+  skipSavant: boolean,
+): Promise<PerGameNerdCacheEntry> {
+  const combined = extractNerdCountersFromGame(game, "all");
+  const home = extractNerdCountersFromGame(game, "home");
+  const away = extractNerdCountersFromGame(game, "away");
+
+  if (!skipSavant) {
+    await enrichCountersWithSavantBatSpeed(combined, game.game_pk, { row: game, split: "all" });
+    await enrichCountersWithSavantBatSpeed(home, game.game_pk, { row: game, split: "home" });
+    await enrichCountersWithSavantBatSpeed(away, game.game_pk, { row: game, split: "away" });
+  }
+
+  const entry: PerGameNerdCacheEntry = {
+    gamePk: game.game_pk,
+    gameDate: game.game_date,
+    combined,
+    home,
+    away,
+    extractedAt: new Date().toISOString(),
+  };
+  writePerGameNerdCache(season, entry);
+  return entry;
+}
+
+async function extractAndCacheGames(
+  season: number,
+  games: GameNerdSourceRow[],
+  skipSavant: boolean,
+): Promise<PerGameNerdCacheEntry[]> {
+  const entries: PerGameNerdCacheEntry[] = [];
+  for (let i = 0; i < games.length; i += SAVANT_BATCH_SIZE) {
+    const batch = games.slice(i, i + SAVANT_BATCH_SIZE);
+    const batchEntries = await Promise.all(
+      batch.map((game) => extractAndCacheGame(season, game, skipSavant)),
+    );
+    entries.push(...batchEntries);
+    const done = Math.min(i + SAVANT_BATCH_SIZE, games.length);
+    process.stdout.write(`\rCached ${done}/${games.length} games…`);
+  }
+  process.stdout.write("\n");
+  return entries;
+}
+
+function countersByScopeFromCaches(
+  caches: PerGameNerdCacheEntry[],
+): Record<"combined" | NerdStatSplitId, SeasonNerdCounters> {
+  return {
+    combined: mergePerGameCaches(caches, "combined"),
+    home: mergePerGameCaches(caches, "home"),
+    away: mergePerGameCaches(caches, "away"),
+  };
+}
+
 async function processGamesIntoCounters(
+  season: number,
   games: GameNerdSourceRow[],
   skipSavant: boolean,
 ): Promise<SeasonNerdCounters> {
-  const { combined } = await processGamesIntoAllCounters(games, skipSavant);
+  const { combined } = await processGamesIntoAllCounters(season, games, skipSavant);
   return combined;
 }
 
 async function processGamesIntoAllCounters(
+  season: number,
   games: GameNerdSourceRow[],
   skipSavant: boolean,
 ): Promise<Record<"combined" | NerdStatSplitId, SeasonNerdCounters>> {
@@ -148,24 +226,12 @@ async function processGamesIntoAllCounters(
     const batch = games.slice(i, i + SAVANT_BATCH_SIZE);
     const batchCounters = await Promise.all(
       batch.map(async (game) => {
-        const gameCombined = extractNerdCountersFromGame(game, "all");
-        const gameHome = extractNerdCountersFromGame(game, "home");
-        const gameAway = extractNerdCountersFromGame(game, "away");
-        if (!skipSavant) {
-          await enrichCountersWithSavantBatSpeed(gameCombined, game.game_pk, {
-            row: game,
-            split: "all",
-          });
-          await enrichCountersWithSavantBatSpeed(gameHome, game.game_pk, {
-            row: game,
-            split: "home",
-          });
-          await enrichCountersWithSavantBatSpeed(gameAway, game.game_pk, {
-            row: game,
-            split: "away",
-          });
-        }
-        return { gameCombined, gameHome, gameAway };
+        const entry = await extractAndCacheGame(season, game, skipSavant);
+        return {
+          gameCombined: entry.combined,
+          gameHome: entry.home,
+          gameAway: entry.away,
+        };
       }),
     );
 
@@ -206,29 +272,58 @@ function writeSeasonAndSplitStores(
 
 async function buildRollingWindowStores(
   season: number,
-  games: GameNerdSourceRow[],
-  skipSavant: boolean,
+  caches: PerGameNerdCacheEntry[],
   storeOptions: WriteNerdStatsStoreOptions,
 ): Promise<void> {
   for (const window of NERD_STAT_WINDOWS) {
     if (window.id === "season") continue;
 
-    const filtered = games.filter((game) => gameDateInNerdWindow(game.game_date, window.id));
-    if (filtered.length === 0) {
+    const gameCount = countPerGameCachesInWindow(caches, window.id);
+    if (gameCount === 0) {
       console.log(`Skipping ${window.label} — no games in range.`);
       continue;
     }
 
-    console.log(`Building ${window.label} from ${filtered.length} game(s)…`);
-    const counters = await processGamesIntoCounters(filtered, skipSavant);
-    const { writtenStatIds } = writeWindowNerdStatsStore(
-      season,
-      window.id,
-      counters,
-      filtered.map((game) => game.game_pk),
-      { ...storeOptions, skipTeamCards: true },
-    );
+    console.log(`Building ${window.label} from ${gameCount} game(s)…`);
+    const counters = mergePerGameCachesForWindow(caches, window.id);
+    const gamePks = caches
+      .filter((entry) => gameDateInNerdWindow(entry.gameDate, window.id))
+      .map((entry) => entry.gamePk);
+    const { writtenStatIds } = writeWindowNerdStatsStore(season, window.id, counters, gamePks, {
+      ...storeOptions,
+      indexedGameCount: gameCount,
+      skipTeamCards: true,
+    });
     console.log(`  Wrote window summary + ${writtenStatIds.length} stat file(s).`);
+  }
+}
+
+async function refreshRollingWindowStoresIncremental(
+  season: number,
+  newCaches: PerGameNerdCacheEntry[],
+  storeOptions: WriteNerdStatsStoreOptions,
+): Promise<void> {
+  const manifest = loadNerdStatsManifest(season);
+
+  for (const window of NERD_STAT_WINDOWS) {
+    if (window.id === "season") continue;
+
+    const inWindow = newCaches.filter((entry) => gameDateInNerdWindow(entry.gameDate, window.id));
+    if (inWindow.length === 0) continue;
+
+    const counters = loadWindowCounters(season, window.id);
+    for (const entry of inWindow) {
+      mergeSeasonCounters(counters, entry.combined);
+    }
+
+    const existing = loadNerdStatsSummary(season, window.id);
+    const indexedGameCount = (existing?.indexedGameCount ?? 0) + inWindow.length;
+    writeWindowNerdStatsStore(season, window.id, counters, manifest.processedGamePks, {
+      ...storeOptions,
+      indexedGameCount,
+      skipTeamCards: true,
+    });
+    console.log(`  Updated ${window.label} (+${inWindow.length} game(s)).`);
   }
 }
 
@@ -238,6 +333,7 @@ async function backfillCountersFromManifest(
   options: {
     skipSavant: boolean;
     storeOptions: WriteNerdStatsStoreOptions;
+    forceRefetch: boolean;
   },
 ): Promise<void> {
   const manifest = loadNerdStatsManifest(season);
@@ -253,8 +349,27 @@ async function backfillCountersFromManifest(
     console.log("Skipping Baseball Savant bat-speed enrichment.");
   }
 
-  const games = await fetchGamesForPks(creds, manifest.processedGamePks);
-  const countersByScope = await processGamesIntoAllCounters(games, options.skipSavant);
+  let allCaches: PerGameNerdCacheEntry[];
+  if (options.forceRefetch) {
+    console.log("Force refetch — downloading all manifest games from DB.");
+    const games = await fetchGamesForPks(creds, manifest.processedGamePks);
+    allCaches = await extractAndCacheGames(season, games, options.skipSavant);
+  } else {
+    const { cached, missing } = loadPerGameNerdCaches(season, manifest.processedGamePks);
+    if (missing.length === 0) {
+      console.log(`Using ${cached.length} per-game cache file(s) — no DB fetch.`);
+      allCaches = cached;
+    } else {
+      console.log(
+        `${cached.length} game(s) in local cache; fetching ${missing.length} missing from DB…`,
+      );
+      const games = await fetchGamesForPks(creds, missing);
+      const fetched = await extractAndCacheGames(season, games, options.skipSavant);
+      allCaches = [...cached, ...fetched];
+    }
+  }
+
+  const countersByScope = countersByScopeFromCaches(allCaches);
   const { writtenStatIds } = writeSeasonAndSplitStores(
     season,
     countersByScope,
@@ -272,24 +387,24 @@ async function backfillCountersFromManifest(
     console.log("Skipped team cards (pass --team-cards to include).");
   }
 
-  await buildRollingWindowStores(season, games, options.skipSavant, options.storeOptions);
+  await buildRollingWindowStores(season, allCaches, options.storeOptions);
 }
 
 async function refreshWindowBatSpeedFromSavant(
   season: number,
-  games: GameNerdSourceRow[],
+  caches: PerGameNerdCacheEntry[],
   storeOptions: WriteNerdStatsStoreOptions,
 ): Promise<void> {
   for (const window of NERD_STAT_WINDOWS) {
     if (window.id === "season") continue;
 
-    const filtered = games.filter((game) => gameDateInNerdWindow(game.game_date, window.id));
-    if (filtered.length === 0) continue;
+    const inWindow = caches.filter((entry) => gameDateInNerdWindow(entry.gameDate, window.id));
+    if (inWindow.length === 0) continue;
 
     const counters = loadWindowCounters(season, window.id);
     resetBatSpeedCounters(counters);
 
-    const gamePks = filtered.map((game) => game.game_pk);
+    const gamePks = inWindow.map((entry) => entry.gamePk);
     for (let i = 0; i < gamePks.length; i += SAVANT_BATCH_SIZE) {
       const batch = gamePks.slice(i, i + SAVANT_BATCH_SIZE);
       await Promise.all(batch.map((gamePk) => enrichCountersWithSavantBatSpeed(counters, gamePk)));
@@ -345,8 +460,8 @@ async function backfillSavantBatSpeedFromManifest(
   console.log(`Updated season counters with Savant bat speed (${writtenStatIds.length} stat file(s)).`);
 
   console.log("Refreshing rolling window bat speed from Savant…");
-  const games = await fetchGamesForPks(creds, gamePks);
-  await refreshWindowBatSpeedFromSavant(season, games, storeOptions);
+  const caches = loadPerGameNerdCaches(season, gamePks).cached;
+  await refreshWindowBatSpeedFromSavant(season, caches, storeOptions);
 }
 
 type BulkCreds =
@@ -354,7 +469,33 @@ type BulkCreds =
   | { mode: "rest"; supabaseUrl: string; serviceRoleKey: string };
 
 function resolveBulkReadCredentials(): BulkCreds {
-  return resolveDbCredentials(REPO_ROOT, { preferPostgres: true });
+  return resolveDbCredentials(REPO_ROOT, { preferPostgres: false });
+}
+
+async function resolveBulkReadCredentialsAsync(): Promise<BulkCreds> {
+  const requirePostgres = hasFlag("require-postgres");
+  const databaseUrl = process.env.DATABASE_URL;
+
+  if (databaseUrl) {
+    try {
+      await testPostgresConnection(databaseUrl, WEB_PKG);
+      return { mode: "postgres", databaseUrl };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (requirePostgres) {
+        throw new Error(`Postgres unreachable (--require-postgres): ${message}`);
+      }
+      console.warn(`Postgres unreachable (${message}); falling back to Supabase REST.`);
+    }
+  } else if (requirePostgres) {
+    throw new Error("--require-postgres set but DATABASE_URL is missing in ingestor/.env.");
+  }
+
+  const creds = resolveBulkReadCredentials();
+  if (creds.mode !== "rest" && requirePostgres) {
+    throw new Error("--require-postgres requires a working Postgres connection.");
+  }
+  return creds;
 }
 
 function warnEgressIfRest(creds: BulkCreds): void {
@@ -531,18 +672,19 @@ async function main() {
   });
 
   if (backfillCounters) {
-    const creds = resolveBulkReadCredentials();
-  warnEgressIfRest(creds);
+    const creds = await resolveBulkReadCredentialsAsync();
+    warnEgressIfRest(creds);
     await backfillCountersFromManifest(season, creds, {
       skipSavant,
       storeOptions,
+      forceRefetch: hasFlag("force-refetch"),
     });
     return;
   }
 
   if (backfillSavant) {
-    const creds = resolveBulkReadCredentials();
-  warnEgressIfRest(creds);
+    const creds = await resolveBulkReadCredentialsAsync();
+    warnEgressIfRest(creds);
     await backfillSavantBatSpeedFromManifest(season, creds, storeOptions);
     return;
   }
@@ -591,7 +733,7 @@ async function main() {
     return;
   }
 
-  const creds = resolveBulkReadCredentials();
+  const creds = await resolveBulkReadCredentialsAsync();
   warnEgressIfRest(creds);
 
   if (incremental) {
@@ -616,8 +758,12 @@ async function main() {
       const pending = await fetchGamesForPks(creds, pendingPks);
 
       console.log(`Processing ${pending.length} new game(s)…`);
+      const newCaches: PerGameNerdCacheEntry[] = [];
       for (let i = 0; i < pending.length; i += 1) {
-        await appendGameNerdStatsToStore(season, pending[i]!);
+        const game = pending[i]!;
+        await appendGameNerdStatsToStore(season, game);
+        const cached = loadPerGameNerdCache(season, game.game_pk);
+        if (cached) newCaches.push(cached);
         if ((i + 1) % 10 === 0 || i + 1 === pending.length) {
           process.stdout.write(`\rProcessed ${i + 1}/${pending.length} games…`);
         }
@@ -625,20 +771,19 @@ async function main() {
 
       process.stdout.write("\n");
       console.log(`Updated nerd stats with ${pending.length} game(s) in data/nerd-stats/${season}/`);
+
+      if (newCaches.length > 0) {
+        console.log("Refreshing rolling window stores…");
+        await refreshRollingWindowStoresIncremental(season, newCaches, storeOptions);
+      }
     }
 
-    const manifest = loadNerdStatsManifest(season);
-    if (manifest.processedGamePks.length > 0) {
-      console.log("Refreshing rolling window stores…");
-      const allGames = await fetchGamesForPks(creds, manifest.processedGamePks);
-      await buildRollingWindowStores(season, allGames, skipSavant, storeOptions);
-    }
     return;
   }
 
   console.log(`Fetching full game payloads in batches of ${FULL_ROW_BATCH_SIZE}…`);
   const games = await fetchGamesForPks(creds, gamePks);
-  const countersByScope = await processGamesIntoAllCounters(games, skipSavant);
+  const countersByScope = await processGamesIntoAllCounters(season, games, skipSavant);
   const processed = games.map((game) => game.game_pk);
 
   const fullRebuildStoreOptions = resolveStoreOptions(season, explicitStatIds, {
@@ -647,7 +792,8 @@ async function main() {
   });
   writeSeasonAndSplitStores(season, countersByScope, processed, fullRebuildStoreOptions);
   console.log(`Wrote nerd stats for ${processed.length} games to data/nerd-stats/${season}/`);
-  await buildRollingWindowStores(season, games, skipSavant, fullRebuildStoreOptions);
+  const allCaches = loadPerGameNerdCaches(season, processed).cached;
+  await buildRollingWindowStores(season, allCaches, fullRebuildStoreOptions);
 }
 
 main().catch((error) => {

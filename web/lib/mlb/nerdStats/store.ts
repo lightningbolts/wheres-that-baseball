@@ -13,6 +13,7 @@ import {
 } from "@/lib/mlb/nerdStats/counters";
 import { NERD_STAT_DEFINITIONS } from "@/lib/mlb/nerdStats/definitions";
 import { extractNerdCountersFromGame } from "@/lib/mlb/nerdStats/extractGame";
+import { writePerGameNerdCache } from "@/lib/mlb/nerdStats/gameCache";
 import { enrichCountersWithSavantBatSpeed } from "@/lib/mlb/nerdStats/savantBatSpeed";
 import type {
   GameNerdSourceRow,
@@ -430,6 +431,15 @@ export async function appendGameNerdStatsToStore(
   mergeSeasonCounters(counters, gameCounters);
   mergeSeasonCounters(homeCounters, gameHomeCounters);
   mergeSeasonCounters(awayCounters, gameAwayCounters);
+
+  writePerGameNerdCache(season, {
+    gamePk: row.game_pk,
+    gameDate: row.game_date,
+    combined: gameCounters,
+    home: gameHomeCounters,
+    away: gameAwayCounters,
+    extractedAt: new Date().toISOString(),
+  });
 
   manifest.processedGamePks.push(row.game_pk);
   manifest.processedGamePks.sort((a, b) => a - b);
