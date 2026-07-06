@@ -41,6 +41,8 @@ func ToGameState(gamePK int, feed *LiveFeed) GameState {
 	}
 
 	state.OnFirst, state.OnSecond, state.OnThird = runnersOnBase(play.Runners)
+	state.AwayScore = feed.LiveData.Linescore.Teams.Away.Runs
+	state.HomeScore = feed.LiveData.Linescore.Teams.Home.Runs
 
 	var pitchEvents []PlayEvent
 	for _, ev := range play.PlayEvents {
@@ -54,7 +56,7 @@ func ToGameState(gamePK int, feed *LiveFeed) GameState {
 		last := pitchEvents[len(pitchEvents)-1]
 		state.LastPlayEvent = last.PlayID
 		if last.PitchData != nil {
-			state.LastPitch = &PitchSnapshot{
+			snap := &PitchSnapshot{
 				PlayID:     last.PlayID,
 				StartSpeed: last.PitchData.StartSpeed,
 				EndSpeed:   last.PitchData.EndSpeed,
@@ -63,6 +65,10 @@ func ToGameState(gamePK int, feed *LiveFeed) GameState {
 				X:          last.PitchData.Coordinates.X,
 				Y:          last.PitchData.Coordinates.Y,
 			}
+			if last.PitchData.Type != nil {
+				snap.TypeCode = last.PitchData.Type.Code
+			}
+			state.LastPitch = snap
 		}
 	}
 

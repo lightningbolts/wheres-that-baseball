@@ -5,7 +5,7 @@ import joblib
 import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import HistGradientBoostingClassifier
-from sklearn.metrics import classification_report, log_loss
+from sklearn.metrics import classification_report, f1_score, log_loss
 from sklearn.pipeline import Pipeline
 
 from constants import FEATURE_COLS, LEAGUE_DEFAULTS, OUTCOME_KEYS
@@ -76,6 +76,7 @@ def train() -> dict:
             max_depth=6,
             learning_rate=0.1,
             max_iter=200,
+            class_weight="balanced",
             random_state=42,
         )),
     ])
@@ -95,12 +96,18 @@ def train() -> dict:
     print(f"Naive log loss:  {naive_log_loss:.4f}")
 
     hit_keys = ["single", "double", "triple", "home_run"]
-    ob_keys = hit_keys + ["walk"]
+    ob_keys = hit_keys + ["walk", "hit_by_pitch"]
     class_idx = {c: i for i, c in enumerate(classes)}
     mean_hit = sum(y_proba[:, class_idx[k]].mean() for k in hit_keys if k in class_idx)
     mean_ob = sum(y_proba[:, class_idx[k]].mean() for k in ob_keys if k in class_idx)
+    macro_f1 = float(f1_score(y_test, y_pred, labels=classes, average="macro", zero_division=0))
+    per_class_f1 = {
+        label: float(f1_score(y_test == label, y_pred == label, zero_division=0))
+        for label in classes
+    }
     print(f"Mean predicted P(hit):     {mean_hit:.3f}")
     print(f"Mean predicted P(on base): {mean_ob:.3f}")
+    print(f"Macro F1:                  {macro_f1:.4f}")
 
     artifact = {
         "pipeline": pipeline,
@@ -121,6 +128,8 @@ def train() -> dict:
         "naive_log_loss": naive_log_loss,
         "mean_predicted_hit": mean_hit,
         "mean_predicted_on_base": mean_ob,
+        "macro_f1": macro_f1,
+        "per_class_f1": per_class_f1,
         "class_distribution_train": y_train.value_counts(normalize=True).to_dict(),
         "class_distribution_test": y_test.value_counts(normalize=True).to_dict(),
         "support_test": {k: int((y_test == k).sum()) for k in OUTCOME_KEYS},

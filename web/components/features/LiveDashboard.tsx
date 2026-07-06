@@ -18,6 +18,7 @@ import { NerdInsightToasts } from "@/components/features/NerdInsightToasts";
 import { PlayByPlay } from "@/components/features/PlayByPlay";
 import { ProbabilityChart } from "@/components/features/ProbabilityChart";
 import { Scorebug } from "@/components/features/Scorebug";
+import { StealIndicator } from "@/components/features/StealIndicator";
 import { PitchSequence } from "@/components/features/PitchSequence";
 import { useArchiveFinishedGame } from "@/hooks/useArchiveFinishedGame";
 import { useBatterHotZones } from "@/hooks/useBatterHotZones";
@@ -73,7 +74,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
       pitchCount: atBatViewState?.atBatPitches.length,
     });
 
-  const { probabilities, matchedPrediction } = useOutcomeOdds(atBatViewState, predictions);
+  const { probabilities, stealProbabilities, matchedPrediction } = useOutcomeOdds(atBatViewState, predictions);
 
   const onFirst = matchedPrediction?.on_first ?? gameState?.onFirst ?? false;
   const onSecond = matchedPrediction?.on_second ?? gameState?.onSecond ?? false;
@@ -121,11 +122,18 @@ function DashboardContent({ game }: { game: SlateGame }) {
 
   const outcomeOddsFooter =
     atBatViewState && gameState?.gameStatus === "Live" && !showBreakUI ? (
-      <ProbabilityChart
-        key={`${atBatViewState.batterId ?? 0}-${atBatViewState.inning}`}
-        probabilities={probabilities}
-        contained={false}
-      />
+      <div className="space-y-2">
+        <ProbabilityChart
+          key={`${atBatViewState.batterId ?? 0}-${atBatViewState.inning}`}
+          probabilities={probabilities}
+          contained={false}
+        />
+        <StealIndicator
+          stealProbabilities={stealProbabilities}
+          onFirst={onFirst}
+          onSecond={onSecond}
+        />
+      </div>
     ) : (
       <p className="py-2 text-center text-sm text-muted">
         {LIVE_GAME_STATUSES.has(game.status)

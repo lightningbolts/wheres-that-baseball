@@ -17,6 +17,7 @@ import { GameFinalDialog } from "@/components/features/GameFinalDialog";
 import { PitchSequence } from "@/components/features/PitchSequence";
 import { PlayByPlay } from "@/components/features/PlayByPlay";
 import { ProbabilityChart } from "@/components/features/ProbabilityChart";
+import { StealIndicator } from "@/components/features/StealIndicator";
 import { Scorebug } from "@/components/features/Scorebug";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useGameBoxScore } from "@/hooks/useGameBoxScore";
@@ -38,7 +39,7 @@ import { isGameOver } from "@/lib/mlb/gameOver";
 import { isHalfInningBreak } from "@/lib/mlb/lineup";
 import { isPlayByPlayAtBat } from "@/lib/mlb/liveFeed";
 import { cn } from "@/lib/utils";
-import { DEFAULT_OUTCOME_PROBABILITIES } from "@/types/database";
+import { normalizeOutcomeProbabilities } from "@/types/database";
 import type { Game } from "@/types/database";
 import { LIVE_GAME_STATUSES } from "@/types/mlb";
 import type { PlayByPlayEntry } from "@/types/mlb-live";
@@ -181,14 +182,14 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
     pitchCount: atBatViewState?.atBatPitches.length,
   });
 
-  const { probabilities: liveOutcomeProbabilities, matchedPrediction } = useOutcomeOdds(
+  const { probabilities: liveOutcomeProbabilities, stealProbabilities, matchedPrediction } = useOutcomeOdds(
     isLive ? atBatViewState : null,
     livePredictions,
   );
 
   const outcomeProbabilities = isLive
     ? liveOutcomeProbabilities
-    : (predictionForAtBat?.outcome_probabilities ?? DEFAULT_OUTCOME_PROBABILITIES);
+    : normalizeOutcomeProbabilities(predictionForAtBat?.outcome_probabilities);
 
   const onFirst = isLive
     ? (matchedPrediction?.on_first ?? gameState?.onFirst ?? false)
@@ -258,12 +259,19 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
     if (isLive) {
       if (atBatViewState && gameState?.gameStatus === "Live" && !showBreakUI) {
         return (
-          <ProbabilityChart
-            key={`${atBatViewState.batterId ?? 0}-${atBatViewState.inning}`}
-            probabilities={outcomeProbabilities}
-            compact={compact}
-            contained={false}
-          />
+          <div className="space-y-2">
+            <ProbabilityChart
+              key={`${atBatViewState.batterId ?? 0}-${atBatViewState.inning}`}
+              probabilities={outcomeProbabilities}
+              compact={compact}
+              contained={false}
+            />
+            <StealIndicator
+              stealProbabilities={stealProbabilities}
+              onFirst={onFirst}
+              onSecond={onSecond}
+            />
+          </div>
         );
       }
 

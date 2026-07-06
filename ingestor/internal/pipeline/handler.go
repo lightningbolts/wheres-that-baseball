@@ -25,6 +25,11 @@ func StateChangeHandler(pred predictor.Predictor, repo database.Store, logger *s
 			return fmt.Errorf("invalid prediction: %w", err)
 		}
 
+		stealResult, stealErr := pred.PredictSteal(ctx, state)
+		if stealErr != nil {
+			logger.Warn("steal prediction failed", "game_pk", state.GamePK, "error", stealErr)
+		}
+
 		row := database.PredictionRow{
 			GamePK:               state.GamePK,
 			Timestamp:            state.ObservedAt,
@@ -38,6 +43,9 @@ func StateChangeHandler(pred predictor.Predictor, repo database.Store, logger *s
 			OnSecond:             state.OnSecond,
 			OnThird:              state.OnThird,
 			OutcomeProbabilities: result.ToMap(),
+		}
+		if stealErr == nil && (stealResult.Attempt > 0 || stealResult.Success > 0) {
+			row.StealProbabilities = stealResult.ToMap()
 		}
 
 		id, err := repo.InsertPrediction(ctx, row)

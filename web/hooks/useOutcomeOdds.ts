@@ -2,17 +2,23 @@
 
 import { useMemo } from "react";
 
-import { predictClientOutcomeOdds } from "@/lib/predictions/clientPredictor";
+import {
+  predictClientOutcomeOdds,
+  predictClientStealOdds,
+} from "@/lib/predictions/clientPredictor";
 import { selectPredictionForAtBat } from "@/lib/predictions/matchAtBat";
 import {
   DEFAULT_OUTCOME_PROBABILITIES,
+  normalizeOutcomeProbabilities,
   type OutcomeProbabilities,
   type Prediction,
+  type StealProbabilities,
 } from "@/types/database";
 import type { LiveGameState } from "@/types/mlb-live";
 
 export interface UseOutcomeOddsResult {
   probabilities: OutcomeProbabilities;
+  stealProbabilities: StealProbabilities | null;
   matchedPrediction: Prediction | null;
   /** Stable key for chart re-mount / animation when the pitch state changes. */
   oddsKey: string;
@@ -38,6 +44,7 @@ export function useOutcomeOdds(
     if (!atBatViewState) {
       return {
         probabilities: DEFAULT_OUTCOME_PROBABILITIES,
+        stealProbabilities: null,
         matchedPrediction: null,
         oddsKey: "none",
         source: "none" as const,
@@ -52,6 +59,13 @@ export function useOutcomeOdds(
       (atBatViewState.batterId ?? 0) * 13 +
       atBatViewState.inning * 3;
 
+    const situation = {
+      outs: atBatViewState.outs,
+      onFirst: atBatViewState.onFirst,
+      onSecond: atBatViewState.onSecond,
+      onThird: atBatViewState.onThird,
+    };
+
     const match = {
       batterName: atBatViewState.batterName,
       inning: atBatViewState.inning,
@@ -64,9 +78,10 @@ export function useOutcomeOdds(
 
     const oddsKey = `${atBatViewState.batterId ?? 0}-${balls}-${strikes}-${pitchCount}`;
 
-    if (ingestorMatch && hasNonZeroProbabilities(ingestorMatch.outcome_probabilities)) {
+    if (ingestorMatch && hasNonZeroProbabilities(normalizeOutcomeProbabilities(ingestorMatch.outcome_probabilities))) {
       return {
-        probabilities: ingestorMatch.outcome_probabilities,
+        probabilities: normalizeOutcomeProbabilities(ingestorMatch.outcome_probabilities),
+        stealProbabilities: ingestorMatch.steal_probabilities ?? predictClientStealOdds(situation),
         matchedPrediction: ingestorMatch,
         oddsKey: `${ingestorMatch.id}-${oddsKey}`,
         source: "ingestor" as const,
@@ -74,7 +89,8 @@ export function useOutcomeOdds(
     }
 
     return {
-      probabilities: predictClientOutcomeOdds(balls, strikes, pitchCount, seed),
+      probabilities: predictClientOutcomeOdds(balls, strikes, pitchCount, seed, situation),
+      stealProbabilities: predictClientStealOdds(situation),
       matchedPrediction: ingestorMatch,
       oddsKey,
       source: ingestorMatch ? "ingestor" as const : "client" as const,

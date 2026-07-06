@@ -22,71 +22,109 @@ func NewMockPredictor() *MockPredictor {
 	}
 }
 
-// Predict returns slightly randomized probabilities biased by balls/strikes.
-// Examples: 3-0 favors walks; 0-2 favors strikeouts; 3-2 is high-variance.
+// Predict returns slightly randomized probabilities biased by count and base state.
 func (m *MockPredictor) Predict(ctx context.Context, state mlb.GameState) (PredictionResult, error) {
 	if err := ctx.Err(); err != nil {
 		return PredictionResult{}, err
 	}
 
-	weights := baseWeights(state.Balls, state.Strikes)
+	weights := baseWeights(state)
 	m.jitter(weights)
 
 	normalized := normalize(weights)
 	return PredictionResult{
-		Strikeout: normalized[OutcomeStrikeout],
-		Walk:      normalized[OutcomeWalk],
-		Single:    normalized[OutcomeSingle],
-		Double:    normalized[OutcomeDouble],
-		Triple:    normalized[OutcomeTriple],
-		HomeRun:   normalized[OutcomeHomeRun],
-		FieldOut:  normalized[OutcomeFieldOut],
+		Strikeout:  normalized[OutcomeStrikeout],
+		Walk:       normalized[OutcomeWalk],
+		HitByPitch: normalized[OutcomeHitByPitch],
+		Single:     normalized[OutcomeSingle],
+		Double:     normalized[OutcomeDouble],
+		Triple:     normalized[OutcomeTriple],
+		HomeRun:    normalized[OutcomeHomeRun],
+		FieldOut:   normalized[OutcomeFieldOut],
+		GIDP:       normalized[OutcomeGIDP],
+		SacFly:     normalized[OutcomeSacFly],
+		SacBunt:    normalized[OutcomeSacBunt],
 	}, nil
 }
 
-// baseWeights encodes heuristic priors before jitter and normalization.
-func baseWeights(balls, strikes int) map[string]float64 {
-	w := map[string]float64{
-		OutcomeStrikeout: 0.18,
-		OutcomeWalk:      0.08,
-		OutcomeSingle:    0.22,
-		OutcomeDouble:    0.07,
-		OutcomeTriple:    0.01,
-		OutcomeHomeRun:   0.09,
-		OutcomeFieldOut:  0.35,
+// PredictSteal returns heuristic steal odds when runners are on base.
+func (m *MockPredictor) PredictSteal(ctx context.Context, state mlb.GameState) (StealResult, error) {
+	if err := ctx.Err(); err != nil {
+		return StealResult{}, err
+	}
+	if !state.OnFirst && !state.OnSecond {
+		return StealResult{}, nil
 	}
 
-	// Count-driven spikes make frontend demos react visibly to live state.
+	attempt := 0.04
+	if state.Balls >= 2 {
+		attempt += 0.03
+	}
+	if state.Outs >= 2 {
+		attempt += 0.02
+	}
+	success := attempt * 0.72
+	return StealResult{Attempt: attempt, Success: success}, nil
+}
+
+func baseWeights(state mlb.GameState) map[string]float64 {
+	balls, strikes := state.Balls, state.Strikes
+	w := map[string]float64{
+		OutcomeStrikeout:  0.18,
+		OutcomeWalk:       0.07,
+		OutcomeHitByPitch: 0.01,
+		OutcomeSingle:     0.20,
+		OutcomeDouble:     0.06,
+		OutcomeTriple:     0.01,
+		OutcomeHomeRun:    0.08,
+		OutcomeFieldOut:   0.28,
+		OutcomeGIDP:       0.04,
+		OutcomeSacFly:     0.03,
+		OutcomeSacBunt:    0.02,
+	}
+
+	if state.OnFirst && state.Outs < 2 {
+		w[OutcomeGIDP] += 0.06
+		w[OutcomeFieldOut] -= 0.04
+	}
+	if state.OnThird && state.Outs < 2 {
+		w[OutcomeSacFly] += 0.08
+		w[OutcomeFieldOut] -= 0.06
+	}
+	if state.OnSecond || state.OnThird {
+		w[OutcomeSingle] += 0.02
+		w[OutcomeDouble] += 0.01
+	}
+
 	switch {
 	case balls >= 3 && strikes == 0:
-		w[OutcomeWalk] = 0.48
-		w[OutcomeSingle] = 0.15
-		w[OutcomeFieldOut] = 0.12
+		w[OutcomeWalk] = 0.44
+		w[OutcomeSingle] = 0.14
+		w[OutcomeFieldOut] = 0.10
 		w[OutcomeStrikeout] = 0.05
 	case balls == 3 && strikes <= 1:
-		w[OutcomeWalk] = 0.42
+		w[OutcomeWalk] = 0.38
 		w[OutcomeStrikeout] = 0.08
 	case strikes >= 2 && balls == 0:
-		w[OutcomeStrikeout] = 0.55
+		w[OutcomeStrikeout] = 0.52
 		w[OutcomeWalk] = 0.03
-		w[OutcomeFieldOut] = 0.22
+		w[OutcomeFieldOut] = 0.18
 	case strikes == 2:
-		w[OutcomeStrikeout] = 0.38
-		w[OutcomeFieldOut] = 0.28
+		w[OutcomeStrikeout] = 0.36
+		w[OutcomeFieldOut] = 0.22
 	case balls == 3 && strikes == 2:
-		w[OutcomeWalk] = 0.22
-		w[OutcomeStrikeout] = 0.22
-		w[OutcomeSingle] = 0.18
-		w[OutcomeHomeRun] = 0.12
+		w[OutcomeWalk] = 0.20
+		w[OutcomeStrikeout] = 0.20
+		w[OutcomeSingle] = 0.16
+		w[OutcomeHomeRun] = 0.10
 	}
 
 	return w
 }
 
-// jitter adds small noise so repeated polls at the same count still vary slightly.
 func (m *MockPredictor) jitter(weights map[string]float64) {
 	for k, v := range weights {
-		delta := (m.rng.Float64() - 0.5) * 0.06 // ±3%
+		delta := (m.rng.Float64() - 0.5) * 0.06
 		weights[k] = math.Max(0.001, v+delta)
 	}
 }

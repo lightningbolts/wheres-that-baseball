@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS predictions (
     on_second               BOOLEAN NOT NULL DEFAULT FALSE,
     on_third                BOOLEAN NOT NULL DEFAULT FALSE,
     outcome_probabilities   JSONB NOT NULL,
+    steal_probabilities     JSONB,
 
     CONSTRAINT predictions_outcome_probabilities_object
         CHECK (jsonb_typeof(outcome_probabilities) = 'object')
@@ -24,7 +25,11 @@ CREATE INDEX IF NOT EXISTS idx_predictions_game_pk_timestamp
     ON predictions (game_pk, timestamp DESC);
 
 COMMENT ON TABLE predictions IS 'Live at-bat outcome probabilities produced by the ingestor.';
-COMMENT ON COLUMN predictions.outcome_probabilities IS 'Map of outcome -> probability; keys: strikeout, walk, single, double, triple, home_run, field_out';
+COMMENT ON COLUMN predictions.outcome_probabilities IS 'Map of outcome -> probability; keys: strikeout, walk, hit_by_pitch, single, double, triple, home_run, field_out, gidp, sac_fly, sac_bunt';
+COMMENT ON COLUMN predictions.steal_probabilities IS 'Optional steal odds: steal_attempt, steal_success';
+
+-- Migration for existing databases:
+-- ALTER TABLE predictions ADD COLUMN IF NOT EXISTS steal_probabilities JSONB;
 
 -- Season game history synced by the ingestor (live schedule) and scripts/fetch-season-games.mjs
 CREATE TABLE IF NOT EXISTS games (

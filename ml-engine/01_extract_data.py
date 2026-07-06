@@ -1,11 +1,12 @@
 import os
+from datetime import date
 from pathlib import Path
 
 import pandas as pd
 from dotenv import load_dotenv
 from supabase import Client, create_client
 
-from constants import LEAGUE_DEFAULTS, OUTCOME_KEYS
+from constants import LEAGUE_AVG_PITCH_SPEED, LEAGUE_DEFAULTS, OUTCOME_KEYS, PITCH_TYPE_CODES
 
 load_dotenv()
 
@@ -51,11 +52,11 @@ def map_outcome(event_type: str | None) -> str | None:
 
     direct = {
         "strikeout": "strikeout",
-        "strikeout_double_play": "strikeout",
+        "strikeout_double_play": "gidp",
         "walk": "walk",
         "intentional_walk": "walk",
         "intent_walk": "walk",
-        "hit_by_pitch": "walk",
+        "hit_by_pitch": "hit_by_pitch",
         "single": "single",
         "double": "double",
         "triple": "triple",
@@ -63,18 +64,20 @@ def map_outcome(event_type: str | None) -> str | None:
         "field_out": "field_out",
         "force_out": "field_out",
         "forceout": "field_out",
-        "grounded_into_dp": "field_out",
+        "grounded_into_dp": "gidp",
+        "grounded_into_double_play": "gidp",
         "fly_out": "field_out",
         "flyout": "field_out",
         "line_out": "field_out",
         "lineout": "field_out",
         "pop_out": "field_out",
         "groundout": "field_out",
-        "sac_fly": "field_out",
-        "sacrifice_fly": "field_out",
-        "sac_bunt": "field_out",
-        "sacrifice_bunt": "field_out",
-        "bunt_groundout": "field_out",
+        "ground_out": "field_out",
+        "sac_fly": "sac_fly",
+        "sacrifice_fly": "sac_fly",
+        "sac_bunt": "sac_bunt",
+        "sacrifice_bunt": "sac_bunt",
+        "bunt_groundout": "sac_bunt",
         "double_play": "field_out",
         "fielders_choice_out": "field_out",
         "fielders_choice": "field_out",
@@ -84,16 +87,25 @@ def map_outcome(event_type: str | None) -> str | None:
     return direct.get(normalized)
 
 
+def unwrap_game_state(state: dict) -> dict:
+    """Support both legacy raw feed JSON and web `parsed` LiveGameState snapshots."""
+    parsed = state.get("parsed")
+    if isinstance(parsed, dict):
+        return parsed
+    return state
+
+
 def _situation_fields(play: dict, situation: dict) -> dict:
+    outs = play.get("outs") if play.get("outs") is not None else situation.get("outs", 0)
     return {
         "inning": play.get("inning") or play.get("detail", {}).get("inning"),
         "half_inning": play.get("halfInning") or play.get("detail", {}).get("halfInning"),
-        "outs": situation.get("outs", 0),
+        "outs": min(int(outs or 0), 2),
         "on_first": bool(play.get("onFirst") or situation.get("onFirst")),
         "on_second": bool(play.get("onSecond") or situation.get("onSecond")),
         "on_third": bool(play.get("onThird") or situation.get("onThird")),
-        "away_score": situation.get("awayScore", 0),
-        "home_score": situation.get("homeScore", 0),
+        "away_score": play.get("awayScore") if play.get("awayScore") is not None else situation.get("awayScore", 0),
+        "home_score": play.get("homeScore") if play.get("homeScore") is not None else situation.get("homeScore", 0),
     }
 
 def _hands_lookup() -> pd.DataFrame:
@@ -146,25 +158,41 @@ def _join_player_stats(df: pd.DataFrame) -> pd.DataFrame:
     stats = pd.read_parquet(PLAYER_STATS_PATH)
     df["season"] = pd.to_datetime(df["game_date"]).dt.year
 
-    bat = stats[stats["role"] == "batter"].rename(columns={
+    bat_cols = {
         "k_rate": "batter_k_rate",
         "bb_rate": "batter_bb_rate",
         "iso": "batter_iso",
-    })
-    pit = stats[stats["role"] == "pitcher"].rename(columns={
+        "gb_rate": "batter_gb_rate",
+        "fb_rate": "batter_fb_rate",
+        "hbp_rate": "batter_hbp_rate",
+        "gdp_rate": "batter_gdp_rate",
+        "sf_rate": "batter_sf_rate",
+    }
+    pit_cols = {
         "k_rate": "pitcher_k_rate",
         "bb_rate": "pitcher_bb_rate",
-    })
+        "gb_rate": "pitcher_gb_rate",
+        "hr_rate": "pitcher_hr_rate",
+        "hbp_rate": "pitcher_hbp_rate",
+    }
+
+    bat = stats[stats["role"] == "batter"].copy()
+    pit = stats[stats["role"] == "pitcher"].copy()
+    bat = bat.rename(columns={src: dest for src, dest in bat_cols.items() if src in bat.columns})
+    pit = pit.rename(columns={src: dest for src, dest in pit_cols.items() if src in pit.columns})
+
+    bat_merge_cols = ["player_id", "season", *[dest for dest in bat_cols.values() if dest in bat.columns]]
+    pit_merge_cols = ["player_id", "season", *[dest for dest in pit_cols.values() if dest in pit.columns]]
 
     df = df.merge(
-        bat[["player_id", "season", "batter_k_rate", "batter_bb_rate", "batter_iso"]],
+        bat[bat_merge_cols],
         left_on=["batter_id", "season"],
         right_on=["player_id", "season"],
         how="left",
     ).drop(columns=["player_id"], errors="ignore")
 
     df = df.merge(
-        pit[["player_id", "season", "pitcher_k_rate", "pitcher_bb_rate"]],
+        pit[pit_merge_cols],
         left_on=["pitcher_id", "season"],
         right_on=["player_id", "season"],
         how="left",
@@ -183,8 +211,11 @@ def extract_at_bats_from_state(
 ) -> list[dict]:
     """One row per completed at-bat (terminal pitch count)."""
     rows = []
+    state = unwrap_game_state(state)
 
     for play in state.get("plays", []):
+        if play.get("isAtBat") is False:
+            continue
         detail = play.get("detail") or {}
         situation = play.get("situationBefore") or {}
 
@@ -227,8 +258,11 @@ def extract_pitch_snapshots_from_state(
 ) -> list[dict]:
     """One row per pitch; label is the final at-bat outcome."""
     rows = []
+    state = unwrap_game_state(state)
 
     for play in state.get("plays", []):
+        if play.get("isAtBat") is False:
+            continue
         detail = play.get("detail") or {}
         situation = play.get("situationBefore") or {}
 
@@ -263,8 +297,25 @@ def extract_pitch_snapshots_from_state(
     return rows
 
 
-def enrich_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+def _encode_pitch_type_features(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
+    speed = pd.to_numeric(df.get("last_pitch_speed"), errors="coerce")
+    df["last_pitch_speed"] = speed.fillna(LEAGUE_AVG_PITCH_SPEED)
+
+    pitch_type = df.get("last_pitch_type", pd.Series("", index=df.index)).fillna("").astype(str).str.upper()
+    for code in PITCH_TYPE_CODES:
+        df[f"last_pitch_type_{code}"] = (pitch_type == code).astype(int)
+    return df
+
+
+def enrich_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return df
+
+    df = df.copy()
+    for col in ("home_score", "away_score"):
+        if col not in df.columns:
+            df[col] = 0
     df["score_diff"] = df["home_score"] - df["away_score"]
     df["runners_code"] = (
         df["on_first"].astype(int) * 1
@@ -273,9 +324,15 @@ def enrich_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     )
     df["runners_on"] = df["on_first"] | df["on_second"] | df["on_third"]
     df["half_inning_bottom"] = (df["half_inning"] == "bottom").astype(int)
+    df["risp"] = (df["on_second"] | df["on_third"]).astype(int)
+    df["bases_loaded"] = (df["on_first"] & df["on_second"] & df["on_third"]).astype(int)
+    df["gidp_setup"] = (df["on_first"] & (df["outs"] < 2)).astype(int)
+    df["sac_fly_setup"] = (df["on_third"] & (df["outs"] < 2)).astype(int)
+    df["inning_late"] = (df["inning"] >= 7).astype(int)
     df = _join_hands(df)
     df = enrich_platoon(df)
-    return _join_player_stats(df)
+    df = _join_player_stats(df)
+    return _encode_pitch_type_features(df)
 
 
 def validate_dataset(df: pd.DataFrame) -> None:
@@ -351,10 +408,9 @@ def fetch_all_games_with_state(client: Client) -> list[dict]:
     return games
 
 
-def extract_datasets(client: Client) -> tuple[pd.DataFrame, pd.DataFrame]:
-    print("Fetching game JSONs from Supabase...")
-    games = fetch_all_games_with_state(client)
-    print(f"Retrieved {len(games)} games. Flattening play-by-play...")
+def extract_datasets_from_games(games: list[dict]) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Flatten cached game_state JSON into training frames."""
+    print(f"Flattening play-by-play for {len(games)} games...")
 
     at_bat_rows: list[dict] = []
     pitch_rows: list[dict] = []
@@ -384,6 +440,28 @@ def extract_datasets(client: Client) -> tuple[pd.DataFrame, pd.DataFrame]:
     return at_bats_df, pitches_df
 
 
+def extract_datasets(client: Client) -> tuple[pd.DataFrame, pd.DataFrame]:
+    print("Fetching game JSONs from Supabase...")
+    games = fetch_all_games_with_state(client)
+    print(f"Retrieved {len(games)} games.")
+    return extract_datasets_from_games(games)
+
+
+def extract_datasets_from_local_cache() -> tuple[pd.DataFrame, pd.DataFrame]:
+    from mlb_cache import load_cached_games
+
+    games = load_cached_games()
+    if not games:
+        raise FileNotFoundError(
+            "No parsed game cache found. Run:\n"
+            "  python mlb_cache.py --max-games 500\n"
+            "or:\n"
+            "  python 01_extract_data.py --build-mlb-cache --max-games 500"
+        )
+    print(f"Loaded {len(games)} games from local cache.")
+    return extract_datasets_from_games(games)
+
+
 def save_datasets(at_bats_df: pd.DataFrame, pitches_df: pd.DataFrame) -> tuple[Path, Path]:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     at_bats_df.to_parquet(AT_BATS_PATH, index=False)
@@ -401,6 +479,9 @@ def re_enrich_local_datasets() -> None:
             "batter_hand", "pitcher_hand",
             "batter_hand_L", "batter_hand_R", "pitcher_hand_L", "pitcher_hand_R",
             "platoon_adv", "season",
+            "risp", "bases_loaded", "gidp_setup", "sac_fly_setup", "inning_late",
+            "last_pitch_speed",
+            *[f"last_pitch_type_{code}" for code in PITCH_TYPE_CODES],
             *LEAGUE_DEFAULTS.keys(),
         ]
         df = df.drop(columns=[c for c in drop_cols if c in df.columns])
@@ -414,6 +495,34 @@ if __name__ == "__main__":
 
     if "--re-enrich-only" in sys.argv:
         re_enrich_local_datasets()
+    elif "--from-local-cache" in sys.argv:
+        at_bats_df, pitches_df = extract_datasets_from_local_cache()
+        print(f"\nTerminal at-bats: {len(at_bats_df)}")
+        print(f"Per-pitch snapshots: {len(pitches_df)}")
+        if len(at_bats_df) > 0:
+            print("\nAt-bat outcome distribution:")
+            print(at_bats_df["outcome_label"].value_counts(normalize=True))
+        at_bats_path, pitches_path = save_datasets(at_bats_df, pitches_df)
+        print(f"\nWrote {at_bats_path}")
+        print(f"Wrote {pitches_path}")
+    elif "--build-mlb-cache" in sys.argv:
+        from mlb_cache import build_local_game_cache
+
+        max_games = None
+        for arg in sys.argv:
+            if arg.startswith("--max-games="):
+                max_games = int(arg.split("=", 1)[1])
+        season = date.today().year
+        for arg in sys.argv:
+            if arg.startswith("--season="):
+                season = int(arg.split("=", 1)[1])
+        build_local_game_cache(season=season, max_games=max_games)
+        at_bats_df, pitches_df = extract_datasets_from_local_cache()
+        print(f"\nTerminal at-bats: {len(at_bats_df)}")
+        print(f"Per-pitch snapshots: {len(pitches_df)}")
+        at_bats_path, pitches_path = save_datasets(at_bats_df, pitches_df)
+        print(f"\nWrote {at_bats_path}")
+        print(f"Wrote {pitches_path}")
     else:
         at_bats_df, pitches_df = extract_datasets(supabase)
 

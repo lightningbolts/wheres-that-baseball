@@ -65,6 +65,9 @@ func (r *RestRepository) InsertPrediction(ctx context.Context, row PredictionRow
 		"on_third":              row.OnThird,
 		"outcome_probabilities": row.OutcomeProbabilities,
 	}
+	if len(row.StealProbabilities) > 0 {
+		payload["steal_probabilities"] = row.StealProbabilities
+	}
 
 	var returned []struct {
 		ID uuid.UUID `json:"id"`

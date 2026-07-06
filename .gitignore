@@ -22,6 +22,7 @@ ingestor/ingestor
 ml-engine/data/
 ml-engine/models/
 ml-engine/venv/
+ml-engine/.venv/
 ml-engine/__pycache__/
 ml-engine/**/__pycache__/
 

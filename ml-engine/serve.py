@@ -8,7 +8,7 @@ import os
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from inference import get_artifact, predict_from_game_state
+from inference import get_artifact, get_steal_artifact, predict_from_game_state, predict_steal_from_game_state
 
 HOST = os.environ.get("ML_ENGINE_HOST", "127.0.0.1")
 PORT = int(os.environ.get("ML_ENGINE_PORT", "8765"))
@@ -30,17 +30,34 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/health":
             try:
                 artifact = get_artifact()
-                self._send_json(200, {
+                body = {
                     "status": "ok",
                     "feature_cols": artifact["feature_cols"],
                     "outcome_keys": artifact["outcome_keys"],
-                })
+                }
+                steal = get_steal_artifact()
+                if steal is not None:
+                    body["steal_outcome_keys"] = steal["outcome_keys"]
+                self._send_json(200, body)
             except Exception as exc:
                 self._send_json(503, {"status": "error", "error": str(exc)})
             return
         self._send_json(404, {"error": "not found"})
 
     def do_POST(self) -> None:
+        if self.path == "/predict_steal":
+            length = int(self.headers.get("Content-Length", "0"))
+            try:
+                raw = self.rfile.read(length)
+                state = json.loads(raw.decode("utf-8"))
+                probs = predict_steal_from_game_state(state)
+                self._send_json(200, {"probabilities": probs})
+            except json.JSONDecodeError:
+                self._send_json(400, {"error": "invalid JSON body"})
+            except Exception as exc:
+                self._send_json(500, {"error": str(exc)})
+            return
+
         if self.path != "/predict":
             self._send_json(404, {"error": "not found"})
             return

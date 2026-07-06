@@ -28,7 +28,12 @@ function barColor(key: OutcomeKey): string {
     case "single":
       return "bg-neutral-400";
     case "walk":
+    case "hit_by_pitch":
       return "bg-neutral-500";
+    case "sac_fly":
+    case "sac_bunt":
+    case "gidp":
+      return "bg-neutral-600";
     case "field_out":
     case "strikeout":
       return "bg-neutral-600";

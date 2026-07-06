@@ -137,6 +137,12 @@ type PitchData struct {
 	Coordinates PitchCoordinates `json:"coordinates"`
 	StrikeZoneTop float64     `json:"strikeZoneTop"`
 	StrikeZoneBottom float64  `json:"strikeZoneBottom"`
+	Type       *PitchType     `json:"type,omitempty"`
+}
+
+// PitchType is the pitch classification code (FF, SL, etc.).
+type PitchType struct {
+	Code string `json:"code"`
 }
 
 // PitchCoordinates locates the pitch at the plate (feet from origin).
@@ -166,6 +172,8 @@ type GameState struct {
 	OnFirst       bool
 	OnSecond      bool
 	OnThird       bool
+	AwayScore     int
+	HomeScore     int
 	LastPitch     *PitchSnapshot
 	LastPlayEvent string // playId of the most recent pitch event
 	PitchCount    int    // number of pitch events in current at-bat
@@ -181,4 +189,5 @@ type PitchSnapshot struct {
 	SzBot      float64
 	X          float64
 	Y          float64
+	TypeCode   string
 }

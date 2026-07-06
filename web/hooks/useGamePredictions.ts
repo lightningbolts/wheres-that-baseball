@@ -4,27 +4,24 @@ import { useCallback, useEffect, useState } from "react";
 
 import { createClient } from "@/utils/supabase/client";
 import {
-  DEFAULT_OUTCOME_PROBABILITIES,
-  type OutcomeProbabilities,
+  normalizeOutcomeProbabilities,
   type Prediction,
+  type StealProbabilities,
 } from "@/types/database";
 
-function normalizePrediction(row: Record<string, unknown>): Prediction {
-  const rawProbs = row.outcome_probabilities;
-  let probabilities: OutcomeProbabilities = { ...DEFAULT_OUTCOME_PROBABILITIES };
+function normalizeStealProbabilities(raw: unknown): StealProbabilities | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const p = raw as Record<string, unknown>;
+  const attempt = typeof p.steal_attempt === "number" ? p.steal_attempt : 0;
+  const success = typeof p.steal_success === "number" ? p.steal_success : 0;
+  if (attempt <= 0 && success <= 0) return null;
+  return { steal_attempt: attempt, steal_success: success };
+}
 
-  if (rawProbs && typeof rawProbs === "object" && !Array.isArray(rawProbs)) {
-    const p = rawProbs as Record<string, unknown>;
-    probabilities = {
-      strikeout: typeof p.strikeout === "number" ? p.strikeout : 0,
-      walk: typeof p.walk === "number" ? p.walk : 0,
-      single: typeof p.single === "number" ? p.single : 0,
-      double: typeof p.double === "number" ? p.double : 0,
-      triple: typeof p.triple === "number" ? p.triple : 0,
-      home_run: typeof p.home_run === "number" ? p.home_run : 0,
-      field_out: typeof p.field_out === "number" ? p.field_out : 0,
-    };
-  }
+function normalizePrediction(row: Record<string, unknown>): Prediction {
+  const probabilities = normalizeOutcomeProbabilities(
+    row.outcome_probabilities as Record<string, number> | null | undefined,
+  );
 
   return {
     id: typeof row.id === "string" ? row.id : "",
@@ -40,6 +37,7 @@ function normalizePrediction(row: Record<string, unknown>): Prediction {
     on_second: Boolean(row.on_second),
     on_third: Boolean(row.on_third),
     outcome_probabilities: probabilities,
+    steal_probabilities: normalizeStealProbabilities(row.steal_probabilities),
   };
 }
 

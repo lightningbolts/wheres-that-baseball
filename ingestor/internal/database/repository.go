@@ -84,6 +84,7 @@ type PredictionRow struct {
 	OnSecond             bool
 	OnThird              bool
 	OutcomeProbabilities map[string]float64
+	StealProbabilities   map[string]float64
 }
 
 const insertPredictionSQL = `
@@ -100,9 +101,10 @@ INSERT INTO predictions (
     on_first,
     on_second,
     on_third,
-    outcome_probabilities
+    outcome_probabilities,
+    steal_probabilities
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
 )
 RETURNING id;
 `
@@ -117,6 +119,14 @@ func (r *Repository) InsertPrediction(ctx context.Context, row PredictionRow) (u
 	probsJSON, err := json.Marshal(row.OutcomeProbabilities)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("marshal outcome probabilities: %w", err)
+	}
+
+	stealJSON := []byte("null")
+	if len(row.StealProbabilities) > 0 {
+		stealJSON, err = json.Marshal(row.StealProbabilities)
+		if err != nil {
+			return uuid.Nil, fmt.Errorf("marshal steal probabilities: %w", err)
+		}
 	}
 
 	id := uuid.New()
@@ -140,6 +150,7 @@ func (r *Repository) InsertPrediction(ctx context.Context, row PredictionRow) (u
 		row.OnSecond,
 		row.OnThird,
 		probsJSON,
+		stealJSON,
 	).Scan(&returnedID)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("insert prediction: %w", err)

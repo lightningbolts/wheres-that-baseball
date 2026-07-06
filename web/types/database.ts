@@ -10,11 +10,21 @@ import type { LiveGameState } from "@/types/mlb-live";
 export interface OutcomeProbabilities {
   strikeout: number;
   walk: number;
+  hit_by_pitch: number;
   single: number;
   double: number;
   triple: number;
   home_run: number;
   field_out: number;
+  gidp: number;
+  sac_fly: number;
+  sac_bunt: number;
+}
+
+/** Steal attempt/success probabilities for the current base situation. */
+export interface StealProbabilities {
+  steal_attempt: number;
+  steal_success: number;
 }
 
 /** A single row from the `predictions` table. */
@@ -32,6 +42,7 @@ export interface Prediction {
   on_second: boolean;
   on_third: boolean;
   outcome_probabilities: OutcomeProbabilities;
+  steal_probabilities?: StealProbabilities | null;
 }
 
 /** A single row from the `games` table. */
@@ -100,7 +111,11 @@ export const OUTCOME_LABELS: Record<OutcomeKey, string> = {
   double: "Double",
   single: "Single",
   walk: "Walk",
+  hit_by_pitch: "HBP",
   field_out: "Field Out",
+  gidp: "GIDP",
+  sac_fly: "Sac Fly",
+  sac_bunt: "Sac Bunt",
   strikeout: "Strikeout",
 };
 
@@ -108,11 +123,15 @@ export const OUTCOME_LABELS: Record<OutcomeKey, string> = {
 export const DEFAULT_OUTCOME_PROBABILITIES: OutcomeProbabilities = {
   strikeout: 0,
   walk: 0,
+  hit_by_pitch: 0,
   single: 0,
   double: 0,
   triple: 0,
   home_run: 0,
   field_out: 0,
+  gidp: 0,
+  sac_fly: 0,
+  sac_bunt: 0,
 };
 
 /** Display order for the probability matrix (most exciting outcomes first). */
@@ -122,6 +141,25 @@ export const OUTCOME_DISPLAY_ORDER: OutcomeKey[] = [
   "double",
   "single",
   "walk",
+  "hit_by_pitch",
+  "sac_fly",
+  "sac_bunt",
+  "gidp",
   "field_out",
   "strikeout",
 ];
+
+/** Normalize legacy 7-key ingestor payloads into the expanded outcome shape. */
+export function normalizeOutcomeProbabilities(
+  probs: Partial<OutcomeProbabilities> | Record<string, number> | null | undefined,
+): OutcomeProbabilities {
+  const base = { ...DEFAULT_OUTCOME_PROBABILITIES };
+  if (!probs) return base;
+  for (const key of OUTCOME_DISPLAY_ORDER) {
+    const value = probs[key];
+    if (typeof value === "number" && Number.isFinite(value)) {
+      base[key] = value;
+    }
+  }
+  return base;
+}
