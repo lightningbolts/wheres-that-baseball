@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { encodeBaseState, homeWinProbability } from "@/lib/mlb/winExpectancy";
-import { annotatePlayByPlayWithWpa, formatWpa } from "@/lib/mlb/wpa";
+import { annotatePlayByPlayWithWpa, formatPlayWinProbabilityLine, formatWpa } from "@/lib/mlb/wpa";
 import type { PlayByPlayEntry } from "@/types/mlb-live";
 
 describe("encodeBaseState", () => {
@@ -107,5 +107,29 @@ describe("formatWpa", () => {
   it("formats signed percentages", () => {
     expect(formatWpa(0.123)).toBe("+12.3%");
     expect(formatWpa(-0.031)).toBe("-3.1%");
+  });
+});
+
+describe("formatPlayWinProbabilityLine", () => {
+  it("shows batting-team WP before and after with WPA", () => {
+    expect(
+      formatPlayWinProbabilityLine({
+        halfInning: "bottom",
+        homeWinProbBefore: 0.32,
+        homeWinProbAfter: 0.45,
+        wpa: 0.13,
+      }),
+    ).toBe("32% → 45% · +13.0% WPA");
+  });
+
+  it("uses away-team WP in the top half", () => {
+    expect(
+      formatPlayWinProbabilityLine({
+        halfInning: "top",
+        homeWinProbBefore: 0.6,
+        homeWinProbAfter: 0.7,
+        wpa: -0.1,
+      }),
+    ).toBe("40% → 30% · -10.0% WPA");
   });
 });

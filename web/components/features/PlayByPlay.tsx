@@ -8,7 +8,7 @@ import { InningInsightMarker, PlayInsightInline } from "@/components/features/Pl
 import { PitchFeedList } from "@/components/features/PitchFeedList";
 import { useEntranceIndex } from "@/hooks/useEntranceIndex";
 import type { NerdInsight } from "@/lib/mlb/nerdInsights/types";
-import { formatWpa } from "@/lib/mlb/wpa";
+import { formatPlayWinProbabilityLine } from "@/lib/mlb/wpa";
 import { cn } from "@/lib/utils";
 import {
   formatGameScore,
@@ -95,13 +95,17 @@ function wpaClassName(wpa: number | undefined): string {
   return "text-muted";
 }
 
-function PlayWpaBadge({ wpa }: { wpa: number | undefined }) {
-  const label = formatWpa(wpa);
+function PlayWpaBadge({
+  play,
+}: {
+  play: Pick<PlayByPlayEntry, "halfInning" | "homeWinProbBefore" | "homeWinProbAfter" | "wpa">;
+}) {
+  const label = formatPlayWinProbabilityLine(play);
   if (!label) return null;
 
   return (
-    <span className={cn("font-mono text-[10px] tabular-nums", wpaClassName(wpa))}>
-      {label} WPA
+    <span className={cn("font-mono text-[10px] tabular-nums", wpaClassName(play.wpa))}>
+      {label}
     </span>
   );
 }
@@ -425,7 +429,7 @@ function PlayFeedRow({
             <span className="font-medium">{play.batterName}</span>
             <span className="text-[12px] text-muted">{play.description}</span>
           </p>
-          <PlayWpaBadge wpa={play.wpa} />
+          <PlayWpaBadge play={play} />
         </div>
         <span className="shrink-0 pt-0.5 font-mono text-[10px] tabular-nums text-subtle">
           {formatBatterLine(play.batterHits, play.batterAtBats)}
@@ -747,7 +751,7 @@ function PlayOutcomeCard({
           <AtBatEventBadge event={play.event} />
           <p className="line-clamp-3 min-w-0 flex-1">{play.description}</p>
         </div>
-        <PlayWpaBadge wpa={play.wpa} />
+        <PlayWpaBadge play={play} />
         {contact && (
           <p className="mt-1 font-mono text-[11px] text-subtle">{contact}</p>
         )}

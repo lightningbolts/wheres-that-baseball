@@ -155,18 +155,10 @@ export function loadNerdStatDetail(
 ): NerdStatDetail | null {
   if (split !== "all" && window !== "season") return null;
 
-  const path =
-    split !== "all"
-      ? splitStatPath(season, split, statId)
-      : window === "season"
-        ? statPath(season, statId)
-        : windowStatPath(season, window, statId);
-  const cached = readJson<NerdStatDetail>(path);
-  if (cached) return cached;
-
+  // Always derive from counters so detail matches summary cards (rolling-window
+  // updates rewrite summary.json but may skip stale per-stat JSON on disk).
   const counters = loadCountersForStore(season, window, split);
-  const detail = buildNerdStatDetail(season, statId, counters, window, split);
-  return detail;
+  return buildNerdStatDetail(season, statId, counters, window, split);
 }
 
 function loadCountersForStore(

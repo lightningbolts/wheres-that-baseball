@@ -76,10 +76,45 @@ export function annotatePlayByPlayWithWpa(plays: PlayByPlayEntry[]): PlayByPlayE
   });
 }
 
+/** Win probability for the team at bat (home WP in the bottom half). */
+export function battingTeamWinProbability(
+  halfInning: string,
+  homeWinProb: number | undefined | null,
+): number | null {
+  if (homeWinProb == null || !Number.isFinite(homeWinProb)) return null;
+  return halfInning.toLowerCase().startsWith("bot") ? homeWinProb : 1 - homeWinProb;
+}
+
+/** Format win probability for display (e.g. "45%"). */
+export function formatWinProbability(probability: number | undefined | null): string | null {
+  if (probability == null || !Number.isFinite(probability)) return null;
+  return `${Math.round(probability * 100)}%`;
+}
+
 /** Format WPA for display (e.g. "+12.3%" or "-3.1%"). */
 export function formatWpa(wpa: number | undefined | null): string | null {
   if (wpa == null || !Number.isFinite(wpa)) return null;
   const pct = wpa * 100;
   const sign = pct > 0 ? "+" : "";
   return `${sign}${pct.toFixed(1)}%`;
+}
+
+/** Batting-team WP before/after with WPA delta (e.g. "32% → 45% · +13.0% WPA"). */
+export function formatPlayWinProbabilityLine(
+  play: Pick<PlayByPlayEntry, "halfInning" | "homeWinProbBefore" | "homeWinProbAfter" | "wpa">,
+): string | null {
+  const wpBefore = formatWinProbability(
+    battingTeamWinProbability(play.halfInning, play.homeWinProbBefore),
+  );
+  const wpAfter = formatWinProbability(
+    battingTeamWinProbability(play.halfInning, play.homeWinProbAfter),
+  );
+  const wpaLabel = formatWpa(play.wpa);
+
+  const wpLabel =
+    wpBefore && wpAfter ? `${wpBefore} → ${wpAfter}` : wpAfter ? `${wpAfter} WP` : wpBefore;
+
+  if (wpLabel && wpaLabel) return `${wpLabel} · ${wpaLabel} WPA`;
+  if (wpaLabel) return `${wpaLabel} WPA`;
+  return wpLabel;
 }

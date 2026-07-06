@@ -301,7 +301,6 @@ async function buildRollingWindowStores(
 async function refreshRollingWindowStoresIncremental(
   season: number,
   newCaches: PerGameNerdCacheEntry[],
-  storeOptions: WriteNerdStatsStoreOptions,
 ): Promise<void> {
   const manifest = loadNerdStatsManifest(season);
 
@@ -319,7 +318,6 @@ async function refreshRollingWindowStoresIncremental(
     const existing = loadNerdStatsSummary(season, window.id);
     const indexedGameCount = (existing?.indexedGameCount ?? 0) + inWindow.length;
     writeWindowNerdStatsStore(season, window.id, counters, manifest.processedGamePks, {
-      ...storeOptions,
       indexedGameCount,
       skipTeamCards: true,
     });
@@ -393,7 +391,6 @@ async function backfillCountersFromManifest(
 async function refreshWindowBatSpeedFromSavant(
   season: number,
   caches: PerGameNerdCacheEntry[],
-  storeOptions: WriteNerdStatsStoreOptions,
 ): Promise<void> {
   for (const window of NERD_STAT_WINDOWS) {
     if (window.id === "season") continue;
@@ -412,7 +409,6 @@ async function refreshWindowBatSpeedFromSavant(
 
     const existing = loadNerdStatsSummary(season, window.id);
     writeWindowNerdStatsStore(season, window.id, counters, gamePks, {
-      ...storeOptions,
       skipTeamCards: true,
       indexedGameCount: existing?.indexedGameCount ?? gamePks.length,
     });
@@ -461,7 +457,7 @@ async function backfillSavantBatSpeedFromManifest(
 
   console.log("Refreshing rolling window bat speed from Savant…");
   const caches = loadPerGameNerdCaches(season, gamePks).cached;
-  await refreshWindowBatSpeedFromSavant(season, caches, storeOptions);
+  await refreshWindowBatSpeedFromSavant(season, caches);
 }
 
 type BulkCreds =
@@ -774,7 +770,7 @@ async function main() {
 
       if (newCaches.length > 0) {
         console.log("Refreshing rolling window stores…");
-        await refreshRollingWindowStoresIncremental(season, newCaches, storeOptions);
+        await refreshRollingWindowStoresIncremental(season, newCaches);
       }
     }
 
