@@ -6,10 +6,12 @@ import { useEffect } from "react";
 
 import { AppNav } from "@/components/features/AppNav";
 import { NerdShareActions } from "@/components/features/NerdShareActions";
+import { NerdStatHistoryChart } from "@/components/features/NerdStatHistoryChart";
 import { TeamLogo } from "@/components/ui/TeamLogo";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useNerdStatDetail } from "@/hooks/useNerdStats";
 import { blockScrollPersist } from "@/lib/scrollRestoration";
+import { getNerdStatDefinition } from "@/lib/mlb/nerdStats/definitions";
 import { NERD_STAT_CATEGORIES } from "@/lib/mlb/nerdStats/types";
 import {
   nerdStandingsHref,
@@ -46,6 +48,7 @@ export function NerdStatDetailView({ statId }: NerdStatDetailViewProps) {
   const categoryLabel =
     NERD_STAT_CATEGORIES.find((item) => item.id === data?.stat.category)?.label ??
     data?.stat.category;
+  const statDefinition = getNerdStatDefinition(statId);
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
@@ -105,6 +108,16 @@ export function NerdStatDetailView({ statId }: NerdStatDetailViewProps) {
                 shareTitle={data.stat.title}
               />
             </div>
+
+            <NerdStatHistoryChart
+              statId={statId}
+              season={CURRENT_SEASON}
+              sort={data.stat.sort}
+              defaultTeamId={data.allTeams[0]?.teamId}
+              initialSplit={timeWindow === "season" ? venueSplit : "all"}
+              leagueAverage={data.stat.leagueAverage}
+              formatValue={statDefinition?.formatValue}
+            />
 
             <div className="mt-6 overflow-hidden rounded-xl border border-border">
               <table className="w-full text-left text-sm">

@@ -2,6 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { syncRecentScheduleAndFeeds } from "@/lib/games/scheduleSync";
 
+vi.mock("@/lib/mlb/schedule", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/mlb/schedule")>();
+  return {
+    ...actual,
+    getMLBScheduleDate: () => "2026-06-30",
+  };
+});
+
 vi.mock("@/lib/games/scheduleRow", () => ({
   fetchScheduleGamesRawForDate: vi.fn(),
   mapScheduleGameToRow: vi.fn((game: { gamePk: number; status?: { abstractGameState?: string } }) => ({
