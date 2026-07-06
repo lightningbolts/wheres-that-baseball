@@ -292,6 +292,18 @@ export async function vacuumGamesTable(databaseUrl, webPackageJson) {
 }
 
 /** @param {string} databaseUrl @param {string} webPackageJson */
+export async function testPostgresConnection(databaseUrl, webPackageJson) {
+  const Pool = loadPg(webPackageJson);
+  const pool = new Pool({ connectionString: databaseUrl, connectionTimeoutMillis: 8_000 });
+
+  try {
+    await pool.query("SELECT 1");
+  } finally {
+    await pool.end();
+  }
+}
+
+/** @param {string} databaseUrl @param {string} webPackageJson */
 export async function fetchDatabaseSizeReport(databaseUrl, webPackageJson) {
   const Pool = loadPg(webPackageJson);
   const pool = new Pool({ connectionString: databaseUrl });
