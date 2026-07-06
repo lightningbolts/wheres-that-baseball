@@ -38,10 +38,10 @@ const {
   vacuumGamesTable,
 } = require(join(REPO_ROOT, "scripts/lib/db.mjs")) as typeof import("../../scripts/lib/db.mjs");
 
-interface CompactionRow {
+interface PostgresCompactionRow {
   game_pk: number;
   status: string;
-  game_state?: unknown;
+  game_state: unknown;
 }
 
 interface GameIndexRow {
@@ -267,10 +267,10 @@ async function main() {
     const databaseUrl = creds.databaseUrl;
 
     await printSizeReport(databaseUrl, "Before");
-    const rows = await listGamesForCompaction(databaseUrl, WEB_PKG);
+    const rows = (await listGamesForCompaction(databaseUrl, WEB_PKG)) as PostgresCompactionRow[];
     console.log(`\nScanning ${rows.length} game(s) with stored feeds…`);
 
-    const index = rows.map((row) => ({ game_pk: row.game_pk, status: row.status }));
+    const index: GameIndexRow[] = rows.map((row) => ({ game_pk: row.game_pk, status: row.status }));
     const stateByPk = new Map(rows.map((row) => [row.game_pk, row.game_state]));
 
     const updated = await compactRows(
