@@ -145,7 +145,8 @@ def main() -> None:
     games = load_cached_games()
     if not games:
         raise FileNotFoundError(
-            "No local parsed cache. Run: python 01_extract_data.py --build-mlb-cache --max-games=500"
+            "No local parsed cache. Run:\n"
+            f"  python 01_extract_data.py --build-mlb-cache --season={date.today().year}"
         )
 
     df = extract_steal_dataset_from_games(games)

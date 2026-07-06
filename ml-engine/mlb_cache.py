@@ -124,6 +124,12 @@ def ensure_game_cached(
     feed_path = FEED_CACHE_DIR / f"{game_pk}.json"
     parsed_path = PARSED_CACHE_DIR / f"{game_pk}.json"
 
+    if not force and parsed_path.exists() and feed_path.exists():
+        return {
+            **game,
+            "game_state": json.loads(parsed_path.read_text()),
+        }
+
     if force or not feed_path.exists():
         try:
             feed = fetch_live_feed(game_pk)
@@ -149,6 +155,16 @@ def ensure_game_cached(
     }
 
 
+def merge_game_index(games: list[dict]) -> list[dict]:
+    """Merge schedule rows into the on-disk index by game_pk."""
+    existing = {int(row["game_pk"]): row for row in load_game_index()}
+    for game in games:
+        existing[int(game["game_pk"])] = game
+    merged = sorted(existing.values(), key=lambda row: (row.get("game_date", ""), int(row["game_pk"])))
+    save_game_index(merged)
+    return merged
+
+
 def build_local_game_cache(
     *,
     season: int | None = None,
@@ -156,19 +172,36 @@ def build_local_game_cache(
     force: bool = False,
 ) -> list[dict]:
     """Populate feed + parsed caches; return games ready for extraction."""
+    if season is None:
+        season = date.today().year
+
     games = fetch_schedule_games(season=season)
     if max_games is not None:
         games = games[:max_games]
-    save_game_index(games)
+    games = merge_game_index(games)
+
+    already_cached = sum(
+        1 for game in games
+        if (PARSED_CACHE_DIR / f"{int(game['game_pk'])}.json").exists()
+    )
+    to_fetch = len(games) - already_cached if not force else len(games)
+    print(
+        f"Season {season}: {len(games)} final games in index "
+        f"({already_cached} cached, {to_fetch} to fetch)"
+    )
 
     ready: list[dict] = []
-    print(f"Caching {len(games)} games from MLB API (local cache only)...")
+    fetched = 0
     for i, game in enumerate(games, start=1):
         row = ensure_game_cached(game, force=force)
         if row is not None:
             ready.append(row)
-        if i % 25 == 0:
-            print(f"  cached {i}/{len(games)}")
+        if not force and (PARSED_CACHE_DIR / f"{int(game['game_pk'])}.json").exists():
+            pass
+        elif row is not None:
+            fetched += 1
+        if i % 50 == 0:
+            print(f"  processed {i}/{len(games)} ({fetched} new fetches this run)")
     print(f"Ready: {len(ready)} games with parsed state")
     return ready
 

@@ -454,9 +454,8 @@ def extract_datasets_from_local_cache() -> tuple[pd.DataFrame, pd.DataFrame]:
     if not games:
         raise FileNotFoundError(
             "No parsed game cache found. Run:\n"
-            "  python mlb_cache.py --max-games 500\n"
-            "or:\n"
-            "  python 01_extract_data.py --build-mlb-cache --max-games 500"
+            f"  python 01_extract_data.py --build-mlb-cache --season={date.today().year}\n"
+            "(~1,350 final games in a full 2026 season; skips already-cached feeds)"
         )
     print(f"Loaded {len(games)} games from local cache.")
     return extract_datasets_from_games(games)
