@@ -15,15 +15,20 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import {
   NERD_STAT_HISTORY_BASES,
   NERD_STAT_HISTORY_SPLITS,
+  useMultiNerdStatHistory,
   useNerdStatHistory,
   useSelectedNerdStatHistory,
+  type NerdStatHistoryViewMode,
 } from "@/hooks/useNerdStatHistory";
-import type {
-  NerdStatHistoryBasis,
-  NerdStatHistorySeriesPoint,
-  NerdStatHistorySplit,
+import {
+  multiSeriesHasPlottedValues,
+  type NerdStatHistoryBasis,
+  type NerdStatHistorySeriesPoint,
+  type NerdStatHistorySplit,
+  type SelectedMultiHistorySeries,
 } from "@/lib/mlb/nerdStats/history";
-import { MLB_TEAMS, NERD_STAT_GROUP_FILTERS, type NerdStatGroupFilter } from "@/lib/mlb/teams";
+import { MLB_TEAMS, NERD_STAT_GROUP_FILTERS, getTeamById, type NerdStatGroupFilter } from "@/lib/mlb/teams";
+import { cn } from "@/lib/utils";
 
 interface NerdStatHistoryChartProps {
   statId: string;
@@ -36,8 +41,18 @@ interface NerdStatHistoryChartProps {
 }
 
 const CHART_WIDTH = 640;
-const CHART_HEIGHT = 220;
+const SINGLE_CHART_HEIGHT = 220;
+const COMPARE_CHART_HEIGHT = 280;
 const PADDING = { top: 16, right: 12, bottom: 28, left: 44 };
+
+const VIEW_MODES: Array<{ id: NerdStatHistoryViewMode; label: string }> = [
+  { id: "single", label: "One team" },
+  { id: "compare", label: "Compare teams" },
+];
+
+function getTeamAbbrev(teamId: number): string {
+  return getTeamById(teamId)?.abbrev ?? "???";
+}
 
 function formatAxisValue(value: number): string {
   if (Math.abs(value) >= 100) return value.toFixed(0);
@@ -75,6 +90,82 @@ function buildPath(
   return segments.length > 0 ? segments.join(" ") : null;
 }
 
+function plottedIndexBounds(values: Array<number | null>): { first: number; last: number } | null {
+  let first: number | null = null;
+  let last: number | null = null;
+
+  for (let index = 0; index < values.length; index += 1) {
+    const value = values[index];
+    if (value == null || !Number.isFinite(value)) continue;
+    if (first === null) first = index;
+    last = index;
+  }
+
+  return first != null && last != null ? { first, last } : null;
+}
+
+function buildAreaPath(
+  linePath: string,
+  values: Array<number | null>,
+  xForIndex: (index: number) => number,
+  plotBottom: number,
+): string | null {
+  const bounds = plottedIndexBounds(values);
+  if (!bounds) return null;
+  return `${linePath} L ${xForIndex(bounds.last).toFixed(2)},${plotBottom} L ${xForIndex(bounds.first).toFixed(2)},${plotBottom} Z`;
+}
+
+function useChartScale(
+  numericValues: number[],
+  chartHeight: number,
+) {
+  const minValue = numericValues.length > 0 ? Math.min(...numericValues) : 0;
+  const maxValue = numericValues.length > 0 ? Math.max(...numericValues) : 1;
+  const valueSpan = maxValue - minValue || 1;
+  const paddedMin = minValue - valueSpan * 0.08;
+  const paddedMax = maxValue + valueSpan * 0.08;
+  const plotWidth = CHART_WIDTH - PADDING.left - PADDING.right;
+  const plotHeight = chartHeight - PADDING.top - PADDING.bottom;
+
+  const yForValue = useCallback(
+    (value: number) =>
+      PADDING.top + plotHeight - ((value - paddedMin) / (paddedMax - paddedMin)) * plotHeight,
+    [paddedMax, paddedMin, plotHeight],
+  );
+
+  const yTicks = useMemo(() => {
+    const ticks: number[] = [];
+    for (let i = 0; i < 4; i += 1) {
+      ticks.push(paddedMin + ((paddedMax - paddedMin) * i) / 3);
+    }
+    return ticks;
+  }, [paddedMax, paddedMin]);
+
+  return { plotWidth, plotHeight, yForValue, yTicks, paddedMin, paddedMax };
+}
+
+function useXAxis(pointCount: number, plotWidth: number) {
+  const xForIndex = useCallback(
+    (index: number) => {
+      if (pointCount <= 1) return PADDING.left + plotWidth / 2;
+      return PADDING.left + (index / (pointCount - 1)) * plotWidth;
+    },
+    [plotWidth, pointCount],
+  );
+
+  const xLabelIndexes = useMemo(() => {
+    if (pointCount <= 1) return [0];
+    const maxLabels = 5;
+    const step = Math.max(1, Math.floor((pointCount - 1) / (maxLabels - 1)));
+    const indexes = [];
+    for (let index = 0; index < pointCount; index += step) indexes.push(index);
+    if (indexes[indexes.length - 1] !== pointCount - 1) indexes.push(pointCount - 1);
+    return indexes;
+  }, [pointCount]);
+
+  return { xForIndex, xLabelIndexes };
+}
+
 function HistoryLineChart({
   points,
   leagueAverage,
@@ -103,49 +194,18 @@ function HistoryLineChart({
     numericValues.push(leagueAverage);
   }
 
-  const minValue = numericValues.length > 0 ? Math.min(...numericValues) : 0;
-  const maxValue = numericValues.length > 0 ? Math.max(...numericValues) : 1;
-  const valueSpan = maxValue - minValue || 1;
-  const paddedMin = minValue - valueSpan * 0.08;
-  const paddedMax = maxValue + valueSpan * 0.08;
-
-  const plotWidth = CHART_WIDTH - PADDING.left - PADDING.right;
-  const plotHeight = CHART_HEIGHT - PADDING.top - PADDING.bottom;
-
-  const xForIndex = useCallback(
-    (index: number) => {
-      if (points.length <= 1) return PADDING.left + plotWidth / 2;
-      return PADDING.left + (index / (points.length - 1)) * plotWidth;
-    },
-    [plotWidth, points.length],
+  const { plotWidth, plotHeight, yForValue, yTicks } = useChartScale(
+    numericValues,
+    SINGLE_CHART_HEIGHT,
   );
-
-  const yForValue = useCallback(
-    (value: number) =>
-      PADDING.top + plotHeight - ((value - paddedMin) / (paddedMax - paddedMin)) * plotHeight,
-    [paddedMax, paddedMin, plotHeight],
-  );
+  const { xForIndex, xLabelIndexes } = useXAxis(points.length, plotWidth);
 
   const teamPath = buildPath(teamValues, xForIndex, yForValue);
   const groupPath = buildPath(groupValues, xForIndex, yForValue);
-
-  const yTicks = useMemo(() => {
-    const ticks: number[] = [];
-    for (let i = 0; i < 4; i += 1) {
-      ticks.push(paddedMin + ((paddedMax - paddedMin) * i) / 3);
-    }
-    return ticks;
-  }, [paddedMax, paddedMin]);
-
-  const xLabelIndexes = useMemo(() => {
-    if (points.length <= 1) return [0];
-    const maxLabels = 5;
-    const step = Math.max(1, Math.floor((points.length - 1) / (maxLabels - 1)));
-    const indexes = [];
-    for (let index = 0; index < points.length; index += step) indexes.push(index);
-    if (indexes[indexes.length - 1] !== points.length - 1) indexes.push(points.length - 1);
-    return indexes;
-  }, [points.length]);
+  const teamAreaPath =
+    teamPath != null
+      ? buildAreaPath(teamPath, teamValues, xForIndex, PADDING.top + plotHeight)
+      : null;
 
   const handlePointer = (clientX: number, clientY: number) => {
     const svg = svgRef.current;
@@ -162,7 +222,7 @@ function HistoryLineChart({
     <div className="relative w-full overflow-x-auto">
       <svg
         ref={svgRef}
-        viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
+        viewBox={`0 0 ${CHART_WIDTH} ${SINGLE_CHART_HEIGHT}`}
         className="h-[220px] w-full min-w-[280px] touch-none select-none sm:h-[260px]"
         role="img"
         aria-label="Nerd stat trend chart"
@@ -224,11 +284,9 @@ function HistoryLineChart({
 
         {teamPath && (
           <>
-            <path
-              d={`${teamPath} L ${xForIndex(points.length - 1)} ${PADDING.top + plotHeight} L ${xForIndex(0)} ${PADDING.top + plotHeight} Z`}
-              fill={`url(#${gradientId})`}
-              stroke="none"
-            />
+            {teamAreaPath && (
+              <path d={teamAreaPath} fill={`url(#${gradientId})`} stroke="none" />
+            )}
             <path
               d={teamPath}
               fill="none"
@@ -281,7 +339,7 @@ function HistoryLineChart({
           <text
             key={index}
             x={xForIndex(index)}
-            y={CHART_HEIGHT - 8}
+            y={SINGLE_CHART_HEIGHT - 8}
             textAnchor="middle"
             className="fill-subtle text-[10px]"
           >
@@ -297,6 +355,267 @@ function HistoryLineChart({
           className="pointer-events-none absolute left-3 top-3 max-w-[calc(100%-1.5rem)] rounded-lg border border-border bg-surface-elevated px-3 py-2 text-xs shadow-sm sm:left-auto sm:right-3"
         />
       )}
+    </div>
+  );
+}
+
+function MultiTeamHistoryChart({
+  series,
+  leagueAverage,
+  showLeagueGuide,
+  formatValue,
+  highlightedTeamId,
+  onHighlightTeam,
+}: {
+  series: SelectedMultiHistorySeries;
+  leagueAverage?: number | null;
+  showLeagueGuide: boolean;
+  formatValue: (value: number) => string;
+  highlightedTeamId: number | null;
+  onHighlightTeam: (teamId: number | null) => void;
+}) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const pointCount = series.dates.length;
+
+  const numericValues = useMemo(() => {
+    const values: number[] = [];
+    for (const team of series.teams) {
+      for (const value of team.values) {
+        if (value != null && Number.isFinite(value)) values.push(value);
+      }
+    }
+    if (showLeagueGuide && leagueAverage != null && Number.isFinite(leagueAverage)) {
+      values.push(leagueAverage);
+    }
+    return values;
+  }, [leagueAverage, series.teams, showLeagueGuide]);
+
+  const { plotWidth, plotHeight, yForValue, yTicks } = useChartScale(
+    numericValues,
+    COMPARE_CHART_HEIGHT,
+  );
+  const { xForIndex, xLabelIndexes } = useXAxis(pointCount, plotWidth);
+
+  const handlePointer = (clientX: number) => {
+    const svg = svgRef.current;
+    if (!svg || pointCount === 0) return;
+    const rect = svg.getBoundingClientRect();
+    const relativeX = ((clientX - rect.left) / rect.width) * CHART_WIDTH;
+    const clampedX = Math.max(PADDING.left, Math.min(CHART_WIDTH - PADDING.right, relativeX));
+    const ratio = (clampedX - PADDING.left) / plotWidth;
+    const index = Math.round(ratio * Math.max(pointCount - 1, 0));
+    setActiveIndex(index);
+  };
+
+  const activeEntries =
+    activeIndex != null
+      ? series.teams
+          .map((team) => ({
+            teamId: team.teamId,
+            teamAbbrev: team.teamAbbrev,
+            color: team.color,
+            value: team.values[activeIndex] ?? null,
+          }))
+          .filter((entry) => entry.value != null && Number.isFinite(entry.value))
+          .sort((a, b) => (b.value ?? 0) - (a.value ?? 0))
+      : [];
+
+  return (
+    <div>
+      <div className="relative w-full overflow-x-auto">
+        <svg
+          ref={svgRef}
+          viewBox={`0 0 ${CHART_WIDTH} ${COMPARE_CHART_HEIGHT}`}
+          className="h-[240px] w-full min-w-[280px] touch-none select-none sm:h-[300px]"
+          role="img"
+          aria-label="Multi-team nerd stat trend chart"
+          onPointerDown={(event) => handlePointer(event.clientX)}
+          onPointerMove={(event) => {
+            if (event.buttons > 0) handlePointer(event.clientX);
+          }}
+          onPointerLeave={() => setActiveIndex(null)}
+        >
+          {yTicks.map((tick) => (
+            <g key={tick}>
+              <line
+                x1={PADDING.left}
+                x2={CHART_WIDTH - PADDING.right}
+                y1={yForValue(tick)}
+                y2={yForValue(tick)}
+                stroke="var(--border)"
+                strokeDasharray="3 4"
+              />
+              <text
+                x={PADDING.left - 8}
+                y={yForValue(tick) + 4}
+                textAnchor="end"
+                className="fill-subtle text-[10px]"
+              >
+                {formatAxisValue(tick)}
+              </text>
+            </g>
+          ))}
+
+          {showLeagueGuide && leagueAverage != null && Number.isFinite(leagueAverage) && (
+            <line
+              x1={PADDING.left}
+              x2={CHART_WIDTH - PADDING.right}
+              y1={yForValue(leagueAverage)}
+              y2={yForValue(leagueAverage)}
+              stroke="var(--muted)"
+              strokeDasharray="6 4"
+              strokeWidth={1.25}
+            />
+          )}
+
+          {series.teams.map((team) => {
+            const path = buildPath(team.values, xForIndex, yForValue);
+            const dimmed = highlightedTeamId != null && highlightedTeamId !== team.teamId;
+            return path ? (
+              <path
+                key={team.teamId}
+                d={path}
+                fill="none"
+                stroke={team.color}
+                strokeWidth={highlightedTeamId === team.teamId ? 2.5 : 1.5}
+                strokeLinejoin="round"
+                strokeLinecap="round"
+                opacity={dimmed ? 0.2 : highlightedTeamId === team.teamId ? 1 : 0.85}
+              />
+            ) : null;
+          })}
+
+          {activeIndex != null && (
+            <line
+              x1={xForIndex(activeIndex)}
+              x2={xForIndex(activeIndex)}
+              y1={PADDING.top}
+              y2={PADDING.top + plotHeight}
+              stroke="var(--border-strong)"
+              strokeWidth={1}
+            />
+          )}
+
+          {activeIndex != null &&
+            series.teams.map((team) => {
+              const value = team.values[activeIndex];
+              if (value == null || !Number.isFinite(value)) return null;
+              const dimmed = highlightedTeamId != null && highlightedTeamId !== team.teamId;
+              return (
+                <circle
+                  key={`active-${team.teamId}`}
+                  cx={xForIndex(activeIndex)}
+                  cy={yForValue(value)}
+                  r={highlightedTeamId === team.teamId ? 4 : 3}
+                  fill={team.color}
+                  stroke="var(--background)"
+                  strokeWidth={1.5}
+                  opacity={dimmed ? 0.25 : 1}
+                />
+              );
+            })}
+
+          {xLabelIndexes.map((index) => (
+            <text
+              key={index}
+              x={xForIndex(index)}
+              y={COMPARE_CHART_HEIGHT - 8}
+              textAnchor="middle"
+              className="fill-subtle text-[10px]"
+            >
+              {series.dates[index]?.slice(5)}
+            </text>
+          ))}
+        </svg>
+
+        {activeIndex != null && activeEntries.length > 0 && (
+          <MultiTeamTooltip
+            date={series.dates[activeIndex] ?? ""}
+            entries={activeEntries}
+            formatValue={formatValue}
+            className="pointer-events-none absolute left-3 top-3 max-h-48 max-w-[calc(100%-1.5rem)] overflow-y-auto rounded-lg border border-border bg-surface-elevated px-3 py-2 text-xs shadow-sm sm:left-auto sm:right-3"
+          />
+        )}
+      </div>
+
+      <TeamLegend
+        teams={series.teams}
+        highlightedTeamId={highlightedTeamId}
+        onHighlightTeam={onHighlightTeam}
+      />
+    </div>
+  );
+}
+
+function TeamLegend({
+  teams,
+  highlightedTeamId,
+  onHighlightTeam,
+}: {
+  teams: SelectedMultiHistorySeries["teams"];
+  highlightedTeamId: number | null;
+  onHighlightTeam: (teamId: number | null) => void;
+}) {
+  return (
+    <div className="mt-3 flex flex-wrap gap-1.5">
+      {teams.map((team) => {
+        const active = highlightedTeamId === team.teamId;
+        return (
+          <button
+            key={team.teamId}
+            type="button"
+            onClick={() => onHighlightTeam(active ? null : team.teamId)}
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] transition-colors",
+              active
+                ? "border-border-strong bg-surface-elevated text-foreground"
+                : "border-transparent text-muted hover:border-border hover:bg-hover hover:text-foreground",
+            )}
+            aria-pressed={active}
+          >
+            <span
+              className="inline-block h-2 w-2 shrink-0 rounded-full"
+              style={{ backgroundColor: team.color }}
+              aria-hidden
+            />
+            {team.teamAbbrev}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function MultiTeamTooltip({
+  date,
+  entries,
+  formatValue,
+  className,
+}: {
+  date: string;
+  entries: Array<{ teamAbbrev: string; color: string; value: number | null }>;
+  formatValue: (value: number) => string;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      <p className="font-medium text-foreground">{date}</p>
+      <ul className="mt-1 space-y-0.5">
+        {entries.map((entry) => (
+          <li key={entry.teamAbbrev} className="flex items-center gap-2 text-muted">
+            <span
+              className="inline-block h-2 w-2 shrink-0 rounded-full"
+              style={{ backgroundColor: entry.color }}
+              aria-hidden
+            />
+            <span className="w-8 font-medium text-foreground">{entry.teamAbbrev}</span>
+            <span className="font-mono tabular-nums text-foreground">
+              {entry.value != null ? formatValue(entry.value) : "—"}
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -365,15 +684,29 @@ export function NerdStatHistoryChart({
   formatValue = (value) => value.toFixed(2),
 }: NerdStatHistoryChartProps) {
   const { data, isLoading, error, available } = useNerdStatHistory(statId, season);
+  const [viewMode, setViewMode] = useState<NerdStatHistoryViewMode>("single");
   const [basis, setBasis] = useState<NerdStatHistoryBasis>("cumulative");
   const [split, setSplit] = useState<NerdStatHistorySplit>(initialSplit);
   const [group, setGroup] = useState<NerdStatGroupFilter>("all");
   const [teamId, setTeamId] = useState<number>(defaultTeamId ?? MLB_TEAMS[0]!.id);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const [highlightedTeamId, setHighlightedTeamId] = useState<number | null>(null);
 
   useEffect(() => {
     if (defaultTeamId != null) setTeamId(defaultTeamId);
   }, [defaultTeamId]);
+
+  useEffect(() => {
+    setActiveIndex(null);
+  }, [viewMode, group, basis, split]);
+
+  useEffect(() => {
+    if (viewMode === "compare") {
+      setHighlightedTeamId(teamId);
+    } else {
+      setHighlightedTeamId(null);
+    }
+  }, [viewMode, group, basis, split, teamId]);
 
   const selected = useSelectedNerdStatHistory(data, {
     basis,
@@ -383,31 +716,69 @@ export function NerdStatHistoryChart({
     sort,
   });
 
+  const multiSelected = useMultiNerdStatHistory(data, {
+    basis,
+    split,
+    group,
+  });
+
   const showLeagueGuide =
-    group === "all" && basis === "cumulative" && leagueAverage != null && Number.isFinite(leagueAverage);
+    group === "all" &&
+    basis === "cumulative" &&
+    leagueAverage != null &&
+    Number.isFinite(leagueAverage);
+
+  const subtitle =
+    viewMode === "compare" && multiSelected
+      ? highlightedTeamId != null
+        ? `${getTeamAbbrev(highlightedTeamId)} highlighted · ${multiSelected.groupLabel} · ${multiSelected.teams.length} teams`
+        : `${multiSelected.groupLabel} · ${multiSelected.teams.length} teams`
+      : selected
+        ? `${selected.teamAbbrev} vs group average`
+        : "How this stat has changed by day";
+
+  const hasData =
+    viewMode === "compare"
+      ? multiSelected != null &&
+        multiSelected.dates.length > 0 &&
+        multiSeriesHasPlottedValues(multiSelected)
+      : selected != null &&
+        selected.points.length > 0 &&
+        hasPlottedValues(selected.points);
 
   return (
     <section className="mt-6 rounded-xl border border-border bg-surface p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-medium text-foreground">Daily trend</h2>
-          <p className="mt-1 text-xs text-muted">
-            {selected ? `${selected.teamAbbrev} vs group average` : "How this stat has changed by day"}
-          </p>
+          <p className="mt-1 text-xs text-muted">{subtitle}</p>
         </div>
-        <div className="flex flex-wrap gap-1.5 text-[10px] text-subtle">
-          <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-0.5 w-4 rounded bg-secondary" />
-            Team
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-0.5 w-4 rounded border-t border-dashed border-muted" />
-            Group avg
-          </span>
-        </div>
+        {viewMode === "single" && (
+          <div className="flex flex-wrap gap-1.5 text-[10px] text-subtle">
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block h-0.5 w-4 rounded bg-secondary" />
+              Team
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block h-0.5 w-4 rounded border-t border-dashed border-muted" />
+              Group avg
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="-mx-1 mt-4 flex flex-wrap items-center gap-2 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <FilterSelect
+          ariaLabel="Chart view"
+          value={viewMode}
+          onChange={(event) => setViewMode(event.target.value as NerdStatHistoryViewMode)}
+        >
+          {VIEW_MODES.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.label}
+            </option>
+          ))}
+        </FilterSelect>
         <FilterSelect
           ariaLabel="Trend basis"
           value={basis}
@@ -444,7 +815,11 @@ export function NerdStatHistoryChart({
         <FilterSelect
           ariaLabel="Team"
           value={String(teamId)}
-          onChange={(event) => setTeamId(Number.parseInt(event.target.value, 10))}
+          onChange={(event) => {
+            const nextTeamId = Number.parseInt(event.target.value, 10);
+            setTeamId(nextTeamId);
+            if (viewMode === "compare") setHighlightedTeamId(nextTeamId);
+          }}
         >
           {MLB_TEAMS.map((team) => (
             <option key={team.id} value={team.id}>
@@ -460,13 +835,29 @@ export function NerdStatHistoryChart({
         <div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
           {error}
         </div>
-      ) : !available || !selected || selected.points.length === 0 || !hasPlottedValues(selected.points) ? (
+      ) : !available || !hasData ? (
         <div className="mt-4 rounded-lg border border-border bg-surface-elevated px-4 py-8 text-center text-sm text-muted">
           Daily history is not available yet. Run{" "}
-          <code className="text-xs text-secondary">npm run aggregate-nerd-stats -- --season={season} --rebuild-history</code>{" "}
+          <code className="text-xs text-secondary">
+            npm run aggregate-nerd-stats -- --season={season} --rebuild-history
+          </code>{" "}
           to populate trend data.
         </div>
-      ) : (
+      ) : viewMode === "compare" && multiSelected ? (
+        <div className="mt-4">
+          <MultiTeamHistoryChart
+            series={multiSelected}
+            leagueAverage={leagueAverage}
+            showLeagueGuide={showLeagueGuide}
+            formatValue={formatValue}
+            highlightedTeamId={highlightedTeamId}
+            onHighlightTeam={(nextTeamId) => {
+              setHighlightedTeamId(nextTeamId);
+              if (nextTeamId != null) setTeamId(nextTeamId);
+            }}
+          />
+        </div>
+      ) : selected ? (
         <div className="mt-4">
           <HistoryLineChart
             points={selected.points}
@@ -477,7 +868,7 @@ export function NerdStatHistoryChart({
             onSelectIndex={(index) => setActiveIndex(index)}
           />
         </div>
-      )}
+      ) : null}
     </section>
   );
 }

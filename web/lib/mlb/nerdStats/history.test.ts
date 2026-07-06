@@ -5,7 +5,9 @@ import { getNerdStatDefinition } from "@/lib/mlb/nerdStats/definitions";
 import type { PerGameNerdCacheEntry } from "@/lib/mlb/nerdStats/gameCache";
 import {
   buildNerdStatHistoryForStat,
+  multiSeriesHasPlottedValues,
   selectHistorySeries,
+  selectMultiHistorySeries,
 } from "@/lib/mlb/nerdStats/history";
 import type { SeasonNerdCounters } from "@/lib/mlb/nerdStats/types";
 
@@ -55,7 +57,7 @@ describe("buildNerdStatHistoryForStat", () => {
     expect(nyy.rolling7[3]).toBe(3);
   });
 
-  it("returns null values when below minGames", () => {
+  it("includes rate stats before standings minGames threshold", () => {
     const statId = "one-run-win-pct";
     const caches: PerGameNerdCacheEntry[] = [
       cacheEntry(1, "2026-04-01", seasonWithTeam(147, { oneRunWins: 1, oneRunGames: 2, finalGamesWithFeed: 1 })),
@@ -63,7 +65,7 @@ describe("buildNerdStatHistoryForStat", () => {
 
     const history = buildNerdStatHistoryForStat(2026, statId, caches)!;
     const nyy = history.splits.all.teams["147"]!;
-    expect(nyy.cumulative[0]).toBeNull();
+    expect(nyy.cumulative[0]).toBe(50);
   });
 });
 
@@ -90,5 +92,28 @@ describe("selectHistorySeries", () => {
     expect(selected.points[1]!.teamValue).toBe(3);
     expect(selected.points[1]!.groupAverage).toBe(2);
     expect(selected.points[1]!.teamRank).toBe(1);
+  });
+});
+
+describe("selectMultiHistorySeries", () => {
+  it("returns one series per team in the group with brand colors", () => {
+    const history = buildNerdStatHistoryForStat(2026, "walk-off-wins", [
+      cacheEntry(1, "2026-04-01", seasonWithTeam(147, { walkoffWins: 2, finalGamesWithFeed: 5 })),
+      cacheEntry(2, "2026-04-02", seasonWithTeam(111, { walkoffWins: 1, finalGamesWithFeed: 5 })),
+      cacheEntry(3, "2026-04-02", seasonWithTeam(147, { walkoffWins: 1, finalGamesWithFeed: 5 })),
+    ])!;
+
+    const selected = selectMultiHistorySeries(history, {
+      basis: "cumulative",
+      split: "all",
+      group: "AL-East",
+    });
+
+    expect(selected.teams).toHaveLength(5);
+    expect(selected.groupLabel).toBe("AL East");
+    const nyy = selected.teams.find((team) => team.teamId === 147);
+    expect(nyy?.values).toEqual([2, 3]);
+    expect(nyy?.color).toMatch(/^#[0-9A-Fa-f]{6}$/);
+    expect(multiSeriesHasPlottedValues(selected)).toBe(true);
   });
 });

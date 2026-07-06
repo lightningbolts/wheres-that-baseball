@@ -10,14 +10,15 @@ import {
   type NerdStatDefinition,
 } from "@/lib/mlb/nerdStats/definitions";
 import type { PerGameNerdCacheEntry } from "@/lib/mlb/nerdStats/gameCache";
-import { splitEffectiveMinGames } from "@/lib/mlb/nerdStats/splits";
 import type { SeasonNerdCounters, TeamNerdCounters } from "@/lib/mlb/nerdStats/types";
 import {
   getTeamById,
   getTeamIdsForGroup,
   MLB_TEAMS,
+  NERD_STAT_GROUP_FILTERS,
   type NerdStatGroupFilter,
 } from "@/lib/mlb/teams";
+import { getTeamColor } from "@/lib/mlb/teamColors";
 
 export type NerdStatHistoryBasis = "cumulative" | "rolling7" | "daily";
 export type NerdStatHistorySplit = "all" | "home" | "away";
@@ -57,6 +58,26 @@ export interface SelectedHistorySeries {
   teamAbbrev: string;
 }
 
+export interface MultiTeamHistorySeries {
+  teamId: number;
+  teamAbbrev: string;
+  teamName: string;
+  color: string;
+  values: (number | null)[];
+}
+
+export interface SelectedMultiHistorySeries {
+  dates: string[];
+  teams: MultiTeamHistorySeries[];
+  groupLabel: string;
+}
+
+export interface SelectMultiHistorySeriesOptions {
+  basis: NerdStatHistoryBasis;
+  split: NerdStatHistorySplit;
+  group: NerdStatGroupFilter;
+}
+
 const HISTORY_SPLITS: NerdStatHistorySplit[] = ["all", "home", "away"];
 
 function meetsMinimum(
@@ -64,9 +85,11 @@ function meetsMinimum(
   counters: TeamNerdCounters,
   split: NerdStatHistorySplit,
 ): boolean {
-  if (definition.minGames == null) return true;
-  const minGames = splitEffectiveMinGames(definition.minGames, split);
-  return counters.finalGamesWithFeed >= minGames;
+  // Trend charts show values as soon as a team has feed data; standings minGames
+  // thresholds are for leaderboard stability, not daily history.
+  void definition;
+  void split;
+  return counters.finalGamesWithFeed > 0;
 }
 
 function sliceFromEntry(
@@ -286,6 +309,46 @@ export function selectHistorySeries(
     teamLabel: team?.name ?? "Unknown",
     teamAbbrev: team?.abbrev ?? "???",
   };
+}
+
+function groupLabelForFilter(group: NerdStatGroupFilter): string {
+  return NERD_STAT_GROUP_FILTERS.find((item) => item.id === group)?.label ?? "Teams";
+}
+
+export function selectMultiHistorySeries(
+  history: NerdStatHistory,
+  options: SelectMultiHistorySeriesOptions,
+): SelectedMultiHistorySeries {
+  const { basis, split, group } = options;
+  const splitData = history.splits[split];
+  const teamIds = getTeamIdsForGroup(group);
+
+  const teams: MultiTeamHistorySeries[] = teamIds
+    .map((teamId) => {
+      const team = getTeamById(teamId);
+      const teamSeries = splitData?.teams[String(teamId)];
+      if (!team || !teamSeries) return null;
+      return {
+        teamId,
+        teamAbbrev: team.abbrev,
+        teamName: team.name,
+        color: getTeamColor(teamId),
+        values: valuesForBasis(teamSeries, basis),
+      };
+    })
+    .filter((entry): entry is MultiTeamHistorySeries => entry != null);
+
+  return {
+    dates: history.dates,
+    teams,
+    groupLabel: groupLabelForFilter(group),
+  };
+}
+
+export function multiSeriesHasPlottedValues(series: SelectedMultiHistorySeries): boolean {
+  return series.teams.some((team) =>
+    team.values.some((value) => value != null && Number.isFinite(value)),
+  );
 }
 
 export const NERD_STAT_HISTORY_BASES: Array<{ id: NerdStatHistoryBasis; label: string }> = [

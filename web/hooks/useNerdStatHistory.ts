@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   selectHistorySeries,
+  selectMultiHistorySeries,
   type NerdStatHistory,
   type NerdStatHistoryBasis,
   type NerdStatHistorySplit,
@@ -11,6 +12,8 @@ import {
   NERD_STAT_HISTORY_SPLITS,
 } from "@/lib/mlb/nerdStats/history";
 import type { NerdStatGroupFilter } from "@/lib/mlb/teams";
+
+export type NerdStatHistoryViewMode = "single" | "compare";
 
 interface UseNerdStatHistoryOptions {
   enabled?: boolean;
@@ -94,6 +97,22 @@ export function useSelectedNerdStatHistory(
   return useMemo(() => {
     if (!history) return null;
     return selectHistorySeries(history, options);
+  }, [history, options]);
+}
+
+interface UseMultiNerdStatHistoryOptions {
+  basis: NerdStatHistoryBasis;
+  split: NerdStatHistorySplit;
+  group: NerdStatGroupFilter;
+}
+
+export function useMultiNerdStatHistory(
+  history: NerdStatHistory | null,
+  options: UseMultiNerdStatHistoryOptions,
+) {
+  return useMemo(() => {
+    if (!history) return null;
+    return selectMultiHistorySeries(history, options);
   }, [history, options]);
 }
 
