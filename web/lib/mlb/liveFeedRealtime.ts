@@ -2,7 +2,12 @@
 
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
-import { parseStoredBoxScore, parseStoredGameState, isMlbFeedWrapper } from "@/lib/games/gameState";
+import {
+  isMlbFeedWrapper,
+  isParsedStateWrapper,
+  parseStoredBoxScore,
+  parseStoredGameState,
+} from "@/lib/games/gameState";
 import { buildLiveFeedSnapshot } from "@/lib/mlb/liveFeed";
 import type { GameBoxScore } from "@/types/mlb-boxscore";
 import type { LiveGameState, MLBLiveFeedResponse } from "@/types/mlb-live";
@@ -13,7 +18,7 @@ export type GameStateRealtimeStatus = "connecting" | "connected" | "disconnected
 export interface GameStateRealtimePayload {
   gameState: LiveGameState;
   boxScore: GameBoxScore | null;
-  feed: MLBLiveFeedResponse;
+  feed: MLBLiveFeedResponse | null;
   updatedAt: string;
 }
 
@@ -35,6 +40,24 @@ export function subscribeGameStateRealtime(
 
   const applyRow = (raw: Record<string, unknown>) => {
     const gameStateRaw = raw.game_state;
+    const updatedAt =
+      typeof raw.updated_at === "string" ? raw.updated_at : new Date().toISOString();
+
+    if (isParsedStateWrapper(gameStateRaw)) {
+      const gameState =
+        gameStateRaw.parsed.gamePk === gamePk
+          ? gameStateRaw.parsed
+          : { ...gameStateRaw.parsed, gamePk };
+      const boxScore = parseStoredBoxScore(raw.box_score, gamePk);
+      onUpdate({
+        gameState,
+        boxScore,
+        feed: null,
+        updatedAt,
+      });
+      return;
+    }
+
     if (!isMlbFeedWrapper(gameStateRaw)) return;
 
     const feed = gameStateRaw.mlbFeed;
@@ -42,9 +65,6 @@ export function subscribeGameStateRealtime(
     if (!gameState) return;
 
     const boxScore = parseStoredBoxScore(gameStateRaw, gamePk);
-    const updatedAt =
-      typeof raw.updated_at === "string" ? raw.updated_at : new Date().toISOString();
-
     onUpdate({ gameState, boxScore, feed, updatedAt });
   };
 
@@ -52,7 +72,7 @@ export function subscribeGameStateRealtime(
     onStatus?.("connecting");
     const { data, error } = await supabase
       .from("games")
-      .select("game_pk, game_state, updated_at")
+      .select("game_pk, game_state, box_score, updated_at")
       .eq("game_pk", gamePk)
       .maybeSingle();
 

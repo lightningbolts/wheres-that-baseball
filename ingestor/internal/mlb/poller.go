@@ -156,9 +156,7 @@ func (w *Worker) pollOnce(ctx context.Context, gamePK int, log *slog.Logger) err
 
 	if w.games != nil {
 		if isLive {
-			wrapped, wrapErr := json.Marshal(map[string]json.RawMessage{
-				"mlbFeed": rawFeed,
-			})
+			wrapped, wrapErr := wrapMlbFeed(rawFeed)
 			if wrapErr != nil {
 				log.Error("failed to wrap live game state", "error", wrapErr)
 			} else {

@@ -1,25 +1,28 @@
 import { isGameBoxScore, parseBoxScore } from "@/lib/mlb/boxScore";
+import { isMlbFeedWrapper, isParsedStateWrapper } from "@/lib/games/gameStorage";
 import { parseLiveFeed } from "@/lib/mlb/liveFeed";
 import type { GameBoxScore } from "@/types/mlb-boxscore";
-import type { LiveGameState, MLBLiveFeedResponse } from "@/types/mlb-live";
+import type { LiveGameState } from "@/types/mlb-live";
 
-export function isMlbFeedWrapper(raw: unknown): raw is { mlbFeed: MLBLiveFeedResponse } {
-  return (
-    raw != null &&
-    typeof raw === "object" &&
-    "mlbFeed" in raw &&
-    typeof (raw as { mlbFeed: unknown }).mlbFeed === "object" &&
-    (raw as { mlbFeed: unknown }).mlbFeed != null
-  );
-}
+export { isMlbFeedWrapper, isParsedStateWrapper };
 
 /** Validates and normalizes game_state JSON from Supabase. */
 export function parseStoredGameState(raw: unknown, gamePk: number): LiveGameState | null {
+  if (
+    raw != null &&
+    typeof raw === "object" &&
+    "parsed" in raw &&
+    typeof (raw as { parsed: unknown }).parsed === "object" &&
+    (raw as { parsed: unknown }).parsed != null
+  ) {
+    const state = (raw as { parsed: LiveGameState }).parsed;
+    return state.gamePk === gamePk ? state : { ...state, gamePk };
+  }
+
   if (isMlbFeedWrapper(raw)) {
     return parseLiveFeed(gamePk, raw.mlbFeed);
   }
 
-  // Parsed-only snapshots omit game events — always re-fetch from MLB.
   return null;
 }
 

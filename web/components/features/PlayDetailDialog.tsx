@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { Dialog } from "@/components/ui/Dialog";
 import { PitchSequence } from "@/components/features/PitchSequence";
 import { SprayChart } from "@/components/features/SprayChart";
+import { formatWpa } from "@/lib/mlb/wpa";
 import type { HitData, PlayDetail, PlayPitch } from "@/types/mlb-live";
 
 const BallTrajectory3D = dynamic(
@@ -207,6 +208,12 @@ export function PlayDetailDialog({ play, venueId, onClose }: PlayDetailDialogPro
         <div className="flex items-baseline justify-between gap-2 text-[11px] text-subtle">
           <span>
             {play.inning} {play.halfInning}
+            {play.wpa != null && (
+              <>
+                {" "}
+                · {formatWpa(play.wpa)} WPA
+              </>
+            )}
           </span>
           <span className="font-mono tabular-nums">
             {play.awayScore}–{play.homeScore}

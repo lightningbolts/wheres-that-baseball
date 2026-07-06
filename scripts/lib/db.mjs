@@ -30,12 +30,31 @@ function loadPg(webPackageJson) {
 
 /**
  * @param {string} root Repo root
+ * @returns {{ mode: "postgres", databaseUrl: string }}
+ */
+export function resolvePostgresCredentials(root) {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    throw new Error(
+      "Missing DATABASE_URL in ingestor/.env (use the Supabase Session pooler URI for IPv4 networks).",
+    );
+  }
+  return { mode: "postgres", databaseUrl };
+}
+
+/**
+ * @param {string} root Repo root
+ * @param {{ preferPostgres?: boolean }} [options]
  * @returns {{ mode: "rest", supabaseUrl: string, serviceRoleKey: string } | { mode: "postgres", databaseUrl: string }}
  */
-export function resolveDbCredentials(root) {
+export function resolveDbCredentials(root, options = {}) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const databaseUrl = process.env.DATABASE_URL;
+
+  if (options.preferPostgres && databaseUrl) {
+    return { mode: "postgres", databaseUrl };
+  }
 
   if (supabaseUrl && serviceRoleKey) {
     return { mode: "rest", supabaseUrl, serviceRoleKey };
@@ -185,14 +204,14 @@ export async function listGamesForFeedSync(
   }
 }
 
-/** @param {{ mode: "postgres", databaseUrl: string }} creds @param {string} webPackageJson @param {number} gamePk @param {object} feed @param {object} gameState @param {object | null} boxScore */
+/** @param {{ mode: "postgres", databaseUrl: string }} creds @param {string} webPackageJson @param {number} gamePk @param {object} gameStatePayload @param {object | null} boxScore @param {object} gameState */
 export async function updateGameFeedViaPostgres(
   creds,
   webPackageJson,
   gamePk,
-  feed,
-  gameState,
+  gameStatePayload,
   boxScore,
+  gameState,
 ) {
   const Pool = loadPg(webPackageJson);
   const pool = new Pool({ connectionString: creds.databaseUrl });
@@ -212,7 +231,7 @@ export async function updateGameFeedViaPostgres(
        WHERE game_pk = $1`,
       [
         gamePk,
-        JSON.stringify({ mlbFeed: feed }),
+        JSON.stringify(gameStatePayload),
         boxScore ? JSON.stringify(boxScore) : null,
         new Date().toISOString(),
         gameState.awayRuns,
@@ -222,6 +241,77 @@ export async function updateGameFeedViaPostgres(
         gameState.venueName,
       ],
     );
+  } finally {
+    await pool.end();
+  }
+}
+
+/** @param {string} databaseUrl @param {string} webPackageJson */
+export async function listGamesForCompaction(databaseUrl, webPackageJson) {
+  const Pool = loadPg(webPackageJson);
+  const pool = new Pool({ connectionString: databaseUrl });
+
+  try {
+    const result = await pool.query(
+      `SELECT game_pk, status, game_state
+       FROM games
+       WHERE game_state IS NOT NULL
+       ORDER BY game_pk ASC`,
+    );
+    return result.rows;
+  } finally {
+    await pool.end();
+  }
+}
+
+/** @param {string} databaseUrl @param {string} webPackageJson @param {number} gamePk @param {object} gameStatePayload */
+export async function updateCompactedGameState(databaseUrl, webPackageJson, gamePk, gameStatePayload) {
+  const Pool = loadPg(webPackageJson);
+  const pool = new Pool({ connectionString: databaseUrl });
+
+  try {
+    await pool.query(`UPDATE games SET game_state = $2::jsonb, updated_at = NOW() WHERE game_pk = $1`, [
+      gamePk,
+      JSON.stringify(gameStatePayload),
+    ]);
+  } finally {
+    await pool.end();
+  }
+}
+
+/** @param {string} databaseUrl @param {string} webPackageJson */
+export async function vacuumGamesTable(databaseUrl, webPackageJson) {
+  const Pool = loadPg(webPackageJson);
+  const pool = new Pool({ connectionString: databaseUrl });
+
+  try {
+    await pool.query("VACUUM (VERBOSE, ANALYZE) games");
+  } finally {
+    await pool.end();
+  }
+}
+
+/** @param {string} databaseUrl @param {string} webPackageJson */
+export async function fetchDatabaseSizeReport(databaseUrl, webPackageJson) {
+  const Pool = loadPg(webPackageJson);
+  const pool = new Pool({ connectionString: databaseUrl });
+
+  try {
+    const tables = await pool.query(`
+      SELECT relname AS table_name,
+             pg_size_pretty(pg_total_relation_size(relid)) AS total_size,
+             pg_total_relation_size(relid) AS total_bytes
+      FROM pg_catalog.pg_statio_user_tables
+      ORDER BY pg_total_relation_size(relid) DESC
+    `);
+    const db = await pool.query(
+      `SELECT pg_size_pretty(pg_database_size(current_database())) AS database_size,
+              pg_database_size(current_database()) AS database_bytes`,
+    );
+    return {
+      database: db.rows[0],
+      tables: tables.rows,
+    };
   } finally {
     await pool.end();
   }

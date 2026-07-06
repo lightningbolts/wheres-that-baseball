@@ -1,4 +1,5 @@
-import { isMlbFeedWrapper } from "@/lib/games/gameState";
+import { isMlbFeedWrapper, isParsedStateWrapper } from "@/lib/games/gameState";
+import { storedGameStatePlayCount } from "@/lib/games/gameStorage";
 import type { Game } from "@/types/database";
 import { getMLBScheduleDate } from "@/lib/mlb/schedule";
 
@@ -15,10 +16,21 @@ export function isSettledArchiveDate(gameDate: string): boolean {
   return gameDate < getMLBScheduleDate();
 }
 
-/** True when Supabase holds a complete final-game MLB feed suitable for replay. */
+/** True when Supabase holds a complete final-game feed suitable for replay. */
 export function isStoredFeedComplete(row: FeedCheckRow | null | undefined): boolean {
   if (!row || row.status !== "Final") return false;
-  if (!row.feed_synced_at || !isMlbFeedWrapper(row.game_state)) return false;
+  if (!row.feed_synced_at) return false;
+  if (!isParsedStateWrapper(row.game_state) && !isMlbFeedWrapper(row.game_state)) {
+    return false;
+  }
+
+  if (isParsedStateWrapper(row.game_state)) {
+    const state = row.game_state.parsed;
+    if (state.gameStatus !== "Final") return false;
+    if (row.away_score != null && state.awayRuns !== row.away_score) return false;
+    if (row.home_score != null && state.homeRuns !== row.home_score) return false;
+    return state.plays.length >= MIN_FINAL_PLAYS;
+  }
 
   const feed = row.game_state.mlbFeed;
   const feedStatus = feed.gameData?.status?.abstractGameState;
@@ -34,8 +46,5 @@ export function isStoredFeedComplete(row: FeedCheckRow | null | undefined): bool
     return false;
   }
 
-  const plays = feed.liveData?.plays?.allPlays ?? [];
-  if (plays.length < MIN_FINAL_PLAYS) return false;
-
-  return true;
+  return storedGameStatePlayCount(row.game_state) >= MIN_FINAL_PLAYS;
 }

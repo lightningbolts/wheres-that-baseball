@@ -96,6 +96,12 @@ export interface PlayDetail {
   hit: HitData | null;
   /** Terminal ABS review on the plate appearance (may differ from per-pitch reviews). */
   playReview?: PitchReview;
+  /** Home-team win probability before the plate appearance (0–1). */
+  homeWinProbBefore?: number;
+  /** Home-team win probability after the plate appearance (0–1). */
+  homeWinProbAfter?: number;
+  /** Win probability added for the batting team (0–1 scale). */
+  wpa?: number;
 }
 
 export interface PlayByPlayEntry {
@@ -126,6 +132,12 @@ export interface PlayByPlayEntry {
   /** ABS challenges remaining after this play (for season history replay). */
   awayAbsChallengesRemaining?: number;
   homeAbsChallengesRemaining?: number;
+  /** Home-team win probability before the plate appearance (0–1). */
+  homeWinProbBefore?: number;
+  /** Home-team win probability after the plate appearance (0–1). */
+  homeWinProbAfter?: number;
+  /** Win probability added for the batting team (0–1 scale). */
+  wpa?: number;
   detail: PlayDetail;
 }
 

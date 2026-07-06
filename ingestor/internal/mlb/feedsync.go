@@ -49,16 +49,6 @@ type feedSummary struct {
 	} `json:"liveData"`
 }
 
-func wrapMlbFeed(raw json.RawMessage) (json.RawMessage, error) {
-	wrapped, err := json.Marshal(map[string]json.RawMessage{
-		"mlbFeed": raw,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("wrap mlb feed: %w", err)
-	}
-	return wrapped, nil
-}
-
 func summarizeFeed(raw json.RawMessage) (feedSummary, error) {
 	var summary feedSummary
 	if err := json.Unmarshal(raw, &summary); err != nil {

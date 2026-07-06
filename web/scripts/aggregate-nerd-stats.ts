@@ -354,7 +354,15 @@ type BulkCreds =
   | { mode: "rest"; supabaseUrl: string; serviceRoleKey: string };
 
 function resolveBulkReadCredentials(): BulkCreds {
-  return resolveDbCredentials(REPO_ROOT);
+  return resolveDbCredentials(REPO_ROOT, { preferPostgres: true });
+}
+
+function warnEgressIfRest(creds: BulkCreds): void {
+  if (creds.mode !== "rest") return;
+  console.warn(
+    "Using Supabase REST for bulk game_state reads counts against egress limits.\n" +
+      "Add DATABASE_URL to ingestor/.env (Session pooler URI) to read via Postgres instead.",
+  );
 }
 
 function buildDateConditions(
@@ -524,6 +532,7 @@ async function main() {
 
   if (backfillCounters) {
     const creds = resolveBulkReadCredentials();
+  warnEgressIfRest(creds);
     await backfillCountersFromManifest(season, creds, {
       skipSavant,
       storeOptions,
@@ -533,6 +542,7 @@ async function main() {
 
   if (backfillSavant) {
     const creds = resolveBulkReadCredentials();
+  warnEgressIfRest(creds);
     await backfillSavantBatSpeedFromManifest(season, creds, storeOptions);
     return;
   }
@@ -582,6 +592,7 @@ async function main() {
   }
 
   const creds = resolveBulkReadCredentials();
+  warnEgressIfRest(creds);
 
   if (incremental) {
     console.log(

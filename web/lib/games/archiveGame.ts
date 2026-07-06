@@ -91,7 +91,7 @@ async function persistArchivedGame(
   const { error } = await supabase.from("games").upsert(
     {
       ...row,
-      game_state: wrapMlbFeedForStorage(feed),
+      game_state: wrapMlbFeedForStorage(feed, row.game_pk, row.status),
       box_score: boxScore,
       feed_synced_at: syncedAt,
       updated_at: syncedAt,
@@ -121,7 +121,7 @@ async function persistArchivedGame(
       home_team_abbrev: row.home_team_abbrev,
       away_score: row.away_score,
       home_score: row.home_score,
-      game_state: wrapMlbFeedForStorage(feed),
+      game_state: wrapMlbFeedForStorage(feed, row.game_pk, row.status),
       box_score: boxScore,
       feed_synced_at: syncedAt,
     });

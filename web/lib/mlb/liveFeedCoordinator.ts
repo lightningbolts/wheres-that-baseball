@@ -127,6 +127,23 @@ function resyncPlayByPlayState(
   return syncPlayByPlayFromFeed(state, allPlays, currentPlay);
 }
 
+function applyParsedStateToInstance(
+  instance: CoordinatorInstance,
+  gameState: LiveGameState,
+  boxScore: GameBoxScore | null,
+): void {
+  instance.state = {
+    ...instance.state,
+    gameState,
+    boxScore: boxScore ?? instance.state.boxScore,
+    error: null,
+    consecutiveErrors: 0,
+    isLoading: false,
+    realtimeConnected: instance.realtimeConnected,
+  };
+  notify(instance);
+}
+
 function applyFeedToInstance(
   instance: CoordinatorInstance,
   feed: MLBLiveFeedResponse,
@@ -295,6 +312,10 @@ function startRealtime(instance: CoordinatorInstance): void {
     instance.gamePk,
     (payload) => {
       if (instance.cancelled) return;
+      if (!payload.feed) {
+        applyParsedStateToInstance(instance, payload.gameState, payload.boxScore);
+        return;
+      }
       const catchingUp =
         instance.tabWasHidden && document.visibilityState === "visible";
       applyFeedToInstance(instance, payload.feed, {

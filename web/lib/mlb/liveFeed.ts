@@ -1,4 +1,6 @@
 import { parseBoxScore } from "@/lib/mlb/boxScore";
+import { wrapGameStateForStorage, type StoredGameState } from "@/lib/games/gameStorage";
+import { buildCardPitchersFromBoxScore } from "@/lib/mlb/cardPitchers";
 import {
   computeAbsChallengesRemaining,
   countAbsChallengesUsedFromPlays,
@@ -7,7 +9,7 @@ import {
   type AbsChallengeCountOptions,
   type AbsChallengePlay,
 } from "@/lib/mlb/absChallenges";
-import { buildCardPitchersFromBoxScore } from "@/lib/mlb/cardPitchers";
+import { annotatePlayByPlayWithWpa } from "@/lib/mlb/wpa";
 import type { GameBoxScore } from "@/types/mlb-boxscore";
 import type { CardPitcher } from "@/types/mlb";
 import type {
@@ -1274,7 +1276,7 @@ export function normalizePlayByPlayEntry(play: PlayByPlayEntry): PlayByPlayEntry
 }
 
 export function normalizePlayByPlay(plays: PlayByPlayEntry[]): PlayByPlayEntry[] {
-  return plays.map(normalizePlayByPlayEntry);
+  return annotatePlayByPlayWithWpa(plays.map(normalizePlayByPlayEntry));
 }
 
 /** True for plate appearances — false for steals, mound visits, subs, etc. */
@@ -1282,8 +1284,43 @@ export function isPlayByPlayAtBat(play: PlayByPlayEntry): boolean {
   return play.isAtBat !== false;
 }
 
-export function wrapMlbFeedForStorage(feed: MLBLiveFeedResponse): { mlbFeed: MLBLiveFeedResponse } {
-  return { mlbFeed: feed };
+export function wrapMlbFeedForStorage(
+  feed: MLBLiveFeedResponse,
+  gamePk?: number,
+  status?: string,
+): StoredGameState {
+  if (gamePk != null && status) {
+    return wrapGameStateForStorage(gamePk, feed, status);
+  }
+  return { mlbFeed: stripMlbFeedForStorage(feed) };
+}
+
+/** Drop bulky feed sections already stored elsewhere (box score) or unused for replay. */
+export function stripMlbFeedForStorage(feed: MLBLiveFeedResponse): MLBLiveFeedResponse {
+  return {
+    gameData: {
+      status: feed.gameData.status,
+      venue: feed.gameData.venue,
+      teams: {
+        away: {
+          id: feed.gameData.teams.away.id,
+          name: feed.gameData.teams.away.name,
+          abbreviation: feed.gameData.teams.away.abbreviation,
+        },
+        home: {
+          id: feed.gameData.teams.home.id,
+          name: feed.gameData.teams.home.name,
+          abbreviation: feed.gameData.teams.home.abbreviation,
+        },
+      },
+      review: feed.gameData.review,
+      absChallenges: feed.gameData.absChallenges,
+    },
+    liveData: {
+      linescore: feed.liveData.linescore,
+      plays: feed.liveData.plays,
+    },
+  };
 }
 
 function parsePlayReview(

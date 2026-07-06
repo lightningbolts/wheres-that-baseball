@@ -159,7 +159,7 @@ async function updateGameFeedRest(
   const { error } = await supabase
     .from("games")
     .update({
-      game_state: wrapMlbFeedForStorage(feed),
+      game_state: wrapMlbFeedForStorage(feed, gamePk, gameState.gameStatus),
       box_score: boxScore,
       feed_synced_at: new Date().toISOString(),
       away_score: gameState.awayRuns,
@@ -228,15 +228,16 @@ async function main() {
       const feed = await fetchMLBLiveFeed(game.game_pk);
       const gameState = parseLiveFeed(game.game_pk, feed);
       const boxScore = parseBoxScore(game.game_pk, feed);
+      const gameStatePayload = wrapMlbFeedForStorage(feed, game.game_pk, gameState.gameStatus);
 
       if (creds.mode === "postgres") {
         await updateGameFeedViaPostgres(
           creds,
           WEB_PKG,
           game.game_pk,
-          feed,
-          gameState,
+          gameStatePayload,
           boxScore,
+          gameState,
         );
       } else {
         await updateGameFeedRest(

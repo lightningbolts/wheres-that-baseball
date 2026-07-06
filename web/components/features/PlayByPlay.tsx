@@ -8,6 +8,7 @@ import { InningInsightMarker, PlayInsightInline } from "@/components/features/Pl
 import { PitchFeedList } from "@/components/features/PitchFeedList";
 import { useEntranceIndex } from "@/hooks/useEntranceIndex";
 import type { NerdInsight } from "@/lib/mlb/nerdInsights/types";
+import { formatWpa } from "@/lib/mlb/wpa";
 import { cn } from "@/lib/utils";
 import {
   formatGameScore,
@@ -85,6 +86,24 @@ function groupByInning(plays: PlayByPlayEntry[]): InningGroup[] {
 
 function formatBatterLine(hits: number, atBats: number): string {
   return `${hits}-${atBats}`;
+}
+
+function wpaClassName(wpa: number | undefined): string {
+  if (wpa == null || !Number.isFinite(wpa)) return "text-subtle";
+  if (wpa > 0.02) return "text-green-700 dark:text-green-400";
+  if (wpa < -0.02) return "text-red-700 dark:text-red-400";
+  return "text-muted";
+}
+
+function PlayWpaBadge({ wpa }: { wpa: number | undefined }) {
+  const label = formatWpa(wpa);
+  if (!label) return null;
+
+  return (
+    <span className={cn("font-mono text-[10px] tabular-nums", wpaClassName(wpa))}>
+      {label} WPA
+    </span>
+  );
 }
 
 function compactContactLine(hit: PlayByPlayEntry["detail"]["hit"]): string | null {
@@ -406,6 +425,7 @@ function PlayFeedRow({
             <span className="font-medium">{play.batterName}</span>
             <span className="text-[12px] text-muted">{play.description}</span>
           </p>
+          <PlayWpaBadge wpa={play.wpa} />
         </div>
         <span className="shrink-0 pt-0.5 font-mono text-[10px] tabular-nums text-subtle">
           {formatBatterLine(play.batterHits, play.batterAtBats)}
@@ -727,6 +747,7 @@ function PlayOutcomeCard({
           <AtBatEventBadge event={play.event} />
           <p className="line-clamp-3 min-w-0 flex-1">{play.description}</p>
         </div>
+        <PlayWpaBadge wpa={play.wpa} />
         {contact && (
           <p className="mt-1 font-mono text-[11px] text-subtle">{contact}</p>
         )}
