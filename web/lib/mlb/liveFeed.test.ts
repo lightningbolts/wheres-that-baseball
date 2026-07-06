@@ -88,6 +88,20 @@ describe("liveFeed parser golden fixtures", () => {
     expect(next.entries.some((entry) => entry.batterName === "Completed Batter")).toBe(true);
   });
 
+  it("annotates WPA and win probability on incrementally synced plays", () => {
+    const { completedAb, nextCurrentPlay } = loadScenario("completed-ab-with-next-current.json");
+    const allPlays = [completedAb];
+
+    const state = createPlayByPlayParseState();
+    const next = syncPlayByPlayFromFeed(state, allPlays, nextCurrentPlay);
+    const single = next.entries.find((entry) => entry.event === "Single");
+
+    expect(single?.wpa).toBeDefined();
+    expect(single?.homeWinProbBefore).toBeDefined();
+    expect(single?.homeWinProbAfter).toBeDefined();
+    expect(single?.detail.wpa).toBe(single?.wpa);
+  });
+
   it("updates bases on steal game events during an at-bat", () => {
     const play = loadFixture("steal-mid-at-bat.json");
     const priorSingle = loadScenario("completed-ab-with-next-current.json").completedAb;

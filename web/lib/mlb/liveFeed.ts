@@ -680,6 +680,10 @@ export function playByPlaySyncFromIndex(
  * `currentPlay` is fresher than `allPlays.at(-1)` — merge it so outcomes finalize
  * as soon as MLB publishes them, not one poll later.
  */
+function finalizePlayByPlayEntries(entries: PlayByPlayEntry[]): PlayByPlayEntry[] {
+  return normalizePlayByPlay(dedupePlayByPlayEntries(entries));
+}
+
 export function syncPlayByPlayFromFeed(
   state: PlayByPlayParseState,
   allPlays: AllPlayRaw[],
@@ -697,7 +701,7 @@ export function syncPlayByPlayFromFeed(
   const next = appendPlayByPlay(syncState, tail, from, total);
   return {
     ...next,
-    entries: dedupePlayByPlayEntries(next.entries),
+    entries: finalizePlayByPlayEntries(next.entries),
   };
 }
 
@@ -718,7 +722,7 @@ export function rebuildPlayByPlayFromFeed(
 
   return {
     ...rebuilt,
-    entries: dedupePlayByPlayEntries(rebuilt.entries),
+    entries: finalizePlayByPlayEntries(rebuilt.entries),
   };
 }
 
@@ -1761,15 +1765,16 @@ export function parseLiveFeed(
     homeAbsChallengesRemaining: absChallenges.home,
     atBatPitches: parseAtBatPitchesFromFeed(feed, isBreak),
     plays:
-      plays ??
-      parsePlayByPlay(feed.liveData.plays.allPlays, {
-        awayTeamId: teams.away.id,
-        homeTeamId: teams.home.id,
-        awayTeamName: teams.away.name,
-        homeTeamName: teams.home.name,
-        awayAbbrev: teams.away.abbreviation,
-        homeAbbrev: teams.home.abbreviation,
-      }),
+      plays != null
+        ? normalizePlayByPlay(plays)
+        : parsePlayByPlay(feed.liveData.plays.allPlays, {
+            awayTeamId: teams.away.id,
+            homeTeamId: teams.home.id,
+            awayTeamName: teams.away.name,
+            homeTeamName: teams.home.name,
+            awayAbbrev: teams.away.abbreviation,
+            homeAbbrev: teams.home.abbreviation,
+          }),
     observedAt: observedAtFromFeed(feed),
   };
 }
