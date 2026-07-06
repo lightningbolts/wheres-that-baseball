@@ -85,26 +85,10 @@ export function battingTeamWinProbability(
   return halfInning.toLowerCase().startsWith("bot") ? homeWinProb : 1 - homeWinProb;
 }
 
-/** Format win probability for display (e.g. "45%"). */
+/** Format win probability for display (e.g. "45.8%"). */
 export function formatWinProbability(probability: number | undefined | null): string | null {
   if (probability == null || !Number.isFinite(probability)) return null;
-  return `${Math.round(probability * 100)}%`;
-}
-
-/** Format win probability on a 0–1 scale (e.g. "0.450"). */
-export function formatWinProbabilityDecimal(probability: number | undefined | null): string | null {
-  if (probability == null || !Number.isFinite(probability)) return null;
-  return probability.toFixed(3);
-}
-
-/** Percent with decimal, e.g. "45% (0.450)". */
-export function formatWinProbabilityWithDecimal(
-  probability: number | undefined | null,
-): string | null {
-  const pct = formatWinProbability(probability);
-  const dec = formatWinProbabilityDecimal(probability);
-  if (!pct || !dec) return null;
-  return `${pct} (${dec})`;
+  return `${(probability * 100).toFixed(1)}%`;
 }
 
 /** Format WPA for display (e.g. "+12.3%" or "-3.1%"). */
@@ -115,14 +99,14 @@ export function formatWpa(wpa: number | undefined | null): string | null {
   return `${sign}${pct.toFixed(1)}%`;
 }
 
-/** Batting-team WP before/after with WPA delta (e.g. "32% (0.320) → 45% (0.450) · +13.0% WPA"). */
+/** Batting-team WP before/after with WPA delta (e.g. "32.4% → 45.8% · +13.0% WPA"). */
 export function formatPlayWinProbabilityLine(
   play: Pick<PlayByPlayEntry, "halfInning" | "homeWinProbBefore" | "homeWinProbAfter" | "wpa">,
 ): string | null {
-  const wpBefore = formatWinProbabilityWithDecimal(
+  const wpBefore = formatWinProbability(
     battingTeamWinProbability(play.halfInning, play.homeWinProbBefore),
   );
-  const wpAfter = formatWinProbabilityWithDecimal(
+  const wpAfter = formatWinProbability(
     battingTeamWinProbability(play.halfInning, play.homeWinProbAfter),
   );
   const wpaLabel = formatWpa(play.wpa);

@@ -4,7 +4,7 @@ import { encodeBaseState, homeWinProbability } from "@/lib/mlb/winExpectancy";
 import {
   annotatePlayByPlayWithWpa,
   formatPlayWinProbabilityLine,
-  formatWinProbabilityWithDecimal,
+  formatWinProbability,
   formatWpa,
 } from "@/lib/mlb/wpa";
 import type { PlayByPlayEntry } from "@/types/mlb-live";
@@ -115,9 +115,10 @@ describe("formatWpa", () => {
   });
 });
 
-describe("formatWinProbabilityWithDecimal", () => {
-  it("shows percent and decimal", () => {
-    expect(formatWinProbabilityWithDecimal(0.453)).toBe("45% (0.453)");
+describe("formatWinProbability", () => {
+  it("shows one decimal place", () => {
+    expect(formatWinProbability(0.4537)).toBe("45.4%");
+    expect(formatWinProbability(0.5)).toBe("50.0%");
   });
 });
 
@@ -126,11 +127,11 @@ describe("formatPlayWinProbabilityLine", () => {
     expect(
       formatPlayWinProbabilityLine({
         halfInning: "bottom",
-        homeWinProbBefore: 0.32,
-        homeWinProbAfter: 0.45,
-        wpa: 0.13,
+        homeWinProbBefore: 0.324,
+        homeWinProbAfter: 0.458,
+        wpa: 0.134,
       }),
-    ).toBe("32% (0.320) → 45% (0.450) · +13.0% WPA");
+    ).toBe("32.4% → 45.8% · +13.4% WPA");
   });
 
   it("uses away-team WP in the top half", () => {
@@ -141,6 +142,6 @@ describe("formatPlayWinProbabilityLine", () => {
         homeWinProbAfter: 0.7,
         wpa: -0.1,
       }),
-    ).toBe("40% (0.400) → 30% (0.300) · -10.0% WPA");
+    ).toBe("40.0% → 30.0% · -10.0% WPA");
   });
 });
