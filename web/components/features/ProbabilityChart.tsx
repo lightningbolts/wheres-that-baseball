@@ -59,7 +59,7 @@ export const ProbabilityChart = memo(function ProbabilityChart({
 }: ProbabilityChartProps) {
   const chart = (
     <ul className={cn(compact ? "space-y-1.5" : "space-y-2.5")} role="list">
-      {OUTCOME_DISPLAY_ORDER.map((key) => {
+      {OUTCOME_DISPLAY_ORDER.filter((key) => (probabilities?.[key] ?? 0) > 0.0001).map((key) => {
         const value = probabilities?.[key] ?? 0;
         const widthPercent = Math.min(100, Math.max(0, value * 100));
 

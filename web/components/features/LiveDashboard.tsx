@@ -82,9 +82,9 @@ function DashboardContent({ game }: { game: SlateGame }) {
     mlPredictions,
   );
 
-  const onFirst = matchedPrediction?.on_first ?? gameState?.onFirst ?? false;
-  const onSecond = matchedPrediction?.on_second ?? gameState?.onSecond ?? false;
-  const onThird = matchedPrediction?.on_third ?? gameState?.onThird ?? false;
+  const onFirst = atBatViewState?.onFirst ?? gameState?.onFirst ?? false;
+  const onSecond = atBatViewState?.onSecond ?? gameState?.onSecond ?? false;
+  const onThird = atBatViewState?.onThird ?? gameState?.onThird ?? false;
   const runnersInScoringPosition = onSecond || onThird;
 
   const { record: matchupRecord, isLoading: isMatchupLoading } = useBatterVsPitcher(

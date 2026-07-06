@@ -29,7 +29,7 @@ func (m *MockPredictor) Predict(ctx context.Context, state mlb.GameState) (Predi
 	}
 
 	weights := baseWeights(state)
-	m.jitter(weights)
+	m.jitter(weights, state)
 
 	normalized := normalize(weights)
 	return PredictionResult{
@@ -77,19 +77,28 @@ func baseWeights(state mlb.GameState) map[string]float64 {
 		OutcomeDouble:     0.06,
 		OutcomeTriple:     0.01,
 		OutcomeHomeRun:    0.08,
-		OutcomeFieldOut:   0.28,
-		OutcomeGIDP:       0.04,
-		OutcomeSacFly:     0.03,
-		OutcomeSacBunt:    0.02,
+		OutcomeFieldOut:   0.39,
+		OutcomeGIDP:       0,
+		OutcomeSacFly:     0,
+		OutcomeSacBunt:    0,
 	}
 
-	if state.OnFirst && state.Outs < 2 {
-		w[OutcomeGIDP] += 0.06
-		w[OutcomeFieldOut] -= 0.04
+	if state.OnFirst {
+		if state.Outs < 2 {
+			w[OutcomeGIDP] = 0.10
+			w[OutcomeFieldOut] -= 0.08
+		} else {
+			w[OutcomeGIDP] = 0.04
+			w[OutcomeFieldOut] -= 0.03
+		}
 	}
 	if state.OnThird && state.Outs < 2 {
-		w[OutcomeSacFly] += 0.08
-		w[OutcomeFieldOut] -= 0.06
+		w[OutcomeSacFly] = 0.06
+		w[OutcomeFieldOut] -= 0.05
+	}
+	if state.OnFirst && state.Outs < 2 {
+		w[OutcomeSacBunt] = 0.015
+		w[OutcomeFieldOut] -= 0.01
 	}
 	if state.OnSecond || state.OnThird {
 		w[OutcomeSingle] += 0.02
@@ -122,10 +131,27 @@ func baseWeights(state mlb.GameState) map[string]float64 {
 	return w
 }
 
-func (m *MockPredictor) jitter(weights map[string]float64) {
+func (m *MockPredictor) jitter(weights map[string]float64, state mlb.GameState) {
 	for k, v := range weights {
+		if isImpossibleOutcome(k, state) {
+			weights[k] = 0
+			continue
+		}
 		delta := (m.rng.Float64() - 0.5) * 0.06
 		weights[k] = math.Max(0.001, v+delta)
+	}
+}
+
+func isImpossibleOutcome(outcome string, state mlb.GameState) bool {
+	switch outcome {
+	case OutcomeGIDP:
+		return !state.OnFirst
+	case OutcomeSacFly:
+		return !state.OnThird || state.Outs >= 2
+	case OutcomeSacBunt:
+		return !state.OnFirst && !state.OnSecond && !state.OnThird
+	default:
+		return false
 	}
 }
 

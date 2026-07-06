@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import { encodeBaseState, homeWinProbability } from "@/lib/mlb/winExpectancy";
-import { annotatePlayByPlayWithWpa, formatPlayWinProbabilityLine, formatWpa } from "@/lib/mlb/wpa";
+import {
+  annotatePlayByPlayWithWpa,
+  formatPlayWinProbabilityLine,
+  formatWinProbabilityWithDecimal,
+  formatWpa,
+} from "@/lib/mlb/wpa";
 import type { PlayByPlayEntry } from "@/types/mlb-live";
 
 describe("encodeBaseState", () => {
@@ -110,6 +115,12 @@ describe("formatWpa", () => {
   });
 });
 
+describe("formatWinProbabilityWithDecimal", () => {
+  it("shows percent and decimal", () => {
+    expect(formatWinProbabilityWithDecimal(0.453)).toBe("45% (0.453)");
+  });
+});
+
 describe("formatPlayWinProbabilityLine", () => {
   it("shows batting-team WP before and after with WPA", () => {
     expect(
@@ -119,7 +130,7 @@ describe("formatPlayWinProbabilityLine", () => {
         homeWinProbAfter: 0.45,
         wpa: 0.13,
       }),
-    ).toBe("32% → 45% · +13.0% WPA");
+    ).toBe("32% (0.320) → 45% (0.450) · +13.0% WPA");
   });
 
   it("uses away-team WP in the top half", () => {
@@ -130,6 +141,6 @@ describe("formatPlayWinProbabilityLine", () => {
         homeWinProbAfter: 0.7,
         wpa: -0.1,
       }),
-    ).toBe("40% → 30% · -10.0% WPA");
+    ).toBe("40% (0.400) → 30% (0.300) · -10.0% WPA");
   });
 });

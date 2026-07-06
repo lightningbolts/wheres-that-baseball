@@ -7,6 +7,10 @@ import {
   predictClientStealOdds,
 } from "@/lib/predictions/clientPredictor";
 import { oddsStateKey } from "@/lib/predictions/buildPredictRequest";
+import {
+  applySituationConstraints,
+  clampStealProbabilities,
+} from "@/lib/predictions/situationConstraints";
 import { selectPredictionForAtBat } from "@/lib/predictions/matchAtBat";
 import {
   DEFAULT_OUTCOME_PROBABILITIES,
@@ -29,6 +33,22 @@ export interface UseOutcomeOddsResult {
 
 function hasNonZeroProbabilities(probs: OutcomeProbabilities): boolean {
   return Object.values(probs).some((v) => v > 0);
+}
+
+function finalizeOdds(
+  probabilities: OutcomeProbabilities,
+  stealProbabilities: StealProbabilities | null,
+  situation: {
+    outs: number;
+    onFirst: boolean;
+    onSecond: boolean;
+    onThird: boolean;
+  },
+): { probabilities: OutcomeProbabilities; stealProbabilities: StealProbabilities | null } {
+  return {
+    probabilities: applySituationConstraints(probabilities, situation),
+    stealProbabilities: clampStealProbabilities(stealProbabilities, situation),
+  };
 }
 
 /**
@@ -85,10 +105,13 @@ export function useOutcomeOdds(
       ml.oddsKey === oddsKey &&
       hasNonZeroProbabilities(ml.probabilities)
     ) {
+      const finalized = finalizeOdds(
+        ml.probabilities,
+        ml.stealProbabilities ?? predictClientStealOdds(situation),
+        situation,
+      );
       return {
-        probabilities: ml.probabilities,
-        stealProbabilities:
-          ml.stealProbabilities ?? predictClientStealOdds(situation),
+        ...finalized,
         matchedPrediction: ingestorMatch,
         oddsKey: `ml-${oddsKey}`,
         source: "ml" as const,
@@ -96,18 +119,26 @@ export function useOutcomeOdds(
     }
 
     if (ingestorMatch && hasNonZeroProbabilities(normalizeOutcomeProbabilities(ingestorMatch.outcome_probabilities))) {
+      const finalized = finalizeOdds(
+        normalizeOutcomeProbabilities(ingestorMatch.outcome_probabilities),
+        ingestorMatch.steal_probabilities ?? predictClientStealOdds(situation),
+        situation,
+      );
       return {
-        probabilities: normalizeOutcomeProbabilities(ingestorMatch.outcome_probabilities),
-        stealProbabilities: ingestorMatch.steal_probabilities ?? predictClientStealOdds(situation),
+        ...finalized,
         matchedPrediction: ingestorMatch,
         oddsKey: `${ingestorMatch.id}-${oddsKey}`,
         source: "ingestor" as const,
       };
     }
 
+    const finalized = finalizeOdds(
+      predictClientOutcomeOdds(balls, strikes, pitchCount, seed, situation),
+      predictClientStealOdds(situation),
+      situation,
+    );
     return {
-      probabilities: predictClientOutcomeOdds(balls, strikes, pitchCount, seed, situation),
-      stealProbabilities: predictClientStealOdds(situation),
+      ...finalized,
       matchedPrediction: ingestorMatch,
       oddsKey,
       source: ingestorMatch ? "ingestor" as const : "client" as const,

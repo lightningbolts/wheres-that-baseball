@@ -91,6 +91,22 @@ export function formatWinProbability(probability: number | undefined | null): st
   return `${Math.round(probability * 100)}%`;
 }
 
+/** Format win probability on a 0–1 scale (e.g. "0.450"). */
+export function formatWinProbabilityDecimal(probability: number | undefined | null): string | null {
+  if (probability == null || !Number.isFinite(probability)) return null;
+  return probability.toFixed(3);
+}
+
+/** Percent with decimal, e.g. "45% (0.450)". */
+export function formatWinProbabilityWithDecimal(
+  probability: number | undefined | null,
+): string | null {
+  const pct = formatWinProbability(probability);
+  const dec = formatWinProbabilityDecimal(probability);
+  if (!pct || !dec) return null;
+  return `${pct} (${dec})`;
+}
+
 /** Format WPA for display (e.g. "+12.3%" or "-3.1%"). */
 export function formatWpa(wpa: number | undefined | null): string | null {
   if (wpa == null || !Number.isFinite(wpa)) return null;
@@ -99,20 +115,24 @@ export function formatWpa(wpa: number | undefined | null): string | null {
   return `${sign}${pct.toFixed(1)}%`;
 }
 
-/** Batting-team WP before/after with WPA delta (e.g. "32% → 45% · +13.0% WPA"). */
+/** Batting-team WP before/after with WPA delta (e.g. "32% (0.320) → 45% (0.450) · +13.0% WPA"). */
 export function formatPlayWinProbabilityLine(
   play: Pick<PlayByPlayEntry, "halfInning" | "homeWinProbBefore" | "homeWinProbAfter" | "wpa">,
 ): string | null {
-  const wpBefore = formatWinProbability(
+  const wpBefore = formatWinProbabilityWithDecimal(
     battingTeamWinProbability(play.halfInning, play.homeWinProbBefore),
   );
-  const wpAfter = formatWinProbability(
+  const wpAfter = formatWinProbabilityWithDecimal(
     battingTeamWinProbability(play.halfInning, play.homeWinProbAfter),
   );
   const wpaLabel = formatWpa(play.wpa);
 
   const wpLabel =
-    wpBefore && wpAfter ? `${wpBefore} → ${wpAfter}` : wpAfter ? `${wpAfter} WP` : wpBefore;
+    wpBefore && wpAfter
+      ? `${wpBefore} → ${wpAfter}`
+      : wpAfter
+        ? `${wpAfter} WP`
+        : wpBefore;
 
   if (wpLabel && wpaLabel) return `${wpLabel} · ${wpaLabel} WPA`;
   if (wpaLabel) return `${wpaLabel} WPA`;

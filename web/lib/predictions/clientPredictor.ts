@@ -1,5 +1,10 @@
 import type { OutcomeProbabilities } from "@/types/database";
 
+import {
+  applySituationConstraints,
+  impossibleOutcomeKeys,
+} from "./situationConstraints";
+
 export interface ClientPredictorSituation {
   outs?: number;
   onFirst?: boolean;
@@ -26,10 +31,10 @@ function baseWeights(
     double: 0.04,
     triple: 0.005,
     home_run: 0.03,
-    field_out: 0.32,
-    gidp: 0.04,
-    sac_fly: 0.025,
-    sac_bunt: 0.015,
+    field_out: 0.395,
+    gidp: 0,
+    sac_fly: 0,
+    sac_bunt: 0,
   };
 
   const outs = situation.outs ?? 0;
@@ -37,13 +42,17 @@ function baseWeights(
   const onSecond = situation.onSecond ?? false;
   const onThird = situation.onThird ?? false;
 
-  if (onFirst && outs < 2) {
-    w.gidp += 0.06;
-    w.field_out -= 0.04;
+  if (onFirst) {
+    w.gidp = outs < 2 ? 0.1 : 0.04;
+    w.field_out -= outs < 2 ? 0.08 : 0.03;
   }
   if (onThird && outs < 2) {
-    w.sac_fly += 0.08;
-    w.field_out -= 0.06;
+    w.sac_fly = 0.06;
+    w.field_out -= 0.05;
+  }
+  if (onFirst && outs < 2) {
+    w.sac_bunt = 0.015;
+    w.field_out -= 0.01;
   }
   if (onSecond || onThird) {
     w.single += 0.02;
@@ -54,7 +63,7 @@ function baseWeights(
     case balls >= 3 && strikes === 0:
       w.walk = 0.45;
       w.single = 0.14;
-      w.field_out = 0.10;
+      w.field_out = 0.1;
       w.strikeout = 0.05;
       break;
     case balls === 3 && strikes <= 1:
@@ -71,11 +80,16 @@ function baseWeights(
       w.field_out = 0.22;
       break;
     case balls === 3 && strikes === 2:
-      w.walk = 0.20;
-      w.strikeout = 0.20;
+      w.walk = 0.2;
+      w.strikeout = 0.2;
       w.single = 0.16;
-      w.home_run = 0.10;
+      w.home_run = 0.1;
       break;
+  }
+
+  const frozen = impossibleOutcomeKeys(situation);
+  for (const key of frozen) {
+    w[key] = 0;
   }
 
   return w;
@@ -84,10 +98,15 @@ function baseWeights(
 function jitter(
   weights: Record<keyof OutcomeProbabilities, number>,
   seed: number,
+  frozen: Set<keyof OutcomeProbabilities>,
 ): Record<keyof OutcomeProbabilities, number> {
   const out = { ...weights };
   const keys = Object.keys(out) as (keyof OutcomeProbabilities)[];
   keys.forEach((key, index) => {
+    if (frozen.has(key)) {
+      out[key] = 0;
+      return;
+    }
     const delta = (seededUnit(seed + index * 17) - 0.5) * 0.06;
     out[key] = Math.max(0.001, out[key] + delta);
   });
@@ -98,7 +117,7 @@ function normalize(weights: Record<keyof OutcomeProbabilities, number>): Outcome
   const sum = Object.values(weights).reduce((acc, v) => acc + v, 0);
   const out = {} as OutcomeProbabilities;
   for (const key of Object.keys(weights) as (keyof OutcomeProbabilities)[]) {
-    out[key] = weights[key] / sum;
+    out[key] = sum > 0 ? weights[key] / sum : 0;
   }
   return out;
 }
@@ -114,8 +133,9 @@ export function predictClientOutcomeOdds(
   seed: number,
   situation: ClientPredictorSituation = {},
 ): OutcomeProbabilities {
-  const weights = jitter(baseWeights(balls, strikes, situation), seed + pitchCount * 31);
-  return normalize(weights);
+  const frozen = impossibleOutcomeKeys(situation);
+  const weights = jitter(baseWeights(balls, strikes, situation), seed + pitchCount * 31, frozen);
+  return applySituationConstraints(normalize(weights), situation);
 }
 
 export function predictClientStealOdds(

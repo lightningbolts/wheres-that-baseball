@@ -192,13 +192,13 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
     : normalizeOutcomeProbabilities(predictionForAtBat?.outcome_probabilities);
 
   const onFirst = isLive
-    ? (matchedPrediction?.on_first ?? gameState?.onFirst ?? false)
+    ? (atBatViewState?.onFirst ?? gameState?.onFirst ?? false)
     : (displayState?.onFirst ?? false);
   const onSecond = isLive
-    ? (matchedPrediction?.on_second ?? gameState?.onSecond ?? false)
+    ? (atBatViewState?.onSecond ?? gameState?.onSecond ?? false)
     : (displayState?.onSecond ?? false);
   const onThird = isLive
-    ? (matchedPrediction?.on_third ?? gameState?.onThird ?? false)
+    ? (atBatViewState?.onThird ?? gameState?.onThird ?? false)
     : (displayState?.onThird ?? false);
   const runnersInScoringPosition = onSecond || onThird;
 
