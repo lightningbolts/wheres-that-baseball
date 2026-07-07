@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { PlayDetailDialog } from "@/components/features/PlayDetailDialog";
 import { GameHitsSprayChart } from "@/components/features/GameHitsSprayChart";
@@ -15,9 +15,8 @@ import {
   type HitType,
   type SprayChartHit,
 } from "@/lib/mlb/gameHits";
-import { cn } from "@/lib/utils";
+import { cn, formatInningHalf } from "@/lib/utils";
 import type { PlayByPlayEntry } from "@/types/mlb-live";
-import { formatInningHalf } from "@/lib/utils";
 
 const GameHitsTrajectory3D = dynamic(
   () =>
@@ -25,7 +24,7 @@ const GameHitsTrajectory3D = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex h-[min(56vh,520px)] items-center justify-center rounded border border-border bg-field-chart-canvas text-xs text-subtle sm:h-[min(62vh,580px)]">
+      <div className="flex h-[240px] items-center justify-center rounded border border-border bg-field-chart-canvas text-xs text-subtle sm:h-[300px] lg:h-[360px]">
         Loading trajectories…
       </div>
     ),
@@ -116,6 +115,156 @@ function HitRow({
   );
 }
 
+function SelectedHitBanner({
+  batterName,
+  event,
+  awayAbbrev,
+  homeAbbrev,
+  awayScore,
+  homeScore,
+  inning,
+  halfInning,
+  launchSpeed,
+  onOpenDetail,
+  onClear,
+}: {
+  batterName: string;
+  event: HitType;
+  awayAbbrev: string;
+  homeAbbrev: string;
+  awayScore: number;
+  homeScore: number;
+  inning: number;
+  halfInning: string;
+  launchSpeed?: number;
+  onOpenDetail: () => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface px-3 py-2.5">
+      <div className="min-w-0">
+        <p className="text-[13px] font-medium text-foreground">
+          {batterName}
+          <span className="ml-2 font-mono text-[11px] font-normal text-muted">
+            {HIT_TYPE_LABELS[event]}
+          </span>
+        </p>
+        <p className="mt-0.5 text-[11px] text-muted">
+          <span className="font-mono tabular-nums">
+            {awayAbbrev} {awayScore}–{homeScore} {homeAbbrev}
+          </span>
+          <span className="ml-2 font-mono tabular-nums">
+            {inning} {formatInningHalf(halfInning)}
+          </span>
+          {launchSpeed != null && launchSpeed > 0 ? (
+            <span className="ml-2 font-mono tabular-nums">{launchSpeed.toFixed(0)} mph EV</span>
+          ) : null}
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center gap-3">
+        <button
+          type="button"
+          onClick={onOpenDetail}
+          className="text-[11px] font-medium text-secondary underline-offset-2 hover:underline"
+        >
+          Play details
+        </button>
+        <button
+          type="button"
+          onClick={onClear}
+          className="text-[11px] text-muted hover:text-foreground"
+          aria-label="Clear selection"
+        >
+          Clear
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function HitBannerPlaceholder() {
+  return (
+    <div className="invisible flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2.5">
+      <div className="min-w-0">
+        <p className="text-[13px] font-medium text-foreground">Placeholder batter</p>
+        <p className="mt-0.5 text-[11px] text-muted">AWY 0–0 HOM · 1 Top</p>
+      </div>
+      <div className="flex shrink-0 items-center gap-3">
+        <span className="text-[11px] font-medium">Play details</span>
+        <span className="text-[11px]">Clear</span>
+      </div>
+    </div>
+  );
+}
+
+function LazyTrajectorySection({
+  hits,
+  venueId,
+  selectedAtBatIndex,
+  selectedHitBanner,
+  onSelectHit,
+  className,
+}: {
+  hits: GameHit[];
+  venueId?: number | null;
+  selectedAtBatIndex: number | null;
+  selectedHitBanner?: React.ReactNode;
+  onSelectHit?: (hit: SprayChartHit) => void;
+  className?: string;
+}) {
+  const sectionRef = useRef<HTMLElement>(null);
+  const [shouldRender, setShouldRender] = useState(false);
+
+  useEffect(() => {
+    const node = sectionRef.current;
+    if (!node) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          setShouldRender(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "200px" },
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <section ref={sectionRef} className="border-t border-border bg-panel p-3 sm:p-4">
+      <p className="mb-3 text-[10px] font-medium uppercase tracking-wide text-muted">
+        3D trajectories
+      </p>
+      {shouldRender ? (
+        <>
+          <GameHitsTrajectory3D
+            hits={hits}
+            venueId={venueId}
+            selectedAtBatIndex={selectedAtBatIndex}
+            onSelectHit={onSelectHit}
+            className={className}
+          />
+          <div className="mt-3">
+            {selectedHitBanner ?? <HitBannerPlaceholder />}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="flex h-[240px] items-center justify-center rounded border border-border bg-field-chart-canvas text-xs text-subtle sm:h-[300px] lg:h-[360px]">
+            Scroll to load 3D view…
+          </div>
+          <div className="mt-3" aria-hidden>
+            <HitBannerPlaceholder />
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
 export function GameHitsView({
   plays,
   venueId,
@@ -135,18 +284,18 @@ export function GameHitsView({
       ? hits.find((hit) => hit.atBatIndex === selectedAtBatIndex) ?? null
       : null;
 
-  const handleSelectHit = (gameHit: SprayChartHit) => {
+  const handleSelectHit = useCallback((gameHit: SprayChartHit) => {
     setSelectedAtBatIndex((current) =>
       current === gameHit.atBatIndex ? null : gameHit.atBatIndex,
     );
-  };
+  }, []);
 
   if (isLoading && plays.length === 0) {
     return (
       <div className={cn("flex flex-1 flex-col gap-4 p-4", className)}>
         <Skeleton className="h-16 w-full" />
         <Skeleton className="aspect-square w-full max-w-[480px]" />
-        <Skeleton className="h-[240px] w-full sm:h-[300px] xl:h-[360px]" />
+        <Skeleton className="h-[240px] w-full sm:h-[300px] lg:h-[360px]" />
         <Skeleton className="h-48 w-full" />
       </div>
     );
@@ -154,121 +303,128 @@ export function GameHitsView({
 
   return (
     <>
-      <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
-        <div className="shrink-0 border-b border-border bg-surface px-3 py-3 sm:px-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <h2 className="text-sm font-medium text-foreground">Spray chart</h2>
-              <p className="mt-0.5 text-xs text-muted">
-                {stats.total > 0
-                  ? `${stats.total} hit${stats.total === 1 ? "" : "s"} with tracking data`
-                  : "Hits will appear as the game progresses"}
-                {venueName ? ` · ${venueName}` : ""}
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-x-3 gap-y-1.5 sm:justify-end">
-              {HIT_TYPES.map((type) => {
-                const count =
-                  type === "Single"
-                    ? stats.singles
-                    : type === "Double"
-                      ? stats.doubles
-                      : type === "Triple"
-                        ? stats.triples
-                        : stats.homeRuns;
-
-                return (
-                  <div key={type} className="flex items-center gap-1.5 text-[11px] text-muted">
-                    <span
-                      className="h-2.5 w-2.5 rounded-full"
-                      style={{ backgroundColor: HIT_TYPE_COLORS[type] }}
-                      aria-hidden
-                    />
-                    <span className="font-mono tabular-nums">
-                      {HIT_TYPE_LABELS[type]} {count}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {stats.total > 0 && (
-            <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
-              <Stat label="Avg exit velo" value={`${fmtNum(stats.avgExitVelo)} mph`} />
-              <Stat label="Avg launch angle" value={`${fmtNum(stats.avgLaunchAngle, 0)}°`} />
-              <Stat label="Hardest hit" value={`${fmtNum(stats.maxExitVelo, 0)} mph`} />
-              <Stat label="Longest ball" value={`${fmtNum(stats.maxDistance, 0, " ft")}`} />
-            </dl>
-          )}
-        </div>
-
+      <div
+        className={cn(
+          "flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain",
+          className,
+        )}
+      >
         {hits.length === 0 ? (
           <div className="flex flex-1 items-center justify-center px-6 py-12 text-center">
             <p className="text-sm text-subtle">No tracked hits yet.</p>
+            <p className="mt-1 text-xs text-muted">
+              Hits will appear as the game progresses
+              {venueName ? ` · ${venueName}` : ""}
+            </p>
           </div>
         ) : (
-          <div className="min-h-0 flex-1 overflow-hidden">
-            <div className="grid h-full min-h-0 gap-px bg-border xl:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]">
-              <div className="min-h-0 overflow-y-auto overscroll-y-contain">
-                <section className="bg-panel p-3 sm:p-4">
-                  <p className="mb-3 text-[10px] font-medium uppercase tracking-wide text-muted">
-                    Field view
-                  </p>
-                  <GameHitsSprayChart
-                    hits={hits}
-                    venueId={venueId}
-                    selectedAtBatIndex={selectedAtBatIndex}
-                    onSelectHit={handleSelectHit}
-                    className="mx-auto w-full max-w-[min(100%,480px)]"
-                  />
-                </section>
+          <div className="flex flex-col gap-4 p-3 sm:p-4">
+            <div className="shrink-0 rounded-xl border border-border bg-surface px-3 py-3 sm:px-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <p className="text-xs text-muted">
+                  {stats.total} hit{stats.total === 1 ? "" : "s"} with tracking data
+                  {venueName ? ` · ${venueName}` : ""}
+                </p>
+                <div className="flex flex-wrap gap-x-3 gap-y-1.5 sm:justify-end">
+                  {HIT_TYPES.map((type) => {
+                    const count =
+                      type === "Single"
+                        ? stats.singles
+                        : type === "Double"
+                          ? stats.doubles
+                          : type === "Triple"
+                            ? stats.triples
+                            : stats.homeRuns;
 
-                <section className="bg-panel p-3 pb-6 sm:p-4 sm:pb-8">
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-[10px] font-medium uppercase tracking-wide text-muted">
-                      3D trajectories
-                    </p>
-                    {selectedHit && (
-                      <button
-                        type="button"
-                        onClick={() => setDetailPlay(selectedHit.detail)}
-                        className="text-[11px] text-secondary underline-offset-2 hover:underline"
-                      >
-                        {selectedHit.batterName} — {selectedHit.event} details
-                      </button>
-                    )}
-                  </div>
-                  <GameHitsTrajectory3D
-                    hits={hits}
-                    venueId={venueId}
-                    selectedAtBatIndex={selectedAtBatIndex}
-                    onSelectHit={handleSelectHit}
-                    className="mx-auto w-full max-w-4xl"
-                  />
-                </section>
+                    return (
+                      <div key={type} className="flex items-center gap-1.5 text-[11px] text-muted">
+                        <span
+                          className="h-2.5 w-2.5 rounded-full"
+                          style={{ backgroundColor: HIT_TYPE_COLORS[type] }}
+                          aria-hidden
+                        />
+                        <span className="font-mono tabular-nums">
+                          {HIT_TYPE_LABELS[type]} {count}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
-              <aside className="flex min-h-0 flex-col overflow-y-auto overscroll-y-contain border-t border-border bg-surface xl:border-l xl:border-t-0">
-                <div className="shrink-0 border-b border-border px-3 py-2">
-                  <h3 className="text-xs font-medium text-muted">
-                    Hits <span className="font-mono tabular-nums text-subtle">({hits.length})</span>
-                  </h3>
-                </div>
-                <div className="max-h-[min(50vh,28rem)] overflow-y-auto overscroll-y-contain xl:max-h-none">
-                  {hits.map((gameHit) => (
-                    <HitRow
-                      key={gameHit.atBatIndex}
-                      gameHit={gameHit}
-                      awayAbbrev={awayAbbrev}
-                      homeAbbrev={homeAbbrev}
-                      selected={selectedAtBatIndex === gameHit.atBatIndex}
-                      onSelect={() => handleSelectHit(gameHit)}
+              <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
+                <Stat label="Avg exit velo" value={`${fmtNum(stats.avgExitVelo)} mph`} />
+                <Stat label="Avg launch angle" value={`${fmtNum(stats.avgLaunchAngle, 0)}°`} />
+                <Stat label="Hardest hit" value={`${fmtNum(stats.maxExitVelo, 0)} mph`} />
+                <Stat label="Longest ball" value={`${fmtNum(stats.maxDistance, 0, " ft")}`} />
+              </dl>
+            </div>
+
+            <div className="overflow-hidden rounded-xl border border-border">
+              <div className="relative">
+                <div className="min-w-0 bg-panel lg:mr-[min(320px,34%)]">
+                  <section className="p-3 sm:p-4">
+                    <p className="mb-3 text-[10px] font-medium uppercase tracking-wide text-muted">
+                      Spray chart
+                    </p>
+                    <GameHitsSprayChart
+                      hits={hits}
+                      venueId={venueId}
+                      selectedAtBatIndex={selectedAtBatIndex}
+                      onSelectHit={handleSelectHit}
+                      showLines={false}
+                      ballRadius={1.2}
+                      className="mx-auto w-full max-w-[min(100%,480px)]"
                     />
-                  ))}
+                  </section>
+
+                  <LazyTrajectorySection
+                    hits={hits}
+                    venueId={venueId}
+                    selectedAtBatIndex={selectedAtBatIndex}
+                    onSelectHit={handleSelectHit}
+                    selectedHitBanner={
+                      selectedHit ? (
+                        <SelectedHitBanner
+                          batterName={selectedHit.batterName}
+                          event={selectedHit.event}
+                          awayAbbrev={awayAbbrev}
+                          homeAbbrev={homeAbbrev}
+                          awayScore={selectedHit.awayScore}
+                          homeScore={selectedHit.homeScore}
+                          inning={selectedHit.inning}
+                          halfInning={selectedHit.halfInning}
+                          launchSpeed={selectedHit.hit.launchSpeed}
+                          onOpenDetail={() => setDetailPlay(selectedHit.detail)}
+                          onClear={() => setSelectedAtBatIndex(null)}
+                        />
+                      ) : null
+                    }
+                    className="mx-auto w-full max-w-4xl"
+                  />
                 </div>
-              </aside>
+
+                <aside className="flex max-h-[min(50vh,28rem)] flex-col overflow-hidden border-t border-border bg-surface lg:absolute lg:inset-y-0 lg:right-0 lg:max-h-none lg:w-[min(320px,34%)] lg:border-l lg:border-t-0">
+                  <div className="shrink-0 border-b border-border px-3 py-2">
+                    <h3 className="text-xs font-medium text-muted">
+                      Hits{" "}
+                      <span className="font-mono tabular-nums text-subtle">({hits.length})</span>
+                    </h3>
+                  </div>
+                  <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
+                    {hits.map((gameHit) => (
+                      <HitRow
+                        key={gameHit.atBatIndex}
+                        gameHit={gameHit}
+                        awayAbbrev={awayAbbrev}
+                        homeAbbrev={homeAbbrev}
+                        selected={selectedAtBatIndex === gameHit.atBatIndex}
+                        onSelect={() => handleSelectHit(gameHit)}
+                      />
+                    ))}
+                  </div>
+                </aside>
+              </div>
             </div>
           </div>
         )}
