@@ -2,7 +2,7 @@ import { HistoricalGameDashboard } from "@/components/features/HistoricalGameDas
 import { ScheduledGameView } from "@/components/features/ScheduledGameView";
 import { isReplayableGame } from "@/lib/games/format";
 import { fetchScheduleGameByPk } from "@/lib/games/scheduleRow";
-import { upsertScheduleRows } from "@/lib/games/scheduleSync";
+import { upsertScheduleRows } from "@/lib/games/scheduleUpsert";
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";

@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 const gameCacheExcludes = ["./data/nerd-stats/**/games/**"];
 
-const cronDataExcludes = [
+const heavyDataExcludes = [
   ...gameCacheExcludes,
   "./data/nerd-stats/**/history/**",
   "./data/ballpark-hits/**",
@@ -27,15 +27,20 @@ const nextConfig = {
     root: dirname(fileURLToPath(import.meta.url)),
   },
   outputFileTracingExcludes: {
-    "/api/cron/sync-schedule": cronDataExcludes,
-    "/api/games/**": cronDataExcludes,
-    "/api/game/**": cronDataExcludes,
-    "/api/gameday/**": cronDataExcludes,
-    "/api/matchup": cronDataExcludes,
-    "/api/predict": cronDataExcludes,
-    "/api/batter/**": cronDataExcludes,
-    "/api/nerd-stats": gameCacheExcludes,
-    "/api/nerd-stats/**": gameCacheExcludes,
+    "/**": gameCacheExcludes,
+    "/api/cron/sync-schedule": heavyDataExcludes,
+    "/api/games/**": heavyDataExcludes,
+    "/api/game/**": heavyDataExcludes,
+    "/api/gameday/**": heavyDataExcludes,
+    "/api/matchup": heavyDataExcludes,
+    "/api/predict": heavyDataExcludes,
+    "/api/batter/**": heavyDataExcludes,
+    "/games/**": heavyDataExcludes,
+    "/games": heavyDataExcludes,
+    "/live/**": heavyDataExcludes,
+    "/": heavyDataExcludes,
+    "/ballparks/**": heavyDataExcludes,
+    "/ballparks": heavyDataExcludes,
     "/nerd/**": gameCacheExcludes,
   },
   outputFileTracingIncludes: {
