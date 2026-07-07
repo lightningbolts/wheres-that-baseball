@@ -1,5 +1,6 @@
 import type { TeamNerdCard } from "@/lib/mlb/nerdStats/types";
 import type { TeamNerdProfile, TeamNerdStatEntry } from "@/lib/mlb/nerdInsights/types";
+import { MLB_TEAMS } from "@/lib/mlb/teams";
 
 export function profileFromTeamCard(card: TeamNerdCard): TeamNerdProfile {
   const stats = new Map<string, TeamNerdStatEntry>();
@@ -32,6 +33,25 @@ export function isEliteRank(
 ): entry is TeamNerdStatEntry {
   if (!entry || entry.rank > maxRank) return false;
   return entry.value > 0 || entry.displayValue !== "—";
+}
+
+/** Bottom-N in the league (insights only — wider than share-card cursed threshold). */
+export function isCursedInsightRank(
+  entry: TeamNerdStatEntry | undefined,
+  bottomN = 8,
+): entry is TeamNerdStatEntry {
+  if (!entry) return false;
+  const threshold = MLB_TEAMS.length - bottomN + 1;
+  if (entry.rank < threshold) return false;
+  return entry.value > 0 || entry.displayValue !== "—";
+}
+
+export function isNotableInsightRank(
+  entry: TeamNerdStatEntry | undefined,
+  eliteMaxRank = 8,
+  cursedBottomN = 8,
+): entry is TeamNerdStatEntry {
+  return isEliteRank(entry, eliteMaxRank) || isCursedInsightRank(entry, cursedBottomN);
 }
 
 export function rankLabel(rank: number): string {

@@ -249,6 +249,81 @@ describe("generateNerdInsight", () => {
     expect(insight?.message).toContain("8-3");
     expect(insight?.anchor).toEqual({ type: "inning", inning: 6 });
   });
+
+  it("fires event-mapped insight for home runs when hand-crafted rule does not apply", () => {
+    const away = profile(100, "AWY", {
+      "hr-per-pa": {
+        rank: 2,
+        displayValue: "5.1%",
+        value: 5.1,
+        title: "Homer Rate",
+      },
+    });
+
+    const insight = generateNerdInsight(
+      baseContext({
+        trigger: { type: "at-bat-end", atBatIndex: 4, event: "Home Run" },
+        runnersInScoringPosition: false,
+        onSecond: false,
+      }),
+      away,
+      null,
+    );
+
+    expect(insight?.statId).toBe("hr-per-pa");
+    expect(insight?.anchor).toEqual({ type: "at-bat", atBatIndex: 4 });
+  });
+
+  it("fires cursed defensive insight for bottom-8 runs allowed teams", () => {
+    const home = profile(200, "HOM", {
+      "runs-allowed": {
+        rank: 27,
+        displayValue: "412",
+        value: 412,
+        title: "Runs Allowed",
+        sort: "asc",
+      },
+    });
+
+    const insight = generateNerdInsight(
+      baseContext({
+        trigger: { type: "half-break", halfKey: "5-Bottom" },
+        offenseTeamId: 100,
+        defenseTeamId: 200,
+        offenseAbbrev: "AWY",
+        defenseAbbrev: "HOM",
+        liveStats: {
+          away: {
+            abbrev: "AWY",
+            pitchesSeen: 40,
+            pitchesThrown: 35,
+            halfInnings: 5,
+            pitchesSeenPerInning: 8,
+            pitchesThrownPerInning: 7,
+          },
+          home: {
+            abbrev: "HOM",
+            pitchesSeen: 35,
+            pitchesThrown: 40,
+            halfInnings: 5,
+            pitchesSeenPerInning: 7,
+            pitchesThrownPerInning: 8,
+          },
+          totalPitches: 75,
+          scoreablePitches: 60,
+          foulBalls: 2,
+          ballsInPlay: 20,
+          pitchesByHalf: { "5-Bottom": 18 },
+          runsByHalf: { "5-Bottom": 4 },
+        },
+      }),
+      null,
+      home,
+    );
+
+    expect(insight?.statId).toBe("runs-allowed");
+    expect(insight?.title).toContain("leak");
+  });
 });
 
 describe("buildMiniInsight", () => {

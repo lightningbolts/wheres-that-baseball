@@ -14,8 +14,6 @@ import type { TeamNerdCard } from "@/lib/mlb/nerdStats/types";
 import type { LiveGameState } from "@/types/mlb-live";
 
 const TOAST_DURATION_MS = 7_000;
-const MIN_TOAST_GAP_MS = 40_000;
-const MAX_TOASTS_PER_GAME = 10;
 
 async function fetchTeamNerdCard(teamId: number, season: number): Promise<TeamNerdCard | null> {
   try {
@@ -93,16 +91,14 @@ export function useNerdInsights(
   const prevStateRef = useRef<LiveGameState | null>(null);
   const shownIdsRef = useRef<Set<string>>(new Set());
   const shownStatIdsRef = useRef<Set<string>>(new Set());
+  const toastedIdsRef = useRef<Set<string>>(new Set());
   const statOccurrenceRef = useRef<Map<string, number>>(new Map());
-  const lastShownAtRef = useRef(0);
-  const toastCountRef = useRef(0);
 
   useEffect(() => {
     shownIdsRef.current = new Set();
     shownStatIdsRef.current = new Set();
+    toastedIdsRef.current = new Set();
     statOccurrenceRef.current = new Map();
-    lastShownAtRef.current = 0;
-    toastCountRef.current = 0;
     prevStateRef.current = null;
     setProfiles({ away: null, home: null });
     setFeedInsights([]);
@@ -185,17 +181,13 @@ export function useNerdInsights(
         setLiveInsight(null);
       }
 
-      if (showOverlay) {
-        const now = Date.now();
-        if (now - lastShownAtRef.current >= MIN_TOAST_GAP_MS && toastCountRef.current < MAX_TOASTS_PER_GAME) {
-          lastShownAtRef.current = now;
-          toastCountRef.current += 1;
-          const toast: NerdInsight = {
-            ...insight,
-            durationMs: insight.durationMs ?? TOAST_DURATION_MS,
-          };
-          setOverlayToasts((current) => [...current, toast]);
-        }
+      if (showOverlay && !toastedIdsRef.current.has(insight.id)) {
+        toastedIdsRef.current.add(insight.id);
+        const toast: NerdInsight = {
+          ...insight,
+          durationMs: insight.durationMs ?? TOAST_DURATION_MS,
+        };
+        setOverlayToasts((current) => [...current, toast]);
       }
 
       break;

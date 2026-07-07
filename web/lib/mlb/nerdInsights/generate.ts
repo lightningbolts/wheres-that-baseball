@@ -1,11 +1,16 @@
+import { buildEventInsightRules } from "@/lib/mlb/nerdInsights/buildEventInsightRules";
 import type {
   LiveInsightContext,
   NerdInsight,
   TeamNerdProfile,
 } from "@/lib/mlb/nerdInsights/types";
 import { anchorFromTrigger } from "@/lib/mlb/nerdInsights/types";
-import { getTeamStat, isEliteRank, rankLabel } from "@/lib/mlb/nerdInsights/profile";
-import { isCursedNerdRank } from "@/lib/mlb/nerdStats/teamNerdHighlights";
+import {
+  getTeamStat,
+  isCursedInsightRank,
+  isEliteRank,
+  rankLabel,
+} from "@/lib/mlb/nerdInsights/profile";
 
 type Rule = (
   ctx: LiveInsightContext,
@@ -248,7 +253,7 @@ const rules: Rule[] = [
 
     const defense = profileForTeam({ away, home }, ctx.defenseTeamId);
     const runsAllowed = getTeamStat(defense, "runs-allowed");
-    if (!runsAllowed || !isCursedNerdRank(runsAllowed.rank)) return null;
+    if (!runsAllowed || !isCursedInsightRank(runsAllowed, 8)) return null;
 
     return fullInsight(ctx, {
       id: `${ctx.gamePk}-leaky-half-${ctx.trigger.halfKey}`,
@@ -595,6 +600,7 @@ const rules: Rule[] = [
       statId: "pitches-thrown-per-half",
     });
   },
+  ...buildEventInsightRules(),
 ];
 
 export function generateNerdInsight(
@@ -677,7 +683,9 @@ export function buildMiniInsight(
   const message =
     full.statId && stat && MINI_LABELS[full.statId]
       ? MINI_LABELS[full.statId](abbrev, occurrenceCount, stat.displayValue, stat.rank)
-      : `${full.title} — ${abbrev} (${occurrenceCount}× this game).`;
+      : full.statId && stat
+        ? `${stat.title} — ${abbrev} (${occurrenceCount}× this game, ${rankLabel(stat.rank)}, ${stat.displayValue}).`
+        : `${full.title} — ${abbrev} (${occurrenceCount}× this game).`;
 
   return {
     ...full,
