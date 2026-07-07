@@ -104,7 +104,10 @@ export interface LiveInsightContext {
   foulsThisAb: number;
   isHalfInningBreak: boolean;
   isLateInning: boolean;
+  /** Tied or one-run margin — used for late-inning walk-off / nailbiter context. */
   isCloseGame: boolean;
+  /** Exactly one run separates the teams (excludes 0-0 ties). */
+  isOneRunGame: boolean;
   isExtraInnings: boolean;
   runnersInScoringPosition: boolean;
   twoOuts: boolean;

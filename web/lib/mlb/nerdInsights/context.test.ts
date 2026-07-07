@@ -186,4 +186,71 @@ describe("buildLiveInsightContext contact", () => {
 
     expect(ctx?.strikeoutKind).toBe("called");
   });
+
+  it("keeps the completed at-bat batting team after the half-inning flips", () => {
+    const completed = play({
+      atBatIndex: 8,
+      event: "Strikeout",
+      halfInning: "top",
+      inning: 2,
+      batterName: "Griffin Conine",
+      description: "Griffin Conine strikes out swinging.",
+      detail: {
+        atBatIndex: 8,
+        batterId: 1,
+        batterName: "Griffin Conine",
+        batterHits: 0,
+        batterAtBats: 2,
+        pitcherName: "Cal Raleigh",
+        pitcherId: 2,
+        event: "Strikeout",
+        description: "Griffin Conine strikes out swinging.",
+        inning: 2,
+        halfInning: "top",
+        awayScore: 0,
+        homeScore: 0,
+        isScoringPlay: false,
+        pitches: [
+          {
+            pitchNumber: 1,
+            typeCode: "FF",
+            typeDescription: "Four-Seam Fastball",
+            callDescription: "Swinging Strike",
+            callCode: "S",
+            balls: 0,
+            strikes: 1,
+            startSpeed: 94,
+            plateX: 0,
+            plateZ: 2.5,
+            isStrike: true,
+            isBall: false,
+            isInPlay: false,
+            isOut: false,
+            isPitch: true,
+            strikeZoneTop: 3.5,
+            strikeZoneBottom: 1.5,
+          },
+        ],
+      },
+    });
+
+    const state = gameState([completed]);
+    state.awayAbbrev = "MIA";
+    state.homeAbbrev = "SEA";
+    state.inning = 2;
+    state.inningHalf = "bottom";
+    state.inningState = "Bottom";
+    state.offenseTeamId = 136;
+    state.batterName = "Cal Raleigh";
+
+    const ctx = buildLiveInsightContext(state, {
+      type: "at-bat-end",
+      atBatIndex: 8,
+      event: "Strikeout",
+    });
+
+    expect(ctx?.offenseAbbrev).toBe("MIA");
+    expect(ctx?.defenseAbbrev).toBe("SEA");
+    expect(ctx?.batterName).toBe("Griffin Conine");
+  });
 });

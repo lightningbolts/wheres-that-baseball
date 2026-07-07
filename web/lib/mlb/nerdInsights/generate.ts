@@ -480,7 +480,7 @@ const rules: Rule[] = [
   },
 
   (ctx, away, home) => {
-    if (ctx.trigger.type !== "inning-change" || !ctx.isCloseGame) return null;
+    if (ctx.trigger.type !== "inning-change" || !ctx.isOneRunGame) return null;
     const oneRun = getTeamStat(profileForTeam({ away, home }, ctx.awayTeamId), "one-run-games");
     const oneRunHome = getTeamStat(profileForTeam({ away, home }, ctx.homeTeamId), "one-run-games");
     const pick =

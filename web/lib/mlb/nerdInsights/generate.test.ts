@@ -58,6 +58,7 @@ function baseContext(overrides: Partial<LiveInsightContext> = {}): LiveInsightCo
     isHalfInningBreak: false,
     isLateInning: false,
     isCloseGame: true,
+    isOneRunGame: false,
     isExtraInnings: false,
     runnersInScoringPosition: true,
     twoOuts: false,
@@ -407,6 +408,64 @@ describe("generateNerdInsight", () => {
     );
 
     expect(called?.statId).not.toBe("swinging-strike-rate");
+  });
+
+  it("does not fire one-run games insight for a tied 0-0 game", () => {
+    const away = profile(100, "AWY", {
+      "one-run-games": {
+        rank: 1,
+        displayValue: "42",
+        value: 42,
+        title: "One-Run Games",
+      },
+    });
+
+    const insight = generateNerdInsight(
+      baseContext({
+        trigger: { type: "inning-change", inning: 2 },
+        awayRuns: 0,
+        homeRuns: 0,
+        runMargin: 0,
+        isCloseGame: true,
+        isOneRunGame: false,
+        runnersInScoringPosition: false,
+        onSecond: false,
+      }),
+      away,
+      profile(200, "HOM", {}),
+    );
+
+    expect(insight?.statId).not.toBe("one-run-games");
+  });
+
+  it("fires one-run games insight when the margin is exactly one", () => {
+    const away = profile(100, "AWY", {
+      "one-run-games": {
+        rank: 1,
+        displayValue: "42",
+        value: 42,
+        title: "One-Run Games",
+      },
+    });
+
+    const insight = generateNerdInsight(
+      baseContext({
+        trigger: { type: "inning-change", inning: 2 },
+        awayRuns: 1,
+        homeRuns: 0,
+        runMargin: 1,
+        isCloseGame: true,
+        isOneRunGame: true,
+        leadingTeamId: 100,
+        trailingTeamId: 200,
+        runnersInScoringPosition: false,
+        onSecond: false,
+      }),
+      away,
+      profile(200, "HOM", {}),
+    );
+
+    expect(insight?.statId).toBe("one-run-games");
   });
 });
 
