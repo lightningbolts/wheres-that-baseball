@@ -161,6 +161,7 @@ describe("half-inning pace extraction", () => {
     expect(away.longHalfInningsSeen).toBe(1);
     expect(away.shortestHalfInningPitchesSeen).toBe(5);
     expect(away.longestHalfInningPitchesSeen).toBe(32);
+    expect(away.battingHalfInnings).toBe(2);
     expect(away.hits).toBe(1);
     expect(away.runsScored).toBe(1);
     expect(away.pitchesSeen).toBe(37);
@@ -169,7 +170,42 @@ describe("half-inning pace extraction", () => {
     expect(home.longHalfInningsThrown).toBe(1);
     expect(home.shortestHalfInningPitchesThrown).toBe(5);
     expect(home.longestHalfInningPitchesThrown).toBe(32);
+    expect(home.pitchingHalfInnings).toBe(2);
     expect(home.hitsAllowed).toBe(1);
     expect(home.pitchesThrown).toBe(37);
+  });
+
+  it("counts walk-off partial halves toward shortest halves", () => {
+    const { home } = extractFromPlays([
+      makePlay({
+        atBatIndex: 0,
+        inning: 1,
+        halfInning: "top",
+        outs: 3,
+        detail: {
+          ...makePlay({}).detail,
+          pitches: pitches(6),
+        },
+      }),
+      makePlay({
+        atBatIndex: 1,
+        inning: 1,
+        halfInning: "bottom",
+        outs: 0,
+        event: "Single",
+        isScoringPlay: true,
+        homeScore: 1,
+        awayScore: 0,
+        detail: {
+          ...makePlay({}).detail,
+          halfInning: "bottom",
+          event: "Single",
+          pitches: pitches(2),
+        },
+      }),
+    ]);
+
+    expect(home.shortestHalfInningPitchesSeen).toBe(2);
+    expect(home.battingHalfInnings).toBe(1);
   });
 });
