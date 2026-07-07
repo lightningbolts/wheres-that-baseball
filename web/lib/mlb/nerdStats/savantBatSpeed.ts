@@ -1,5 +1,9 @@
-import type { GameNerdSourceRow, SeasonNerdCounters } from "@/lib/mlb/nerdStats/types";
+import { extractNerdCountersFromGame } from "@/lib/mlb/nerdStats/extractGame";
+import type { PerGameNerdCacheEntry } from "@/lib/mlb/nerdStats/gameCache";
+import { loadPerGameNerdCache, writePerGameNerdCache } from "@/lib/mlb/nerdStats/gameCache";
+import { loadGameSourceRow } from "@/lib/mlb/nerdStats/gameSourceCache";
 import type { NerdStatSplitFilter } from "@/lib/mlb/nerdStats/splits";
+import type { GameNerdSourceRow, SeasonNerdCounters } from "@/lib/mlb/nerdStats/types";
 
 interface SavantPitchRow {
   team_batting_id?: number;
@@ -53,4 +57,82 @@ export async function enrichCountersWithSavantBatSpeed(
     team.batSpeedSum += speed;
     team.batSpeedCount += 1;
   }
+}
+
+export function resetBatSpeedCounters(counters: SeasonNerdCounters): void {
+  for (const team of Object.values(counters)) {
+    if (!team || typeof team !== "object") continue;
+    team.batSpeedSum = 0;
+    team.batSpeedCount = 0;
+  }
+}
+
+/** Keep bat-speed totals when re-aggregating PBP counters with --skip-savant. */
+export function preserveBatSpeedCounters(
+  target: SeasonNerdCounters,
+  source: SeasonNerdCounters,
+): void {
+  for (const [teamId, team] of Object.entries(target)) {
+    const previous = source[teamId];
+    if (!previous || !team) continue;
+    team.batSpeedSum = previous.batSpeedSum;
+    team.batSpeedCount = previous.batSpeedCount;
+  }
+}
+
+/**
+ * Refresh Savant bat speed on a per-game cache entry.
+ * Uses stored game_state when present — no Supabase reads.
+ */
+export async function refreshSavantBatSpeedForGame(
+  season: number,
+  gamePk: number,
+): Promise<PerGameNerdCacheEntry | null> {
+  const source = loadGameSourceRow(season, gamePk);
+  const existing = loadPerGameNerdCache(season, gamePk);
+
+  if (!existing && source) {
+    const combined = extractNerdCountersFromGame(source, "all");
+    const home = extractNerdCountersFromGame(source, "home");
+    const away = extractNerdCountersFromGame(source, "away");
+    await enrichCountersWithSavantBatSpeed(combined, gamePk, { row: source, split: "all" });
+    await enrichCountersWithSavantBatSpeed(home, gamePk, { row: source, split: "home" });
+    await enrichCountersWithSavantBatSpeed(away, gamePk, { row: source, split: "away" });
+    const entry: PerGameNerdCacheEntry = {
+      gamePk,
+      gameDate: source.game_date,
+      combined,
+      home,
+      away,
+      extractedAt: new Date().toISOString(),
+    };
+    writePerGameNerdCache(season, entry);
+    return entry;
+  }
+
+  if (!existing) return null;
+
+  resetBatSpeedCounters(existing.combined);
+  resetBatSpeedCounters(existing.home);
+  resetBatSpeedCounters(existing.away);
+
+  await enrichCountersWithSavantBatSpeed(existing.combined, gamePk, {
+    row: source ?? undefined,
+    split: "all",
+  });
+  await enrichCountersWithSavantBatSpeed(existing.home, gamePk, {
+    row: source ?? undefined,
+    split: "home",
+  });
+  await enrichCountersWithSavantBatSpeed(existing.away, gamePk, {
+    row: source ?? undefined,
+    split: "away",
+  });
+
+  const entry: PerGameNerdCacheEntry = {
+    ...existing,
+    extractedAt: new Date().toISOString(),
+  };
+  writePerGameNerdCache(season, entry);
+  return entry;
 }

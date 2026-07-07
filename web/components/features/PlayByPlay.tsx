@@ -84,6 +84,17 @@ function groupByInning(plays: PlayByPlayEntry[]): InningGroup[] {
   return groups;
 }
 
+function inningKeyForAtBatIndex(
+  plays: PlayByPlayEntry[],
+  atBatIndex: number,
+): string | null {
+  const play = plays.find(
+    (entry) => entry.atBatIndex === atBatIndex && entry.isAtBat !== false,
+  );
+  if (!play) return null;
+  return `${play.inning}-${play.halfInning}`;
+}
+
 function formatBatterLine(hits: number, atBats: number): string {
   return `${hits}-${atBats}`;
 }
@@ -410,7 +421,10 @@ function PlayFeedRow({
     selectedAtBatIndex === play.atBatIndex && play.isAtBat !== false;
 
   return (
-    <div className={cn(animate && "animate-play_in")}>
+    <div
+      className={cn(animate && "animate-play_in")}
+      data-at-bat-index={play.isAtBat !== false ? play.atBatIndex : undefined}
+    >
       <button
         type="button"
         onClick={() => {
@@ -724,7 +738,10 @@ function PlayOutcomeCard({
   const contact = compactContactLine(play.detail.hit);
 
   return (
-    <div className={cn(animate && "animate-play_in")}>
+    <div
+      className={cn(animate && "animate-play_in")}
+      data-at-bat-index={play.isAtBat !== false ? play.atBatIndex : undefined}
+    >
       <button
         type="button"
         onClick={() => {
@@ -814,8 +831,14 @@ export const PlayByPlay = memo(function PlayByPlay({
   }, [plays]);
 
   const [expanded, setExpanded] = useState<Set<string>>(() => {
+    const keys = new Set<string>();
     const latest = groups[groups.length - 1]?.key;
-    return new Set(latest ? [latest] : []);
+    if (latest) keys.add(latest);
+    if (selectedAtBatIndex != null) {
+      const selectedKey = inningKeyForAtBatIndex(plays, selectedAtBatIndex);
+      if (selectedKey) keys.add(selectedKey);
+    }
+    return keys;
   });
   const [selectedPlay, setSelectedPlay] = useState<PlayDetail | null>(null);
 
@@ -872,6 +895,45 @@ export const PlayByPlay = memo(function PlayByPlay({
       return next;
     });
   }, [plays]);
+
+  useEffect(() => {
+    if (selectedAtBatIndex == null) return;
+    const inningKey = inningKeyForAtBatIndex(plays, selectedAtBatIndex);
+    if (inningKey) {
+      setExpanded((prev) => {
+        if (prev.has(inningKey)) return prev;
+        const next = new Set(prev);
+        next.add(inningKey);
+        return next;
+      });
+    }
+
+    const frame = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const container = scrollContainerRef.current;
+        const parent = parentScrollRef?.current;
+        const row = container?.querySelector(
+          `[data-at-bat-index="${selectedAtBatIndex}"]`,
+        );
+        if (!row) return;
+
+        if (embeddedScroll && parent) {
+          const parentRect = parent.getBoundingClientRect();
+          const rowRect = row.getBoundingClientRect();
+          const offset = rowRect.top - parentRect.top + parent.scrollTop;
+          parent.scrollTo({
+            top: Math.max(0, offset - parent.clientHeight / 2 + rowRect.height / 2),
+            behavior: "auto",
+          });
+          return;
+        }
+
+        row.scrollIntoView({ behavior: "auto", block: "center" });
+      });
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [embeddedScroll, parentScrollRef, plays, selectedAtBatIndex]);
 
   useEffect(() => {
     if (!autoScrollToLatest) return;

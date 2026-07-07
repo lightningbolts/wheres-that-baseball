@@ -33,7 +33,7 @@
  *   --team-cards          Also rewrite team nerd card JSON files
  *   --rebuild-windows     Re-emit rolling window + split stores from counters
  *   --rebuild-history     Rebuild daily history JSON from per-game caches (no DB)
- *   --backfill-savant     Re-fetch Savant bat speed for manifest games
+ *   --backfill-savant     Re-fetch Savant bat speed for manifest games (Savant API + local game_state only; no Supabase)
  */
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -43,7 +43,7 @@ import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 
 import { createEmptySeasonCounters, mergeSeasonCounters } from "../lib/mlb/nerdStats/counters";
-import { enrichCountersWithSavantBatSpeed } from "../lib/mlb/nerdStats/savantBatSpeed";
+import { enrichCountersWithSavantBatSpeed, preserveBatSpeedCounters, refreshSavantBatSpeedForGame, resetBatSpeedCounters } from "../lib/mlb/nerdStats/savantBatSpeed";
 import { extractNerdCountersFromGame } from "../lib/mlb/nerdStats/extractGame";
 import {
   countPerGameCachesInWindow,
@@ -436,6 +436,16 @@ async function backfillCountersFromManifest(
   }
 
   const countersByScope = countersByScopeFromCaches(allCaches);
+  if (options.skipSavant) {
+    const previousCombined = loadSeasonCounters(season);
+    const previousHome = loadSplitCounters(season, "home");
+    const previousAway = loadSplitCounters(season, "away");
+    preserveBatSpeedCounters(countersByScope.combined, previousCombined);
+    preserveBatSpeedCounters(countersByScope.home, previousHome);
+    preserveBatSpeedCounters(countersByScope.away, previousAway);
+    console.log("Preserved existing Savant bat-speed counters (--skip-savant).");
+  }
+
   const { writtenStatIds } = writeSeasonAndSplitStores(
     season,
     countersByScope,
@@ -485,17 +495,8 @@ async function refreshWindowBatSpeedFromSavant(
   }
 }
 
-function resetBatSpeedCounters(counters: SeasonNerdCounters): void {
-  for (const team of Object.values(counters)) {
-    if (!team || typeof team !== "object") continue;
-    team.batSpeedSum = 0;
-    team.batSpeedCount = 0;
-  }
-}
-
 async function backfillSavantBatSpeedFromManifest(
   season: number,
-  creds: BulkCreds,
   storeOptions: WriteNerdStatsStoreOptions,
 ): Promise<void> {
   const manifest = loadNerdStatsManifest(season);
@@ -505,14 +506,41 @@ async function backfillSavantBatSpeedFromManifest(
   }
 
   const counters = loadSeasonCounters(season);
+  const homeCounters = loadSplitCounters(season, "home");
+  const awayCounters = loadSplitCounters(season, "away");
   resetBatSpeedCounters(counters);
+  resetBatSpeedCounters(homeCounters);
+  resetBatSpeedCounters(awayCounters);
 
   const gamePks = manifest.processedGamePks;
-  console.log(`Backfilling Savant bat speed for ${gamePks.length} game(s)…`);
+  const perGameCaches: PerGameNerdCacheEntry[] = [];
+  console.log(
+    `Backfilling Savant bat speed for ${gamePks.length} game(s) via Savant API + local game_state only…`,
+  );
 
   for (let i = 0; i < gamePks.length; i += SAVANT_BATCH_SIZE) {
     const batch = gamePks.slice(i, i + SAVANT_BATCH_SIZE);
-    await Promise.all(batch.map((gamePk) => enrichCountersWithSavantBatSpeed(counters, gamePk)));
+    const batchCaches = await Promise.all(
+      batch.map(async (gamePk) => {
+        const source = loadGameSourceRow(season, gamePk);
+        await enrichCountersWithSavantBatSpeed(counters, gamePk, {
+          row: source ?? undefined,
+          split: "all",
+        });
+        if (source) {
+          await enrichCountersWithSavantBatSpeed(homeCounters, gamePk, {
+            row: source,
+            split: "home",
+          });
+          await enrichCountersWithSavantBatSpeed(awayCounters, gamePk, {
+            row: source,
+            split: "away",
+          });
+        }
+        return refreshSavantBatSpeedForGame(season, gamePk);
+      }),
+    );
+    perGameCaches.push(...batchCaches.filter((entry): entry is PerGameNerdCacheEntry => entry != null));
     const done = Math.min(i + SAVANT_BATCH_SIZE, gamePks.length);
     process.stdout.write(`\rFetched Savant bat speed for ${done}/${gamePks.length} games…`);
   }
@@ -522,11 +550,24 @@ async function backfillSavantBatSpeedFromManifest(
     ...storeOptions,
     skipTeamCards: storeOptions.skipTeamCards ?? false,
   });
+  writeSplitNerdStatsStore(season, "home", homeCounters, gamePks, {
+    ...storeOptions,
+    skipTeamCards: true,
+  });
+  writeSplitNerdStatsStore(season, "away", awayCounters, gamePks, {
+    ...storeOptions,
+    skipTeamCards: true,
+  });
   console.log(`Updated season counters with Savant bat speed (${writtenStatIds.length} stat file(s)).`);
 
+  if (perGameCaches.length > 0) {
+    buildHistoryStores(season, perGameCaches, storeOptions.statIds ?? ["avg-bat-speed"]);
+  } else {
+    console.log("Skipping history — no per-game caches could be built from local game_state.");
+  }
+
   console.log("Refreshing rolling window bat speed from Savant…");
-  const caches = loadPerGameNerdCaches(season, gamePks).cached;
-  await refreshWindowBatSpeedFromSavant(season, caches);
+  await refreshWindowBatSpeedFromSavant(season, perGameCaches);
 }
 
 type BulkCreds =
@@ -748,9 +789,7 @@ async function main() {
   }
 
   if (backfillSavant) {
-    const creds = await resolveBulkReadCredentialsAsync();
-    warnEgressIfRest(creds);
-    await backfillSavantBatSpeedFromManifest(season, creds, storeOptions);
+    await backfillSavantBatSpeedFromManifest(season, storeOptions);
     return;
   }
 
