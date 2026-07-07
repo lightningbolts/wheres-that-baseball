@@ -1,4 +1,5 @@
 import { buildEventInsightRules } from "@/lib/mlb/nerdInsights/buildEventInsightRules";
+import { isEstablishedGameShape } from "@/lib/mlb/nerdInsights/situational";
 import type {
   LiveInsightContext,
   NerdInsight,
@@ -423,6 +424,28 @@ const rules: Rule[] = [
   (ctx, away, home) => {
     if (
       ctx.trigger.type !== "at-bat-end" ||
+      ctx.trigger.event !== "Strikeout" ||
+      ctx.strikeoutKind !== "called"
+    ) {
+      return null;
+    }
+    const defense = profileForTeam({ away, home }, ctx.defenseTeamId);
+    const freeze = getTeamStat(defense, "called-strike-rate");
+    if (!isEliteRank(freeze, 6)) return null;
+
+    return fullInsight(ctx, {
+      id: `${ctx.gamePk}-freeze-k-${ctx.trigger.atBatIndex}`,
+      eyebrow: "Freeze frame",
+      title: "Caught looking",
+      message: `${ctx.defenseAbbrev} rank ${rankLabel(freeze.rank)} in freeze rate (${freeze.displayValue} called strikes per pitch). ${ctx.pitcherName} painted it.`,
+      teamId: ctx.defenseTeamId,
+      statId: "called-strike-rate",
+    });
+  },
+
+  (ctx, away, home) => {
+    if (
+      ctx.trigger.type !== "at-bat-end" ||
       (ctx.trigger.event !== "Walk" && ctx.trigger.event !== "Intent Walk")
     ) {
       return null;
@@ -480,7 +503,13 @@ const rules: Rule[] = [
   },
 
   (ctx, away, home) => {
-    if (ctx.trigger.type !== "inning-change" || !ctx.isOneRunGame) return null;
+    if (
+      ctx.trigger.type !== "inning-change" ||
+      !ctx.isOneRunGame ||
+      !isEstablishedGameShape(ctx)
+    ) {
+      return null;
+    }
     const oneRun = getTeamStat(profileForTeam({ away, home }, ctx.awayTeamId), "one-run-games");
     const oneRunHome = getTeamStat(profileForTeam({ away, home }, ctx.homeTeamId), "one-run-games");
     const pick =
@@ -532,7 +561,9 @@ const rules: Rule[] = [
   },
 
   (ctx, away, home) => {
-    if (ctx.trigger.type !== "inning-change" || ctx.runMargin < 5) return null;
+    if (ctx.trigger.type !== "inning-change" || ctx.runMargin < 5 || !isEstablishedGameShape(ctx)) {
+      return null;
+    }
     const leader = ctx.leadingTeamId;
     if (leader == null) return null;
     const profile = profileForTeam({ away, home }, leader);
@@ -569,7 +600,13 @@ const rules: Rule[] = [
   },
 
   (ctx, away, home) => {
-    if (ctx.trigger.type !== "inning-change" || ctx.runMargin < 4) return null;
+    if (
+      ctx.trigger.type !== "inning-change" ||
+      ctx.runMargin < 4 ||
+      !isEstablishedGameShape(ctx)
+    ) {
+      return null;
+    }
     const leader = ctx.leadingTeamId;
     if (leader == null) return null;
     const profile = profileForTeam({ away, home }, leader);

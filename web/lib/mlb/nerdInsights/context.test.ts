@@ -253,4 +253,24 @@ describe("buildLiveInsightContext contact", () => {
     expect(ctx?.defenseAbbrev).toBe("SEA");
     expect(ctx?.batterName).toBe("Griffin Conine");
   });
+
+  it("attributes half-break context to the completed half", () => {
+    const state = gameState([]);
+    state.awayAbbrev = "MIA";
+    state.homeAbbrev = "SEA";
+    state.inning = 2;
+    state.inningHalf = "middle";
+    state.inningState = "Middle";
+    state.offenseTeamId = 136;
+
+    const ctx = buildLiveInsightContext(state, {
+      type: "half-break",
+      halfKey: "2-top",
+    });
+
+    expect(ctx?.offenseAbbrev).toBe("MIA");
+    expect(ctx?.defenseAbbrev).toBe("SEA");
+    expect(ctx?.inning).toBe(2);
+    expect(ctx?.inningHalf).toBe("top");
+  });
 });

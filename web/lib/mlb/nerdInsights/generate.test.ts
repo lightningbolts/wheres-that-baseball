@@ -450,7 +450,7 @@ describe("generateNerdInsight", () => {
 
     const insight = generateNerdInsight(
       baseContext({
-        trigger: { type: "inning-change", inning: 2 },
+        trigger: { type: "inning-change", inning: 6 },
         awayRuns: 1,
         homeRuns: 0,
         runMargin: 1,
@@ -466,6 +466,63 @@ describe("generateNerdInsight", () => {
     );
 
     expect(insight?.statId).toBe("one-run-games");
+  });
+
+  it("attributes half-break pace insights to the team that just batted", () => {
+    const away = profile(146, "MIA", {
+      "quick-half-innings-seen": {
+        rank: 1,
+        displayValue: "18",
+        value: 18,
+        title: "Quick Half Innings Seen",
+      },
+    });
+
+    const insight = generateNerdInsight(
+      baseContext({
+        trigger: { type: "half-break", halfKey: "2-top" },
+        awayTeamId: 146,
+        homeTeamId: 136,
+        offenseTeamId: 146,
+        defenseTeamId: 136,
+        offenseAbbrev: "MIA",
+        defenseAbbrev: "SEA",
+        awayAbbrev: "MIA",
+        homeAbbrev: "SEA",
+        inning: 2,
+        inningHalf: "middle",
+        liveStats: {
+          away: {
+            abbrev: "MIA",
+            pitchesSeen: 20,
+            pitchesThrown: 18,
+            halfInnings: 2,
+            pitchesSeenPerInning: 10,
+            pitchesThrownPerInning: 9,
+          },
+          home: {
+            abbrev: "SEA",
+            pitchesSeen: 18,
+            pitchesThrown: 20,
+            halfInnings: 1,
+            pitchesSeenPerInning: 18,
+            pitchesThrownPerInning: 20,
+          },
+          totalPitches: 38,
+          scoreablePitches: 30,
+          foulBalls: 1,
+          ballsInPlay: 10,
+          pitchesByHalf: { "2-top": 8 },
+          runsByHalf: { "2-top": 0 },
+        },
+      }),
+      away,
+      profile(136, "SEA", {}),
+    );
+
+    expect(insight?.statId).toBe("quick-half-innings-seen");
+    expect(insight?.teamId).toBe(146);
+    expect(insight?.title).toContain("MIA");
   });
 });
 

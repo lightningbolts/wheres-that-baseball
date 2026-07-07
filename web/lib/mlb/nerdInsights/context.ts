@@ -6,6 +6,11 @@ import {
   isBarrel,
   isNoDoubterHr,
 } from "@/lib/mlb/nerdStats/extractHelpers";
+import {
+  offenseDefenseFromHalfInning,
+  situationFromCompletedPlay,
+  situationFromHalfKey,
+} from "@/lib/mlb/nerdInsights/situational";
 import type {
   ContactInsightContext,
   InsightTrigger,
@@ -31,17 +36,6 @@ function teamIdsForGame(gameState: LiveGameState): {
   const home = getTeamByAbbrev(gameState.homeAbbrev);
   if (!away || !home) return null;
   return { awayTeamId: away.id, homeTeamId: home.id };
-}
-
-function offenseDefenseFromHalfInning(
-  halfInning: string,
-  awayTeamId: number,
-  homeTeamId: number,
-): { offenseTeamId: number; defenseTeamId: number } {
-  const top = halfInning.toLowerCase().startsWith("top");
-  return top
-    ? { offenseTeamId: awayTeamId, defenseTeamId: homeTeamId }
-    : { offenseTeamId: homeTeamId, defenseTeamId: awayTeamId };
 }
 
 function offenseDefenseIds(
@@ -70,66 +64,6 @@ function scoreFlags(awayRuns: number, homeRuns: number, awayTeamId: number, home
     isOneRunGame: runMargin === 1,
     leadingTeamId: awayLeading ? awayTeamId : homeLeading ? homeTeamId : null,
     trailingTeamId: awayLeading ? homeTeamId : homeLeading ? awayTeamId : null,
-  };
-}
-
-function situationFromCompletedPlay(
-  play: PlayByPlayEntry,
-  awayTeamId: number,
-  homeTeamId: number,
-  awayAbbrev: string,
-  homeAbbrev: string,
-): Pick<
-  LiveInsightContext,
-  | "offenseTeamId"
-  | "defenseTeamId"
-  | "offenseAbbrev"
-  | "defenseAbbrev"
-  | "batterName"
-  | "pitcherName"
-  | "inning"
-  | "inningHalf"
-  | "outs"
-  | "onFirst"
-  | "onSecond"
-  | "onThird"
-  | "awayRuns"
-  | "homeRuns"
-  | "runMargin"
-  | "isCloseGame"
-  | "isOneRunGame"
-  | "leadingTeamId"
-  | "trailingTeamId"
-  | "runnersInScoringPosition"
-  | "twoOuts"
-  | "basesLoaded"
-> {
-  const { offenseTeamId, defenseTeamId } = offenseDefenseFromHalfInning(
-    play.halfInning,
-    awayTeamId,
-    homeTeamId,
-  );
-  const scores = scoreFlags(play.awayScore, play.homeScore, awayTeamId, homeTeamId);
-
-  return {
-    offenseTeamId,
-    defenseTeamId,
-    offenseAbbrev: offenseTeamId === awayTeamId ? awayAbbrev : homeAbbrev,
-    defenseAbbrev: defenseTeamId === awayTeamId ? awayAbbrev : homeAbbrev,
-    batterName: play.batterName,
-    pitcherName: play.detail.pitcherName,
-    inning: play.inning,
-    inningHalf: play.halfInning,
-    outs: play.outs,
-    onFirst: play.onFirst,
-    onSecond: play.onSecond,
-    onThird: play.onThird,
-    awayRuns: play.awayScore,
-    homeRuns: play.homeScore,
-    ...scores,
-    runnersInScoringPosition: play.onSecond || play.onThird,
-    twoOuts: play.outs >= 2,
-    basesLoaded: play.onFirst && play.onSecond && play.onThird,
   };
 }
 
@@ -206,12 +140,26 @@ export function buildLiveInsightContext(
           gameState.homeAbbrev,
         )
       : null;
+  const halfSituation =
+    trigger.type === "half-break"
+      ? situationFromHalfKey(
+          trigger.halfKey,
+          awayTeamId,
+          homeTeamId,
+          gameState.awayAbbrev,
+          gameState.homeAbbrev,
+        )
+      : null;
+
+  const situationalOffenseId = playSituation?.offenseTeamId ?? halfSituation?.offenseTeamId;
+  const situationalDefenseId = playSituation?.defenseTeamId ?? halfSituation?.defenseTeamId;
 
   return {
     gamePk: gameState.gamePk,
     trigger,
-    inning: playSituation?.inning ?? gameState.inning,
-    inningHalf: playSituation?.inningHalf ?? gameState.inningHalf,
+    inning: playSituation?.inning ?? halfSituation?.inning ?? gameState.inning,
+    inningHalf:
+      playSituation?.inningHalf ?? halfSituation?.inningHalf ?? gameState.inningHalf,
     inningState: gameState.inningState,
     outs: playSituation?.outs ?? gameState.outs,
     balls: gameState.balls,
@@ -222,17 +170,24 @@ export function buildLiveInsightContext(
     homeAbbrev: gameState.homeAbbrev,
     awayTeamId,
     homeTeamId,
-    offenseTeamId: playSituation?.offenseTeamId ?? offenseTeamId,
-    defenseTeamId: playSituation?.defenseTeamId ?? defenseTeamId,
-    offenseAbbrev: playSituation?.offenseAbbrev ?? offenseAbbrev,
-    defenseAbbrev: playSituation?.defenseAbbrev ?? defenseAbbrev,
+    offenseTeamId: situationalOffenseId ?? offenseTeamId,
+    defenseTeamId: situationalDefenseId ?? defenseTeamId,
+    offenseAbbrev:
+      playSituation?.offenseAbbrev ??
+      halfSituation?.offenseAbbrev ??
+      offenseAbbrev,
+    defenseAbbrev:
+      playSituation?.defenseAbbrev ??
+      halfSituation?.defenseAbbrev ??
+      defenseAbbrev,
     onFirst: playSituation?.onFirst ?? gameState.onFirst,
     onSecond: playSituation?.onSecond ?? gameState.onSecond,
     onThird: playSituation?.onThird ?? gameState.onThird,
     batterName: playSituation?.batterName ?? gameState.batterName,
     pitcherName: playSituation?.pitcherName ?? gameState.pitcherName,
-    pitchCount: gameState.atBatPitches.length,
-    foulsThisAb: foulsInAtBat(gameState.atBatPitches),
+    pitchCount: playSituation?.pitchCount ?? gameState.atBatPitches.length,
+    foulsThisAb:
+      playSituation?.foulsThisAb ?? foulsInAtBat(gameState.atBatPitches),
     isHalfInningBreak: isHalfInningBreak(gameState.inningState),
     isLateInning: gameState.inning >= 7,
     isCloseGame: playSituation?.isCloseGame ?? scores.isCloseGame,

@@ -1,4 +1,9 @@
 import type { LiveInsightContext, InsightTrigger } from "@/lib/mlb/nerdInsights/types";
+import {
+  isEstablishedGameShape,
+  runsAllowedByTeam,
+  runsScoredByTeam,
+} from "@/lib/mlb/nerdInsights/situational";
 
 export type InsightTeamSide = "offense" | "defense";
 export type InsightPolarity = "elite" | "cursed" | "either";
@@ -27,11 +32,11 @@ export interface EventInsightSpec {
 }
 
 function offenseRuns(ctx: LiveInsightContext): number {
-  return ctx.offenseTeamId === ctx.awayTeamId ? ctx.awayRuns : ctx.homeRuns;
+  return runsScoredByTeam(ctx, ctx.offenseTeamId);
 }
 
 function defenseRunsAllowed(ctx: LiveInsightContext): number {
-  return ctx.defenseTeamId === ctx.awayTeamId ? ctx.awayRuns : ctx.homeRuns;
+  return runsAllowedByTeam(ctx, ctx.defenseTeamId);
 }
 
 function totalRuns(ctx: LiveInsightContext): number {
@@ -381,6 +386,7 @@ export const EVENT_INSIGHT_SPECS: EventInsightSpec[] = [
     team: "defense",
     polarity: "elite",
     eventEquals: ["Strikeout"],
+    match: (ctx) => ctx.foulsThisAb >= 2,
     eyebrow: "Pitcher's duel",
     title: (ctx, abbrev) => `${abbrev} miss bats`,
     message: defaultMessage,
@@ -739,7 +745,10 @@ export const EVENT_INSIGHT_SPECS: EventInsightSpec[] = [
     statId: "win-percentage",
     team: "offense",
     polarity: "elite",
-    match: (ctx) => ctx.leadingTeamId === ctx.offenseTeamId && ctx.runMargin >= 3,
+    match: (ctx) =>
+      ctx.leadingTeamId === ctx.offenseTeamId &&
+      ctx.runMargin >= 3 &&
+      isEstablishedGameShape(ctx),
     eyebrow: "Traditional stat check",
     title: (ctx, abbrev) => `${abbrev} in control`,
     message: defaultMessage,
@@ -823,7 +832,7 @@ export const EVENT_INSIGHT_SPECS: EventInsightSpec[] = [
     statId: "one-run-win-pct",
     team: "offense",
     polarity: "elite",
-    match: (ctx) => ctx.isOneRunGame,
+    match: (ctx) => ctx.isOneRunGame && isEstablishedGameShape(ctx),
     eyebrow: "Nailbiter nation",
     title: () => "One-run game",
     message: defaultMessage,
@@ -832,7 +841,8 @@ export const EVENT_INSIGHT_SPECS: EventInsightSpec[] = [
     statId: "one-run-losses",
     team: "offense",
     polarity: "cursed",
-    match: (ctx) => ctx.isOneRunGame && ctx.trailingTeamId != null,
+    match: (ctx) =>
+      ctx.isOneRunGame && ctx.trailingTeamId != null && isEstablishedGameShape(ctx),
     eyebrow: "Nailbiter nation",
     title: (ctx, abbrev) => `${abbrev} in another coin flip`,
     message: defaultMessage,
@@ -904,7 +914,7 @@ export const EVENT_INSIGHT_SPECS: EventInsightSpec[] = [
     statId: "balk-beneficiaries",
     team: "offense",
     polarity: "either",
-    match: (ctx) => ctx.runnersInScoringPosition,
+    match: (ctx) => ctx.isLateInning && ctx.runnersInScoringPosition,
     eyebrow: "Chaos baseball",
     title: () => "Balk watch",
     message: defaultMessage,
@@ -913,7 +923,7 @@ export const EVENT_INSIGHT_SPECS: EventInsightSpec[] = [
     statId: "wild-pitch-runs",
     team: "offense",
     polarity: "either",
-    match: (ctx) => ctx.onThird,
+    match: (ctx) => ctx.isLateInning && ctx.onThird,
     eyebrow: "Wild pitch watch",
     title: () => "Dirt ball danger",
     message: defaultMessage,
@@ -922,7 +932,7 @@ export const EVENT_INSIGHT_SPECS: EventInsightSpec[] = [
     statId: "passed-ball-runs",
     team: "offense",
     polarity: "either",
-    match: (ctx) => ctx.onThird,
+    match: (ctx) => ctx.isLateInning && ctx.onThird,
     eyebrow: "Passed ball watch",
     title: () => "Ball in the dirt",
     message: defaultMessage,
@@ -931,7 +941,7 @@ export const EVENT_INSIGHT_SPECS: EventInsightSpec[] = [
     statId: "error-assisted-runs",
     team: "offense",
     polarity: "either",
-    match: (ctx) => ctx.runnersInScoringPosition,
+    match: (ctx) => ctx.isLateInning && ctx.runnersInScoringPosition,
     eyebrow: "Error watch",
     title: () => "Defense could gift a run",
     message: defaultMessage,
@@ -940,7 +950,7 @@ export const EVENT_INSIGHT_SPECS: EventInsightSpec[] = [
     statId: "error-runs-allowed",
     team: "defense",
     polarity: "cursed",
-    match: (ctx) => ctx.runnersInScoringPosition,
+    match: (ctx) => ctx.isLateInning && ctx.runnersInScoringPosition,
     eyebrow: "Error watch",
     title: (ctx, abbrev) => `${abbrev} error-prone`,
     message: defaultMessage,
@@ -949,7 +959,7 @@ export const EVENT_INSIGHT_SPECS: EventInsightSpec[] = [
     statId: "lob-per-game",
     team: "offense",
     polarity: "cursed",
-    match: (ctx) => ctx.runnersInScoringPosition && ctx.twoOuts,
+    match: (ctx) => ctx.isLateInning && ctx.runnersInScoringPosition && ctx.twoOuts,
     eyebrow: "LOB watch",
     title: (ctx, abbrev) => `${abbrev} strand runners`,
     message: defaultMessage,
@@ -1066,7 +1076,7 @@ export const EVENT_INSIGHT_SPECS: EventInsightSpec[] = [
     statId: "baserunning-blunders",
     team: "offense",
     polarity: "cursed",
-    match: (ctx) => ctx.onFirst || ctx.onSecond,
+    match: (ctx) => ctx.isLateInning && (ctx.onFirst || ctx.onSecond),
     eyebrow: "Baserunning watch",
     title: (ctx, abbrev) => `${abbrev} baserunning blunders`,
     message: defaultMessage,
@@ -1075,7 +1085,7 @@ export const EVENT_INSIGHT_SPECS: EventInsightSpec[] = [
     statId: "games-between-steals",
     team: "offense",
     polarity: "either",
-    match: (ctx) => ctx.onFirst,
+    match: (ctx) => ctx.isLateInning && ctx.onFirst,
     eyebrow: "Steal watch",
     title: () => "Swipe incoming?",
     message: defaultMessage,

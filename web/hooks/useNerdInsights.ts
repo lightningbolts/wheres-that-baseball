@@ -8,6 +8,7 @@ import { profileFromTeamCard } from "@/lib/mlb/nerdInsights/profile";
 import type { InsightTrigger, NerdInsight } from "@/lib/mlb/nerdInsights/types";
 import { statThemeKey } from "@/lib/mlb/nerdInsights/types";
 import { isHalfInningBreak } from "@/lib/mlb/lineup";
+import { normalizeHalfInning } from "@/lib/mlb/nerdInsights/situational";
 import { isPlayByPlayAtBat } from "@/lib/mlb/liveFeed";
 import { getTeamByAbbrev } from "@/lib/mlb/teams";
 import type { TeamNerdCard } from "@/lib/mlb/nerdStats/types";
@@ -37,7 +38,7 @@ function detectTriggers(
   if (isHalfInningBreak(next.inningState) && !isHalfInningBreak(prev.inningState)) {
     triggers.push({
       type: "half-break",
-      halfKey: `${next.inning}-${next.inningHalf}`,
+      halfKey: `${prev.inning}-${normalizeHalfInning(prev.inningHalf)}`,
     });
   }
 
