@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   type ChangeEventHandler,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
 
@@ -122,6 +123,15 @@ function selectionFromPointer(
 interface ChartPointerSelection {
   index: number;
   chartX: number;
+}
+
+function clearSelectionOnPointerLeave(
+  event: ReactPointerEvent<HTMLElement>,
+  onClear: () => void,
+) {
+  const next = event.relatedTarget;
+  if (next instanceof Node && event.currentTarget.contains(next)) return;
+  onClear();
 }
 
 function buildPath(
@@ -427,7 +437,6 @@ function MultiTeamHistoryChart({
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [selection, setSelection] = useState<ChartPointerSelection | null>(null);
-  const [tooltipHover, setTooltipHover] = useState(false);
   const pointCount = series.dates.length;
 
   const numericValues = useMemo(() => {
@@ -455,10 +464,6 @@ function MultiTeamHistoryChart({
     setSelection(selectionFromPointer(clientX, clientY, svg, pointCount, plotWidth));
   };
 
-  const clearSelection = () => {
-    if (!tooltipHover) setSelection(null);
-  };
-
   const activeIndex = selection?.index ?? null;
 
   const activeEntries =
@@ -476,7 +481,12 @@ function MultiTeamHistoryChart({
 
   return (
     <div>
-      <div className="relative w-full overflow-x-auto">
+      <div
+        className="relative w-full overflow-x-auto"
+        onPointerLeave={(event) =>
+          clearSelectionOnPointerLeave(event, () => setSelection(null))
+        }
+      >
         <svg
           ref={svgRef}
           viewBox={`0 0 ${CHART_WIDTH} ${COMPARE_CHART_HEIGHT}`}
@@ -487,7 +497,6 @@ function MultiTeamHistoryChart({
           onPointerMove={(event) => {
             if (event.buttons > 0) handlePointer(event.clientX, event.clientY);
           }}
-          onPointerLeave={clearSelection}
         >
           {yTicks.map((tick) => (
             <g key={tick}>
@@ -587,11 +596,6 @@ function MultiTeamHistoryChart({
             date={series.dates[selection.index] ?? ""}
             entries={activeEntries}
             formatValue={formatValue}
-            onPointerEnter={() => setTooltipHover(true)}
-            onPointerLeave={() => {
-              setTooltipHover(false);
-              setSelection(null);
-            }}
             className="absolute left-3 top-3 z-10 max-h-48 max-w-[calc(100%-1.5rem)] overflow-y-auto overscroll-contain rounded-lg border border-border bg-surface-elevated px-3 py-2 text-xs shadow-sm sm:left-auto sm:right-3"
           />
         )}
@@ -650,21 +654,15 @@ function MultiTeamTooltip({
   entries,
   formatValue,
   className,
-  onPointerEnter,
-  onPointerLeave,
 }: {
   date: string;
   entries: Array<{ teamAbbrev: string; color: string; value: number | null }>;
   formatValue: (value: number) => string;
   className?: string;
-  onPointerEnter?: () => void;
-  onPointerLeave?: () => void;
 }) {
   return (
     <div
       className={className}
-      onPointerEnter={onPointerEnter}
-      onPointerLeave={onPointerLeave}
       onWheel={(event) => event.stopPropagation()}
     >
       <p className="font-medium text-foreground">{date}</p>
