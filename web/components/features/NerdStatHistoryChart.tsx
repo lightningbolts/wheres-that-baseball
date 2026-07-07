@@ -68,10 +68,19 @@ function hasPlottedValues(points: NerdStatHistorySeriesPoint[]): boolean {
   );
 }
 
-function chartXFromClientX(clientX: number, svg: SVGSVGElement): number {
-  const rect = svg.getBoundingClientRect();
-  const relativeX = ((clientX - rect.left) / rect.width) * CHART_WIDTH;
-  return Math.max(PADDING.left, Math.min(CHART_WIDTH - PADDING.right, relativeX));
+function chartXFromClient(
+  clientX: number,
+  clientY: number,
+  svg: SVGSVGElement,
+): number | null {
+  const ctm = svg.getScreenCTM();
+  if (!ctm) return null;
+
+  const point = svg.createSVGPoint();
+  point.x = clientX;
+  point.y = clientY;
+  const svgPoint = point.matrixTransform(ctm.inverse());
+  return Math.max(PADDING.left, Math.min(CHART_WIDTH - PADDING.right, svgPoint.x));
 }
 
 function nearestIndexForChartX(
@@ -95,13 +104,24 @@ function nearestIndexForChartX(
   return bestIndex;
 }
 
-function indexFromPointer(
+function selectionFromPointer(
   clientX: number,
+  clientY: number,
   svg: SVGSVGElement,
   pointCount: number,
   plotWidth: number,
-): number {
-  return nearestIndexForChartX(chartXFromClientX(clientX, svg), pointCount, plotWidth);
+): ChartPointerSelection | null {
+  const chartX = chartXFromClient(clientX, clientY, svg);
+  if (chartX == null || pointCount === 0) return null;
+  return {
+    index: nearestIndexForChartX(chartX, pointCount, plotWidth),
+    chartX,
+  };
+}
+
+interface ChartPointerSelection {
+  index: number;
+  chartX: number;
 }
 
 function buildPath(
@@ -207,15 +227,15 @@ function HistoryLineChart({
   leagueAverage,
   showLeagueGuide,
   formatValue,
-  onSelectIndex,
-  activeIndex,
+  onSelect,
+  selection,
 }: {
   points: NerdStatHistorySeriesPoint[];
   leagueAverage?: number | null;
   showLeagueGuide: boolean;
   formatValue: (value: number) => string;
-  onSelectIndex: (index: number | null, coords?: { x: number; y: number }) => void;
-  activeIndex: number | null;
+  onSelect: (selection: ChartPointerSelection | null) => void;
+  selection: ChartPointerSelection | null;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const gradientId = useId();
@@ -246,8 +266,7 @@ function HistoryLineChart({
   const handlePointer = (clientX: number, clientY: number) => {
     const svg = svgRef.current;
     if (!svg || points.length === 0) return;
-    const index = indexFromPointer(clientX, svg, points.length, plotWidth);
-    onSelectIndex(index, { x: clientX - svg.getBoundingClientRect().left, y: clientY - svg.getBoundingClientRect().top });
+    onSelect(selectionFromPointer(clientX, clientY, svg, points.length, plotWidth));
   };
 
   return (
@@ -262,7 +281,7 @@ function HistoryLineChart({
         onPointerMove={(event) => {
           if (event.buttons > 0) handlePointer(event.clientX, event.clientY);
         }}
-        onPointerLeave={() => onSelectIndex(null)}
+        onPointerLeave={() => onSelect(null)}
       >
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
@@ -344,20 +363,20 @@ function HistoryLineChart({
           ) : null,
         )}
 
-        {activeIndex != null && points[activeIndex] && (
+        {selection != null && points[selection.index] && (
           <>
             <line
-              x1={xForIndex(activeIndex)}
-              x2={xForIndex(activeIndex)}
+              x1={selection.chartX}
+              x2={selection.chartX}
               y1={PADDING.top}
               y2={PADDING.top + plotHeight}
               stroke="var(--border-strong)"
               strokeWidth={1}
             />
-            {points[activeIndex]!.teamValue != null && (
+            {points[selection.index]!.teamValue != null && (
               <circle
-                cx={xForIndex(activeIndex)}
-                cy={yForValue(points[activeIndex]!.teamValue!)}
+                cx={xForIndex(selection.index)}
+                cy={yForValue(points[selection.index]!.teamValue!)}
                 r={4}
                 fill="var(--secondary)"
                 stroke="var(--background)"
@@ -380,9 +399,9 @@ function HistoryLineChart({
         ))}
       </svg>
 
-      {activeIndex != null && points[activeIndex] && (
+      {selection != null && points[selection.index] && (
         <ChartTooltip
-          point={points[activeIndex]!}
+          point={points[selection.index]!}
           formatValue={formatValue}
           className="pointer-events-none absolute left-3 top-3 max-w-[calc(100%-1.5rem)] rounded-lg border border-border bg-surface-elevated px-3 py-2 text-xs shadow-sm sm:left-auto sm:right-3"
         />
@@ -407,7 +426,7 @@ function MultiTeamHistoryChart({
   onHighlightTeam: (teamId: number | null) => void;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
-  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const [selection, setSelection] = useState<ChartPointerSelection | null>(null);
   const [tooltipHover, setTooltipHover] = useState(false);
   const pointCount = series.dates.length;
 
@@ -430,15 +449,17 @@ function MultiTeamHistoryChart({
   );
   const { xForIndex, xLabelIndexes } = useXAxis(pointCount, plotWidth);
 
-  const handlePointer = (clientX: number) => {
+  const handlePointer = (clientX: number, clientY: number) => {
     const svg = svgRef.current;
     if (!svg || pointCount === 0) return;
-    setActiveIndex(indexFromPointer(clientX, svg, pointCount, plotWidth));
+    setSelection(selectionFromPointer(clientX, clientY, svg, pointCount, plotWidth));
   };
 
   const clearSelection = () => {
-    if (!tooltipHover) setActiveIndex(null);
+    if (!tooltipHover) setSelection(null);
   };
+
+  const activeIndex = selection?.index ?? null;
 
   const activeEntries =
     activeIndex != null
@@ -462,9 +483,9 @@ function MultiTeamHistoryChart({
           className="h-[240px] w-full min-w-[280px] touch-none select-none sm:h-[300px]"
           role="img"
           aria-label="Multi-team nerd stat trend chart"
-          onPointerDown={(event) => handlePointer(event.clientX)}
+          onPointerDown={(event) => handlePointer(event.clientX, event.clientY)}
           onPointerMove={(event) => {
-            if (event.buttons > 0) handlePointer(event.clientX);
+            if (event.buttons > 0) handlePointer(event.clientX, event.clientY);
           }}
           onPointerLeave={clearSelection}
         >
@@ -518,10 +539,10 @@ function MultiTeamHistoryChart({
             ) : null;
           })}
 
-          {activeIndex != null && (
+          {selection != null && (
             <line
-              x1={xForIndex(activeIndex)}
-              x2={xForIndex(activeIndex)}
+              x1={selection.chartX}
+              x2={selection.chartX}
               y1={PADDING.top}
               y2={PADDING.top + plotHeight}
               stroke="var(--border-strong)"
@@ -529,15 +550,15 @@ function MultiTeamHistoryChart({
             />
           )}
 
-          {activeIndex != null &&
+          {selection != null &&
             series.teams.map((team) => {
-              const value = team.values[activeIndex];
+              const value = team.values[selection.index];
               if (value == null || !Number.isFinite(value)) return null;
               const dimmed = highlightedTeamId != null && highlightedTeamId !== team.teamId;
               return (
                 <circle
                   key={`active-${team.teamId}`}
-                  cx={xForIndex(activeIndex)}
+                  cx={xForIndex(selection.index)}
                   cy={yForValue(value)}
                   r={highlightedTeamId === team.teamId ? 4 : 3}
                   fill={team.color}
@@ -561,15 +582,15 @@ function MultiTeamHistoryChart({
           ))}
         </svg>
 
-        {activeIndex != null && activeEntries.length > 0 && (
+        {selection != null && activeEntries.length > 0 && (
           <MultiTeamTooltip
-            date={series.dates[activeIndex] ?? ""}
+            date={series.dates[selection.index] ?? ""}
             entries={activeEntries}
             formatValue={formatValue}
             onPointerEnter={() => setTooltipHover(true)}
             onPointerLeave={() => {
               setTooltipHover(false);
-              setActiveIndex(null);
+              setSelection(null);
             }}
             className="absolute left-3 top-3 z-10 max-h-48 max-w-[calc(100%-1.5rem)] overflow-y-auto overscroll-contain rounded-lg border border-border bg-surface-elevated px-3 py-2 text-xs shadow-sm sm:left-auto sm:right-3"
           />
@@ -735,7 +756,7 @@ export function NerdStatHistoryChart({
   const [split, setSplit] = useState<NerdStatHistorySplit>(initialSplit);
   const [group, setGroup] = useState<NerdStatGroupFilter>("all");
   const [teamId, setTeamId] = useState<number>(defaultTeamId ?? MLB_TEAMS[0]!.id);
-  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const [selection, setSelection] = useState<ChartPointerSelection | null>(null);
   const [highlightedTeamId, setHighlightedTeamId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -743,7 +764,7 @@ export function NerdStatHistoryChart({
   }, [defaultTeamId]);
 
   useEffect(() => {
-    setActiveIndex(null);
+    setSelection(null);
   }, [viewMode, group, basis, split]);
 
   useEffect(() => {
@@ -910,8 +931,8 @@ export function NerdStatHistoryChart({
             leagueAverage={leagueAverage}
             showLeagueGuide={showLeagueGuide}
             formatValue={formatValue}
-            activeIndex={activeIndex}
-            onSelectIndex={(index) => setActiveIndex(index)}
+            selection={selection}
+            onSelect={setSelection}
           />
         </div>
       ) : null}
