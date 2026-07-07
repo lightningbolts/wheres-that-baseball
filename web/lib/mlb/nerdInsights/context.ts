@@ -1,9 +1,18 @@
 import { computeCallItGameStats } from "@/lib/mlb/callItGameStats";
 import { isHalfInningBreak } from "@/lib/mlb/lineup";
 import { classifyPitch } from "@/lib/mlb/pitchClassification";
-import type { InsightTrigger, LiveInsightContext } from "@/lib/mlb/nerdInsights/types";
+import {
+  hasBattedBallData,
+  isBarrel,
+  isNoDoubterHr,
+} from "@/lib/mlb/nerdStats/extractHelpers";
+import type {
+  ContactInsightContext,
+  InsightTrigger,
+  LiveInsightContext,
+} from "@/lib/mlb/nerdInsights/types";
 import { getTeamByAbbrev } from "@/lib/mlb/teams";
-import type { LiveGameState } from "@/types/mlb-live";
+import type { LiveGameState, PlayByPlayEntry } from "@/types/mlb-live";
 
 function foulsInAtBat(pitches: LiveGameState["atBatPitches"]): number {
   let count = 0;
@@ -40,6 +49,43 @@ function offenseDefenseIds(
   return top
     ? { offenseTeamId: awayTeamId, defenseTeamId: homeTeamId }
     : { offenseTeamId: homeTeamId, defenseTeamId: awayTeamId };
+}
+
+function completedAtBatPlay(
+  gameState: LiveGameState,
+  trigger: InsightTrigger,
+): PlayByPlayEntry | null {
+  if (trigger.type !== "at-bat-end") return null;
+  return (
+    gameState.plays.find(
+      (play) => play.isAtBat && play.atBatIndex === trigger.atBatIndex,
+    ) ?? null
+  );
+}
+
+function buildContactContext(
+  gameState: LiveGameState,
+  trigger: InsightTrigger,
+): ContactInsightContext | null {
+  const play = completedAtBatPlay(gameState, trigger);
+  if (!play || !hasBattedBallData(play)) return null;
+
+  const hit = play.detail.hit!;
+  const isHomeRun = play.event === "Home Run";
+
+  return {
+    hit,
+    exitVelo: hit.launchSpeed,
+    launchAngle: hit.launchAngle,
+    distance: hit.totalDistance,
+    batSpeed: hit.batSpeed != null && hit.batSpeed > 0 ? hit.batSpeed : null,
+    isBarrel: isBarrel(hit),
+    isChop: hit.launchAngle < 5,
+    isPopup: hit.launchAngle > 50,
+    isNoDoubterHr: isHomeRun && isNoDoubterHr(hit),
+    isMoonshot: isHomeRun && hit.launchAngle > 45,
+    isWallScraper: isHomeRun && hit.totalDistance > 0 && hit.totalDistance < 340,
+  };
 }
 
 export function buildLiveInsightContext(
@@ -108,5 +154,6 @@ export function buildLiveInsightContext(
         ? awayTeamId
         : null,
     liveStats: computeCallItGameStats(gameState),
+    contact: buildContactContext(gameState, trigger),
   };
 }

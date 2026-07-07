@@ -66,6 +66,7 @@ function baseContext(overrides: Partial<LiveInsightContext> = {}): LiveInsightCo
     trailingTeamId: null,
     leadingTeamId: null,
     liveStats: null,
+    contact: null,
     ...overrides,
   };
 }
@@ -323,6 +324,50 @@ describe("generateNerdInsight", () => {
 
     expect(insight?.statId).toBe("runs-allowed");
     expect(insight?.title).toContain("leak");
+  });
+
+  it("fires barrel-rate insight when contact data is present", () => {
+    const away = profile(100, "AWY", {
+      "barrel-rate": {
+        rank: 3,
+        displayValue: "12.1%",
+        value: 12.1,
+        title: "Barrel Rate",
+      },
+    });
+
+    const insight = generateNerdInsight(
+      baseContext({
+        trigger: { type: "at-bat-end", atBatIndex: 4, event: "Double" },
+        contact: {
+          hit: {
+            launchSpeed: 104,
+            launchAngle: 22,
+            totalDistance: 380,
+            trajectory: "fly_ball",
+            hardness: "hard",
+            location: "8",
+            coordX: 1,
+            coordY: 1,
+          },
+          exitVelo: 104,
+          launchAngle: 22,
+          distance: 380,
+          batSpeed: null,
+          isBarrel: true,
+          isChop: false,
+          isPopup: false,
+          isNoDoubterHr: false,
+          isMoonshot: false,
+          isWallScraper: false,
+        },
+      }),
+      away,
+      null,
+    );
+
+    expect(insight?.statId).toBe("barrel-rate");
+    expect(insight?.message).toContain("104.0 mph");
   });
 });
 

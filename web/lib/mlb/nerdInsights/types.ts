@@ -1,4 +1,5 @@
 import type { CallItGameStats } from "@/lib/mlb/callItGameStats";
+import type { HitData } from "@/types/mlb-live";
 
 export type InsightAnchor =
   | { type: "at-bat"; atBatIndex: number }
@@ -60,6 +61,20 @@ export type InsightTrigger =
   | { type: "at-bat-end"; atBatIndex: number; event: string }
   | { type: "inning-change"; inning: number };
 
+export interface ContactInsightContext {
+  hit: HitData;
+  exitVelo: number;
+  launchAngle: number;
+  distance: number;
+  batSpeed: number | null;
+  isBarrel: boolean;
+  isChop: boolean;
+  isPopup: boolean;
+  isNoDoubterHr: boolean;
+  isMoonshot: boolean;
+  isWallScraper: boolean;
+}
+
 export interface LiveInsightContext {
   gamePk: number;
   trigger: InsightTrigger;
@@ -97,4 +112,6 @@ export interface LiveInsightContext {
   trailingTeamId: number | null;
   leadingTeamId: number | null;
   liveStats: CallItGameStats | null;
+  /** Statcast-style data from the just-completed ball in play, when available. */
+  contact: ContactInsightContext | null;
 }

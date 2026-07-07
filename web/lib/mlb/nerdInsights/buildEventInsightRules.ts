@@ -3,6 +3,7 @@ import {
   HAND_CRAFTED_INSIGHT_STAT_IDS,
   type EventInsightSpec,
 } from "@/lib/mlb/nerdInsights/eventInsightSpecs";
+import { CONTACT_INSIGHT_SPECS } from "@/lib/mlb/nerdInsights/contactInsightSpecs";
 import {
   getTeamStat,
   isCursedInsightRank,
@@ -103,5 +104,5 @@ function buildRuleFromSpec(spec: EventInsightSpec): Rule {
 }
 
 export function buildEventInsightRules(): Rule[] {
-  return EVENT_INSIGHT_SPECS.map(buildRuleFromSpec);
+  return [...EVENT_INSIGHT_SPECS, ...CONTACT_INSIGHT_SPECS].map(buildRuleFromSpec);
 }
