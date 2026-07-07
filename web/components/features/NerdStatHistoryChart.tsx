@@ -68,6 +68,42 @@ function hasPlottedValues(points: NerdStatHistorySeriesPoint[]): boolean {
   );
 }
 
+function chartXFromClientX(clientX: number, svg: SVGSVGElement): number {
+  const rect = svg.getBoundingClientRect();
+  const relativeX = ((clientX - rect.left) / rect.width) * CHART_WIDTH;
+  return Math.max(PADDING.left, Math.min(CHART_WIDTH - PADDING.right, relativeX));
+}
+
+function nearestIndexForChartX(
+  chartX: number,
+  pointCount: number,
+  plotWidth: number,
+): number {
+  if (pointCount <= 0) return 0;
+  if (pointCount === 1) return 0;
+
+  let bestIndex = 0;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < pointCount; index += 1) {
+    const x = PADDING.left + (index / (pointCount - 1)) * plotWidth;
+    const distance = Math.abs(x - chartX);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestIndex = index;
+    }
+  }
+  return bestIndex;
+}
+
+function indexFromPointer(
+  clientX: number,
+  svg: SVGSVGElement,
+  pointCount: number,
+  plotWidth: number,
+): number {
+  return nearestIndexForChartX(chartXFromClientX(clientX, svg), pointCount, plotWidth);
+}
+
 function buildPath(
   values: Array<number | null>,
   xForIndex: (index: number) => number,
@@ -210,12 +246,8 @@ function HistoryLineChart({
   const handlePointer = (clientX: number, clientY: number) => {
     const svg = svgRef.current;
     if (!svg || points.length === 0) return;
-    const rect = svg.getBoundingClientRect();
-    const relativeX = ((clientX - rect.left) / rect.width) * CHART_WIDTH;
-    const clampedX = Math.max(PADDING.left, Math.min(CHART_WIDTH - PADDING.right, relativeX));
-    const ratio = (clampedX - PADDING.left) / plotWidth;
-    const index = Math.round(ratio * Math.max(points.length - 1, 0));
-    onSelectIndex(index, { x: clientX - rect.left, y: clientY - rect.top });
+    const index = indexFromPointer(clientX, svg, points.length, plotWidth);
+    onSelectIndex(index, { x: clientX - svg.getBoundingClientRect().left, y: clientY - svg.getBoundingClientRect().top });
   };
 
   return (
@@ -376,6 +408,7 @@ function MultiTeamHistoryChart({
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const [tooltipHover, setTooltipHover] = useState(false);
   const pointCount = series.dates.length;
 
   const numericValues = useMemo(() => {
@@ -400,12 +433,11 @@ function MultiTeamHistoryChart({
   const handlePointer = (clientX: number) => {
     const svg = svgRef.current;
     if (!svg || pointCount === 0) return;
-    const rect = svg.getBoundingClientRect();
-    const relativeX = ((clientX - rect.left) / rect.width) * CHART_WIDTH;
-    const clampedX = Math.max(PADDING.left, Math.min(CHART_WIDTH - PADDING.right, relativeX));
-    const ratio = (clampedX - PADDING.left) / plotWidth;
-    const index = Math.round(ratio * Math.max(pointCount - 1, 0));
-    setActiveIndex(index);
+    setActiveIndex(indexFromPointer(clientX, svg, pointCount, plotWidth));
+  };
+
+  const clearSelection = () => {
+    if (!tooltipHover) setActiveIndex(null);
   };
 
   const activeEntries =
@@ -434,7 +466,7 @@ function MultiTeamHistoryChart({
           onPointerMove={(event) => {
             if (event.buttons > 0) handlePointer(event.clientX);
           }}
-          onPointerLeave={() => setActiveIndex(null)}
+          onPointerLeave={clearSelection}
         >
           {yTicks.map((tick) => (
             <g key={tick}>
@@ -534,7 +566,12 @@ function MultiTeamHistoryChart({
             date={series.dates[activeIndex] ?? ""}
             entries={activeEntries}
             formatValue={formatValue}
-            className="pointer-events-none absolute left-3 top-3 max-h-48 max-w-[calc(100%-1.5rem)] overflow-y-auto rounded-lg border border-border bg-surface-elevated px-3 py-2 text-xs shadow-sm sm:left-auto sm:right-3"
+            onPointerEnter={() => setTooltipHover(true)}
+            onPointerLeave={() => {
+              setTooltipHover(false);
+              setActiveIndex(null);
+            }}
+            className="absolute left-3 top-3 z-10 max-h-48 max-w-[calc(100%-1.5rem)] overflow-y-auto overscroll-contain rounded-lg border border-border bg-surface-elevated px-3 py-2 text-xs shadow-sm sm:left-auto sm:right-3"
           />
         )}
       </div>
@@ -592,14 +629,23 @@ function MultiTeamTooltip({
   entries,
   formatValue,
   className,
+  onPointerEnter,
+  onPointerLeave,
 }: {
   date: string;
   entries: Array<{ teamAbbrev: string; color: string; value: number | null }>;
   formatValue: (value: number) => string;
   className?: string;
+  onPointerEnter?: () => void;
+  onPointerLeave?: () => void;
 }) {
   return (
-    <div className={className}>
+    <div
+      className={className}
+      onPointerEnter={onPointerEnter}
+      onPointerLeave={onPointerLeave}
+      onWheel={(event) => event.stopPropagation()}
+    >
       <p className="font-medium text-foreground">{date}</p>
       <ul className="mt-1 space-y-0.5">
         {entries.map((entry) => (
