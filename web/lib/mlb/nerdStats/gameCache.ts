@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { createEmptySeasonCounters, mergeSeasonCounters } from "@/lib/mlb/nerdStats/counters";
 import type { NerdStatSplitId } from "@/lib/mlb/nerdStats/splits";
-import type { GameNerdSourceRow, SeasonNerdCounters } from "@/lib/mlb/nerdStats/types";
+import type { SeasonNerdCounters } from "@/lib/mlb/nerdStats/types";
 import { gameDateInNerdWindow, type NerdStatWindowId } from "@/lib/mlb/nerdStats/windows";
 
 export interface PerGameNerdCacheEntry {
@@ -13,8 +13,6 @@ export interface PerGameNerdCacheEntry {
   home: SeasonNerdCounters;
   away: SeasonNerdCounters;
   extractedAt: string;
-  /** Stored feed row for zero-egress re-extraction when counters gain new fields. */
-  sourceRow?: GameNerdSourceRow;
 }
 
 function gamesDir(season: number): string {

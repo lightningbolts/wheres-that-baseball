@@ -31,3 +31,5 @@ ml-engine/**/__pycache__/
 
 # Nerd stat per-game caches (aggregate script output, not needed in deploy)
 web/data/nerd-stats/**/games/
+# Local game_state archive for zero-egress counter backfills (never commit)
+web/data/nerd-stats-local/

@@ -8,9 +8,9 @@
  *
  * After adding new PBP-derived stat fields (re-extract from game_state):
  *   npm run aggregate-nerd-stats -- --season=2026 --backfill-counters --skip-savant
- *   (re-extracts from sourceRow stored in per-game cache — zero DB egress when cached)
+ *   (re-extracts from data/nerd-stats-local/{season}/sources/ when present — zero DB egress)
  *   npm run aggregate-nerd-stats -- --season=2026 --backfill-counters --force-refetch
- *   (one-time DB fetch to populate sourceRow in cache for future zero-egress backfills)
+ *   (one-time DB fetch; stores game_state under nerd-stats-local/ for future backfills)
  *
  * Rewrite stat JSON from existing season counters only (no DB fetch):
  *   npm run aggregate-nerd-stats -- --season=2026 --rebuild-store --stats=errors-committed
@@ -54,6 +54,11 @@ import {
   type PerGameNerdCacheEntry,
   writePerGameNerdCache,
 } from "../lib/mlb/nerdStats/gameCache";
+import {
+  hasGameSourceRow,
+  loadGameSourceRow,
+  writeGameSourceRow,
+} from "../lib/mlb/nerdStats/gameSourceCache";
 import type { GameNerdSourceRow, SeasonNerdCounters } from "../lib/mlb/nerdStats/types";
 import {
   appendGameNerdStatsToStore,
@@ -179,9 +184,9 @@ async function extractAndCacheGame(
     home,
     away,
     extractedAt: new Date().toISOString(),
-    sourceRow: game,
   };
   writePerGameNerdCache(season, entry);
+  writeGameSourceRow(season, game);
   return entry;
 }
 
@@ -357,8 +362,9 @@ async function reextractCacheEntry(
   entry: PerGameNerdCacheEntry,
   skipSavant: boolean,
 ): Promise<PerGameNerdCacheEntry> {
-  if (!entry.sourceRow) return entry;
-  return extractAndCacheGame(season, entry.sourceRow, skipSavant);
+  const sourceRow = loadGameSourceRow(season, entry.gamePk);
+  if (!sourceRow) return entry;
+  return extractAndCacheGame(season, sourceRow, skipSavant);
 }
 
 async function backfillCountersFromManifest(
@@ -390,8 +396,8 @@ async function backfillCountersFromManifest(
     allCaches = await extractAndCacheGames(season, games, options.skipSavant);
   } else {
     const { cached, missing } = loadPerGameNerdCaches(season, manifest.processedGamePks);
-    const withSource = cached.filter((entry) => entry.sourceRow != null);
-    const withoutSource = cached.filter((entry) => entry.sourceRow == null);
+    const withSource = cached.filter((entry) => hasGameSourceRow(season, entry.gamePk));
+    const withoutSource = cached.filter((entry) => !hasGameSourceRow(season, entry.gamePk));
 
     if (withoutSource.length > 0) {
       console.log(

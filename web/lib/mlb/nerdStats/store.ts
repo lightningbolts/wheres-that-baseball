@@ -14,6 +14,7 @@ import {
 import { NERD_STAT_DEFINITIONS } from "@/lib/mlb/nerdStats/definitions";
 import { extractNerdCountersFromGame } from "@/lib/mlb/nerdStats/extractGame";
 import { writePerGameNerdCache } from "@/lib/mlb/nerdStats/gameCache";
+import { writeGameSourceRow } from "@/lib/mlb/nerdStats/gameSourceCache";
 import { enrichCountersWithSavantBatSpeed } from "@/lib/mlb/nerdStats/savantBatSpeed";
 import type {
   GameNerdSourceRow,
@@ -431,8 +432,8 @@ export async function appendGameNerdStatsToStore(
     home: gameHomeCounters,
     away: gameAwayCounters,
     extractedAt: new Date().toISOString(),
-    sourceRow: row,
   });
+  writeGameSourceRow(season, row);
 
   manifest.processedGamePks.push(row.game_pk);
   manifest.processedGamePks.sort((a, b) => a - b);
