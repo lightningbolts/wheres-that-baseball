@@ -38,8 +38,19 @@ import {
 } from "@/lib/mlb/nerdStats/extractHelpers";
 import { recordPitchCounters } from "@/lib/mlb/nerdStats/pitchCounters";
 import { recordPitchTypeThrown } from "@/lib/mlb/nerdStats/pitchTypeStats";
+import {
+  formatPlayInning,
+  formatPlayScore,
+  scoringPlayContext,
+  subjectFromDescription,
+} from "@/lib/mlb/nerdStats/notableEvents";
 import { teamPassesSplitFilter, type NerdStatSplitFilter } from "@/lib/mlb/nerdStats/splits";
-import type { GameNerdSourceRow, SeasonNerdCounters } from "@/lib/mlb/nerdStats/types";
+import type {
+  GameNerdSourceRow,
+  NotableNerdEvent,
+  SeasonNerdCounters,
+  TeamNerdCounters,
+} from "@/lib/mlb/nerdStats/types";
 import type { GameBoxScore } from "@/types/mlb-boxscore";
 import type { PlayByPlayEntry } from "@/types/mlb-live";
 
@@ -55,6 +66,20 @@ function teamCounters(
   const key = String(teamId);
   if (!counters[key]) counters[key] = createEmptyTeamCounters();
   return counters[key]!;
+}
+
+function pushPlayNotable(
+  team: TeamNerdCounters,
+  row: GameNerdSourceRow,
+  play: PlayByPlayEntry,
+  event: Omit<NotableNerdEvent, "gamePk" | "gameDate" | "atBatIndex">,
+): void {
+  pushNotable(team, {
+    gamePk: row.game_pk,
+    gameDate: row.game_date,
+    atBatIndex: play.atBatIndex,
+    ...event,
+  });
 }
 
 function maxInningFromPlays(plays: PlayByPlayEntry[]): number {
@@ -424,7 +449,10 @@ export function extractNerdCountersFromGame(
   const awayGame = createGameTeamState();
   const homeGame = createGameTeamState();
   let halfTracker: HalfInningTracker | null = null;
-  const halfInningStrikeouts = new Map<string, { offenseId: number; count: number }>();
+  const halfInningStrikeouts = new Map<
+    string,
+    { offenseId: number; count: number; pitcherName: string; lastAtBatIndex: number }
+  >();
 
   for (const play of plays) {
     const offenseId = battingTeamId(play, row.away_team_id, row.home_team_id);
@@ -472,12 +500,10 @@ export function extractNerdCountersFromGame(
           defenseGame.hitsAllowedThrough6 === 0
         ) {
           defense.noHitterBidRuined += 1;
-          pushNotable(defense, {
+          pushPlayNotable(defense, row, play, {
             statId: "no-hitter-bid-ruined",
-            gamePk: row.game_pk,
-            gameDate: row.game_date,
-            label: "No-hitter bid ruined",
-            detail: `First hit allowed in the ${play.inning}th`,
+            label: `${play.batterName} breaks up no-hitter · ${formatPlayInning(play)}`,
+            detail: play.description,
             value: play.inning,
           });
         }
@@ -493,11 +519,9 @@ export function extractNerdCountersFromGame(
         if (chaos) offense.pinchHitChaos += 1;
         if (isHitEvent(play.event)) offense.pinchHitHits += 1;
         if (play.event === "Home Run") offense.pinchHitHomeRuns += 1;
-        pushNotable(offense, {
+        pushPlayNotable(offense, row, play, {
           statId: "pinch-hit-chaos",
-          gamePk: row.game_pk,
-          gameDate: row.game_date,
-          label: `${play.batterName} pinch-hit`,
+          label: `${play.batterName} pinch-hit · ${play.event}`,
           detail: play.description,
         });
       }
@@ -542,8 +566,15 @@ export function extractNerdCountersFromGame(
         offenseGame.batterStrikeouts.set(batterId, prev);
 
         const hk = `${playHalf}-k`;
-        const halfKs = halfInningStrikeouts.get(hk) ?? { offenseId, count: 0 };
+        const halfKs = halfInningStrikeouts.get(hk) ?? {
+          offenseId,
+          count: 0,
+          pitcherName: play.detail.pitcherName,
+          lastAtBatIndex: play.atBatIndex,
+        };
         halfKs.count += 1;
+        if (play.detail.pitcherName.trim()) halfKs.pitcherName = play.detail.pitcherName.trim();
+        halfKs.lastAtBatIndex = play.atBatIndex;
         halfInningStrikeouts.set(hk, halfKs);
       }
 
@@ -559,11 +590,9 @@ export function extractNerdCountersFromGame(
       if (play.event === "Hit By Pitch") {
         offense.hbp += 1;
         offenseGame.hbpInGame += 1;
-        pushNotable(offense, {
+        pushPlayNotable(offense, row, play, {
           statId: "hit-by-pitch",
-          gamePk: row.game_pk,
-          gameDate: row.game_date,
-          label: `${play.batterName} plunked`,
+          label: `${play.batterName} plunked · ${formatPlayInning(play)}`,
           detail: play.description,
         });
       }
@@ -571,20 +600,16 @@ export function extractNerdCountersFromGame(
       if (isGidp(play)) {
         offense.gidp += 1;
         defense.gidpInduced += 1;
-        pushNotable(offense, {
+        pushPlayNotable(offense, row, play, {
           statId: "double-plays-hit-into",
-          gamePk: row.game_pk,
-          gameDate: row.game_date,
-          label: `${play.batterName} GIDP`,
+          label: `${play.batterName} GIDP · ${formatPlayInning(play)}`,
           detail: play.description,
         });
         if (isRallyKillerGidp(play)) {
           offense.rallyKillerGidp += 1;
-          pushNotable(offense, {
+          pushPlayNotable(offense, row, play, {
             statId: "rally-killer-gidp",
-            gamePk: row.game_pk,
-            gameDate: row.game_date,
-            label: `${play.batterName} rally-killer GIDP`,
+            label: `${play.batterName} rally-killer GIDP · ${formatPlayInning(play)}`,
             detail: play.description,
           });
         }
@@ -593,18 +618,14 @@ export function extractNerdCountersFromGame(
       if (isTriplePlay(play)) {
         offense.triplePlays += 1;
         defense.triplePlaysTurned += 1;
-        pushNotable(offense, {
+        pushPlayNotable(offense, row, play, {
           statId: "triple-plays-hit-into",
-          gamePk: row.game_pk,
-          gameDate: row.game_date,
-          label: `${play.batterName} triple play`,
+          label: `${play.batterName} hit into triple play`,
           detail: play.description,
         });
-        pushNotable(defense, {
+        pushPlayNotable(defense, row, play, {
           statId: "triple-plays-turned",
-          gamePk: row.game_pk,
-          gameDate: row.game_date,
-          label: "Triple play turned",
+          label: `Triple play turned vs ${play.batterName}`,
           detail: play.description,
         });
       }
@@ -639,23 +660,19 @@ export function extractNerdCountersFromGame(
         const ev = hit.launchSpeed;
         if (offense.hardestHitMph == null || ev > offense.hardestHitMph) {
           offense.hardestHitMph = ev;
-          pushNotable(offense, {
+          pushPlayNotable(offense, row, play, {
             statId: "hardest-hit",
-            gamePk: row.game_pk,
-            gameDate: row.game_date,
-            label: `${play.batterName} rocket`,
-            detail: `${ev.toFixed(1)} mph`,
+            label: `${play.batterName} rocket · ${ev.toFixed(1)} mph`,
+            detail: `${play.event} · ${formatPlayInning(play)}`,
             value: ev,
           });
         }
         if (defense.hardestHitAllowedMph == null || ev > defense.hardestHitAllowedMph) {
           defense.hardestHitAllowedMph = ev;
-          pushNotable(defense, {
+          pushPlayNotable(defense, row, play, {
             statId: "hardest-hit-allowed",
-            gamePk: row.game_pk,
-            gameDate: row.game_date,
-            label: `Allowed ${ev.toFixed(1)} mph`,
-            detail: `${play.batterName} · ${play.event}`,
+            label: `Allowed ${ev.toFixed(1)} mph to ${play.batterName}`,
+            detail: `${play.event} · ${formatPlayInning(play)}`,
             value: ev,
           });
         }
@@ -670,32 +687,26 @@ export function extractNerdCountersFromGame(
 
         if (basesLoaded(play.situationBefore)) {
           offense.grandSlams += 1;
-          pushNotable(offense, {
+          pushPlayNotable(offense, row, play, {
             statId: "grand-slams",
-            gamePk: row.game_pk,
-            gameDate: row.game_date,
-            label: `${play.batterName} grand slam`,
+            label: `${play.batterName} grand slam · ${formatPlayInning(play)}`,
             detail: play.description,
           });
         }
 
         if (offenseGame.firstAbOfHalf) {
           offense.leadoffHomeRuns += 1;
-          pushNotable(offense, {
+          pushPlayNotable(offense, row, play, {
             statId: "leadoff-homers",
-            gamePk: row.game_pk,
-            gameDate: row.game_date,
-            label: `${play.batterName} leadoff HR`,
-            detail: `${play.inning} ${play.halfInning}`,
+            label: `${play.batterName} leadoff HR · ${formatPlayInning(play)}`,
+            detail: play.description,
           });
         }
 
         if (/inside[\s-]?the[\s-]?park/i.test(play.description)) {
           offense.insideTheParkHomeRuns += 1;
-          pushNotable(offense, {
+          pushPlayNotable(offense, row, play, {
             statId: "inside-the-park-hrs",
-            gamePk: row.game_pk,
-            gameDate: row.game_date,
             label: `${play.batterName} inside-the-park HR`,
             detail: play.description,
           });
@@ -709,48 +720,40 @@ export function extractNerdCountersFromGame(
 
           if (offense.softestHomeRunMph == null || ev < offense.softestHomeRunMph) {
             offense.softestHomeRunMph = ev;
-            pushNotable(offense, {
+            pushPlayNotable(offense, row, play, {
               statId: "softest-home-run",
-              gamePk: row.game_pk,
-              gameDate: row.game_date,
-              label: `${play.batterName} softest HR`,
-              detail: `${ev.toFixed(1)} mph`,
+              label: `${play.batterName} softest HR · ${ev.toFixed(1)} mph`,
+              detail: `${formatPlayInning(play)} · ${Math.round(dist)} ft`,
               value: ev,
             });
           }
 
           if (dist > 0 && (offense.shortestHomeRunFt == null || dist < offense.shortestHomeRunFt)) {
             offense.shortestHomeRunFt = dist;
-            pushNotable(offense, {
+            pushPlayNotable(offense, row, play, {
               statId: "shortest-home-run",
-              gamePk: row.game_pk,
-              gameDate: row.game_date,
-              label: `${play.batterName} shortest HR`,
-              detail: `${Math.round(dist)} ft`,
+              label: `${play.batterName} shortest HR · ${Math.round(dist)} ft`,
+              detail: `${ev.toFixed(1)} mph · ${formatPlayInning(play)}`,
               value: dist,
             });
           }
 
           if (offense.flarestHomeRunLa == null || la > offense.flarestHomeRunLa) {
             offense.flarestHomeRunLa = la;
-            pushNotable(offense, {
+            pushPlayNotable(offense, row, play, {
               statId: "flarest-home-run",
-              gamePk: row.game_pk,
-              gameDate: row.game_date,
-              label: `${play.batterName} flarest HR`,
-              detail: `${la.toFixed(1)}° launch angle`,
+              label: `${play.batterName} flarest HR · ${la.toFixed(1)}°`,
+              detail: `${ev.toFixed(1)} mph · ${formatPlayInning(play)}`,
               value: la,
             });
           }
 
           if (la > 45) {
             offense.moonshotHomeRuns += 1;
-            pushNotable(offense, {
+            pushPlayNotable(offense, row, play, {
               statId: "moonshot-hrs",
-              gamePk: row.game_pk,
-              gameDate: row.game_date,
-              label: `${play.batterName} moonshot`,
-              detail: `${la.toFixed(0)}°`,
+              label: `${play.batterName} moonshot · ${la.toFixed(0)}°`,
+              detail: `${ev.toFixed(1)} mph · ${formatPlayInning(play)}`,
               value: la,
             });
           }
@@ -761,12 +764,10 @@ export function extractNerdCountersFromGame(
 
           if (dist > 0 && dist < 340) {
             offense.wallScraperHomeRuns += 1;
-            pushNotable(offense, {
+            pushPlayNotable(offense, row, play, {
               statId: "wall-scraper-hrs",
-              gamePk: row.game_pk,
-              gameDate: row.game_date,
-              label: `${play.batterName} wall scraper`,
-              detail: `${Math.round(dist)} ft`,
+              label: `${play.batterName} wall scraper · ${Math.round(dist)} ft`,
+              detail: `${ev.toFixed(1)} mph · ${formatPlayInning(play)}`,
               value: dist,
             });
           }
@@ -805,21 +806,17 @@ export function extractNerdCountersFromGame(
       if (/error/i.test(`${play.event} ${play.description}`)) {
         offense.errorRunBenefits += runsForOffense;
         defense.errorRunsAllowed += runsForOffense;
-        pushNotable(offense, {
+        pushPlayNotable(offense, row, play, {
           statId: "error-assisted-runs",
-          gamePk: row.game_pk,
-          gameDate: row.game_date,
-          label: "Error-assisted runs",
-          detail: play.description,
+          label: `${play.batterName} — ${runsForOffense} error-assisted run${runsForOffense === 1 ? "" : "s"}`,
+          detail: `${scoringPlayContext(play)} · ${play.description}`,
           value: runsForOffense,
         });
         if (runsForOffense > 0) {
-          pushNotable(defense, {
+          pushPlayNotable(defense, row, play, {
             statId: "error-runs-allowed",
-            gamePk: row.game_pk,
-            gameDate: row.game_date,
-            label: "Error-aided run(s) allowed",
-            detail: play.description,
+            label: `${runsForOffense} error-aided run${runsForOffense === 1 ? "" : "s"} allowed`,
+            detail: `${play.batterName} · ${scoringPlayContext(play)}`,
             value: runsForOffense,
           });
         }
@@ -829,22 +826,18 @@ export function extractNerdCountersFromGame(
     if (play.isAtBat) {
       if (batterReachedOnError(play)) {
         offense.reachedOnError += 1;
-        pushNotable(offense, {
+        pushPlayNotable(offense, row, play, {
           statId: "reached-on-error",
-          gamePk: row.game_pk,
-          gameDate: row.game_date,
-          label: `${play.batterName} reached on error`,
+          label: `${play.batterName} reached on error · ${formatPlayInning(play)}`,
           detail: play.description,
         });
       }
 
       if (isFieldingError(play)) {
         defense.fieldingErrors += 1;
-        pushNotable(defense, {
+        pushPlayNotable(defense, row, play, {
           statId: "fielding-errors",
-          gamePk: row.game_pk,
-          gameDate: row.game_date,
-          label: "Fielding error",
+          label: `Fielding error vs ${play.batterName} · ${formatPlayInning(play)}`,
           detail: play.description,
         });
       }
@@ -852,12 +845,13 @@ export function extractNerdCountersFromGame(
       const throwingErrors = countThrowingErrors(play);
       if (throwingErrors > 0) {
         defense.throwingErrors += throwingErrors;
-        pushNotable(defense, {
+        pushPlayNotable(defense, row, play, {
           statId: "throwing-errors",
-          gamePk: row.game_pk,
-          gameDate: row.game_date,
-          label: throwingErrors === 1 ? "Throwing error" : `${throwingErrors} throwing errors`,
-          detail: play.description,
+          label:
+            throwingErrors === 1
+              ? `Throwing error vs ${play.batterName}`
+              : `${throwingErrors} throwing errors vs ${play.batterName}`,
+          detail: `${formatPlayInning(play)} · ${play.description}`,
           value: throwingErrors,
         });
       }
@@ -879,12 +873,11 @@ export function extractNerdCountersFromGame(
 
       if (isStolenBase(play)) {
         offense.stolenBases += 1;
-        pushNotable(offense, {
+        const runner = subjectFromDescription(play.description);
+        pushPlayNotable(offense, row, play, {
           statId: "games-between-steals",
-          gamePk: row.game_pk,
-          gameDate: row.game_date,
-          label: "Stolen base",
-          detail: play.description,
+          label: runner ? `${runner} steals` : "Stolen base",
+          detail: `${scoringPlayContext(play)} · ${play.description}`,
         });
       }
       if (isCaughtStealing(play)) {
@@ -892,24 +885,21 @@ export function extractNerdCountersFromGame(
       }
       if (isPickoff(play)) {
         offense.pickoffs += 1;
-        pushNotable(offense, {
+        const runner = subjectFromDescription(play.description);
+        pushPlayNotable(offense, row, play, {
           statId: "pickoffs-suffered",
-          gamePk: row.game_pk,
-          gameDate: row.game_date,
-          label: "Pickoff",
-          detail: play.description,
+          label: runner ? `${runner} picked off` : "Pickoff",
+          detail: `${scoringPlayContext(play)} · ${play.description}`,
         });
       }
       if (isBalk(play) && play.isScoringPlay) {
         const runs = runsForBattingTeam(play);
         if (runs > 0) {
           offense.balkBenefits += runs;
-          pushNotable(offense, {
+          pushPlayNotable(offense, row, play, {
             statId: "balk-beneficiaries",
-            gamePk: row.game_pk,
-            gameDate: row.game_date,
-            label: "Balk run(s)",
-            detail: play.description,
+            label: `${runs} run${runs === 1 ? "" : "s"} on balk · ${formatPlayInning(play)}`,
+            detail: `${formatPlayScore(play)} · ${play.description}`,
             value: runs,
           });
         }
@@ -918,12 +908,10 @@ export function extractNerdCountersFromGame(
         const runs = runsForBattingTeam(play);
         if (runs > 0) {
           offense.wildPitchBenefits += runs;
-          pushNotable(offense, {
+          pushPlayNotable(offense, row, play, {
             statId: "wild-pitch-runs",
-            gamePk: row.game_pk,
-            gameDate: row.game_date,
-            label: "Wild pitch run(s)",
-            detail: play.description,
+            label: `${runs} run${runs === 1 ? "" : "s"} on wild pitch · ${formatPlayInning(play)}`,
+            detail: `${formatPlayScore(play)} · ${play.description}`,
             value: runs,
           });
         }
@@ -932,12 +920,10 @@ export function extractNerdCountersFromGame(
         const runs = runsForBattingTeam(play);
         if (runs > 0) {
           offense.passedBallBenefits += runs;
-          pushNotable(offense, {
+          pushPlayNotable(offense, row, play, {
             statId: "passed-ball-runs",
-            gamePk: row.game_pk,
-            gameDate: row.game_date,
-            label: "Passed ball run(s)",
-            detail: play.description,
+            label: `${runs} run${runs === 1 ? "" : "s"} on passed ball · ${formatPlayInning(play)}`,
+            detail: `${formatPlayScore(play)} · ${play.description}`,
             value: runs,
           });
         }
@@ -947,7 +933,7 @@ export function extractNerdCountersFromGame(
 
   finalizeHalfInning(counters, halfTracker, row, split);
 
-  for (const { offenseId, count } of halfInningStrikeouts.values()) {
+  for (const { offenseId, count, pitcherName, lastAtBatIndex } of halfInningStrikeouts.values()) {
     if (count >= 3) {
       const victim = teamCounters(counters, offenseId, row, split);
       victim.immaculateInningVictims += 1;
@@ -955,8 +941,9 @@ export function extractNerdCountersFromGame(
         statId: "immaculate-inning-victim",
         gamePk: row.game_pk,
         gameDate: row.game_date,
-        label: "Immaculate inning victim",
+        label: pitcherName ? `${pitcherName} immaculate inning` : "Immaculate inning victim",
         detail: "Three strikeouts in one half-inning",
+        atBatIndex: lastAtBatIndex,
       });
     }
   }
@@ -1019,26 +1006,20 @@ export function extractNerdCountersFromGame(
   if (walkoffPlay) {
     home.walkoffWins += 1;
     away.walkoffLosses += 1;
-    pushNotable(home, {
+    pushPlayNotable(home, row, walkoffPlay, {
       statId: "walk-off-wins",
-      gamePk: row.game_pk,
-      gameDate: row.game_date,
-      label: `${walkoffPlay.batterName} walk-off`,
+      label: `${walkoffPlay.batterName} walk-off ${walkoffPlay.event.toLowerCase()}`,
       detail: walkoffPlay.description,
     });
-    pushNotable(away, {
+    pushPlayNotable(away, row, walkoffPlay, {
       statId: "walk-off-losses",
-      gamePk: row.game_pk,
-      gameDate: row.game_date,
-      label: "Walk-off loss",
+      label: `${walkoffPlay.batterName} walk-off loss · ${walkoffPlay.event}`,
       detail: walkoffPlay.description,
     });
     if (isBloopSingle(walkoffPlay)) {
       home.walkoffBloopSingles += 1;
-      pushNotable(home, {
+      pushPlayNotable(home, row, walkoffPlay, {
         statId: "walkoff-bloop-singles",
-        gamePk: row.game_pk,
-        gameDate: row.game_date,
         label: `${walkoffPlay.batterName} walk-off bloop`,
         detail: walkoffPlay.detail.hit
           ? `${walkoffPlay.detail.hit.launchSpeed.toFixed(0)} mph · ${walkoffPlay.detail.hit.launchAngle.toFixed(0)}°`

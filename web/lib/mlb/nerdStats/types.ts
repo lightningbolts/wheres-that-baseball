@@ -26,6 +26,8 @@ export interface NotableNerdEvent {
   label: string;
   detail?: string;
   value?: number;
+  /** When set, links open the game replay at this plate appearance. */
+  atBatIndex?: number;
 }
 
 export interface PitchTypeAccumulator {

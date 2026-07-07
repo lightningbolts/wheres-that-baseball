@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { useNerdStatDetail } from "@/hooks/useNerdStats";
 import { blockScrollPersist } from "@/lib/scrollRestoration";
 import { getNerdStatDefinition } from "@/lib/mlb/nerdStats/definitions";
+import { notableGameHref } from "@/lib/mlb/nerdStats/notableEvents";
 import { NERD_STAT_CATEGORIES } from "@/lib/mlb/nerdStats/types";
 import {
   nerdStandingsHref,
@@ -166,7 +167,7 @@ export function NerdStatDetailView({ statId }: NerdStatDetailViewProps) {
                   {data.notableEvents.map((event, index) => (
                     <li key={`${event.gamePk}-${index}`}>
                       <Link
-                        href={`/games/${event.gamePk}`}
+                        href={notableGameHref(event.gamePk, event.atBatIndex)}
                         className="flex flex-col gap-1 px-4 py-3 transition-colors hover:bg-hover sm:flex-row sm:items-center sm:justify-between"
                       >
                         <div>

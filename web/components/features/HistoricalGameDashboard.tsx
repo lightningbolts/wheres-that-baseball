@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { AppNav } from "@/components/features/AppNav";
@@ -86,6 +87,14 @@ function Panel({
 }
 
 export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDashboardProps) {
+  const searchParams = useSearchParams();
+  const urlAtBatIndex = useMemo(() => {
+    const raw = searchParams.get("atBat");
+    if (!raw) return null;
+    const parsed = Number.parseInt(raw, 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  }, [searchParams]);
+
   const isLive = isLiveStatus(game.status);
   const [activeTab, setActiveTab] = useState<GameDetailTab>("plays");
 
@@ -130,14 +139,26 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
   );
 
   useEffect(() => {
+    if (urlAtBatIndex != null) {
+      setActiveTab("plays");
+    }
+  }, [urlAtBatIndex]);
+
+  useEffect(() => {
     if (isLive || !atBatPlays.length) return;
     setSelectedAtBatIndex((current) => {
+      if (
+        urlAtBatIndex != null &&
+        atBatPlays.some((play) => play.atBatIndex === urlAtBatIndex)
+      ) {
+        return urlAtBatIndex;
+      }
       if (current != null && atBatPlays.some((play) => play.atBatIndex === current)) {
         return current;
       }
       return atBatPlays[atBatPlays.length - 1]?.atBatIndex ?? null;
     });
-  }, [atBatPlays, isLive]);
+  }, [atBatPlays, isLive, urlAtBatIndex]);
 
   const selectedPlay = useMemo<PlayByPlayEntry | null>(() => {
     if (!gameState || selectedAtBatIndex == null) return null;
