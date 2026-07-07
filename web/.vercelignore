@@ -1,0 +1,3 @@
+# Per-game nerd stat caches are local/CI aggregate artifacts (~400MB).
+# Production serves precomputed summary/stats/history JSON only.
+data/nerd-stats/**/games/

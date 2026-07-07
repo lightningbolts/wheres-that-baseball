@@ -28,3 +28,6 @@ ml-engine/**/__pycache__/
 
 # OS
 .DS_Store
+
+# Nerd stat per-game caches (aggregate script output, not needed in deploy)
+web/data/nerd-stats/**/games/
