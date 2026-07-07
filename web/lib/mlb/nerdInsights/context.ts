@@ -1,6 +1,6 @@
 import { computeCallItGameStats } from "@/lib/mlb/callItGameStats";
 import { isHalfInningBreak } from "@/lib/mlb/lineup";
-import { classifyPitch } from "@/lib/mlb/pitchClassification";
+import { classifyPitch, strikeoutKindFromPlay } from "@/lib/mlb/pitchClassification";
 import {
   hasBattedBallData,
   isBarrel,
@@ -154,6 +154,10 @@ export function buildLiveInsightContext(
         ? awayTeamId
         : null,
     liveStats: computeCallItGameStats(gameState),
+    strikeoutKind: (() => {
+      const play = completedAtBatPlay(gameState, trigger);
+      return play ? strikeoutKindFromPlay(play) : null;
+    })(),
     contact: buildContactContext(gameState, trigger),
   };
 }

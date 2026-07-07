@@ -66,6 +66,7 @@ function baseContext(overrides: Partial<LiveInsightContext> = {}): LiveInsightCo
     trailingTeamId: null,
     leadingTeamId: null,
     liveStats: null,
+    strikeoutKind: null,
     contact: null,
     ...overrides,
   };
@@ -368,6 +369,44 @@ describe("generateNerdInsight", () => {
 
     expect(insight?.statId).toBe("barrel-rate");
     expect(insight?.message).toContain("104.0 mph");
+  });
+
+  it("fires whiff watch only on swinging strikeouts", () => {
+    const away = profile(100, "AWY", {
+      "swinging-strike-rate": {
+        rank: 5,
+        displayValue: "11.8%",
+        value: 11.8,
+        title: "Swinging Strike Rate",
+      },
+    });
+
+    const swinging = generateNerdInsight(
+      baseContext({
+        trigger: { type: "at-bat-end", atBatIndex: 4, event: "Strikeout" },
+        strikeoutKind: "swinging",
+        runnersInScoringPosition: false,
+        onSecond: false,
+      }),
+      away,
+      null,
+    );
+
+    expect(swinging?.statId).toBe("swinging-strike-rate");
+    expect(swinging?.title).toBe("Another swing and miss");
+
+    const called = generateNerdInsight(
+      baseContext({
+        trigger: { type: "at-bat-end", atBatIndex: 5, event: "Strikeout" },
+        strikeoutKind: "called",
+        runnersInScoringPosition: false,
+        onSecond: false,
+      }),
+      away,
+      null,
+    );
+
+    expect(called?.statId).not.toBe("swinging-strike-rate");
   });
 });
 

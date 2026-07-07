@@ -1,4 +1,5 @@
 import type { CallItGameStats } from "@/lib/mlb/callItGameStats";
+import type { StrikeoutKind } from "@/lib/mlb/pitchClassification";
 import type { HitData } from "@/types/mlb-live";
 
 export type InsightAnchor =
@@ -112,6 +113,8 @@ export interface LiveInsightContext {
   trailingTeamId: number | null;
   leadingTeamId: number | null;
   liveStats: CallItGameStats | null;
+  /** Terminal strike type for a just-completed strikeout, when known. */
+  strikeoutKind: StrikeoutKind | null;
   /** Statcast-style data from the just-completed ball in play, when available. */
   contact: ContactInsightContext | null;
 }

@@ -371,6 +371,7 @@ export const EVENT_INSIGHT_SPECS: EventInsightSpec[] = [
     team: "defense",
     polarity: "elite",
     eventEquals: ["Strikeout"],
+    match: (ctx) => ctx.strikeoutKind === "swinging",
     eyebrow: "Whiff factory",
     title: (ctx, abbrev) => `${abbrev} get the K`,
     message: defaultMessage,

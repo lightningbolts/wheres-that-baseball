@@ -399,7 +399,13 @@ const rules: Rule[] = [
 
   // —— At-bat results ——
   (ctx, away, home) => {
-    if (ctx.trigger.type !== "at-bat-end" || ctx.trigger.event !== "Strikeout") return null;
+    if (
+      ctx.trigger.type !== "at-bat-end" ||
+      ctx.trigger.event !== "Strikeout" ||
+      ctx.strikeoutKind !== "swinging"
+    ) {
+      return null;
+    }
     const offense = profileForTeam({ away, home }, ctx.offenseTeamId);
     const whiff = getTeamStat(offense, "swinging-strike-rate");
     if (!isEliteRank(whiff, 6)) return null;

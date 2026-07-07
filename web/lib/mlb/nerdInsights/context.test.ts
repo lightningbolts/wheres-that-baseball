@@ -133,4 +133,57 @@ describe("buildLiveInsightContext contact", () => {
       isPopup: false,
     });
   });
+
+  it("detects called strikeouts from play description", () => {
+    const completed = play({
+      atBatIndex: 4,
+      event: "Strikeout",
+      description: "J.P. Crawford called out on strikes.",
+      detail: {
+        atBatIndex: 4,
+        batterId: 1,
+        batterName: "J.P. Crawford",
+        batterHits: 0,
+        batterAtBats: 1,
+        pitcherName: "Pitcher",
+        pitcherId: 2,
+        event: "Strikeout",
+        description: "J.P. Crawford called out on strikes.",
+        inning: 3,
+        halfInning: "top",
+        awayScore: 1,
+        homeScore: 0,
+        isScoringPlay: false,
+        pitches: [
+          {
+            pitchNumber: 1,
+            typeCode: "FF",
+            typeDescription: "Four-Seam Fastball",
+            callDescription: "Called Strike",
+            callCode: "C",
+            balls: 0,
+            strikes: 1,
+            startSpeed: 94,
+            plateX: 0,
+            plateZ: 2.5,
+            isStrike: true,
+            isBall: false,
+            isInPlay: false,
+            isOut: false,
+            isPitch: true,
+            strikeZoneTop: 3.5,
+            strikeZoneBottom: 1.5,
+          },
+        ],
+      },
+    });
+
+    const ctx = buildLiveInsightContext(gameState([completed]), {
+      type: "at-bat-end",
+      atBatIndex: 4,
+      event: "Strikeout",
+    });
+
+    expect(ctx?.strikeoutKind).toBe("called");
+  });
 });
