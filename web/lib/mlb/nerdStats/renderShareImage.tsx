@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
 
 import { mlbTeamShareLogoUrl } from "@/lib/mlb/teamAssets";
+import { loadShareImageFonts, SHARE_FONTS } from "@/lib/mlb/nerdStats/shareImageFonts";
 import {
   nerdRankBadgeLabel,
   pickFullShareCardStats,
@@ -16,31 +17,40 @@ export const CHAOS_SHARE_WIDTH = 1080;
 
 export type TeamShareCardVariant = "full" | "highlights";
 
+/** Moneyball light palette — mirrors globals.css :root tokens for share/OG images. */
 const COLORS = {
-  background: "#0c0c0c",
-  surface: "#161616",
-  surfaceRaised: "#1f1f1f",
-  border: "#333333",
-  foreground: "#f5f5f5",
-  muted: "#9ca3af",
-  faint: "#6b7280",
-  elite: "#34d399",
-  cursed: "#f59e0b",
-  gold: "#eab308",
-  silver: "#94a3b8",
-  bronze: "#d97706",
+  background: "#ede6d6",
+  surface: "#f7f3ea",
+  surfaceRaised: "#faf7f0",
+  panel: "#f5f0e4",
+  border: "#c4b89a",
+  borderStrong: "#a89878",
+  foreground: "#1c2b2a",
+  secondary: "#3d4f48",
+  muted: "#4a5c52",
+  subtle: "#6b7d72",
+  faint: "#9a9a88",
+  brand: "#1b4332",
+  brandFg: "#f5f0e4",
+  elite: "#2d6a4f",
+  cursed: "#b45309",
+  gold: "#a16207",
+  silver: "#64748b",
+  bronze: "#b45309",
 };
 
 const CATEGORY_ACCENT: Record<NerdStatCategory, string> = {
-  drama: "#f472b6",
-  misfortune: "#fb923c",
-  baserunning: "#38bdf8",
-  contact: "#4ade80",
-  pace: "#a78bfa",
-  defense: "#60a5fa",
-  chaos: "#facc15",
-  vibes: "#2dd4bf",
+  drama: "#b45309",
+  misfortune: "#b91c1c",
+  baserunning: "#2d6a4f",
+  contact: "#1d4e89",
+  pace: "#6d28d9",
+  defense: "#0f766e",
+  chaos: "#c2410c",
+  vibes: "#be185d",
 };
+
+const SHARE_BACKGROUND = `linear-gradient(180deg, rgb(255 255 255 / 0.35) 0%, transparent 40%, rgb(0 0 0 / 0.02) 100%), ${COLORS.background}`;
 
 type TeamNerdStat = TeamNerdCard["stats"][number];
 
@@ -88,7 +98,7 @@ function teamLogo(teamId: number, size: number) {
         justifyContent: "center",
         width: size,
         height: size,
-        borderRadius: size / 2,
+        borderRadius: 0,
         background: COLORS.surfaceRaised,
         border: `1px solid ${COLORS.border}`,
         flexShrink: 0,
@@ -136,7 +146,7 @@ function chaosStatRow(stat: TeamNerdStat, side: "elite" | "cursed", columnWidth:
         width: columnWidth,
         padding: "14px 16px",
         borderBottom: `1px solid ${COLORS.border}`,
-        background: COLORS.surfaceRaised,
+        background: COLORS.surface,
         gap: 6,
       }}
     >
@@ -166,6 +176,7 @@ function chaosStatRow(stat: TeamNerdStat, side: "elite" | "cursed", columnWidth:
             display: "flex",
             fontSize: 20,
             fontWeight: 700,
+            fontFamily: SHARE_FONTS.mono,
             color: podium ?? COLORS.foreground,
             flexShrink: 0,
           }}
@@ -192,7 +203,6 @@ function chaosStatRow(stat: TeamNerdStat, side: "elite" | "cursed", columnWidth:
 
 function chaosColumn(
   title: string,
-  color: string,
   stats: TeamNerdStat[],
   side: "elite" | "cursed",
   columnWidth: number,
@@ -204,7 +214,7 @@ function chaosColumn(
         flexDirection: "column",
         width: columnWidth,
         border: `1px solid ${COLORS.border}`,
-        borderRadius: 12,
+        borderRadius: 0,
         overflow: "hidden",
         background: COLORS.surface,
       }}
@@ -213,13 +223,14 @@ function chaosColumn(
         style={{
           display: "flex",
           padding: "12px 16px",
-          background: COLORS.surfaceRaised,
-          borderBottom: `1px solid ${COLORS.border}`,
-          color,
+          background: COLORS.brand,
+          borderBottom: `1px solid ${COLORS.brand}`,
+          color: COLORS.brandFg,
           fontSize: 13,
           fontWeight: 700,
           letterSpacing: 2,
           textTransform: "uppercase",
+          fontFamily: SHARE_FONTS.sans,
         }}
       >
         {title}
@@ -254,12 +265,12 @@ export function teamChaosShareElement(card: TeamNerdCard, height: number) {
         flexDirection: "column",
         width,
         height,
-        background: COLORS.background,
+        background: SHARE_BACKGROUND,
         color: COLORS.foreground,
-        fontFamily: "system-ui, -apple-system, sans-serif",
+        fontFamily: SHARE_FONTS.sans,
       }}
     >
-      {accentBar(COLORS.elite, width)}
+      {accentBar(COLORS.brand, width)}
 
       <div
         style={{
@@ -273,7 +284,7 @@ export function teamChaosShareElement(card: TeamNerdCard, height: number) {
         <div style={{ display: "flex", alignItems: "center", gap: 20, width: contentWidth }}>
           {teamLogo(card.teamId, 72)}
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={{ display: "flex", fontSize: 38, fontWeight: 800, lineHeight: 1.05 }}>
+            <span style={{ display: "flex", fontSize: 38, fontWeight: 600, lineHeight: 1.05, fontFamily: SHARE_FONTS.serif }}>
               {card.teamName}
             </span>
             <span style={{ display: "flex", fontSize: 17, color: COLORS.muted }}>
@@ -283,8 +294,8 @@ export function teamChaosShareElement(card: TeamNerdCard, height: number) {
         </div>
 
         <div style={{ display: "flex", width: contentWidth, gap: 16 }}>
-          {chaosColumn("Top 3", COLORS.elite, elite, "elite", (contentWidth - 16) / 2)}
-          {chaosColumn("Bottom 3", COLORS.cursed, cursed, "cursed", (contentWidth - 16) / 2)}
+          {chaosColumn("Top 3", elite, "elite", (contentWidth - 16) / 2)}
+          {chaosColumn("Bottom 3", cursed, "cursed", (contentWidth - 16) / 2)}
         </div>
 
         <div
@@ -320,7 +331,7 @@ function leaderRow(
         width: "100%",
         padding: "12px 18px",
         borderBottom: `1px solid ${COLORS.border}`,
-        background: leader.rank <= 3 ? COLORS.surfaceRaised : COLORS.surface,
+        background: leader.rank <= 3 ? COLORS.panel : COLORS.surface,
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -328,9 +339,10 @@ function leaderRow(
           style={{
             display: "flex",
             width: 24,
-            color: podium ?? COLORS.muted,
+            color: podium ?? COLORS.subtle,
             fontSize: 16,
             fontWeight: podium ? 700 : 500,
+            fontFamily: SHARE_FONTS.mono,
           }}
         >
           {leader.rank}
@@ -347,6 +359,7 @@ function leaderRow(
           color: podium ?? COLORS.foreground,
           fontSize: 24,
           fontWeight: 700,
+          fontFamily: SHARE_FONTS.mono,
         }}
       >
         {leader.displayValue}
@@ -368,9 +381,9 @@ export function nerdStatShareElement(detail: NerdStatDetail, portrait: boolean) 
         flexDirection: "column",
         width: size.width,
         height: size.height,
-        background: COLORS.background,
+        background: SHARE_BACKGROUND,
         color: COLORS.foreground,
-        fontFamily: "system-ui, -apple-system, sans-serif",
+        fontFamily: SHARE_FONTS.sans,
       }}
     >
       {accentBar(accent, size.width)}
@@ -397,7 +410,7 @@ export function nerdStatShareElement(detail: NerdStatDetail, portrait: boolean) 
             <span
               style={{
                 display: "flex",
-                color: accent,
+                color: COLORS.muted,
                 fontSize: 14,
                 textTransform: "uppercase",
                 letterSpacing: 2,
@@ -406,7 +419,7 @@ export function nerdStatShareElement(detail: NerdStatDetail, portrait: boolean) 
             >
               {categoryLabel(detail.stat.category)} · {detail.season}
             </span>
-            <span style={{ display: "flex", fontSize: portrait ? 40 : 36, fontWeight: 800, lineHeight: 1.1 }}>
+            <span style={{ display: "flex", fontSize: portrait ? 40 : 36, fontWeight: 600, lineHeight: 1.1, fontFamily: SHARE_FONTS.serif }}>
               {detail.stat.title}
             </span>
             <span style={{ display: "flex", color: COLORS.muted, fontSize: portrait ? 18 : 16, lineHeight: 1.35 }}>
@@ -424,9 +437,9 @@ export function nerdStatShareElement(detail: NerdStatDetail, portrait: boolean) 
               justifyContent: "space-between",
               width: size.width - 88,
               padding: "18px 20px",
-              borderRadius: 12,
-              border: `1px solid ${accent}`,
-              background: COLORS.surfaceRaised,
+              borderRadius: 0,
+              border: `1px solid ${COLORS.borderStrong}`,
+              background: COLORS.panel,
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
@@ -435,7 +448,7 @@ export function nerdStatShareElement(detail: NerdStatDetail, portrait: boolean) 
                 <span
                   style={{
                     display: "flex",
-                    color: accent,
+                    color: COLORS.brand,
                     fontSize: 12,
                     textTransform: "uppercase",
                     letterSpacing: 1.5,
@@ -444,10 +457,10 @@ export function nerdStatShareElement(detail: NerdStatDetail, portrait: boolean) 
                 >
                   #1 · {detail.stat.title}
                 </span>
-                <span style={{ display: "flex", fontSize: 26, fontWeight: 700 }}>{top.teamName}</span>
+                <span style={{ display: "flex", fontSize: 26, fontWeight: 600, fontFamily: SHARE_FONTS.serif }}>{top.teamName}</span>
               </div>
             </div>
-            <span style={{ display: "flex", fontSize: 34, fontWeight: 800, color: accent }}>{top.displayValue}</span>
+            <span style={{ display: "flex", fontSize: 34, fontWeight: 700, fontFamily: SHARE_FONTS.mono, color: COLORS.foreground }}>{top.displayValue}</span>
           </div>
         )}
 
@@ -457,7 +470,7 @@ export function nerdStatShareElement(detail: NerdStatDetail, portrait: boolean) 
             flexDirection: "column",
             width: size.width - (portrait ? 88 : 80),
             border: `1px solid ${COLORS.border}`,
-            borderRadius: 12,
+            borderRadius: 0,
             overflow: "hidden",
             background: COLORS.surface,
           }}
@@ -468,12 +481,13 @@ export function nerdStatShareElement(detail: NerdStatDetail, portrait: boolean) 
               justifyContent: "space-between",
               width: "100%",
               padding: "8px 18px",
-              borderBottom: `1px solid ${COLORS.border}`,
-              color: COLORS.faint,
+              borderBottom: `1px solid ${COLORS.brand}`,
+              color: COLORS.brandFg,
               fontSize: 12,
               textTransform: "uppercase",
               letterSpacing: 1.5,
-              background: COLORS.surfaceRaised,
+              background: COLORS.brand,
+              fontWeight: 600,
             }}
           >
             <span style={{ display: "flex" }}>Team</span>
@@ -512,12 +526,12 @@ export function teamNerdCardShareElement(card: TeamNerdCard, portrait: boolean, 
         flexDirection: "column",
         width,
         height,
-        background: COLORS.background,
+        background: SHARE_BACKGROUND,
         color: COLORS.foreground,
-        fontFamily: "system-ui, -apple-system, sans-serif",
+        fontFamily: SHARE_FONTS.sans,
       }}
     >
-      {accentBar(COLORS.elite, width)}
+      {accentBar(COLORS.brand, width)}
 
       <div
         style={{
@@ -531,7 +545,7 @@ export function teamNerdCardShareElement(card: TeamNerdCard, portrait: boolean, 
         <div style={{ display: "flex", alignItems: "center", gap: 18, width: contentWidth }}>
           {teamLogo(card.teamId, 64)}
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={{ display: "flex", fontSize: 34, fontWeight: 800 }}>{card.teamName}</span>
+            <span style={{ display: "flex", fontSize: 34, fontWeight: 600, fontFamily: SHARE_FONTS.serif }}>{card.teamName}</span>
             <span style={{ display: "flex", fontSize: 16, color: COLORS.muted }}>
               {card.season} team report
             </span>
@@ -544,7 +558,7 @@ export function teamNerdCardShareElement(card: TeamNerdCard, portrait: boolean, 
             flexDirection: "column",
             width: contentWidth,
             border: `1px solid ${COLORS.border}`,
-            borderRadius: 12,
+            borderRadius: 0,
             overflow: "hidden",
             background: COLORS.surface,
           }}
@@ -578,7 +592,7 @@ export function teamNerdCardShareElement(card: TeamNerdCard, portrait: boolean, 
                     gap: 12,
                     padding: "12px 18px",
                     borderBottom: isLast ? "none" : `1px solid ${COLORS.border}`,
-                    background: elite || cursed ? COLORS.surfaceRaised : COLORS.surface,
+                    background: elite || cursed ? COLORS.panel : COLORS.surface,
                   }}
                 >
                   <div style={{ display: "flex", flexDirection: "column", gap: 4, width: contentWidth - 120 }}>
@@ -598,7 +612,7 @@ export function teamNerdCardShareElement(card: TeamNerdCard, portrait: boolean, 
                       </span>
                     )}
                   </div>
-                  <span style={{ display: "flex", fontSize: 20, fontWeight: 700, flexShrink: 0 }}>
+                  <span style={{ display: "flex", fontSize: 20, fontWeight: 700, fontFamily: SHARE_FONTS.mono, flexShrink: 0 }}>
                     {stat.displayValue}
                   </span>
                 </div>
@@ -626,7 +640,8 @@ export function teamNerdCardShareElement(card: TeamNerdCard, portrait: boolean, 
 
 export async function renderNerdStatImage(detail: NerdStatDetail, portrait: boolean) {
   const size = portrait ? STAT_SHARE_SIZE : OG_IMAGE_SIZE;
-  return new ImageResponse(nerdStatShareElement(detail, portrait), size);
+  const fonts = await loadShareImageFonts();
+  return new ImageResponse(nerdStatShareElement(detail, portrait), { ...size, fonts });
 }
 
 export async function renderTeamNerdCardImage(
@@ -634,15 +649,17 @@ export async function renderTeamNerdCardImage(
   portrait: boolean,
   variant: TeamShareCardVariant = "full",
 ) {
+  const fonts = await loadShareImageFonts();
   if (portrait && variant === "highlights") {
     const { elite, cursed } = splitChaosStats(card.stats);
     const height = chaosShareHeight(elite.length, cursed.length);
     return new ImageResponse(teamChaosShareElement(card, height), {
       width: CHAOS_SHARE_WIDTH,
       height,
+      fonts,
     });
   }
 
   const size = portrait ? { width: 1080, height: teamShareHeight(pickFullShareCardStats(card.stats).length, false) } : OG_IMAGE_SIZE;
-  return new ImageResponse(teamNerdCardShareElement(card, portrait, size.height), size);
+  return new ImageResponse(teamNerdCardShareElement(card, portrait, size.height), { ...size, fonts });
 }
