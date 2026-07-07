@@ -8,6 +8,7 @@ import {
   gamedayInfieldProxyUrl,
   gamedayStadiumCdnUrl,
   gamedayStadiumProxyUrl,
+  resolveGamedayStadiumVariant,
 } from "@/lib/mlb/gamedayAssets";
 
 describe("gameday stadium frame", () => {
@@ -29,8 +30,22 @@ describe("gamedayStadiumCdnUrl", () => {
     );
   });
 
+  it("builds the day stadium URL when requested", () => {
+    expect(gamedayStadiumCdnUrl(4705, "day")).toBe(
+      "https://prod-gameday.mlbstatic.com/responsive-gameday-assets/1.3.0/images/stadiums/day/4705@2x.jpg",
+    );
+  });
+
   it("falls back to default when venue is missing", () => {
     expect(gamedayStadiumCdnUrl(null)).toContain("/stadiums/night/default@2x.jpg");
+  });
+});
+
+describe("resolveGamedayStadiumVariant", () => {
+  it("maps MLB dayNight values to stadium variants", () => {
+    expect(resolveGamedayStadiumVariant("day")).toBe("day");
+    expect(resolveGamedayStadiumVariant("night")).toBe("night");
+    expect(resolveGamedayStadiumVariant(null)).toBe("night");
   });
 });
 
@@ -44,8 +59,11 @@ describe("gamedayInfieldCdnUrl", () => {
 
 describe("gamedayStadiumProxyUrl", () => {
   it("routes through the local proxy", () => {
-    expect(gamedayStadiumProxyUrl(4705)).toBe("/api/gameday/stadium?venueId=4705");
-    expect(gamedayStadiumProxyUrl(null)).toBe("/api/gameday/stadium?venueId=default");
+    expect(gamedayStadiumProxyUrl(4705)).toBe("/api/gameday/stadium?venueId=4705&variant=night");
+    expect(gamedayStadiumProxyUrl(4705, "day")).toBe(
+      "/api/gameday/stadium?venueId=4705&variant=day",
+    );
+    expect(gamedayStadiumProxyUrl(null)).toBe("/api/gameday/stadium?venueId=default&variant=night");
   });
 });
 

@@ -292,7 +292,7 @@ export function CallItGame({
     gameState?.offenseTeamId,
     batSide,
   );
-  const stadiumImageUrl = useGamedayStadiumImage(gameState?.venueId);
+  const stadiumImageUrl = useGamedayStadiumImage(gameState?.venueId, gameState?.dayNight);
   const infieldImageUrl = useGamedayInfieldImage(gameState?.venueId);
 
   const displayPitches = gameState?.atBatPitches ?? [];
@@ -301,67 +301,69 @@ export function CallItGame({
   const showAtBatNotice = atBatNotice != null && !showReveal && !showPitchNotice;
 
   return (
-    <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", className)}>
-      <div className="relative min-h-[min(58vh,480px)] min-w-0 flex-1 bg-neutral-200 dark:bg-neutral-950">
-        <CatcherScene
-          pitches={displayPitches}
-          batSide={batSide}
-          jerseyImageUrl={batterAssets.jerseyUrl}
-          pantsImageUrl={batterAssets.pantsUrl}
-          stadiumImageUrl={stadiumImageUrl}
-          infieldImageUrl={infieldImageUrl}
-          activePitch={activePitch}
-          revealCall={showReveal}
-          animatePitchIn={animatePitchIn}
-          showStrikeZone={showStrikeZone}
-          className="h-full w-full"
-        >
-          <Scorebug gameState={gameState} variant="overlay" />
-        </CatcherScene>
-
-        {showReveal ? (
-          <div
-            className={cn(
-              "pointer-events-none absolute inset-x-3 bottom-3 z-30 rounded-lg border px-3 py-2.5 text-center shadow-lg backdrop-blur-md sm:px-4 sm:py-3",
-              reveal.correct
-                ? "border-emerald-400/50 bg-black/70 text-emerald-100"
-                : "border-red-400/50 bg-black/70 text-red-100",
-            )}
+    <div className={cn("flex min-h-0 flex-1 flex-col overflow-y-auto", className)}>
+      <div className="relative mx-auto w-full max-w-3xl shrink-0 overflow-hidden bg-neutral-200 dark:bg-neutral-950">
+        <div className="relative aspect-[4/3] w-full max-h-[min(46dvh,400px)]">
+          <CatcherScene
+            pitches={displayPitches}
+            batSide={batSide}
+            jerseyImageUrl={batterAssets.jerseyUrl}
+            pantsImageUrl={batterAssets.pantsUrl}
+            stadiumImageUrl={stadiumImageUrl}
+            infieldImageUrl={infieldImageUrl}
+            activePitch={activePitch}
+            revealCall={showReveal}
+            animatePitchIn={animatePitchIn}
+            showStrikeZone={showStrikeZone}
+            className="absolute inset-0"
           >
-            <p className="text-sm font-semibold">
-              {reveal.correct ? "Correct!" : `Wrong — it was a ${reveal.actual}`}
-            </p>
-            {!reveal.correct && reveal.absDisagrees ? (
-              <p className="mt-1 text-xs opacity-90">
-                ABS zone says {reveal.absSaysStrike ? "strike" : "ball"}
-              </p>
-            ) : null}
-            {reveal.pitch.review ? (
-              <p className="mt-1 text-xs opacity-90">
-                {reveal.pitch.review.isOverturned ? "ABS overturned" : "ABS confirmed"}
-              </p>
-            ) : null}
-          </div>
-        ) : null}
+            <Scorebug gameState={gameState} variant="overlay" />
+          </CatcherScene>
 
-        {showPitchNotice ? (
-          <div className="pointer-events-none absolute inset-x-3 bottom-3 z-30 rounded-lg border border-white/20 bg-black/75 px-3 py-2.5 text-center text-sm text-white shadow-lg backdrop-blur-md">
-            <p className="font-semibold">{pitchNotice.label}</p>
-            {pitchNotice.endsAtBat ? (
-              <p className="mt-0.5 text-xs text-white/75">Ball in play — not scored</p>
-            ) : (
-              <p className="mt-0.5 text-xs text-white/75">Not a callable pitch</p>
-            )}
-          </div>
-        ) : null}
+          {showReveal ? (
+            <div
+              className={cn(
+                "pointer-events-none absolute inset-x-3 bottom-3 z-30 rounded-lg border px-3 py-2.5 text-center shadow-lg backdrop-blur-md sm:px-4 sm:py-3",
+                reveal.correct
+                  ? "border-emerald-400/50 bg-black/70 text-emerald-100"
+                  : "border-red-400/50 bg-black/70 text-red-100",
+              )}
+            >
+              <p className="text-sm font-semibold">
+                {reveal.correct ? "Correct!" : `Wrong — it was a ${reveal.actual}`}
+              </p>
+              {!reveal.correct && reveal.absDisagrees ? (
+                <p className="mt-1 text-xs opacity-90">
+                  ABS zone says {reveal.absSaysStrike ? "strike" : "ball"}
+                </p>
+              ) : null}
+              {reveal.pitch.review ? (
+                <p className="mt-1 text-xs opacity-90">
+                  {reveal.pitch.review.isOverturned ? "ABS overturned" : "ABS confirmed"}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
 
-        {showAtBatNotice ? (
-          <div className="pointer-events-none absolute inset-x-3 bottom-3 z-30 rounded-lg border border-sky-400/40 bg-black/75 px-3 py-2.5 text-center text-white shadow-lg backdrop-blur-md">
-            <p className="text-xs uppercase tracking-wide text-sky-300">At-bat result</p>
-            <p className="mt-0.5 text-sm font-semibold">{atBatNotice.batterName}</p>
-            <p className="mt-1 text-xs text-white/85">{atBatNotice.description}</p>
-          </div>
-        ) : null}
+          {showPitchNotice ? (
+            <div className="pointer-events-none absolute inset-x-3 bottom-3 z-30 rounded-lg border border-white/20 bg-black/75 px-3 py-2.5 text-center text-sm text-white shadow-lg backdrop-blur-md">
+              <p className="font-semibold">{pitchNotice.label}</p>
+              {pitchNotice.endsAtBat ? (
+                <p className="mt-0.5 text-xs text-white/75">Ball in play — not scored</p>
+              ) : (
+                <p className="mt-0.5 text-xs text-white/75">Not a callable pitch</p>
+              )}
+            </div>
+          ) : null}
+
+          {showAtBatNotice ? (
+            <div className="pointer-events-none absolute inset-x-3 bottom-3 z-30 rounded-lg border border-sky-400/40 bg-black/75 px-3 py-2.5 text-center text-white shadow-lg backdrop-blur-md">
+              <p className="text-xs uppercase tracking-wide text-sky-300">At-bat result</p>
+              <p className="mt-0.5 text-sm font-semibold">{atBatNotice.batterName}</p>
+              <p className="mt-1 text-xs text-white/85">{atBatNotice.description}</p>
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <div className="shrink-0 border-t border-border bg-panel p-2 sm:p-3">

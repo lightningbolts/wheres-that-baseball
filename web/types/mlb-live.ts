@@ -174,6 +174,7 @@ export interface LiveGameState {
   gamePk: number;
   venueId: number | null;
   venueName: string | null;
+  dayNight?: "day" | "night";
   gameStatus: string;
   awayTeam: string;
   awayAbbrev: string;
@@ -326,6 +327,7 @@ export interface AllPlayRaw {
 export interface MLBLiveFeedResponse {
   gameData: {
     status: { abstractGameState: string };
+    datetime?: { dayNight?: string; originalDate?: string };
     venue?: { id?: number; name?: string };
     review?: {
       hasChallenges?: boolean;

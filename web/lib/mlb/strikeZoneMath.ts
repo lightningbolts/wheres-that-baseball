@@ -386,10 +386,9 @@ export function sceneZoneToSvgPercent(
   szBottom: number,
   sceneZone: SvgRectPercent,
 ): { x: number; y: number } {
-  const overlay = zoneOverlayRect(szTop, szBottom);
-  const pt = zoneOverlayToSvgPercent(pX, pZ, szTop, szBottom);
-  const relX = (pt.x - overlay.x) / overlay.width;
-  const relY = (pt.y - overlay.y) / overlay.height;
+  const zoneHeight = szTop - szBottom;
+  const relX = (pX + PLATE_HALF_WIDTH_FT) / (2 * PLATE_HALF_WIDTH_FT);
+  const relY = zoneHeight > 0 ? (szTop - pZ) / zoneHeight : 0.5;
 
   return {
     x: sceneZone.x + relX * sceneZone.width,

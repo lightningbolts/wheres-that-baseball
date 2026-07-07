@@ -52,7 +52,7 @@ interface BoxScoreFeedRaw {
     };
     status?: { abstractGameState?: string };
     venue?: { name?: string };
-    datetime?: { originalDate?: string };
+    datetime?: { originalDate?: string; dayNight?: string };
     gameInfo?: {
       attendance?: number;
       firstPitch?: string;

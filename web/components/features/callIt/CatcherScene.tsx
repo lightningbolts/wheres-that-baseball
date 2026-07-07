@@ -206,8 +206,8 @@ export function CatcherScene({
         {children}
 
         <div
-          className="absolute inset-0"
-          style={{ marginTop: `${GAMEDAY_PITCH_FX.domMarginTop}%` }}
+          className="absolute bottom-0 left-0 right-0"
+          style={{ top: `${GAMEDAY_PITCH_FX.domMarginTop}%` }}
         >
           {jerseyImageUrl || pantsImageUrl ? (
             <div

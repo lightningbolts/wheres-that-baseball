@@ -10,6 +10,7 @@ import {
   type AbsChallengePlay,
 } from "@/lib/mlb/absChallenges";
 import { annotatePlayByPlayWithWpa } from "@/lib/mlb/wpa";
+import { resolveGamedayStadiumVariant } from "@/lib/mlb/gamedayAssets";
 import type { GameBoxScore } from "@/types/mlb-boxscore";
 import type { CardPitcher } from "@/types/mlb";
 import type {
@@ -1735,6 +1736,7 @@ export function parseLiveFeed(
     gamePk,
     venueId: feed.gameData.venue?.id ?? null,
     venueName: feed.gameData.venue?.name ?? null,
+    dayNight: resolveGamedayStadiumVariant(feed.gameData.datetime?.dayNight),
     gameStatus: feed.gameData.status.abstractGameState,
     awayTeam: teams.away.name,
     awayAbbrev: teams.away.abbreviation ?? teams.away.name.slice(0, 3).toUpperCase(),

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import {
   GAMEDAY_FETCH_HEADERS,
   gamedayStadiumCdnUrl,
+  resolveGamedayStadiumVariant,
 } from "@/lib/mlb/gamedayAssets";
 
 export const dynamic = "force-dynamic";
@@ -13,10 +14,11 @@ const CACHE_MS = 60 * 60 * 1000;
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const venueParam = searchParams.get("venueId");
+  const variant = resolveGamedayStadiumVariant(searchParams.get("variant"));
   const venueId =
     venueParam === "default" || !venueParam ? null : Number.parseInt(venueParam, 10);
 
-  const cacheKey = venueId && venueId > 0 ? String(venueId) : "default";
+  const cacheKey = `${variant}:${venueId && venueId > 0 ? String(venueId) : "default"}`;
   const cached = imageCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
     return new NextResponse(Buffer.from(cached.bytes), {
@@ -27,7 +29,7 @@ export async function GET(request: Request) {
     });
   }
 
-  const cdnUrl = gamedayStadiumCdnUrl(venueId);
+  const cdnUrl = gamedayStadiumCdnUrl(venueId, variant);
   const response = await fetch(cdnUrl, { headers: GAMEDAY_FETCH_HEADERS });
 
   if (!response.ok) {

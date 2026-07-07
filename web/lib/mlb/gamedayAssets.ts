@@ -17,27 +17,41 @@ export const GAMEDAY_PITCH_FX = {
   playerTop: 16.0795,
   playerSide: 25.5665,
   domMarginTop: 6,
-  /** Strike zone canvas in the 4:3 pitch-fx frame (percent of field). */
+  /** Strike zone canvas in the 4:3 pitch-fx overlay (percent of overlay). */
   zoneX: 42,
-  zoneY: 40,
+  zoneY: 48,
   zoneWidth: 16,
   zoneHeight: 22,
 } as const;
+
+export type GamedayStadiumVariant = "day" | "night";
+
+export function resolveGamedayStadiumVariant(
+  dayNight: string | null | undefined,
+): GamedayStadiumVariant {
+  return dayNight?.toLowerCase() === "day" ? "day" : "night";
+}
 
 export const GAMEDAY_FETCH_HEADERS = {
   Referer: "https://www.mlb.com/",
   "User-Agent": "mlb-atbat-predictor/1.0",
 } as const;
 
-/** Night stands layer behind the infield dirt. */
-export function gamedayStadiumCdnUrl(venueId: number | null | undefined): string {
+/** Sky/stands layer behind the infield dirt. */
+export function gamedayStadiumCdnUrl(
+  venueId: number | null | undefined,
+  variant: GamedayStadiumVariant = "night",
+): string {
   const id = venueId && venueId > 0 ? venueId : "default";
-  return `${GAMEDAY_ASSETS_BASE}/images/stadiums/night/${id}@2x.jpg`;
+  return `${GAMEDAY_ASSETS_BASE}/images/stadiums/${variant}/${id}@2x.jpg`;
 }
 
-export function gamedayStadiumProxyUrl(venueId: number | null | undefined): string {
+export function gamedayStadiumProxyUrl(
+  venueId: number | null | undefined,
+  variant: GamedayStadiumVariant = "night",
+): string {
   const id = venueId && venueId > 0 ? venueId : "default";
-  return `/api/gameday/stadium?venueId=${encodeURIComponent(String(id))}`;
+  return `/api/gameday/stadium?venueId=${encodeURIComponent(String(id))}&variant=${variant}`;
 }
 
 /** Infield dirt / plate layer composited at the bottom of pitch-fx. */
