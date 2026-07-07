@@ -8,8 +8,9 @@
  *
  * After adding new PBP-derived stat fields (re-extract from game_state):
  *   npm run aggregate-nerd-stats -- --season=2026 --backfill-counters --skip-savant
- *   (uses data/nerd-stats/{season}/games/*.json when present — avoids repeat DB egress)
+ *   (re-extracts from sourceRow stored in per-game cache — zero DB egress when cached)
  *   npm run aggregate-nerd-stats -- --season=2026 --backfill-counters --force-refetch
+ *   (one-time DB fetch to populate sourceRow in cache for future zero-egress backfills)
  *
  * Rewrite stat JSON from existing season counters only (no DB fetch):
  *   npm run aggregate-nerd-stats -- --season=2026 --rebuild-store --stats=errors-committed
@@ -178,6 +179,7 @@ async function extractAndCacheGame(
     home,
     away,
     extractedAt: new Date().toISOString(),
+    sourceRow: game,
   };
   writePerGameNerdCache(season, entry);
   return entry;
@@ -350,6 +352,15 @@ async function refreshRollingWindowStoresIncremental(
   }
 }
 
+async function reextractCacheEntry(
+  season: number,
+  entry: PerGameNerdCacheEntry,
+  skipSavant: boolean,
+): Promise<PerGameNerdCacheEntry> {
+  if (!entry.sourceRow) return entry;
+  return extractAndCacheGame(season, entry.sourceRow, skipSavant);
+}
+
 async function backfillCountersFromManifest(
   season: number,
   creds: BulkCreds,
@@ -379,16 +390,42 @@ async function backfillCountersFromManifest(
     allCaches = await extractAndCacheGames(season, games, options.skipSavant);
   } else {
     const { cached, missing } = loadPerGameNerdCaches(season, manifest.processedGamePks);
-    if (missing.length === 0) {
-      console.log(`Using ${cached.length} per-game cache file(s) — no DB fetch.`);
-      allCaches = cached;
-    } else {
+    const withSource = cached.filter((entry) => entry.sourceRow != null);
+    const withoutSource = cached.filter((entry) => entry.sourceRow == null);
+
+    if (withoutSource.length > 0) {
+      console.log(
+        `${withoutSource.length} cache file(s) lack stored game_state — fetching from DB…`,
+      );
+      const games = await fetchGamesForPks(
+        creds,
+        [...withoutSource.map((entry) => entry.gamePk), ...missing],
+      );
+      const fetched = await extractAndCacheGames(season, games, options.skipSavant);
+      const fetchedByPk = new Map(fetched.map((entry) => [entry.gamePk, entry]));
+      const refreshed = await Promise.all(
+        withSource.map((entry) => reextractCacheEntry(season, entry, options.skipSavant)),
+      );
+      allCaches = [
+        ...refreshed,
+        ...withoutSource.map((entry) => fetchedByPk.get(entry.gamePk) ?? entry),
+        ...missing.map((gamePk) => fetchedByPk.get(gamePk)).filter((entry) => entry != null),
+      ];
+    } else if (missing.length > 0) {
       console.log(
         `${cached.length} game(s) in local cache; fetching ${missing.length} missing from DB…`,
       );
       const games = await fetchGamesForPks(creds, missing);
       const fetched = await extractAndCacheGames(season, games, options.skipSavant);
-      allCaches = [...cached, ...fetched];
+      const refreshed = await Promise.all(
+        cached.map((entry) => reextractCacheEntry(season, entry, options.skipSavant)),
+      );
+      allCaches = [...refreshed, ...fetched];
+    } else {
+      console.log(`Re-extracting ${cached.length} per-game cache file(s) from stored game_state.`);
+      allCaches = await Promise.all(
+        cached.map((entry) => reextractCacheEntry(season, entry, options.skipSavant)),
+      );
     }
   }
 

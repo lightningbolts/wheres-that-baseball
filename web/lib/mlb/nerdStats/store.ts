@@ -431,6 +431,7 @@ export async function appendGameNerdStatsToStore(
     home: gameHomeCounters,
     away: gameAwayCounters,
     extractedAt: new Date().toISOString(),
+    sourceRow: row,
   });
 
   manifest.processedGamePks.push(row.game_pk);

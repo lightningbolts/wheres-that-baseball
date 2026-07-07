@@ -53,6 +53,11 @@ function livePaceForTeam(
   };
 }
 
+function pitchesInHalf(ctx: LiveInsightContext, halfKey: string): number | null {
+  const count = ctx.liveStats?.pitchesByHalf[halfKey];
+  return count != null ? count : null;
+}
+
 const rules: Rule[] = [
   // —— Half-inning breaks ——
   (ctx, away, home) => {
@@ -70,6 +75,82 @@ const rules: Rule[] = [
       message: `This half is moving slow — ${live.seenPerHalf.toFixed(1)} pitches per half so far. They rank ${rankLabel(pace.rank)} league-wide at ${pace.displayValue} per half.`,
       teamId: ctx.offenseTeamId,
       statId: "pitches-seen-per-half",
+    });
+  },
+
+  (ctx, away, home) => {
+    if (ctx.trigger.type !== "half-break") return null;
+    const halfPitches = pitchesInHalf(ctx, ctx.trigger.halfKey);
+    if (halfPitches == null || halfPitches >= 10) return null;
+
+    const offense = profileForTeam({ away, home }, ctx.offenseTeamId);
+    const quick = getTeamStat(offense, "quick-half-innings-seen");
+    if (!isEliteRank(quick, 6)) return null;
+
+    return fullInsight(ctx, {
+      id: `${ctx.gamePk}-quick-half-${ctx.trigger.halfKey}`,
+      eyebrow: "Blink and you missed it",
+      title: `${ctx.offenseAbbrev} flew through that half`,
+      message: `Just ${halfPitches} pitches in that half. They lead the league in quick halves (${quick.displayValue} under 10 pitches).`,
+      teamId: ctx.offenseTeamId,
+      statId: "quick-half-innings-seen",
+    });
+  },
+
+  (ctx, away, home) => {
+    if (ctx.trigger.type !== "half-break") return null;
+    const halfPitches = pitchesInHalf(ctx, ctx.trigger.halfKey);
+    if (halfPitches == null || halfPitches <= 30) return null;
+
+    const offense = profileForTeam({ away, home }, ctx.offenseTeamId);
+    const marathon = getTeamStat(offense, "long-half-innings-seen");
+    if (!isEliteRank(marathon, 6)) return null;
+
+    return fullInsight(ctx, {
+      id: `${ctx.gamePk}-marathon-half-${ctx.trigger.halfKey}`,
+      eyebrow: "Marathon half",
+      title: `${ctx.offenseAbbrev} just wore out the mound`,
+      message: `${halfPitches} pitches in that half alone. They rank ${rankLabel(marathon.rank)} in marathon halves (${marathon.displayValue} over 30 pitches).`,
+      teamId: ctx.offenseTeamId,
+      statId: "long-half-innings-seen",
+    });
+  },
+
+  (ctx, away, home) => {
+    if (ctx.trigger.type !== "half-break") return null;
+    const halfPitches = pitchesInHalf(ctx, ctx.trigger.halfKey);
+    if (halfPitches == null || halfPitches <= 30) return null;
+
+    const defense = profileForTeam({ away, home }, ctx.defenseTeamId);
+    const marathon = getTeamStat(defense, "long-half-innings-thrown");
+    if (!isEliteRank(marathon, 6)) return null;
+
+    return fullInsight(ctx, {
+      id: `${ctx.gamePk}-marathon-thrown-${ctx.trigger.halfKey}`,
+      eyebrow: "Bullpen meter",
+      title: `${ctx.defenseAbbrev} arms are gassed`,
+      message: `${halfPitches} pitches thrown in that half. They rank ${rankLabel(marathon.rank)} in marathon defensive halves (${marathon.displayValue} over 30 pitches).`,
+      teamId: ctx.defenseTeamId,
+      statId: "long-half-innings-thrown",
+    });
+  },
+
+  (ctx, away, home) => {
+    if (ctx.trigger.type !== "half-break") return null;
+    const halfPitches = pitchesInHalf(ctx, ctx.trigger.halfKey);
+    if (halfPitches == null) return null;
+
+    const offense = profileForTeam({ away, home }, ctx.offenseTeamId);
+    const longest = getTeamStat(offense, "longest-half-inning-pitches");
+    if (!isEliteRank(longest, 5) || longest.value > halfPitches) return null;
+
+    return fullInsight(ctx, {
+      id: `${ctx.gamePk}-longest-half-${ctx.trigger.halfKey}`,
+      eyebrow: "Season pace record",
+      title: `${ctx.offenseAbbrev} just set the bar`,
+      message: `${halfPitches} pitches in that half ties or beats their season high (${longest.displayValue}). Marathon merchants.`,
+      teamId: ctx.offenseTeamId,
+      statId: "longest-half-inning-pitches",
     });
   },
 
@@ -425,6 +506,16 @@ const MINI_LABELS: Record<string, (abbrev: string, count: number, display: strin
     `Two-out spot #${count} — ${abbrev} score ${display} of runs with two outs (${rankLabel(rank)}).`,
   "bases-loaded-no-runs": (abbrev, count, _display, rank) =>
     `Bases loaded #${count} — ${abbrev} strand patrol (${rankLabel(rank)}).`,
+  "quick-half-innings-seen": (abbrev, count, display, rank) =>
+    `Quick half #${count} — ${abbrev} ${display} sub-10-pitch halves (${rankLabel(rank)}).`,
+  "long-half-innings-seen": (abbrev, count, display, rank) =>
+    `Marathon half #${count} — ${abbrev} ${display} 30+ pitch halves (${rankLabel(rank)}).`,
+  "long-half-innings-thrown": (abbrev, count, display, rank) =>
+    `Marathon half #${count} — ${abbrev} ${display} 30+ pitch halves thrown (${rankLabel(rank)}).`,
+  "pitches-per-run": (abbrev, _count, display, rank) =>
+    `Run scored — ${abbrev} need ${display} pitches per run (${rankLabel(rank)}).`,
+  "pitches-per-hit": (abbrev, _count, display, rank) =>
+    `Hit — ${abbrev} see ${display} pitches per hit (${rankLabel(rank)}).`,
 };
 
 export function buildMiniInsight(

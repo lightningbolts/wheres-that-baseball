@@ -166,6 +166,16 @@ export interface TeamNerdCounters {
   calledStrikes: number;
   swingingStrikesInduced: number;
   calledStrikesInduced: number;
+  hits: number;
+  hitsAllowed: number;
+  quickHalfInningsSeen: number;
+  quickHalfInningsThrown: number;
+  longHalfInningsSeen: number;
+  longHalfInningsThrown: number;
+  shortestHalfInningPitchesSeen: number | null;
+  longestHalfInningPitchesSeen: number | null;
+  shortestHalfInningPitchesThrown: number | null;
+  longestHalfInningPitchesThrown: number | null;
   notableEvents: NotableNerdEvent[];
 }
 

@@ -150,8 +150,19 @@ function createGameTeamState(): GameTeamState {
 interface HalfInningTracker {
   key: string;
   offenseId: number;
+  defenseId: number;
   basesLoadedSeen: boolean;
   runs: number;
+  hits: number;
+  pitches: number;
+}
+
+function updateMinNullable(current: number | null, value: number): number {
+  return current == null ? value : Math.min(current, value);
+}
+
+function updateMaxNullable(current: number | null, value: number): number {
+  return current == null ? value : Math.max(current, value);
 }
 
 function finalizeHalfInning(
@@ -160,8 +171,87 @@ function finalizeHalfInning(
   row: GameNerdSourceRow,
   split: NerdStatSplitFilter,
 ): void {
-  if (!tracker || !tracker.basesLoadedSeen || tracker.runs > 0) return;
-  teamCounters(counters, tracker.offenseId, row, split).basesLoadedNoRuns += 1;
+  if (!tracker) return;
+
+  if (tracker.basesLoadedSeen && tracker.runs === 0) {
+    teamCounters(counters, tracker.offenseId, row, split).basesLoadedNoRuns += 1;
+  }
+
+  const offense = teamCounters(counters, tracker.offenseId, row, split);
+  const defense = teamCounters(counters, tracker.defenseId, row, split);
+  const pitches = tracker.pitches;
+
+  if (pitches < 10) {
+    offense.quickHalfInningsSeen += 1;
+    defense.quickHalfInningsThrown += 1;
+  }
+  if (pitches > 30) {
+    offense.longHalfInningsSeen += 1;
+    defense.longHalfInningsThrown += 1;
+    pushNotable(offense, {
+      statId: "long-half-innings-seen",
+      gamePk: row.game_pk,
+      gameDate: row.game_date,
+      label: `Marathon half · ${pitches} pitches seen`,
+      detail: `${tracker.key} · ${tracker.runs} run${tracker.runs === 1 ? "" : "s"}`,
+      value: pitches,
+    });
+    pushNotable(defense, {
+      statId: "long-half-innings-thrown",
+      gamePk: row.game_pk,
+      gameDate: row.game_date,
+      label: `Marathon half · ${pitches} pitches thrown`,
+      detail: `${tracker.key} · ${tracker.runs} run${tracker.runs === 1 ? "" : "s"} allowed`,
+      value: pitches,
+    });
+  }
+
+  offense.shortestHalfInningPitchesSeen = updateMinNullable(
+    offense.shortestHalfInningPitchesSeen,
+    pitches,
+  );
+  offense.longestHalfInningPitchesSeen = updateMaxNullable(
+    offense.longestHalfInningPitchesSeen,
+    pitches,
+  );
+  defense.shortestHalfInningPitchesThrown = updateMinNullable(
+    defense.shortestHalfInningPitchesThrown,
+    pitches,
+  );
+  defense.longestHalfInningPitchesThrown = updateMaxNullable(
+    defense.longestHalfInningPitchesThrown,
+    pitches,
+  );
+
+  if (
+    offense.longestHalfInningPitchesSeen != null &&
+    offense.longestHalfInningPitchesSeen === pitches &&
+    pitches >= 25
+  ) {
+    pushNotable(offense, {
+      statId: "longest-half-inning-pitches",
+      gamePk: row.game_pk,
+      gameDate: row.game_date,
+      label: `Longest half · ${pitches} pitches seen`,
+      detail: `${tracker.key} · ${tracker.runs} run${tracker.runs === 1 ? "" : "s"}`,
+      value: pitches,
+    });
+  }
+
+  if (
+    defense.longestHalfInningPitchesThrown != null &&
+    defense.longestHalfInningPitchesThrown === pitches &&
+    pitches >= 25
+  ) {
+    pushNotable(defense, {
+      statId: "longest-half-inning-pitches-thrown",
+      gamePk: row.game_pk,
+      gameDate: row.game_date,
+      label: `Longest half · ${pitches} pitches thrown`,
+      detail: `${tracker.key} · ${tracker.runs} run${tracker.runs === 1 ? "" : "s"} allowed`,
+      value: pitches,
+    });
+  }
 }
 
 function trackDeficit(
@@ -470,8 +560,11 @@ export function extractNerdCountersFromGame(
       halfTracker = {
         key: playHalf,
         offenseId,
+        defenseId,
         basesLoadedSeen: basesLoaded(play.situationBefore),
         runs: 0,
+        hits: 0,
+        pitches: 0,
       };
       offense.battingHalfInnings += 1;
       defense.pitchingHalfInnings += 1;
@@ -487,9 +580,13 @@ export function extractNerdCountersFromGame(
       for (const pitch of play.detail.pitches) {
         recordPitchCounters(offense, defense, pitch);
         recordPitchTypeThrown(defense, pitch);
+        if (halfTracker) halfTracker.pitches += 1;
       }
 
       if (isHitEvent(play.event)) {
+        offense.hits += 1;
+        defense.hitsAllowed += 1;
+        if (halfTracker) halfTracker.hits += 1;
         defenseGame.hitsAllowed += 1;
         if (play.inning <= 6) defenseGame.hitsAllowedThrough6 += 1;
         if (play.event === "Double") offense.doubles += 1;

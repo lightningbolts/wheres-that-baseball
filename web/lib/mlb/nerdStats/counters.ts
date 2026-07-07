@@ -149,6 +149,16 @@ export function createEmptyTeamCounters(): TeamNerdCounters {
     calledStrikes: 0,
     swingingStrikesInduced: 0,
     calledStrikesInduced: 0,
+    hits: 0,
+    hitsAllowed: 0,
+    quickHalfInningsSeen: 0,
+    quickHalfInningsThrown: 0,
+    longHalfInningsSeen: 0,
+    longHalfInningsThrown: 0,
+    shortestHalfInningPitchesSeen: null,
+    longestHalfInningPitchesSeen: null,
+    shortestHalfInningPitchesThrown: null,
+    longestHalfInningPitchesThrown: null,
     notableEvents: [],
   };
 }
@@ -173,6 +183,17 @@ export function normalizeTeamCounters(partial: Partial<TeamNerdCounters>): TeamN
   if (partial.pitchTypesThrown) {
     mergePitchTypesThrown(merged.pitchTypesThrown, partial.pitchTypesThrown);
   }
+
+  for (const key of Object.keys(empty) as Array<keyof TeamNerdCounters>) {
+    if (key === "notableEvents" || key === "pitchTypesThrown") continue;
+    const fallback = empty[key];
+    const value = merged[key];
+    if (value === null || (typeof value === "number" && !Number.isFinite(value))) {
+      (merged as Record<keyof TeamNerdCounters, TeamNerdCounters[keyof TeamNerdCounters]>)[key] =
+        fallback;
+    }
+  }
+
   return merged;
 }
 
@@ -320,6 +341,12 @@ export function mergeTeamCounters(target: TeamNerdCounters, source: TeamNerdCoun
   target.calledStrikes += source.calledStrikes;
   target.swingingStrikesInduced += source.swingingStrikesInduced;
   target.calledStrikesInduced += source.calledStrikesInduced;
+  target.hits += source.hits;
+  target.hitsAllowed += source.hitsAllowed;
+  target.quickHalfInningsSeen += source.quickHalfInningsSeen;
+  target.quickHalfInningsThrown += source.quickHalfInningsThrown;
+  target.longHalfInningsSeen += source.longHalfInningsSeen;
+  target.longHalfInningsThrown += source.longHalfInningsThrown;
   target.maxHbpInGame = Math.max(target.maxHbpInGame, source.maxHbpInGame);
 
   target.hardestHitAllowedMph = mergeMaxNullable(target.hardestHitAllowedMph, source.hardestHitAllowedMph);
@@ -328,6 +355,23 @@ export function mergeTeamCounters(target: TeamNerdCounters, source: TeamNerdCoun
   target.shortestHomeRunFt = mergeMinNullable(target.shortestHomeRunFt, source.shortestHomeRunFt);
   target.flarestHomeRunLa = mergeMaxNullable(target.flarestHomeRunLa, source.flarestHomeRunLa);
   target.hardestHitMph = mergeMaxNullable(target.hardestHitMph, source.hardestHitMph);
+
+  target.shortestHalfInningPitchesSeen = mergeMinNullable(
+    target.shortestHalfInningPitchesSeen,
+    source.shortestHalfInningPitchesSeen,
+  );
+  target.longestHalfInningPitchesSeen = mergeMaxNullable(
+    target.longestHalfInningPitchesSeen,
+    source.longestHalfInningPitchesSeen,
+  );
+  target.shortestHalfInningPitchesThrown = mergeMinNullable(
+    target.shortestHalfInningPitchesThrown,
+    source.shortestHalfInningPitchesThrown,
+  );
+  target.longestHalfInningPitchesThrown = mergeMaxNullable(
+    target.longestHalfInningPitchesThrown,
+    source.longestHalfInningPitchesThrown,
+  );
 
   if (source.notableEvents.length > 0) {
     target.notableEvents.push(...source.notableEvents);

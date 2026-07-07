@@ -17,6 +17,8 @@ export interface CallItGameStats {
   scoreablePitches: number;
   foulBalls: number;
   ballsInPlay: number;
+  /** Offense pitch count per half-inning key (e.g. "7-top"). */
+  pitchesByHalf: Record<string, number>;
 }
 
 function isTopHalf(halfInning: string): boolean {
@@ -32,6 +34,7 @@ function countPitchesInPlays(gameState: LiveGameState) {
   let scoreable = 0;
   let fouls = 0;
   let inPlay = 0;
+  const pitchesByHalf: Record<string, number> = {};
 
   for (const play of gameState.plays) {
     if (!play.isAtBat) continue;
@@ -45,6 +48,7 @@ function countPitchesInPlays(gameState: LiveGameState) {
       const kind = classifyPitch(pitch);
       if (!kind) continue;
       total += 1;
+      pitchesByHalf[halfKey] = (pitchesByHalf[halfKey] ?? 0) + 1;
       if (top) awaySeen += 1;
       else homeSeen += 1;
 
@@ -69,6 +73,7 @@ function countPitchesInPlays(gameState: LiveGameState) {
       const kind = classifyPitch(pitch);
       if (!kind) continue;
       total += 1;
+      pitchesByHalf[halfKey] = (pitchesByHalf[halfKey] ?? 0) + 1;
       if (top) awaySeen += 1;
       else homeSeen += 1;
 
@@ -89,6 +94,7 @@ function countPitchesInPlays(gameState: LiveGameState) {
     scoreable,
     fouls,
     inPlay,
+    pitchesByHalf,
   };
 }
 
@@ -122,5 +128,6 @@ export function computeCallItGameStats(gameState: LiveGameState | null): CallItG
     scoreablePitches: counts.scoreable,
     foulBalls: counts.fouls,
     ballsInPlay: counts.inPlay,
+    pitchesByHalf: counts.pitchesByHalf,
   };
 }
