@@ -40,6 +40,7 @@ const COLORS = {
 };
 
 const CATEGORY_ACCENT: Record<NerdStatCategory, string> = {
+  traditional: "#1c2b2a",
   drama: "#b45309",
   misfortune: "#b91c1c",
   baserunning: "#2d6a4f",

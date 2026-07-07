@@ -170,6 +170,85 @@ describe("generateNerdInsight", () => {
     );
     expect(insight).toBeNull();
   });
+
+  it("fires runs-scored insight after a big offensive half", () => {
+    const away = profile(100, "AWY", {
+      "runs-scored": {
+        rank: 2,
+        displayValue: "412",
+        value: 412,
+        title: "Runs Scored",
+      },
+    });
+
+    const insight = generateNerdInsight(
+      baseContext({
+        trigger: { type: "half-break", halfKey: "4-Top" },
+        offenseTeamId: 100,
+        defenseTeamId: 200,
+        offenseAbbrev: "AWY",
+        defenseAbbrev: "HOM",
+        liveStats: {
+          away: {
+            abbrev: "AWY",
+            pitchesSeen: 40,
+            pitchesThrown: 35,
+            halfInnings: 4,
+            pitchesSeenPerInning: 10,
+            pitchesThrownPerInning: 8.75,
+          },
+          home: {
+            abbrev: "HOM",
+            pitchesSeen: 35,
+            pitchesThrown: 40,
+            halfInnings: 4,
+            pitchesSeenPerInning: 8.75,
+            pitchesThrownPerInning: 10,
+          },
+          totalPitches: 75,
+          scoreablePitches: 60,
+          foulBalls: 2,
+          ballsInPlay: 20,
+          pitchesByHalf: { "4-Top": 18 },
+          runsByHalf: { "4-Top": 4 },
+        },
+      }),
+      away,
+      null,
+    );
+
+    expect(insight?.statId).toBe("runs-scored");
+    expect(insight?.title).toContain("crooked number");
+    expect(insight?.anchor).toEqual({ type: "half", halfKey: "4-Top" });
+  });
+
+  it("fires run-differential insight when a plus team pulls away", () => {
+    const away = profile(100, "AWY", {
+      "run-differential": {
+        rank: 1,
+        displayValue: "+84",
+        value: 84,
+        title: "Run Differential",
+      },
+    });
+
+    const insight = generateNerdInsight(
+      baseContext({
+        trigger: { type: "inning-change", inning: 6 },
+        awayRuns: 8,
+        homeRuns: 3,
+        runMargin: 5,
+        leadingTeamId: 100,
+        trailingTeamId: 200,
+      }),
+      away,
+      null,
+    );
+
+    expect(insight?.statId).toBe("run-differential");
+    expect(insight?.message).toContain("8-3");
+    expect(insight?.anchor).toEqual({ type: "inning", inning: 6 });
+  });
 });
 
 describe("buildMiniInsight", () => {

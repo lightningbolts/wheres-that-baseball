@@ -2,6 +2,12 @@ export function formatCount(value: number): string {
   return value.toLocaleString();
 }
 
+export function formatRunDifferential(value: number): string {
+  const rounded = Math.round(value);
+  if (rounded > 0) return `+${rounded.toLocaleString()}`;
+  return rounded.toLocaleString();
+}
+
 export function formatPercent(value: number, digits = 1): string {
   return `${value.toFixed(digits)}%`;
 }

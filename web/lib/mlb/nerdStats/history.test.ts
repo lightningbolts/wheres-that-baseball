@@ -57,6 +57,23 @@ describe("buildNerdStatHistoryForStat", () => {
     expect(nyy.rolling7[3]).toBe(3);
   });
 
+  it("builds cumulative runs scored totals", () => {
+    const statId = "runs-scored";
+    const definition = getNerdStatDefinition(statId);
+    expect(definition).toBeDefined();
+
+    const caches: PerGameNerdCacheEntry[] = [
+      cacheEntry(1, "2026-04-01", seasonWithTeam(147, { runsScored: 5, finalGamesWithFeed: 1 })),
+      cacheEntry(2, "2026-04-02", seasonWithTeam(147, { runsScored: 2, finalGamesWithFeed: 1 })),
+      cacheEntry(3, "2026-04-03", seasonWithTeam(147, { runsScored: 7, finalGamesWithFeed: 1 })),
+    ];
+
+    const history = buildNerdStatHistoryForStat(2026, statId, caches)!;
+    const nyy = history.splits.all.teams["147"]!;
+    expect(nyy.cumulative).toEqual([5, 7, 14]);
+    expect(nyy.daily).toEqual([5, 2, 7]);
+  });
+
   it("includes rate stats before standings minGames threshold", () => {
     const statId = "one-run-win-pct";
     const caches: PerGameNerdCacheEntry[] = [

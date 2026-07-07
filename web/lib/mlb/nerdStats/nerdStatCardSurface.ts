@@ -11,6 +11,7 @@ function hashString(value: string): number {
 }
 
 const CATEGORY_TINT: Record<NerdStatCategory, string> = {
+  traditional: "rgba(28, 43, 42, 0.05)",
   drama: "rgba(251, 191, 36, 0.05)",
   misfortune: "rgba(248, 113, 113, 0.05)",
   baserunning: "rgba(52, 211, 153, 0.05)",

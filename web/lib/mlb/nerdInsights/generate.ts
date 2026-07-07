@@ -5,6 +5,7 @@ import type {
 } from "@/lib/mlb/nerdInsights/types";
 import { anchorFromTrigger } from "@/lib/mlb/nerdInsights/types";
 import { getTeamStat, isEliteRank, rankLabel } from "@/lib/mlb/nerdInsights/profile";
+import { isCursedNerdRank } from "@/lib/mlb/nerdStats/teamNerdHighlights";
 
 type Rule = (
   ctx: LiveInsightContext,
@@ -56,6 +57,28 @@ function livePaceForTeam(
 function pitchesInHalf(ctx: LiveInsightContext, halfKey: string): number | null {
   const count = ctx.liveStats?.pitchesByHalf[halfKey];
   return count != null ? count : null;
+}
+
+function runsInHalf(ctx: LiveInsightContext, halfKey: string): number | null {
+  const count = ctx.liveStats?.runsByHalf[halfKey];
+  return count != null ? count : null;
+}
+
+function pickBetterRunsScoredTeam(
+  ctx: LiveInsightContext,
+  away: TeamNerdProfile | null,
+  home: TeamNerdProfile | null,
+): { teamId: number; stat: NonNullable<ReturnType<typeof getTeamStat>>; abbrev: string } | null {
+  const awayStat = getTeamStat(away, "runs-scored");
+  const homeStat = getTeamStat(home, "runs-scored");
+  if (awayStat && homeStat) {
+    return awayStat.rank <= homeStat.rank
+      ? { teamId: ctx.awayTeamId, stat: awayStat, abbrev: ctx.awayAbbrev }
+      : { teamId: ctx.homeTeamId, stat: homeStat, abbrev: ctx.homeAbbrev };
+  }
+  if (awayStat) return { teamId: ctx.awayTeamId, stat: awayStat, abbrev: ctx.awayAbbrev };
+  if (homeStat) return { teamId: ctx.homeTeamId, stat: homeStat, abbrev: ctx.homeAbbrev };
+  return null;
 }
 
 const rules: Rule[] = [
@@ -170,6 +193,70 @@ const rules: Rule[] = [
       message: `${fouls} fouls already in this game. ${ctx.offenseAbbrev} are ${rankLabel(foulStat.rank)} in the league's foul-ball factory (${foulStat.displayValue} on the year).`,
       teamId: ctx.offenseTeamId,
       statId: "foul-ball-factory",
+    });
+  },
+
+  (ctx, away, home) => {
+    if (ctx.trigger.type !== "half-break") return null;
+    const halfRuns = runsInHalf(ctx, ctx.trigger.halfKey);
+    if (halfRuns == null || halfRuns < 3) return null;
+
+    const offense = profileForTeam({ away, home }, ctx.offenseTeamId);
+    const runsScored = getTeamStat(offense, "runs-scored");
+    const runsPerGame = getTeamStat(offense, "runs-per-game");
+    const stat =
+      runsScored && isEliteRank(runsScored, 6)
+        ? { entry: runsScored, statId: "runs-scored" as const, label: "runs scored" }
+        : runsPerGame && isEliteRank(runsPerGame, 6)
+          ? { entry: runsPerGame, statId: "runs-per-game" as const, label: "runs per game" }
+          : null;
+    if (!stat) return null;
+
+    return fullInsight(ctx, {
+      id: `${ctx.gamePk}-runs-half-${ctx.trigger.halfKey}`,
+      eyebrow: "Traditional stat check",
+      title: `${ctx.offenseAbbrev} hung a crooked number`,
+      message: `${halfRuns} runs in that half. They rank ${rankLabel(stat.entry.rank)} in ${stat.label} (${stat.entry.displayValue}).`,
+      teamId: ctx.offenseTeamId,
+      statId: stat.statId,
+    });
+  },
+
+  (ctx, away, home) => {
+    if (ctx.trigger.type !== "half-break") return null;
+    const halfRuns = runsInHalf(ctx, ctx.trigger.halfKey);
+    if (halfRuns == null || halfRuns < 4) return null;
+
+    const defense = profileForTeam({ away, home }, ctx.defenseTeamId);
+    const runsAllowed = getTeamStat(defense, "runs-allowed");
+    if (!isEliteRank(runsAllowed, 6)) return null;
+
+    return fullInsight(ctx, {
+      id: `${ctx.gamePk}-allowed-half-${ctx.trigger.halfKey}`,
+      eyebrow: "Uncharacteristic leak",
+      title: `${ctx.defenseAbbrev} just got tagged`,
+      message: `${halfRuns} runs allowed in that half. They rank ${rankLabel(runsAllowed.rank)} in runs allowed (${runsAllowed.displayValue} on the year) — stingier than this.`,
+      teamId: ctx.defenseTeamId,
+      statId: "runs-allowed",
+    });
+  },
+
+  (ctx, away, home) => {
+    if (ctx.trigger.type !== "half-break") return null;
+    const halfRuns = runsInHalf(ctx, ctx.trigger.halfKey);
+    if (halfRuns == null || halfRuns < 3) return null;
+
+    const defense = profileForTeam({ away, home }, ctx.defenseTeamId);
+    const runsAllowed = getTeamStat(defense, "runs-allowed");
+    if (!runsAllowed || !isCursedNerdRank(runsAllowed.rank)) return null;
+
+    return fullInsight(ctx, {
+      id: `${ctx.gamePk}-leaky-half-${ctx.trigger.halfKey}`,
+      eyebrow: "Runs allowed watch",
+      title: `${ctx.defenseAbbrev} spring another leak`,
+      message: `${halfRuns} runs allowed in that half. They rank ${rankLabel(runsAllowed.rank)} in runs allowed (${runsAllowed.displayValue}) — business as usual.`,
+      teamId: ctx.defenseTeamId,
+      statId: "runs-allowed",
     });
   },
 
@@ -453,6 +540,45 @@ const rules: Rule[] = [
   },
 
   (ctx, away, home) => {
+    if (ctx.trigger.type !== "inning-change") return null;
+    const totalRuns = ctx.awayRuns + ctx.homeRuns;
+    if (totalRuns < 10) return null;
+
+    const pick = pickBetterRunsScoredTeam(ctx, away, home);
+    if (!pick || !isEliteRank(pick.stat, 6)) return null;
+
+    return fullInsight(ctx, {
+      id: `${ctx.gamePk}-slugfest-${ctx.inning}`,
+      eyebrow: "Traditional stat check",
+      title: "Runs are flying",
+      message: `${totalRuns} combined runs already. ${pick.abbrev} rank ${rankLabel(pick.stat.rank)} in runs scored (${pick.stat.displayValue}).`,
+      teamId: pick.teamId,
+      statId: "runs-scored",
+    });
+  },
+
+  (ctx, away, home) => {
+    if (ctx.trigger.type !== "inning-change" || ctx.runMargin < 4) return null;
+    const leader = ctx.leadingTeamId;
+    if (leader == null) return null;
+    const profile = profileForTeam({ away, home }, leader);
+    const differential = getTeamStat(profile, "run-differential");
+    if (!isEliteRank(differential, 6)) return null;
+
+    const abbrev = leader === ctx.awayTeamId ? ctx.awayAbbrev : ctx.homeAbbrev;
+    const leaderRuns = leader === ctx.awayTeamId ? ctx.awayRuns : ctx.homeRuns;
+    const trailerRuns = leader === ctx.awayTeamId ? ctx.homeRuns : ctx.awayRuns;
+    return fullInsight(ctx, {
+      id: `${ctx.gamePk}-run-diff-${ctx.inning}`,
+      eyebrow: "Run differential",
+      title: `${abbrev} padding the plus column`,
+      message: `Up ${leaderRuns}-${trailerRuns}. They rank ${rankLabel(differential.rank)} in run differential (${differential.displayValue}).`,
+      teamId: leader,
+      statId: "run-differential",
+    });
+  },
+
+  (ctx, away, home) => {
     if (ctx.trigger.type !== "half-break" || ctx.inning < 7) return null;
     const defense = profileForTeam({ away, home }, ctx.defenseTeamId);
     const pace = getTeamStat(defense, "pitches-thrown-per-half");
@@ -516,6 +642,14 @@ const MINI_LABELS: Record<string, (abbrev: string, count: number, display: strin
     `Run scored — ${abbrev} need ${display} pitches per run (${rankLabel(rank)}).`,
   "pitches-per-hit": (abbrev, _count, display, rank) =>
     `Hit — ${abbrev} see ${display} pitches per hit (${rankLabel(rank)}).`,
+  "runs-scored": (abbrev, count, display, rank) =>
+    `Big half #${count} — ${abbrev} rank ${rankLabel(rank)} in runs scored (${display}).`,
+  "runs-allowed": (abbrev, count, display, rank) =>
+    `Leak #${count} — ${abbrev} ${display} runs allowed (${rankLabel(rank)}).`,
+  "runs-per-game": (abbrev, count, display, rank) =>
+    `Big half #${count} — ${abbrev} ${display} runs per game (${rankLabel(rank)}).`,
+  "run-differential": (abbrev, count, display, rank) =>
+    `Run margin #${count} — ${abbrev} ${display} run differential (${rankLabel(rank)}).`,
 };
 
 export function buildMiniInsight(

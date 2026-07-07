@@ -1,5 +1,6 @@
 import type { LiveGameState } from "@/types/mlb-live";
 import { classifyPitch } from "@/lib/mlb/pitchClassification";
+import { runsScoredOnPlay } from "@/lib/mlb/nerdStats/extractHelpers";
 
 export interface TeamPitchPace {
   abbrev: string;
@@ -17,6 +18,8 @@ export interface CallItGameStats {
   scoreablePitches: number;
   foulBalls: number;
   ballsInPlay: number;
+  /** Runs scored per half-inning key (e.g. "7-top"). */
+  runsByHalf: Record<string, number>;
   /** Offense pitch count per half-inning key (e.g. "7-top"). */
   pitchesByHalf: Record<string, number>;
 }
@@ -35,6 +38,7 @@ function countPitchesInPlays(gameState: LiveGameState) {
   let fouls = 0;
   let inPlay = 0;
   const pitchesByHalf: Record<string, number> = {};
+  const runsByHalf: Record<string, number> = {};
 
   for (const play of gameState.plays) {
     if (!play.isAtBat) continue;
@@ -43,6 +47,12 @@ function countPitchesInPlays(gameState: LiveGameState) {
     const halfKey = `${play.inning}-${play.halfInning}`;
     if (top) awayHalves.add(halfKey);
     else homeHalves.add(halfKey);
+
+    const playRuns = runsScoredOnPlay(play);
+    const halfRuns = top ? playRuns.away : playRuns.home;
+    if (halfRuns > 0) {
+      runsByHalf[halfKey] = (runsByHalf[halfKey] ?? 0) + halfRuns;
+    }
 
     for (const pitch of play.detail.pitches) {
       const kind = classifyPitch(pitch);
@@ -95,6 +105,7 @@ function countPitchesInPlays(gameState: LiveGameState) {
     fouls,
     inPlay,
     pitchesByHalf,
+    runsByHalf,
   };
 }
 
@@ -129,5 +140,6 @@ export function computeCallItGameStats(gameState: LiveGameState | null): CallItG
     foulBalls: counts.fouls,
     ballsInPlay: counts.inPlay,
     pitchesByHalf: counts.pitchesByHalf,
+    runsByHalf: counts.runsByHalf,
   };
 }

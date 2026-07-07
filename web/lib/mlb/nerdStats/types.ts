@@ -1,4 +1,5 @@
 export type NerdStatCategory =
+  | "traditional"
   | "drama"
   | "misfortune"
   | "baserunning"
@@ -9,6 +10,7 @@ export type NerdStatCategory =
   | "vibes";
 
 export const NERD_STAT_CATEGORIES: Array<{ id: NerdStatCategory; label: string }> = [
+  { id: "traditional", label: "Traditional" },
   { id: "drama", label: "Drama" },
   { id: "misfortune", label: "Misfortune" },
   { id: "baserunning", label: "Baserunning" },
