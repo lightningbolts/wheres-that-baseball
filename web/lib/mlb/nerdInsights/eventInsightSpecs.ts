@@ -373,12 +373,12 @@ export const EVENT_INSIGHT_SPECS: EventInsightSpec[] = [
   }),
   atBatEnd({
     statId: "swinging-strikes-per-game",
-    team: "defense",
+    team: "offense",
     polarity: "elite",
     eventEquals: ["Strikeout"],
     match: (ctx) => ctx.strikeoutKind === "swinging",
     eyebrow: "Whiff factory",
-    title: (ctx, abbrev) => `${abbrev} get the K`,
+    title: () => "Another swing and miss",
     message: defaultMessage,
   }),
   atBatEnd({
@@ -441,6 +441,7 @@ export const EVENT_INSIGHT_SPECS: EventInsightSpec[] = [
     team: "offense",
     polarity: "cursed",
     eventEquals: ["Strikeout"],
+    match: (ctx) => ctx.immaculateInningComplete,
     eyebrow: "Immaculate threat",
     title: () => "Nine-pitch nightmare fuel",
     message: defaultMessage,

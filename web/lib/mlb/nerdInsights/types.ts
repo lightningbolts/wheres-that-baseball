@@ -119,4 +119,6 @@ export interface LiveInsightContext {
   strikeoutKind: StrikeoutKind | null;
   /** Statcast-style data from the just-completed ball in play, when available. */
   contact: ContactInsightContext | null;
+  /** Half-inning just ended with nine pitches and three strikeouts. */
+  immaculateInningComplete: boolean;
 }

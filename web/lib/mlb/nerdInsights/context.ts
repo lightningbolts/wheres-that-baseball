@@ -8,6 +8,7 @@ import {
 } from "@/lib/mlb/nerdStats/extractHelpers";
 import {
   offenseDefenseFromHalfInning,
+  isImmaculateInningComplete,
   situationFromCompletedPlay,
   situationFromHalfKey,
 } from "@/lib/mlb/nerdInsights/situational";
@@ -207,6 +208,20 @@ export function buildLiveInsightContext(
     strikeoutKind: (() => {
       const play = completedPlay ?? completedAtBatPlay(gameState, trigger);
       return play ? strikeoutKindFromPlay(play) : null;
+    })(),
+    immaculateInningComplete: (() => {
+      if (!completedPlay) return false;
+      const halfPlays = gameState.plays.filter(
+        (entry) =>
+          entry.isAtBat &&
+          entry.inning === completedPlay.inning &&
+          entry.halfInning.toLowerCase() === completedPlay.halfInning.toLowerCase(),
+      );
+      return isImmaculateInningComplete(
+        completedPlay,
+        halfPlays,
+        computeCallItGameStats(gameState),
+      );
     })(),
     contact: buildContactContext(gameState, trigger),
   };

@@ -1,4 +1,5 @@
 import { classifyPitch } from "@/lib/mlb/pitchClassification";
+import type { CallItGameStats } from "@/lib/mlb/callItGameStats";
 import type { LiveInsightContext } from "@/lib/mlb/nerdInsights/types";
 import type { PlayByPlayEntry } from "@/types/mlb-live";
 
@@ -149,4 +150,20 @@ export function situationFromHalfKey(
 /** Season-stat callouts that describe the game shape, not a single plate appearance. */
 export function isEstablishedGameShape(ctx: LiveInsightContext): boolean {
   return ctx.inning >= 5;
+}
+
+/** True when a half-inning just ended on nine pitches and three strikeouts. */
+export function isImmaculateInningComplete(
+  play: PlayByPlayEntry,
+  halfPlays: PlayByPlayEntry[],
+  liveStats: CallItGameStats | null,
+): boolean {
+  if (play.event !== "Strikeout" || play.situationBefore.outs !== 2) return false;
+
+  const halfKey = `${play.inning}-${normalizeHalfInning(play.halfInning)}`;
+  if (liveStats?.pitchesByHalf[halfKey] !== 9) return false;
+
+  const atBatsInHalf = halfPlays.filter((entry) => entry.isAtBat);
+  const strikeoutsInHalf = atBatsInHalf.filter((entry) => entry.event === "Strikeout");
+  return strikeoutsInHalf.length === 3 && atBatsInHalf.length === 3;
 }

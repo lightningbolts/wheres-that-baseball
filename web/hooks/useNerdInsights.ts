@@ -35,9 +35,9 @@ export interface UseNerdInsightsOptions {
 
 function createInsight(
   base: NerdInsight,
-  ctx: ReturnType<typeof buildLiveInsightContext>,
-  away: ReturnType<typeof profileFromTeamCard>,
-  home: ReturnType<typeof profileFromTeamCard>,
+  ctx: NonNullable<ReturnType<typeof buildLiveInsightContext>>,
+  away: NonNullable<ReturnType<typeof profileFromTeamCard>>,
+  home: NonNullable<ReturnType<typeof profileFromTeamCard>>,
   shownStatIds: Set<string>,
   statOccurrence: Map<string, number>,
 ): { insight: NerdInsight; showOverlay: boolean } {
@@ -51,7 +51,7 @@ function createInsight(
     if (shownStatIds.has(themeKey)) {
       const occurrenceCount = priorCount + 1;
       statOccurrence.set(themeKey, occurrenceCount);
-      insight = buildMiniInsight(base, ctx!, away, home, occurrenceCount);
+      insight = buildMiniInsight(base, ctx, away, home, occurrenceCount);
       showOverlay = false;
     } else {
       shownStatIds.add(themeKey);
@@ -134,7 +134,7 @@ export function useNerdInsights(
     }
 
     const { away, home } = profiles;
-    if (!away && !home) return;
+    if (!away || !home) return;
 
     const newFeedInsights: NerdInsight[] = [];
     const newToasts: NerdInsight[] = [];

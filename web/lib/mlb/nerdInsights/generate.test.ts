@@ -68,6 +68,7 @@ function baseContext(overrides: Partial<LiveInsightContext> = {}): LiveInsightCo
     leadingTeamId: null,
     liveStats: null,
     strikeoutKind: null,
+    immaculateInningComplete: false,
     contact: null,
     ...overrides,
   };

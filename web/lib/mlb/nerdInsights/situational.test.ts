@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { LiveInsightContext } from "@/lib/mlb/nerdInsights/types";
 import {
+  isImmaculateInningComplete,
   normalizeHalfInning,
   offenseDefenseFromHalfInning,
   parseHalfKey,
@@ -50,6 +51,7 @@ function ctx(overrides: Partial<LiveInsightContext> = {}): LiveInsightContext {
     leadingTeamId: 100,
     liveStats: null,
     strikeoutKind: null,
+    immaculateInningComplete: false,
     contact: null,
     ...overrides,
   };
@@ -80,5 +82,42 @@ describe("situational helpers", () => {
     const situation = situationFromHalfKey("2-top", 146, 136, "MIA", "SEA");
     expect(situation?.offenseAbbrev).toBe("MIA");
     expect(situation?.defenseAbbrev).toBe("SEA");
+  });
+
+  it("detects a completed immaculate inning", () => {
+    const halfPlays = [
+      {
+        isAtBat: true,
+        inning: 4,
+        halfInning: "bottom",
+        event: "Strikeout",
+        situationBefore: { outs: 0 },
+        detail: { pitches: [{}, {}, {}] },
+      },
+      {
+        isAtBat: true,
+        inning: 4,
+        halfInning: "bottom",
+        event: "Strikeout",
+        situationBefore: { outs: 1 },
+        detail: { pitches: [{}, {}, {}] },
+      },
+      {
+        isAtBat: true,
+        inning: 4,
+        halfInning: "bottom",
+        event: "Strikeout",
+        situationBefore: { outs: 2 },
+        detail: { pitches: [{}, {}, {}] },
+      },
+    ] as Parameters<typeof isImmaculateInningComplete>[1];
+
+    const complete = isImmaculateInningComplete(
+      halfPlays[2] as Parameters<typeof isImmaculateInningComplete>[0],
+      halfPlays,
+      { pitchesByHalf: { "4-bottom": 9 } } as Parameters<typeof isImmaculateInningComplete>[2],
+    );
+
+    expect(complete).toBe(true);
   });
 });
