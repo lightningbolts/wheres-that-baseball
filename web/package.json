@@ -15,6 +15,7 @@
     "compact-game-feeds": "tsx scripts/compact-game-feeds.ts",
     "aggregate-ballpark-hits": "tsx scripts/aggregate-ballpark-hits.ts",
     "aggregate-nerd-stats": "tsx scripts/aggregate-nerd-stats.ts",
+    "refresh-nerd-stats-local": "tsx scripts/refresh-nerd-stats-local.ts",
     "daily-nerd-post": "tsx scripts/daily-nerd-social-post.ts"
   },
   "dependencies": {
