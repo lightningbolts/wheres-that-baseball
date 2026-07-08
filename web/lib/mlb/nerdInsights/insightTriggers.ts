@@ -134,3 +134,12 @@ export function collectInsightTriggers(
 
   return dedupeTriggers([...replay, ...incremental]);
 }
+
+/** Only completed plays and inning/half boundaries belong in the play-by-play log. */
+export function shouldPersistInsightInFeed(trigger: InsightTrigger): boolean {
+  return (
+    trigger.type === "at-bat-end" ||
+    trigger.type === "half-break" ||
+    trigger.type === "inning-change"
+  );
+}

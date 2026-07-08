@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { collectInsightTriggers } from "@/lib/mlb/nerdInsights/insightTriggers";
+import { collectInsightTriggers, shouldPersistInsightInFeed } from "@/lib/mlb/nerdInsights/insightTriggers";
 import type { LiveGameState, PlayByPlayEntry } from "@/types/mlb-live";
 
 function play(
@@ -135,5 +135,17 @@ describe("collectInsightTriggers", () => {
 
     expect(atBatEnds).toHaveLength(1);
     expect(atBatEnds[0]?.atBatIndex).toBe(2);
+  });
+
+  it("only persists completed plays and inning boundaries to the feed", () => {
+    expect(shouldPersistInsightInFeed({ type: "at-bat-end", atBatIndex: 1, event: "Single" })).toBe(
+      true,
+    );
+    expect(shouldPersistInsightInFeed({ type: "half-break", halfKey: "2-top" })).toBe(true);
+    expect(shouldPersistInsightInFeed({ type: "inning-change", inning: 3 })).toBe(true);
+    expect(shouldPersistInsightInFeed({ type: "at-bat-start", atBatIndex: 2 })).toBe(false);
+    expect(
+      shouldPersistInsightInFeed({ type: "pitch-thrown", atBatIndex: 2, pitchNumber: 6 }),
+    ).toBe(false);
   });
 });

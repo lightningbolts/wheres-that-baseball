@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { buildLiveInsightContext } from "@/lib/mlb/nerdInsights/context";
 import { buildMiniInsight, generateNerdInsight } from "@/lib/mlb/nerdInsights/generate";
-import { collectInsightTriggers } from "@/lib/mlb/nerdInsights/insightTriggers";
+import { collectInsightTriggers, shouldPersistInsightInFeed } from "@/lib/mlb/nerdInsights/insightTriggers";
 import { profileFromTeamCard } from "@/lib/mlb/nerdInsights/profile";
 import type { InsightTrigger, NerdInsight } from "@/lib/mlb/nerdInsights/types";
 import { statThemeKey } from "@/lib/mlb/nerdInsights/types";
@@ -157,7 +157,10 @@ export function useNerdInsights(
       );
 
       shownIdsRef.current.add(insight.id);
-      newFeedInsights.push(insight);
+
+      if (shouldPersistInsightInFeed(trigger)) {
+        newFeedInsights.push(insight);
+      }
 
       if (trigger.type === "at-bat-end") {
         nextLiveInsight = null;
