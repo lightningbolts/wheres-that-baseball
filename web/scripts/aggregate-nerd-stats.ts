@@ -32,7 +32,7 @@
  *   --full-store          Write every stat file + team cards
  *   --team-cards          Also rewrite team nerd card JSON files
  *   --rebuild-windows     Re-emit rolling window + split stores from counters
- *   --rebuild-history     Rebuild daily history JSON from per-game caches (no DB)
+ *   --rebuild-history     Rebuild daily history JSON from per-game caches (fetches missing from DB)
  *   --backfill-savant     Re-fetch Savant bat speed for manifest games (Savant API + local game_state only; no Supabase)
  */
 import { existsSync, readFileSync } from "node:fs";
@@ -79,6 +79,7 @@ import {
   buildNerdStatHistory,
 } from "../lib/mlb/nerdStats/history";
 import {
+  maxStoredHistoryDateCount,
   writeNerdStatHistories,
 } from "../lib/mlb/nerdStats/historyStore";
 import type { NerdStatSplitId } from "../lib/mlb/nerdStats/splits";
@@ -289,17 +290,56 @@ function buildHistoryStores(
   season: number,
   caches: PerGameNerdCacheEntry[],
   statIds?: string[],
+  options: { allowShrink?: boolean } = {},
 ): number {
   if (caches.length === 0) {
     console.log("Skipping history — no per-game caches.");
     return 0;
   }
 
-  console.log(`Building daily history from ${caches.length} per-game cache(s)…`);
+  const allowShrink = options.allowShrink ?? false;
   const histories = buildNerdStatHistory(season, caches, statIds);
-  const written = writeNerdStatHistories(season, histories.values());
-  console.log(`  Wrote ${written} history file(s).`);
+  const historyList = [...histories.values()];
+  if (historyList.length === 0) {
+    console.log("Skipping history — no stat histories produced.");
+    return 0;
+  }
+
+  const newDateCount = Math.max(...historyList.map((history) => history.dates.length));
+  const existingDateCount = maxStoredHistoryDateCount(season);
+  if (!allowShrink && existingDateCount > 0 && newDateCount < existingDateCount) {
+    console.warn(
+      `Skipping history write — rebuilt series has ${newDateCount} date(s) but stored history has up to ${existingDateCount}. ` +
+        "Per-game caches are likely incomplete; fetch missing caches or run a full backfill.",
+    );
+    return 0;
+  }
+
+  console.log(`Building daily history from ${caches.length} per-game cache(s)…`);
+  const written = writeNerdStatHistories(season, historyList);
+  console.log(`  Wrote ${written} history file(s) (${newDateCount} date(s)).`);
   return written;
+}
+
+async function loadCachesForHistoryRebuild(
+  season: number,
+  creds: BulkCreds,
+  gamePks: number[],
+  skipSavant: boolean,
+): Promise<PerGameNerdCacheEntry[]> {
+  const { cached, missing } = loadPerGameNerdCaches(season, gamePks);
+  if (missing.length === 0) return cached;
+
+  console.log(
+    `Fetching ${missing.length} missing per-game cache(s) for history rebuild (${cached.length} already local)…`,
+  );
+  const games = await fetchGamesForPks(creds, missing);
+  const fetched = await extractAndCacheGames(season, games, skipSavant);
+  const byPk = new Map<number, PerGameNerdCacheEntry>();
+  for (const entry of [...cached, ...fetched]) byPk.set(entry.gamePk, entry);
+  return [...byPk.values()].sort(
+    (a, b) => a.gameDate.localeCompare(b.gameDate) || a.gamePk - b.gamePk,
+  );
 }
 
 async function buildRollingWindowStores(
@@ -810,18 +850,20 @@ async function main() {
   }
 
   if (hasFlag("rebuild-history")) {
+    const creds = await resolveBulkReadCredentialsAsync();
+    warnEgressIfRest(creds);
     const manifest = loadNerdStatsManifest(season);
     if (manifest.processedGamePks.length === 0) {
       console.log("No processed games in manifest — run a full aggregate first.");
       return;
     }
-    const { cached, missing } = loadPerGameNerdCaches(season, manifest.processedGamePks);
-    if (missing.length > 0) {
-      console.warn(
-        `Missing ${missing.length} per-game cache file(s) — history will omit those games.`,
-      );
-    }
-    buildHistoryStores(season, cached, explicitStatIds ?? undefined);
+    const caches = await loadCachesForHistoryRebuild(
+      season,
+      creds,
+      manifest.processedGamePks,
+      skipSavant,
+    );
+    buildHistoryStores(season, caches, explicitStatIds ?? undefined, { allowShrink: true });
     return;
   }
 
@@ -896,8 +938,13 @@ async function main() {
         console.log("Refreshing rolling window stores…");
         await refreshRollingWindowStoresIncremental(season, newCaches);
         const manifest = loadNerdStatsManifest(season);
-        const allCaches = loadPerGameNerdCaches(season, manifest.processedGamePks).cached;
-        buildHistoryStores(season, allCaches, explicitStatIds ?? undefined);
+        const caches = await loadCachesForHistoryRebuild(
+          season,
+          creds,
+          manifest.processedGamePks,
+          skipSavant,
+        );
+        buildHistoryStores(season, caches, explicitStatIds ?? undefined);
       }
     }
 
