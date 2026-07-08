@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AppNav } from "@/components/features/AppNav";
 import { AtBatMatchup } from "@/components/features/AtBatMatchup";
@@ -19,7 +19,7 @@ import { PlayByPlay } from "@/components/features/PlayByPlay";
 import { ProbabilityChart } from "@/components/features/ProbabilityChart";
 import { Scorebug } from "@/components/features/Scorebug";
 import { StealIndicator } from "@/components/features/StealIndicator";
-import { PitchSequence } from "@/components/features/PitchSequence";
+import { PitchSequence, type StrikeZoneMode } from "@/components/features/PitchSequence";
 import { useArchiveFinishedGame } from "@/hooks/useArchiveFinishedGame";
 import { useBatterHotZones } from "@/hooks/useBatterHotZones";
 import { useBatterRisp } from "@/hooks/useBatterRisp";
@@ -35,6 +35,7 @@ import { useOutcomeOdds } from "@/hooks/useOutcomeOdds";
 import { isGameOver } from "@/lib/mlb/gameOver";
 import { isHalfInningBreak } from "@/lib/mlb/lineup";
 import { isPlayByPlayAtBat } from "@/lib/mlb/liveFeed";
+import { allPitchesThroughPoint } from "@/lib/mlb/allGamePitches";
 import { cn } from "@/lib/utils";
 import { LIVE_GAME_STATUSES, type SlateGame } from "@/types/mlb";
 
@@ -45,7 +46,12 @@ interface LiveGameDashboardProps {
 function DashboardContent({ game }: { game: SlateGame }) {
   const selectedGamePk = game.gamePk;
   const [activeTab, setActiveTab] = useState<GameDetailTab>("plays");
+  const [zoneMode, setZoneMode] = useState<StrikeZoneMode>("atBat");
   const mobileScrollRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    setZoneMode("atBat");
+  }, [selectedGamePk]);
 
   const { gameState, isLoading: isFeedLoading } = useLiveGameState(selectedGamePk, {
     pollBurstKey: activeTab,
@@ -108,6 +114,18 @@ function DashboardContent({ game }: { game: SlateGame }) {
     return null;
   }, [atBatViewState?.batterId, gameState?.plays]);
   const { zones: batterHotZones } = useBatterHotZones(zoneBatterId, gameSeason);
+
+  const gameZonePitches = useMemo(() => {
+    if (!gameState) return [];
+    return allPitchesThroughPoint(gameState, {
+      currentAtBatPitches: atBatViewState?.atBatPitches,
+    });
+  }, [gameState, atBatViewState?.atBatPitches]);
+
+  const totalGamePitchCount = useMemo(
+    () => gameZonePitches.filter((pitch) => pitch.isPitch).length,
+    [gameZonePitches],
+  );
 
   const showSkeleton = isFeedLoading && !gameState && isPredictionsLoading && predictions.length === 0;
   const showBatterHighlights =
@@ -342,6 +360,10 @@ function DashboardContent({ game }: { game: SlateGame }) {
                         <PitchSequence
                           key={`zone-mobile-${zoneBatterId ?? "none"}`}
                           pitches={atBatViewState?.atBatPitches ?? []}
+                          zonePitches={zoneMode === "game" ? gameZonePitches : undefined}
+                          zoneMode={zoneMode}
+                          onZoneModeChange={setZoneMode}
+                          totalGamePitchCount={totalGamePitchCount}
                           layout="zone"
                           size="large"
                           zoneFirst
@@ -354,6 +376,10 @@ function DashboardContent({ game }: { game: SlateGame }) {
                         <PitchSequence
                           key={`zone-desktop-${zoneBatterId ?? "none"}`}
                           pitches={atBatViewState?.atBatPitches ?? []}
+                          zonePitches={zoneMode === "game" ? gameZonePitches : undefined}
+                          zoneMode={zoneMode}
+                          onZoneModeChange={setZoneMode}
+                          totalGamePitchCount={totalGamePitchCount}
                           size="large"
                           layout="dashboard"
                           scrollToLatest
