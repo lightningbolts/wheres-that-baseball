@@ -88,7 +88,7 @@ describe("generateNerdInsight", () => {
     expect(insight?.statId).toBe("risp-batting");
     expect(insight?.title).toContain("Test Batter");
     expect(insight?.variant).toBe("full");
-    expect(insight?.anchor).toEqual({ type: "live" });
+    expect(insight?.anchor).toEqual({ type: "at-bat", atBatIndex: 1 });
   });
 
   it("fires full-count ball hawk insight", () => {
@@ -115,7 +115,7 @@ describe("generateNerdInsight", () => {
 
     expect(insight?.statId).toBe("ball-rate");
     expect(insight?.title).toContain("Full count");
-    expect(insight?.anchor).toEqual({ type: "live" });
+    expect(insight?.anchor).toEqual({ type: "at-bat", atBatIndex: 2 });
   });
 
   it("fires full-count OPS insight when ball-rate is not elite", () => {
@@ -140,7 +140,7 @@ describe("generateNerdInsight", () => {
 
     expect(insight?.statId).toBe("full-count-ops");
     expect(insight?.title).toContain("Full count");
-    expect(insight?.anchor).toEqual({ type: "live" });
+    expect(insight?.anchor).toEqual({ type: "at-bat", atBatIndex: 2 });
   });
 
   it("anchors at-bat-end insights to the completed at-bat", () => {

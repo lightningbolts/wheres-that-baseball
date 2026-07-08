@@ -26,10 +26,9 @@ export type NerdInsightToast = NerdInsight;
 export function anchorFromTrigger(trigger: InsightTrigger): InsightAnchor {
   switch (trigger.type) {
     case "at-bat-end":
-      return { type: "at-bat", atBatIndex: trigger.atBatIndex };
     case "at-bat-start":
     case "pitch-thrown":
-      return { type: "live" };
+      return { type: "at-bat", atBatIndex: trigger.atBatIndex };
     case "half-break":
       return { type: "half", halfKey: trigger.halfKey };
     case "inning-change":

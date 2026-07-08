@@ -4,12 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { buildLiveInsightContext } from "@/lib/mlb/nerdInsights/context";
 import { buildMiniInsight, generateNerdInsight } from "@/lib/mlb/nerdInsights/generate";
+import { collectInsightTriggers } from "@/lib/mlb/nerdInsights/insightTriggers";
 import { profileFromTeamCard } from "@/lib/mlb/nerdInsights/profile";
 import type { InsightTrigger, NerdInsight } from "@/lib/mlb/nerdInsights/types";
 import { statThemeKey } from "@/lib/mlb/nerdInsights/types";
-import { isHalfInningBreak } from "@/lib/mlb/lineup";
-import { normalizeHalfInning } from "@/lib/mlb/nerdInsights/situational";
-import { isPlayByPlayAtBat } from "@/lib/mlb/liveFeed";
 import { getTeamByAbbrev } from "@/lib/mlb/teams";
 import type { TeamNerdCard } from "@/lib/mlb/nerdStats/types";
 import type { LiveGameState } from "@/types/mlb-live";
@@ -29,53 +27,39 @@ async function fetchTeamNerdCard(teamId: number, season: number): Promise<TeamNe
   }
 }
 
-function detectTriggers(
-  prev: LiveGameState,
-  next: LiveGameState,
-): InsightTrigger[] {
-  const triggers: InsightTrigger[] = [];
-
-  if (isHalfInningBreak(next.inningState) && !isHalfInningBreak(prev.inningState)) {
-    triggers.push({
-      type: "half-break",
-      halfKey: `${prev.inning}-${normalizeHalfInning(prev.inningHalf)}`,
-    });
-  }
-
-  if (next.inning !== prev.inning) {
-    triggers.push({ type: "inning-change", inning: next.inning });
-  }
-
-  if (next.batterId != null && next.batterId !== prev.batterId) {
-    const atBats = next.plays.filter(isPlayByPlayAtBat);
-    triggers.push({ type: "at-bat-start", atBatIndex: atBats.length });
-
-    if (prev.batterId != null && prev.atBatPitches.length > 0) {
-      const completed = atBats.at(-1);
-      triggers.push({
-        type: "at-bat-end",
-        atBatIndex: completed?.atBatIndex ?? atBats.length,
-        event: completed?.event ?? "",
-      });
-    }
-  }
-
-  if (next.atBatPitches.length > prev.atBatPitches.length) {
-    const atBats = next.plays.filter(isPlayByPlayAtBat);
-    triggers.push({
-      type: "pitch-thrown",
-      atBatIndex: atBats.length,
-      pitchNumber: next.atBatPitches.length,
-    });
-  }
-
-  return triggers;
-}
-
 export interface UseNerdInsightsOptions {
   season?: number;
   enabled?: boolean;
   gameOver?: boolean;
+}
+
+function createInsight(
+  base: NerdInsight,
+  ctx: ReturnType<typeof buildLiveInsightContext>,
+  away: ReturnType<typeof profileFromTeamCard>,
+  home: ReturnType<typeof profileFromTeamCard>,
+  shownStatIds: Set<string>,
+  statOccurrence: Map<string, number>,
+): { insight: NerdInsight; showOverlay: boolean } {
+  let insight: NerdInsight = base;
+  let showOverlay = base.variant === "full";
+
+  if (base.statId != null && base.teamId != null) {
+    const themeKey = statThemeKey(base.statId, base.teamId);
+    const priorCount = statOccurrence.get(themeKey) ?? 0;
+
+    if (shownStatIds.has(themeKey)) {
+      const occurrenceCount = priorCount + 1;
+      statOccurrence.set(themeKey, occurrenceCount);
+      insight = buildMiniInsight(base, ctx!, away, home, occurrenceCount);
+      showOverlay = false;
+    } else {
+      shownStatIds.add(themeKey);
+      statOccurrence.set(themeKey, 1);
+    }
+  }
+
+  return { insight, showOverlay };
 }
 
 export function useNerdInsights(
@@ -138,14 +122,23 @@ export function useNerdInsights(
     if (gameState.gameStatus !== "Live" && gameState.gameStatus !== "In Progress") return;
 
     const prev = prevStateRef.current;
-    prevStateRef.current = gameState;
-    if (!prev || prev.gamePk !== gameState.gamePk) return;
+    if (!prev || prev.gamePk !== gameState.gamePk) {
+      prevStateRef.current = gameState;
+      return;
+    }
 
-    const triggers = detectTriggers(prev, gameState);
-    if (triggers.length === 0) return;
+    const triggers = collectInsightTriggers(prev, gameState);
+    if (triggers.length === 0) {
+      prevStateRef.current = gameState;
+      return;
+    }
 
     const { away, home } = profiles;
     if (!away && !home) return;
+
+    const newFeedInsights: NerdInsight[] = [];
+    const newToasts: NerdInsight[] = [];
+    let nextLiveInsight: NerdInsight | null | undefined;
 
     for (const trigger of triggers) {
       const ctx = buildLiveInsightContext(gameState, trigger);
@@ -154,44 +147,46 @@ export function useNerdInsights(
       const base = generateNerdInsight(ctx, away, home);
       if (!base || shownIdsRef.current.has(base.id)) continue;
 
-      let insight: NerdInsight = base;
-      let showOverlay = base.variant === "full";
-
-      if (base.statId != null && base.teamId != null) {
-        const themeKey = statThemeKey(base.statId, base.teamId);
-        const priorCount = statOccurrenceRef.current.get(themeKey) ?? 0;
-
-        if (shownStatIdsRef.current.has(themeKey)) {
-          const occurrenceCount = priorCount + 1;
-          statOccurrenceRef.current.set(themeKey, occurrenceCount);
-          insight = buildMiniInsight(base, ctx, away, home, occurrenceCount);
-          showOverlay = false;
-        } else {
-          shownStatIdsRef.current.add(themeKey);
-          statOccurrenceRef.current.set(themeKey, 1);
-        }
-      }
+      const { insight, showOverlay } = createInsight(
+        base,
+        ctx,
+        away,
+        home,
+        shownStatIdsRef.current,
+        statOccurrenceRef.current,
+      );
 
       shownIdsRef.current.add(insight.id);
+      newFeedInsights.push(insight);
 
-      setFeedInsights((current) => [...current, insight]);
-
-      if (insight.anchor.type === "live") {
-        setLiveInsight(insight);
-      } else if (trigger.type === "at-bat-end") {
-        setLiveInsight(null);
+      if (trigger.type === "at-bat-end") {
+        nextLiveInsight = null;
+      } else if (
+        trigger.type === "at-bat-start" ||
+        trigger.type === "pitch-thrown"
+      ) {
+        nextLiveInsight = insight;
       }
 
       if (showOverlay && !toastedIdsRef.current.has(insight.id)) {
         toastedIdsRef.current.add(insight.id);
-        const toast: NerdInsight = {
+        newToasts.push({
           ...insight,
           durationMs: insight.durationMs ?? TOAST_DURATION_MS,
-        };
-        setOverlayToasts((current) => [...current, toast]);
+        });
       }
+    }
 
-      break;
+    prevStateRef.current = gameState;
+
+    if (newFeedInsights.length > 0) {
+      setFeedInsights((current) => [...current, ...newFeedInsights]);
+    }
+    if (newToasts.length > 0) {
+      setOverlayToasts((current) => [...current, ...newToasts]);
+    }
+    if (nextLiveInsight !== undefined) {
+      setLiveInsight(nextLiveInsight);
     }
   }, [enabled, gameOver, gameState, profiles]);
 
