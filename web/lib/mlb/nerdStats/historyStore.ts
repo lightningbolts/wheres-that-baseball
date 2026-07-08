@@ -42,3 +42,13 @@ export function listStoredHistoryStatIds(season: number): string[] {
     .filter((file) => file.endsWith(".json"))
     .map((file) => file.replace(/\.json$/, ""));
 }
+
+/** Longest date axis among stored history files for a season (0 when none). */
+export function maxStoredHistoryDateCount(season: number): number {
+  let max = 0;
+  for (const statId of listStoredHistoryStatIds(season)) {
+    const history = loadNerdStatHistory(season, statId);
+    if (history && history.dates.length > max) max = history.dates.length;
+  }
+  return max;
+}

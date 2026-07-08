@@ -10,6 +10,11 @@ on:
         description: "Season year (defaults to current year)"
         required: false
         type: string
+      full_refresh:
+        description: "Full backfill from DB game_state (ignores local per-game cache)"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -55,11 +60,17 @@ jobs:
           if [ -z "$SEASON" ]; then
             SEASON=$(date +%Y)
           fi
-          SINCE=$(date -u -d '2 days ago' +%Y-%m-%d)
-          echo "Aggregating nerd stats for season ${SEASON} since ${SINCE}"
-          npm run aggregate-nerd-stats -- --season="$SEASON" --since="$SINCE"
-          echo "Rebuilding daily trend history from per-game caches"
-          npm run aggregate-nerd-stats -- --season="$SEASON" --rebuild-history
+          FULL_REFRESH="${{ github.event.inputs.full_refresh }}"
+          if [ "$FULL_REFRESH" = "true" ]; then
+            echo "Full nerd stats backfill for season ${SEASON} from DB game_state"
+            npm run aggregate-nerd-stats -- --season="$SEASON" --backfill-counters --skip-savant --force-refetch --require-postgres --full-store --team-cards
+            npm run aggregate-nerd-stats -- --season="$SEASON" --rebuild-history
+            npm run aggregate-nerd-stats -- --season="$SEASON" --rebuild-windows
+          else
+            SINCE=$(date -u -d '2 days ago' +%Y-%m-%d)
+            echo "Aggregating nerd stats for season ${SEASON} since ${SINCE}"
+            npm run aggregate-nerd-stats -- --season="$SEASON" --since="$SINCE"
+          fi
 
       - name: Aggregate ballpark hits
         working-directory: web

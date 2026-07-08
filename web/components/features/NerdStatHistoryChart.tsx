@@ -256,9 +256,6 @@ function HistoryLineChart({
   const numericValues = [...teamValues, ...groupValues].filter(
     (value): value is number => value != null && Number.isFinite(value),
   );
-  if (showLeagueGuide && leagueAverage != null && Number.isFinite(leagueAverage)) {
-    numericValues.push(leagueAverage);
-  }
 
   const { plotWidth, plotHeight, yForValue, yTicks } = useChartScale(
     numericValues,
@@ -413,7 +410,7 @@ function HistoryLineChart({
         <ChartTooltip
           point={points[selection.index]!}
           formatValue={formatValue}
-          className="pointer-events-none absolute left-3 top-3 max-w-[calc(100%-1.5rem)] rounded-lg border border-border bg-surface-elevated px-3 py-2 text-xs shadow-sm sm:left-auto sm:right-3"
+          className="pointer-events-none absolute bottom-3 left-3 right-3 rounded-lg border border-border bg-surface-elevated px-3 py-2 text-xs shadow-sm sm:bottom-auto sm:left-auto sm:right-3 sm:top-3 sm:max-w-[calc(100%-1.5rem)]"
         />
       )}
     </div>
@@ -446,11 +443,8 @@ function MultiTeamHistoryChart({
         if (value != null && Number.isFinite(value)) values.push(value);
       }
     }
-    if (showLeagueGuide && leagueAverage != null && Number.isFinite(leagueAverage)) {
-      values.push(leagueAverage);
-    }
     return values;
-  }, [leagueAverage, series.teams, showLeagueGuide]);
+  }, [series.teams]);
 
   const { plotWidth, plotHeight, yForValue, yTicks } = useChartScale(
     numericValues,
@@ -596,7 +590,7 @@ function MultiTeamHistoryChart({
             date={series.dates[selection.index] ?? ""}
             entries={activeEntries}
             formatValue={formatValue}
-            className="absolute left-3 top-3 z-10 max-h-48 max-w-[calc(100%-1.5rem)] overflow-y-auto overscroll-contain rounded-lg border border-border bg-surface-elevated px-3 py-2 text-xs shadow-sm sm:left-auto sm:right-3"
+            className="absolute bottom-3 left-3 right-3 z-10 max-h-48 overflow-y-auto overscroll-contain rounded-lg border border-border bg-surface-elevated px-3 py-2 text-xs shadow-sm sm:bottom-auto sm:left-auto sm:right-3 sm:top-3 sm:max-w-[calc(100%-1.5rem)]"
           />
         )}
       </div>
