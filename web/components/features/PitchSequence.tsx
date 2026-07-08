@@ -5,7 +5,10 @@ import { memo, useEffect, useRef, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { PitchFeedList } from "@/components/features/PitchFeedList";
 import { useEntranceIndex } from "@/hooks/useEntranceIndex";
+import type { ZoneDisplayPitch } from "@/lib/mlb/allGamePitches";
 import type { BatterHotZoneCell, PlayPitch } from "@/types/mlb-live";
+
+export type StrikeZoneMode = "atBat" | "game";
 import {
   homePlatePath,
   pitchResultColor,
@@ -34,6 +37,12 @@ interface PitchSequenceProps {
   batterZones?: BatterHotZoneCell[];
   /** Outcome odds panel under the pitch feed (desktop dashboard grid). */
   dashboardFooter?: ReactNode;
+  /** Optional override for strike zone chart only (e.g. all game pitches). */
+  zonePitches?: ZoneDisplayPitch[];
+  zoneMode?: StrikeZoneMode;
+  onZoneModeChange?: (mode: StrikeZoneMode) => void;
+  /** Total pitches in game up to replay point (enables Game toggle). */
+  totalGamePitchCount?: number;
 }
 
 function usePitchEntranceIndex(pitches: PlayPitch[], enabled: boolean): number {
@@ -80,14 +89,61 @@ export const PITCH_FEED_COLUMN_CLASS =
 
 function BatterZoneOpsLabel({ className }: { className?: string }) {
   return (
-    <p
+    <span
       className={cn(
-        "shrink-0 text-center text-[10px] font-semibold uppercase tracking-wide text-muted",
+        "shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted",
         className,
       )}
     >
       Batter OPS by zone
-    </p>
+    </span>
+  );
+}
+
+function StrikeZoneModeToggle({
+  mode,
+  onChange,
+  gamePitchCount,
+}: {
+  mode: StrikeZoneMode;
+  onChange: (mode: StrikeZoneMode) => void;
+  gamePitchCount: number;
+}) {
+  return (
+    <div
+      className="inline-flex rounded-md border border-border bg-surface p-0.5"
+      role="group"
+      aria-label="Strike zone pitch scope"
+    >
+      <button
+        type="button"
+        onClick={() => onChange("atBat")}
+        className={cn(
+          "rounded px-2 py-1 text-[10px] font-medium transition-colors",
+          mode === "atBat"
+            ? "bg-surface-elevated text-foreground"
+            : "text-muted hover:text-foreground",
+        )}
+        aria-pressed={mode === "atBat"}
+      >
+        At-bat
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange("game")}
+        disabled={gamePitchCount === 0}
+        className={cn(
+          "rounded px-2 py-1 text-[10px] font-medium transition-colors",
+          mode === "game"
+            ? "bg-surface-elevated text-foreground"
+            : "text-muted hover:text-foreground",
+          gamePitchCount === 0 && "cursor-not-allowed opacity-50",
+        )}
+        aria-pressed={mode === "game"}
+      >
+        Game
+      </button>
+    </div>
   );
 }
 
@@ -95,17 +151,42 @@ function ZoneWithOpsLabel({
   batterZones: _batterZones,
   className,
   children,
+  zoneMode,
+  onZoneModeChange,
+  gamePitchCount = 0,
 }: {
   batterZones?: BatterHotZoneCell[];
   className?: string;
   children: React.ReactNode;
+  zoneMode?: StrikeZoneMode;
+  onZoneModeChange?: (mode: StrikeZoneMode) => void;
+  gamePitchCount?: number;
 }) {
+  const showToggle = zoneMode != null && onZoneModeChange != null;
+
   return (
     <div className={cn("flex min-h-0 flex-col", className)}>
-      <BatterZoneOpsLabel className="mb-1 px-1" />
+      <div className="mb-1 flex shrink-0 items-center justify-between gap-2 px-1">
+        <BatterZoneOpsLabel />
+        {showToggle ? (
+          <StrikeZoneModeToggle
+            mode={zoneMode}
+            onChange={onZoneModeChange}
+            gamePitchCount={gamePitchCount}
+          />
+        ) : null}
+      </div>
       <div className="min-h-0 flex-1">{children}</div>
     </div>
   );
+}
+
+function isZoneDisplayPitch(pitch: PlayPitch): pitch is ZoneDisplayPitch {
+  return "chartKey" in pitch && "isCurrentAtBat" in pitch;
+}
+
+function pitchChartKey(pitch: PlayPitch): string {
+  return isZoneDisplayPitch(pitch) ? pitch.chartKey : `${pitch.pitchNumber}-${pitch.callCode}`;
 }
 
 function ZoneHeatCells({
@@ -264,6 +345,7 @@ function StrikeZoneChart({
   size,
   fill,
   entranceFromIndex = pitches.length,
+  zoneEntranceFromIndex,
   batterZones,
 }: {
   pitches: PlayPitch[];
@@ -271,6 +353,7 @@ function StrikeZoneChart({
   size: keyof typeof SIZE_STYLES;
   fill?: boolean;
   entranceFromIndex?: number;
+  zoneEntranceFromIndex?: number;
   batterZones?: BatterHotZoneCell[];
 }) {
   const styles = SIZE_STYLES[size];
@@ -279,6 +362,8 @@ function StrikeZoneChart({
   const szBottom = plotted[plotted.length - 1]?.strikeZoneBottom ?? 1.5;
   const zone = zoneRectPercent(szTop, szBottom);
   const plate = homePlatePath(zone, szTop, szBottom);
+  const animateFromIndex = zoneEntranceFromIndex ?? entranceFromIndex;
+  let currentAtBatOrdinal = 0;
 
   return (
     <svg
@@ -306,29 +391,35 @@ function StrikeZoneChart({
       />
       {batterZones?.length ? <ZoneHeatCells zone={zone} cells={batterZones} /> : null}
       <ZoneGridLines zone={zone} />
-      {plotted.map((pitch, index) => {
+      {plotted.map((pitch) => {
         const dot = toSvgPercent(pitch.plateX, pitch.plateZ, szTop, szBottom);
         const color = pitchResultColor(pitch);
-        const animate = index >= entranceFromIndex;
-        const dotR = styles.dotR;
+        const isCurrentAtBat = !isZoneDisplayPitch(pitch) || pitch.isCurrentAtBat;
+        const currentOrdinal = isCurrentAtBat ? currentAtBatOrdinal++ : -1;
+        const animate = isCurrentAtBat && currentOrdinal >= animateFromIndex;
+        const dotR = isCurrentAtBat ? styles.dotR : styles.dotR * 0.82;
+        const dotOpacity = isCurrentAtBat ? 1 : 0.45;
         return (
           <g
-            key={`${pitch.pitchNumber}-${pitch.callCode}`}
+            key={pitchChartKey(pitch)}
             className={animate ? "animate-pitch_in" : undefined}
+            opacity={dotOpacity}
           >
             <circle cx={dot.x} cy={dot.y} r={dotR + 0.3} fill="rgb(0 0 0 / 0.2)" />
             <circle cx={dot.x} cy={dot.y} r={dotR} fill={color} />
-            <text
-              x={dot.x}
-              y={dot.y}
-              textAnchor="middle"
-              dominantBaseline="central"
-              fontSize={styles.dotFont}
-              fill="#fff"
-              fontWeight="bold"
-            >
-              {pitch.pitchNumber}
-            </text>
+            {isCurrentAtBat ? (
+              <text
+                x={dot.x}
+                y={dot.y}
+                textAnchor="middle"
+                dominantBaseline="central"
+                fontSize={styles.dotFont}
+                fill="#fff"
+                fontWeight="bold"
+              >
+                {pitch.pitchNumber}
+              </text>
+            ) : null}
           </g>
         );
       })}
@@ -416,21 +507,33 @@ function PitchFeedColumn({
 
 function DashboardGridLayout({
   pitches,
+  zonePitches,
   resolvedSize,
   scrollToLatest,
   entranceFromIndex,
+  zoneEntranceFromIndex,
   batterZones,
   dashboardFooter,
+  zoneMode,
+  onZoneModeChange,
+  gamePitchCount,
   className,
 }: {
   pitches: PlayPitch[];
+  zonePitches?: ZoneDisplayPitch[];
   resolvedSize: keyof typeof SIZE_STYLES;
   scrollToLatest?: boolean;
   entranceFromIndex: number;
+  zoneEntranceFromIndex?: number;
   batterZones?: BatterHotZoneCell[];
   dashboardFooter?: ReactNode;
+  zoneMode?: StrikeZoneMode;
+  onZoneModeChange?: (mode: StrikeZoneMode) => void;
+  gamePitchCount?: number;
   className?: string;
 }) {
+  const chartPitches = zonePitches ?? pitches;
+
   return (
     <div
       className={cn(
@@ -458,13 +561,17 @@ function DashboardGridLayout({
       </div>
       <ZoneWithOpsLabel
         batterZones={batterZones}
+        zoneMode={zoneMode}
+        onZoneModeChange={onZoneModeChange}
+        gamePitchCount={gamePitchCount}
         className="min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
       >
         <MemoStrikeZoneChart
-          pitches={pitches}
+          pitches={chartPitches}
           size="large"
           fill
           entranceFromIndex={entranceFromIndex}
+          zoneEntranceFromIndex={zoneEntranceFromIndex}
           batterZones={batterZones}
           className="min-h-0 flex-1"
         />
@@ -475,31 +582,45 @@ function DashboardGridLayout({
 
 function SplitLayout({
   pitches,
+  zonePitches,
   resolvedSize,
   contained,
   className,
   scrollToLatest,
   entranceFromIndex,
+  zoneEntranceFromIndex,
   zoneFirst = false,
   mobileZoneCompact = false,
   batterZones,
+  zoneMode,
+  onZoneModeChange,
+  gamePitchCount,
 }: {
   pitches: PlayPitch[];
+  zonePitches?: ZoneDisplayPitch[];
   resolvedSize: keyof typeof SIZE_STYLES;
   contained: boolean;
   className?: string;
   scrollToLatest?: boolean;
   entranceFromIndex: number;
+  zoneEntranceFromIndex?: number;
   zoneFirst?: boolean;
   mobileZoneCompact?: boolean;
   batterZones?: BatterHotZoneCell[];
+  zoneMode?: StrikeZoneMode;
+  onZoneModeChange?: (mode: StrikeZoneMode) => void;
+  gamePitchCount?: number;
 }) {
   const styles = SIZE_STYLES[resolvedSize];
   const zoneSize = zoneFirst ? "large" : resolvedSize;
+  const chartPitches = zonePitches ?? pitches;
 
   const zoneChart = (
     <ZoneWithOpsLabel
       batterZones={batterZones}
+      zoneMode={zoneMode}
+      onZoneModeChange={onZoneModeChange}
+      gamePitchCount={gamePitchCount}
       className={cn(
         "w-full",
         zoneFirst
@@ -509,10 +630,11 @@ function SplitLayout({
       )}
     >
       <MemoStrikeZoneChart
-        pitches={pitches}
+        pitches={chartPitches}
         size={zoneSize}
         fill
         entranceFromIndex={entranceFromIndex}
+        zoneEntranceFromIndex={zoneEntranceFromIndex}
         batterZones={batterZones}
         className={zoneFirst ? "h-full w-full" : "flex-1"}
       />
@@ -577,14 +699,31 @@ export function PitchSequence({
   mobileZoneCompact = false,
   batterZones,
   dashboardFooter,
+  zonePitches,
+  zoneMode,
+  onZoneModeChange,
+  totalGamePitchCount,
 }: PitchSequenceProps) {
   const resolvedSize = size ?? (compact ? "compact" : "default");
   const entranceFromIndex = usePitchEntranceIndex(pitches, animateEntrance);
+  const currentAtBatPitchCount = pitches.filter((p) => p.isPitch).length;
+  const zoneEntranceFromIndex = useEntranceIndex(
+    currentAtBatPitchCount,
+    animateEntrance && zonePitches != null,
+  );
+  const chartPitches = zonePitches ?? pitches;
+  const gamePitchCount =
+    totalGamePitchCount ?? pitches.filter((p) => p.isPitch).length;
+  const zoneHeaderProps = {
+    zoneMode,
+    onZoneModeChange,
+    gamePitchCount,
+  };
 
   if (layout === "zone") {
-    if (pitches.length === 0) {
+    if (chartPitches.length === 0) {
       return (
-        <ZoneWithOpsLabel batterZones={batterZones} className={className}>
+        <ZoneWithOpsLabel batterZones={batterZones} className={className} {...zoneHeaderProps}>
           <EmptyStrikeZone
             zoneFirst={zoneFirst}
             mobileZoneCompact={mobileZoneCompact}
@@ -598,12 +737,13 @@ export function PitchSequence({
     }
 
     return (
-      <ZoneWithOpsLabel batterZones={batterZones} className={className}>
+      <ZoneWithOpsLabel batterZones={batterZones} className={className} {...zoneHeaderProps}>
         <MemoStrikeZoneChart
-          pitches={pitches}
+          pitches={chartPitches}
           size="large"
           fill={false}
           entranceFromIndex={entranceFromIndex}
+          zoneEntranceFromIndex={zoneEntranceFromIndex}
           batterZones={batterZones}
           className={cn(
             zoneFirst ? mobileZoneHeightClass(mobileZoneCompact) : "h-40 w-full",
@@ -617,12 +757,15 @@ export function PitchSequence({
     return (
       <DashboardGridLayout
         pitches={pitches}
+        zonePitches={zonePitches}
         resolvedSize={resolvedSize}
         scrollToLatest={scrollToLatest}
         entranceFromIndex={entranceFromIndex}
+        zoneEntranceFromIndex={zoneEntranceFromIndex}
         batterZones={batterZones}
         dashboardFooter={dashboardFooter}
         className={className}
+        {...zoneHeaderProps}
       />
     );
   }
@@ -631,14 +774,17 @@ export function PitchSequence({
     return (
       <SplitLayout
         pitches={pitches}
+        zonePitches={zonePitches}
         resolvedSize={resolvedSize}
         contained={contained}
         className={className}
         scrollToLatest={scrollToLatest}
         entranceFromIndex={entranceFromIndex}
+        zoneEntranceFromIndex={zoneEntranceFromIndex}
         zoneFirst={zoneFirst}
         mobileZoneCompact={mobileZoneCompact}
         batterZones={batterZones}
+        {...zoneHeaderProps}
       />
     );
   }

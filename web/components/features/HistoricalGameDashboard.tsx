@@ -15,7 +15,7 @@ import { DueUpDialog } from "@/components/features/DueUpDialog";
 import { GameDetailTabs, type GameDetailTab } from "@/components/features/GameDetailTabs";
 import { GameHitsView } from "@/components/features/GameHitsView";
 import { GameFinalDialog } from "@/components/features/GameFinalDialog";
-import { PitchSequence } from "@/components/features/PitchSequence";
+import { PitchSequence, type StrikeZoneMode } from "@/components/features/PitchSequence";
 import { PlayByPlay } from "@/components/features/PlayByPlay";
 import { ProbabilityChart } from "@/components/features/ProbabilityChart";
 import { StealIndicator } from "@/components/features/StealIndicator";
@@ -36,6 +36,7 @@ import { useLiveGameOverlays } from "@/hooks/useLiveGameOverlays";
 import { formatGameDate, formatMatchup, formatScore, isLiveStatus } from "@/lib/games/format";
 import { buildSeasonHistoryHref } from "@/lib/mlb/schedule";
 import { gameStateForAtBat, findPlayByAtBatIndex } from "@/lib/games/replay";
+import { allPitchesThroughPoint } from "@/lib/mlb/allGamePitches";
 import { isGameOver } from "@/lib/mlb/gameOver";
 import { isHalfInningBreak } from "@/lib/mlb/lineup";
 import { isPlayByPlayAtBat } from "@/lib/mlb/liveFeed";
@@ -132,6 +133,11 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
   useArchiveFinishedGame(game.game_pk, isLive && gameOver);
 
   const [selectedAtBatIndex, setSelectedAtBatIndex] = useState<number | null>(null);
+  const [zoneMode, setZoneMode] = useState<StrikeZoneMode>("atBat");
+
+  useEffect(() => {
+    setZoneMode("atBat");
+  }, [game.game_pk]);
 
   const atBatPlays = useMemo(
     () => gameState?.plays.filter(isPlayByPlayAtBat) ?? [],
@@ -240,6 +246,24 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
     return null;
   }, [displayState?.batterId, selectedPlay?.batterId, selectedPlay?.detail.batterId]);
   const { zones: batterHotZones } = useBatterHotZones(zoneBatterId, game.season);
+
+  const gameZonePitches = useMemo(() => {
+    if (!gameState) return [];
+    if (isLive) {
+      return allPitchesThroughPoint(gameState, {
+        currentAtBatPitches: atBatViewState?.atBatPitches,
+      });
+    }
+    if (selectedAtBatIndex == null) return [];
+    return allPitchesThroughPoint(gameState, {
+      throughAtBatIndex: selectedAtBatIndex,
+    });
+  }, [gameState, isLive, atBatViewState?.atBatPitches, selectedAtBatIndex]);
+
+  const totalGamePitchCount = useMemo(
+    () => gameZonePitches.filter((pitch) => pitch.isPitch).length,
+    [gameZonePitches],
+  );
 
   const score = formatScore(game);
   const seasonHistoryHref = buildSeasonHistoryHref({
@@ -518,6 +542,10 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
                           <PitchSequence
                             key={`zone-mobile-${zoneBatterId ?? selectedAtBatIndex ?? "none"}`}
                             pitches={[]}
+                            zonePitches={zoneMode === "game" ? gameZonePitches : undefined}
+                            zoneMode={zoneMode}
+                            onZoneModeChange={setZoneMode}
+                            totalGamePitchCount={totalGamePitchCount}
                             layout="zone"
                             zoneFirst
                             batterZones={batterHotZones ?? undefined}
@@ -528,6 +556,10 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
                           <PitchSequence
                             key={`zone-mobile-${zoneBatterId ?? selectedAtBatIndex ?? "none"}`}
                             pitches={displayState.atBatPitches}
+                            zonePitches={zoneMode === "game" ? gameZonePitches : undefined}
+                            zoneMode={zoneMode}
+                            onZoneModeChange={setZoneMode}
+                            totalGamePitchCount={totalGamePitchCount}
                             layout="zone"
                             zoneFirst
                             batterZones={batterHotZones ?? undefined}
@@ -538,6 +570,10 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
                         <PitchSequence
                           key={`zone-desktop-${zoneBatterId ?? selectedAtBatIndex ?? "none"}`}
                           pitches={displayState.atBatPitches}
+                          zonePitches={zoneMode === "game" ? gameZonePitches : undefined}
+                          zoneMode={zoneMode}
+                          onZoneModeChange={setZoneMode}
+                          totalGamePitchCount={totalGamePitchCount}
                           size="large"
                           layout="dashboard"
                           scrollToLatest={isLive}
