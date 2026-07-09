@@ -12,18 +12,18 @@ export const POLL_BREAK_MS = 800;
 /** Background tab. */
 export const POLL_HIDDEN_MS = 2_000;
 
-/** Safety-net poll when Supabase Realtime is delivering game_state pushes. */
+/** Safety-net poll when Supabase Realtime or MLB Gameday WS is delivering pushes. */
 export const POLL_REALTIME_FALLBACK_MS = 3_000;
 
 export const MAX_IN_FLIGHT = 2;
 
-/** Choose poll gap; stretches when Realtime push is active. */
+/** Choose poll gap; stretches when any push channel is active. */
 export function effectivePollIntervalMs(
   feed: Pick<MLBLiveFeedResponse, "liveData"> | null,
   hidden: boolean,
-  realtimeConnected: boolean,
+  pushConnected: boolean,
 ): number {
-  if (realtimeConnected && !hidden) {
+  if (pushConnected && !hidden) {
     return POLL_REALTIME_FALLBACK_MS;
   }
   return adaptivePollIntervalMs(feed, hidden);

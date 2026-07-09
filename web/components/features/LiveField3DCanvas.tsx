@@ -2,7 +2,7 @@
 
 import { Html, Line } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import * as THREE from "three";
 
 import {
@@ -28,6 +28,19 @@ import type { Vec3 } from "@/lib/mlb/ballTrajectory";
 const ACCENT_LIGHT = "#2d6a4f";
 const BALL = "#f5f0e4";
 
+function useIsCompact(): boolean {
+  const [compact, setCompact] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 767px)");
+    const apply = () => setCompact(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+  return compact;
+}
+
 function BallMesh({ ball }: { ball: LiveBallState }) {
   if (ball.phase === "idle") return null;
   return (
@@ -42,7 +55,7 @@ function BallMesh({ ball }: { ball: LiveBallState }) {
         />
       ) : null}
       <mesh position={ball.position}>
-        <sphereGeometry args={[0.07, 16, 16]} />
+        <sphereGeometry args={[0.07, 12, 12]} />
         <meshStandardMaterial
           color={BALL}
           emissive={ball.phase === "hit" ? "#8b6914" : "#4a5c52"}
@@ -53,7 +66,15 @@ function BallMesh({ ball }: { ball: LiveBallState }) {
   );
 }
 
-function ActorMarker({ actor }: { actor: LiveActorState }) {
+function ActorMarker({
+  actor,
+  showLabels,
+  compact,
+}: {
+  actor: LiveActorState;
+  showLabels: boolean;
+  compact: boolean;
+}) {
   const isBatter = actor.kind === "batter";
   const isRunner = actor.kind === "runner";
   const color = isBatter || isRunner ? ACCENT_LIGHT : "#e8e2d4";
@@ -63,28 +84,32 @@ function ActorMarker({ actor }: { actor: LiveActorState }) {
   return (
     <group position={actor.position}>
       <mesh position={[0, 0.02, 0]}>
-        <cylinderGeometry args={[radius, radius * 0.85, 0.22, 12]} />
+        <cylinderGeometry args={[radius, radius * 0.85, 0.22, compact ? 8 : 12]} />
         <meshStandardMaterial color={color} />
       </mesh>
       <mesh position={[0, 0.16, 0]}>
-        <sphereGeometry args={[radius * 0.7, 12, 12]} />
+        <sphereGeometry args={[radius * 0.7, compact ? 8 : 12, compact ? 8 : 12]} />
         <meshStandardMaterial color={color} />
       </mesh>
-      <Html
-        center
-        distanceFactor={8}
-        style={{ pointerEvents: "none", userSelect: "none" }}
-        position={[0, 0.38, 0]}
-      >
-        <div
-          className={cn(
-            "whitespace-nowrap border border-border bg-surface-elevated px-1 py-0.5 text-[9px] font-semibold leading-none text-foreground shadow-sm",
-            (isBatter || isRunner) && "border-transparent bg-[#1b4332] text-[#f5f0e4]",
-          )}
+      {showLabels ? (
+        <Html
+          center
+          distanceFactor={compact ? 10 : 8}
+          style={{ pointerEvents: "none", userSelect: "none" }}
+          position={[0, 0.38, 0]}
+          zIndexRange={[10, 0]}
         >
-          {label}
-        </div>
-      </Html>
+          <div
+            className={cn(
+              "whitespace-nowrap border border-border bg-surface-elevated px-1 py-0.5 font-semibold leading-none text-foreground shadow-sm",
+              compact ? "text-[8px]" : "text-[9px]",
+              (isBatter || isRunner) && "border-transparent bg-[#1b4332] text-[#f5f0e4]",
+            )}
+          >
+            {label}
+          </div>
+        </Html>
+      ) : null}
     </group>
   );
 }
@@ -116,14 +141,19 @@ function LiveFieldScene({
   venueId,
   pitches,
   targets,
+  compact,
 }: {
   venueId?: number | null;
   pitches: PlayPitch[];
   targets: LiveFieldTargets;
+  compact: boolean;
 }) {
   const { canvasBg } = useFieldChartColors();
   const { ball, actors } = useLiveFieldMotion(venueId, pitches, targets);
-  const cameraTarget: Vec3 = [0, 0.4, 2.2];
+  const cameraTarget: Vec3 = compact ? [0, 0.35, 2.4] : [0, 0.4, 2.2];
+  // On small screens, only label batter/runners to keep HTML overlays light.
+  const showLabel = (actor: LiveActorState) =>
+    !compact || actor.kind === "batter" || actor.kind === "runner" || actor.kind === "fielder";
 
   return (
     <>
@@ -134,13 +164,18 @@ function LiveFieldScene({
       <TrajectoryParkField venueId={venueId} />
       <BaseMarkers venueId={venueId} />
       {actors.map((actor) => (
-        <ActorMarker key={actor.id} actor={actor} />
+        <ActorMarker
+          key={actor.id}
+          actor={actor}
+          showLabels={showLabel(actor)}
+          compact={compact}
+        />
       ))}
       <BallMesh ball={ball} />
       <TrajectoryOrbitControls
         target={cameraTarget}
-        boundsRadius={7}
-        maxDistance={18}
+        boundsRadius={compact ? 8 : 7}
+        maxDistance={compact ? 22 : 18}
       />
     </>
   );
@@ -170,6 +205,7 @@ export function LiveField3DCanvas({
   runnerThird,
   className,
 }: LiveField3DCanvasProps) {
+  const compact = useIsCompact();
   const targets: LiveFieldTargets = useMemo(
     () => ({
       defense,
@@ -182,24 +218,40 @@ export function LiveField3DCanvas({
     [defense, batterName, showBatter, runnerFirst, runnerSecond, runnerThird],
   );
 
+  const cameraPosition: Vec3 = compact ? [0.15, 7.2, -8.4] : [0.2, 5.8, -7.2];
+
   return (
     <div className={cn("flex min-h-0 w-full flex-1 flex-col", className)}>
-      <div className="min-h-[280px] flex-1 overflow-hidden border border-border bg-field-chart-canvas sm:min-h-[360px]">
+      <div
+        className={cn(
+          "flex-1 overflow-hidden border border-border bg-field-chart-canvas",
+          "min-h-[min(58dvh,420px)] sm:min-h-[360px]",
+        )}
+      >
         <Canvas
           camera={{
-            position: [0.2, 5.8, -7.2],
-            fov: 42,
+            position: cameraPosition,
+            fov: compact ? 46 : 42,
             near: 0.1,
             far: 500,
           }}
-          gl={{ antialias: true }}
+          dpr={compact ? [1, 1.5] : [1, 2]}
+          gl={{ antialias: !compact, powerPreference: "high-performance" }}
           style={{ height: "100%", width: "100%", touchAction: "none" }}
         >
-          <LiveFieldScene venueId={venueId} pitches={pitches} targets={targets} />
+          <LiveFieldScene
+            venueId={venueId}
+            pitches={pitches}
+            targets={targets}
+            compact={compact}
+          />
         </Canvas>
       </div>
-      <p className="mt-1.5 text-center text-[10px] text-subtle">
-        Live field · pitches &amp; hits animate from feed events · {TRAJECTORY_CONTROLS_HINT}
+      <p className="mt-1.5 px-1 text-center text-[10px] text-subtle">
+        <span className="sm:hidden">Drag to rotate · pinch to zoom · live pitch/hit paths</span>
+        <span className="hidden sm:inline">
+          Live field · Statcast pitch physics when available · {TRAJECTORY_CONTROLS_HINT}
+        </span>
       </p>
     </div>
   );

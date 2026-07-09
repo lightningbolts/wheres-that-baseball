@@ -43,6 +43,9 @@ export function fieldingTeamId(
 
 export function runsScoredOnPlay(play: PlayByPlayEntry): { away: number; home: number } {
   const before = play.situationBefore;
+  if (!before) {
+    return { away: 0, home: 0 };
+  }
   return {
     away: play.awayScore - before.awayScore,
     home: play.homeScore - before.homeScore,

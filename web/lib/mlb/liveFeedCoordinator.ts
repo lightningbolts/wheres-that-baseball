@@ -22,6 +22,10 @@ import {
   subscribeGameStateRealtime,
   type GameStateRealtimeSubscription,
 } from "@/lib/mlb/liveFeedRealtime";
+import {
+  subscribeGamedayWebsocket,
+  type GamedayWsSubscription,
+} from "@/lib/mlb/gamedayWebsocket";
 import { parseBoxScore } from "@/lib/mlb/boxScore";
 import type { GameBoxScore } from "@/types/mlb-boxscore";
 import type { AllPlayRaw, LiveGameState, MLBLiveFeedResponse } from "@/types/mlb-live";
@@ -51,7 +55,9 @@ interface CoordinatorInstance {
   tabWasHidden: boolean;
   generation: number;
   realtimeConnected: boolean;
+  gamedayWsConnected: boolean;
   realtimeSub: GameStateRealtimeSubscription | null;
+  gamedayWsSub: GamedayWsSubscription | null;
 }
 
 const instances = new Map<number, CoordinatorInstance>();
@@ -284,7 +290,11 @@ function scheduleNextPoll(instance: CoordinatorInstance): void {
   const feed = instance.lastSnapshot
     ? reconstructFeedFromParts(instance.lastSnapshot, instance.localAllPlays)
     : null;
-  const delay = effectivePollIntervalMs(feed, hidden, instance.realtimeConnected);
+  const delay = effectivePollIntervalMs(
+    feed,
+    hidden,
+    instance.realtimeConnected || instance.gamedayWsConnected,
+  );
 
   instance.pollTimer = setTimeout(() => {
     void runPollCycle(instance);
@@ -303,6 +313,27 @@ async function runPollCycle(instance: CoordinatorInstance): Promise<void> {
   }
 
   scheduleNextPoll(instance);
+}
+
+function startGamedayWs(instance: CoordinatorInstance): void {
+  if (typeof window === "undefined" || instance.gamedayWsSub) return;
+
+  instance.gamedayWsSub = subscribeGamedayWebsocket(instance.gamePk, {
+    onUpdate: () => {
+      if (instance.cancelled) return;
+      void pollOnce(instance);
+    },
+    onStatus: (status) => {
+      if (instance.cancelled) return;
+      const connected = status === "connected";
+      if (instance.gamedayWsConnected === connected) return;
+      instance.gamedayWsConnected = connected;
+      // Treat Gameday WS as a push channel for poll stretching + connection UI.
+      const pushConnected = instance.realtimeConnected || connected;
+      instance.state = { ...instance.state, realtimeConnected: pushConnected };
+      notify(instance);
+    },
+  });
 }
 
 function startRealtime(instance: CoordinatorInstance): void {
@@ -330,7 +361,8 @@ function startRealtime(instance: CoordinatorInstance): void {
       const connected = status === "connected";
       if (instance.realtimeConnected === connected) return;
       instance.realtimeConnected = connected;
-      instance.state = { ...instance.state, realtimeConnected: connected };
+      const pushConnected = connected || instance.gamedayWsConnected;
+      instance.state = { ...instance.state, realtimeConnected: pushConnected };
       notify(instance);
     },
   );
@@ -353,6 +385,7 @@ function startPolling(instance: CoordinatorInstance): void {
   }
 
   startRealtime(instance);
+  startGamedayWs(instance);
   void pollOnce(instance);
   scheduleNextPoll(instance);
 }
@@ -365,6 +398,8 @@ function stopPolling(instance: CoordinatorInstance): void {
   }
   instance.realtimeSub?.unsubscribe();
   instance.realtimeSub = null;
+  instance.gamedayWsSub?.unsubscribe();
+  instance.gamedayWsSub = null;
   instances.delete(instance.gamePk);
 }
 
@@ -386,7 +421,9 @@ function getOrCreate(gamePk: number): CoordinatorInstance {
     tabWasHidden: false,
     generation: 0,
     realtimeConnected: false,
+    gamedayWsConnected: false,
     realtimeSub: null,
+    gamedayWsSub: null,
   };
   instances.set(gamePk, instance);
   return instance;

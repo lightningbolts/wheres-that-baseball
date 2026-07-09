@@ -9,18 +9,16 @@ import {
   getParkSceneMapper,
   type BallparkSceneMapper,
 } from "@/lib/mlb/ballparkScene";
+import { buildPhysicsPitchPath, FEET_TO_SCENE } from "@/lib/mlb/pitchPhysics";
 import type { Vec3 } from "@/lib/mlb/ballTrajectory";
 import type { FieldDefender } from "@/lib/mlb/fieldDefense";
 import type { BaseRunner, HitData, PlayPitch } from "@/types/mlb-live";
 
-/** Approximate feet → Three.js scene units (aligned with spray-chart parks). */
-export const FEET_TO_SCENE = 0.024;
+export { FEET_TO_SCENE };
 
-const PITCH_RELEASE_HEIGHT_FT = 6;
-const PITCH_DEFAULT_PLATE_TIME_S = 0.425;
 const HIT_DEFAULT_FLIGHT_S = 3.2;
-const RUNNER_MOVE_S = 0.85;
-const FIELDER_REACT_S = 0.55;
+const RUNNER_MOVE_S = 0.9;
+const FIELDER_REACT_S = 0.5;
 
 export type LiveBallPhase = "idle" | "pitch" | "hit" | "settled";
 
@@ -99,48 +97,12 @@ export function defenseSlotToScene(
   return svgSlotToScene(mapper, pt.x, pt.y, height);
 }
 
-/** Pitch path: mound → plate (plateX/plateZ in feet). */
+/** Pitch path — Statcast physics when available, else pfx heuristic. */
 export function buildPitchPath(
   mapper: BallparkSceneMapper,
   pitch: PlayPitch,
-): { points: Vec3[]; durationMs: number } {
-  const mound = FIELD_DEFENSE_SLOTS.P;
-  const home = FIELD_BASE_SLOTS.home;
-  const start = svgSlotToScene(mapper, mound.x, mound.y, PITCH_RELEASE_HEIGHT_FT * FEET_TO_SCENE);
-
-  const plateX = pitch.hasPlateLocation ? pitch.plateX : 0;
-  const plateZ = pitch.hasPlateLocation
-    ? pitch.plateZ
-    : (pitch.strikeZoneTop + pitch.strikeZoneBottom) / 2;
-
-  // Match ballparkScene X negation: catcher's right ( +plateX ) → 1B / SVG +x → scene -x.
-  const end: Vec3 = [
-    mapper.svgToScene(home.x, home.y, 0)[0] - plateX * FEET_TO_SCENE,
-    Math.max(plateZ, 0.5) * FEET_TO_SCENE,
-    mapper.svgToScene(home.x, home.y, 0)[2],
-  ];
-
-  const midT = 0.55;
-  const mid: Vec3 = [
-    lerp(start[0], end[0], midT),
-    lerp(start[1], end[1], midT) + 0.08,
-    lerp(start[2], end[2], midT),
-  ];
-
-  const points: Vec3[] = [];
-  const segments = 24;
-  for (let i = 0; i <= segments; i += 1) {
-    const t = i / segments;
-    const ab = lerpVec(start, mid, t);
-    const bc = lerpVec(mid, end, t);
-    points.push(lerpVec(ab, bc, t));
-  }
-
-  const plateTime = pitch.plateTime && pitch.plateTime > 0.2
-    ? pitch.plateTime
-    : PITCH_DEFAULT_PLATE_TIME_S;
-
-  return { points, durationMs: Math.round(plateTime * 1000) };
+): { points: Vec3[]; durationMs: number; source?: "physics" | "heuristic" } {
+  return buildPhysicsPitchPath(mapper, pitch);
 }
 
 export function buildHitPath(
@@ -150,10 +112,9 @@ export function buildHitPath(
   const points = computeSceneTrajectoryPoints(hit, mapper, 40);
   const distance = Math.max(hit.totalDistance, 30);
   const speed = Math.max(hit.launchSpeed, 60);
-  // Rough flight time from distance / horizontal component.
   const durationS = Math.min(
     5.5,
-    Math.max(1.4, (distance / Math.max(speed * 1.2, 40)) * HIT_DEFAULT_FLIGHT_S / 3),
+    Math.max(1.2, (distance / Math.max(speed * 1.25, 45)) * (HIT_DEFAULT_FLIGHT_S / 3)),
   );
   return { points, durationMs: Math.round(durationS * 1000) };
 }
@@ -220,28 +181,78 @@ export function buildActorTargets(
   return actors;
 }
 
-/** Nudge fielders toward the ball landing during a hit (schematic pursuit). */
+function dist2(a: Vec3, b: Vec3): number {
+  const dx = a[0] - b[0];
+  const dz = a[2] - b[2];
+  return dx * dx + dz * dz;
+}
+
+/**
+ * Schematic pursuit: nearest fielders commit harder; OF on fly balls,
+ * IF on grounders; pitcher covers home-side bunts.
+ */
 export function pursuitTargets(
   mapper: BallparkSceneMapper,
   defense: FieldDefender[],
   hit: HitData,
 ): Map<string, Vec3> {
   const landing = mapper.hitCoordToScene(hit.coordX, hit.coordY, 0.14);
-  const home = baseSlotToScene(mapper, "home");
+  const traj = hit.trajectory.toLowerCase();
+  const isGround = traj.includes("ground") || traj.includes("bunt") || hit.launchAngle < 8;
+  const isFly = traj.includes("fly") || traj.includes("line") || hit.launchAngle >= 15;
   const result = new Map<string, Vec3>();
 
-  for (const d of defense) {
-    if (d.position === "P" || d.position === "C") continue;
-    const homePos = defenseSlotToScene(mapper, d.position);
-    // Blend toward landing — outfielders more, infielders less.
-    const isOf = d.position === "LF" || d.position === "CF" || d.position === "RF";
-    const blend = isOf ? 0.55 : 0.28;
-    result.set(`fielder-${d.position}`, lerpVec(homePos, landing, blend));
-  }
+  const ranked = defense
+    .filter((d) => d.position !== "C")
+    .map((d) => {
+      const homePos = defenseSlotToScene(mapper, d.position);
+      return { d, homePos, dist: dist2(homePos, landing) };
+    })
+    .sort((a, b) => a.dist - b.dist);
 
-  // Keep pitcher near mound / home blend for bunts.
-  void home;
+  ranked.forEach(({ d, homePos }, index) => {
+    const isOf = d.position === "LF" || d.position === "CF" || d.position === "RF";
+    const isP = d.position === "P";
+    let blend = 0.12;
+    if (index === 0) blend = isGround ? 0.72 : 0.62;
+    else if (index === 1) blend = isGround ? 0.45 : 0.4;
+    else if (index === 2) blend = 0.22;
+
+    if (isOf && isFly) blend = Math.max(blend, index === 0 ? 0.7 : 0.35);
+    if (!isOf && isGround) blend = Math.max(blend, index === 0 ? 0.75 : blend);
+    if (isP && isGround && hit.totalDistance < 80) blend = 0.55;
+    if (isP && !isGround) blend = Math.min(blend, 0.12);
+
+    result.set(`fielder-${d.position}`, lerpVec(homePos, landing, blend));
+  });
+
   return result;
+}
+
+/** Approximate basepath polyline for runner animation (home→1→2→3→home). */
+export function runnerPathBetween(
+  mapper: BallparkSceneMapper,
+  from: FieldBaseSlot,
+  to: FieldBaseSlot,
+): Vec3[] {
+  const ring: FieldBaseSlot[] = ["home", "first", "second", "third"];
+  const startIdx = ring.indexOf(from);
+  const endIdx = ring.indexOf(to);
+  if (startIdx < 0 || endIdx < 0) {
+    return [baseSlotToScene(mapper, from), baseSlotToScene(mapper, to)];
+  }
+  if (startIdx === endIdx) {
+    return [baseSlotToScene(mapper, from)];
+  }
+  const points: Vec3[] = [baseSlotToScene(mapper, ring[startIdx])];
+  let i = startIdx;
+  let guard = 0;
+  while (i !== endIdx && guard < 4) {
+    i = (i + 1) % ring.length;
+    points.push(baseSlotToScene(mapper, ring[i]));
+    guard += 1;
+  }
+  return points;
 }
 
 export { samplePath, trailUpTo, lerpVec, easeInOut, clamp01, RUNNER_MOVE_S, FIELDER_REACT_S };

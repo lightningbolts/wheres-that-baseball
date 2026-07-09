@@ -21,6 +21,7 @@ import type {
   HitData,
   LiveGameState,
   MLBLiveFeedResponse,
+  PitchKinematics,
   PlayByPlayEntry,
   PlayDetail,
   PlayPitch,
@@ -1189,6 +1190,39 @@ function inferInPlayOut(
   return desc.includes("in play, out");
 }
 
+function parsePitchKinematics(
+  coords: NonNullable<PitchEventRaw["pitchData"]>["coordinates"] | undefined,
+): PitchKinematics | null {
+  if (!coords) return null;
+  const { x0, y0, z0, vX0, vY0, vZ0, aX, aY, aZ } = coords;
+  if (
+    typeof x0 !== "number" ||
+    typeof y0 !== "number" ||
+    typeof z0 !== "number" ||
+    typeof vX0 !== "number" ||
+    typeof vY0 !== "number" ||
+    typeof vZ0 !== "number" ||
+    typeof aX !== "number" ||
+    typeof aY !== "number" ||
+    typeof aZ !== "number"
+  ) {
+    return null;
+  }
+  return {
+    x0,
+    y0,
+    z0,
+    vX0,
+    vY0,
+    vZ0,
+    aX,
+    aY,
+    aZ,
+    pfxX: coords.pfxX,
+    pfxZ: coords.pfxZ,
+  };
+}
+
 function parsePitchEvent(event: PitchEventRaw, pitchNumber: number): PlayPitch | null {
   if (!event.isPitch) return null;
 
@@ -1202,6 +1236,7 @@ function parsePitchEvent(event: PitchEventRaw, pitchNumber: number): PlayPitch |
   const hit = isInPlay
     ? parseHitData(event.hitData, event.pitchData, event.details)
     : null;
+  const kinematics = parsePitchKinematics(coords);
 
   return {
     pitchNumber,
@@ -1230,6 +1265,9 @@ function parsePitchEvent(event: PitchEventRaw, pitchNumber: number): PlayPitch |
     spinRate: event.pitchData?.breaks?.spinRate,
     breakHorizontal: event.pitchData?.breaks?.breakHorizontal,
     breakVerticalInduced: event.pitchData?.breaks?.breakVerticalInduced,
+    pfxX: coords?.pfxX,
+    pfxZ: coords?.pfxZ,
+    kinematics,
     hit,
   };
 }
@@ -1872,6 +1910,10 @@ export function liveStateFingerprint(state: LiveGameState): string {
     lastPitch?.balls,
     lastPitch?.strikes,
     lastPitch?.startSpeed,
+    lastPitch?.hit?.coordX,
+    lastPitch?.hit?.coordY,
+    lastPitch?.hit?.launchSpeed,
+    lastPitch?.kinematics?.x0,
     state.plays.length,
     lastPlay?.atBatIndex,
     lastPlay?.event,

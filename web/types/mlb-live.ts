@@ -5,6 +5,24 @@ export interface PitchReview {
   challengeTeamId?: number;
 }
 
+/** Statcast release / flight kinematics in feet (MLB pitchData.coordinates). */
+export interface PitchKinematics {
+  /** Release position (ft). */
+  x0: number;
+  y0: number;
+  z0: number;
+  /** Initial velocity (ft/s). */
+  vX0: number;
+  vY0: number;
+  vZ0: number;
+  /** Acceleration (ft/s²). */
+  aX: number;
+  aY: number;
+  aZ: number;
+  pfxX?: number;
+  pfxZ?: number;
+}
+
 export interface PlayPitch {
   pitchNumber: number;
   typeCode: string;
@@ -32,6 +50,10 @@ export interface PlayPitch {
   spinRate?: number;
   breakHorizontal?: number;
   breakVerticalInduced?: number;
+  pfxX?: number;
+  pfxZ?: number;
+  /** Full release kinematics when MLB ships them (most tracked parks). */
+  kinematics?: PitchKinematics | null;
   /** Present when the pitch was put in play (for live field animation). */
   hit?: HitData | null;
 }
@@ -274,6 +296,17 @@ interface PitchEventRaw {
       pZ?: number;
       pfxX?: number;
       pfxZ?: number;
+      x0?: number;
+      y0?: number;
+      z0?: number;
+      vX0?: number;
+      vY0?: number;
+      vZ0?: number;
+      aX?: number;
+      aY?: number;
+      aZ?: number;
+      x?: number;
+      y?: number;
     };
     breaks?: {
       breakHorizontal?: number;
