@@ -140,6 +140,11 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
     setZoneMode("atBat");
   }, [game.game_pk]);
 
+  // Call It stays in the tree for now but is hidden from the tab bar.
+  useEffect(() => {
+    if (activeTab === "callIt") setActiveTab("plays");
+  }, [activeTab]);
+
   const atBatPlays = useMemo(
     () => gameState?.plays.filter(isPlayByPlayAtBat) ?? [],
     [gameState],
@@ -413,7 +418,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
           <GameDetailTabs
             activeTab={activeTab}
             onTabChange={setActiveTab}
-            showCallItTab={isLive}
+            showCallItTab={false}
           />
 
           <div

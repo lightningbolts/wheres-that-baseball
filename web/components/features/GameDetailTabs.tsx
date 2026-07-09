@@ -8,7 +8,7 @@ interface GameDetailTabsProps {
   activeTab: GameDetailTab;
   onTabChange: (tab: GameDetailTab) => void;
   className?: string;
-  /** Hide Call It tab for non-live games. */
+  /** Opt-in: Call It stays in the codebase but is hidden from users by default. */
   showCallItTab?: boolean;
   /** Tighter tabs for mobile game view. */
   compact?: boolean;
@@ -26,7 +26,7 @@ export function GameDetailTabs({
   activeTab,
   onTabChange,
   className,
-  showCallItTab = true,
+  showCallItTab = false,
   compact = false,
 }: GameDetailTabsProps) {
   const tabs = showCallItTab

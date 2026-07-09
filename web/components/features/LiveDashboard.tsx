@@ -54,6 +54,11 @@ function DashboardContent({ game }: { game: SlateGame }) {
     setZoneMode("atBat");
   }, [selectedGamePk]);
 
+  // Call It stays in the tree for now but is hidden from the tab bar.
+  useEffect(() => {
+    if (activeTab === "callIt") setActiveTab("plays");
+  }, [activeTab]);
+
   const { gameState, isLoading: isFeedLoading } = useLiveGameState(selectedGamePk, {
     pollBurstKey: activeTab,
   });
