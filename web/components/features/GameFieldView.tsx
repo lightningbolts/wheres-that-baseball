@@ -152,11 +152,13 @@ export function GameFieldView({
       />
 
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain md:flex-row md:overflow-hidden">
-        <div className="flex min-h-0 flex-1 flex-col bg-field-chart-canvas p-2 sm:p-3 md:overflow-hidden md:p-4">
-          <header className="mb-2 flex w-full items-baseline justify-between gap-2 px-0.5">
-            <h2 className="font-serif text-base text-foreground sm:text-lg">{venueLabel}</h2>
+        <div className="flex min-h-0 flex-1 flex-col bg-field-chart-canvas p-2 max-md:flex-none sm:p-3 md:overflow-hidden md:p-4">
+          <header className="mb-2 flex w-full shrink-0 items-baseline justify-between gap-2 px-0.5">
+            <h2 className="min-w-0 flex-1 font-serif text-base leading-snug text-foreground sm:text-lg">
+              {venueLabel}
+            </h2>
             {gameState?.dayNight ? (
-              <span className="text-[11px] uppercase tracking-wide text-muted">
+              <span className="shrink-0 text-[11px] uppercase tracking-wide text-muted">
                 {gameState.dayNight}
               </span>
             ) : null}
@@ -170,7 +172,7 @@ export function GameFieldView({
             runnerFirst={runnerFirst}
             runnerSecond={runnerSecond}
             runnerThird={runnerThird}
-            className="min-h-0 flex-1"
+            className="min-h-0 flex-1 max-md:flex-none"
           />
         </div>
 
