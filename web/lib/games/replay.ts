@@ -110,6 +110,12 @@ export function gameStateForAtBat(
     onFirst: play.onFirst,
     onSecond: play.onSecond,
     onThird: play.onThird,
+    runnerFirst:
+      play.onFirst && play.bases.first ? { id: 0, name: play.bases.first } : null,
+    runnerSecond:
+      play.onSecond && play.bases.second ? { id: 0, name: play.bases.second } : null,
+    runnerThird:
+      play.onThird && play.bases.third ? { id: 0, name: play.bases.third } : null,
     awayRuns: play.awayScore,
     homeRuns: play.homeScore,
     atBatPitches: play.detail.pitches,

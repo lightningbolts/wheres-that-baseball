@@ -46,6 +46,8 @@
     --field-line-stroke: #4a6b4a;
     --field-home-plate-fill: #d4cfc0;
     --field-home-plate-stroke: #5a5248;
+    --field-accent: #1b4332;
+    --field-accent-fg: #f5f0e4;
 
     --spray-hit-single: #1d4e89;
     --spray-hit-double: #1b5e3b;
@@ -96,6 +98,8 @@
     --field-line-stroke: #4a6b52;
     --field-home-plate-fill: #c4bfb0;
     --field-home-plate-stroke: #8a9a90;
+    --field-accent: #2d6a4f;
+    --field-accent-fg: #f5f0e4;
 
     --spray-hit-single: #5b9bd5;
     --spray-hit-double: #4caf7a;

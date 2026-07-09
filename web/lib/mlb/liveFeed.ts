@@ -16,6 +16,7 @@ import type { CardPitcher } from "@/types/mlb";
 import type {
   AllPlayRaw,
   BaseOccupancy,
+  BaseRunner,
   GameSituation,
   HitData,
   LiveGameState,
@@ -809,6 +810,57 @@ function pitcherNameFromBoxScore(feed: MLBLiveFeedResponse, pitcherId: number): 
   return null;
 }
 
+function playerNameFromFeed(feed: MLBLiveFeedResponse, playerId: number): string | null {
+  const fromBox = pitcherNameFromBoxScore(feed, playerId);
+  if (fromBox) return fromBox;
+
+  const player = feed.gameData.players?.[`ID${playerId}`];
+  return player?.boxscoreName ?? player?.fullName ?? null;
+}
+
+type OffenseBaseRef = { id: number; fullName?: string } | null | undefined;
+
+/** Resolve a base occupant to id + display name (O(1) map lookups). */
+function resolveBaseRunner(
+  feed: MLBLiveFeedResponse,
+  base: OffenseBaseRef,
+): BaseRunner | null {
+  if (base?.id == null) return null;
+  return {
+    id: base.id,
+    name: base.fullName ?? playerNameFromFeed(feed, base.id) ?? "—",
+  };
+}
+
+/**
+ * Attach fullName onto linescore.offense base refs so compact snapshots
+ * still carry runner names without shipping gameData.players.
+ */
+function enrichOffenseBaseRunners(
+  feed: MLBLiveFeedResponse,
+): MLBLiveFeedResponse["liveData"]["linescore"] {
+  const linescore = feed.liveData.linescore;
+  const offense = linescore.offense;
+  if (!offense) return linescore;
+
+  const enrich = (base: OffenseBaseRef) => {
+    if (base?.id == null) return base ?? null;
+    if (base.fullName) return base;
+    const name = playerNameFromFeed(feed, base.id);
+    return name ? { ...base, fullName: name } : base;
+  };
+
+  return {
+    ...linescore,
+    offense: {
+      ...offense,
+      first: enrich(offense.first),
+      second: enrich(offense.second),
+      third: enrich(offense.third),
+    },
+  };
+}
+
 function defensivePitcherFromBoxScore(
   feed: MLBLiveFeedResponse,
   battingTeamId: number | null,
@@ -1146,6 +1198,11 @@ function parsePitchEvent(event: PitchEventRaw, pitchNumber: number): PlayPitch |
 
   const description = outcomeLabel(event);
 
+  const isInPlay = Boolean(event.details?.isInPlay);
+  const hit = isInPlay
+    ? parseHitData(event.hitData, event.pitchData, event.details)
+    : null;
+
   return {
     pitchNumber,
     typeCode: event.details?.type?.code ?? "—",
@@ -1159,7 +1216,7 @@ function parsePitchEvent(event: PitchEventRaw, pitchNumber: number): PlayPitch |
     plateZ: hasPlateLocation ? coords!.pZ! : 0,
     isStrike: Boolean(event.details?.isStrike),
     isBall: Boolean(event.details?.isBall),
-    isInPlay: Boolean(event.details?.isInPlay),
+    isInPlay,
     isOut: inferInPlayOut(event.details?.isOut, description),
     isPitch: true,
     hasPlateLocation,
@@ -1173,6 +1230,7 @@ function parsePitchEvent(event: PitchEventRaw, pitchNumber: number): PlayPitch |
     spinRate: event.pitchData?.breaks?.spinRate,
     breakHorizontal: event.pitchData?.breaks?.breakHorizontal,
     breakVerticalInduced: event.pitchData?.breaks?.breakVerticalInduced,
+    hit,
   };
 }
 
@@ -1763,6 +1821,9 @@ export function parseLiveFeed(
     onFirst: isBreak ? false : offense.first != null,
     onSecond: isBreak ? false : offense.second != null,
     onThird: isBreak ? false : offense.third != null,
+    runnerFirst: isBreak ? null : resolveBaseRunner(feed, offense.first),
+    runnerSecond: isBreak ? null : resolveBaseRunner(feed, offense.second),
+    runnerThird: isBreak ? null : resolveBaseRunner(feed, offense.third),
     awayAbsChallengesRemaining: absChallenges.away,
     homeAbsChallengesRemaining: absChallenges.home,
     atBatPitches: parseAtBatPitchesFromFeed(feed, isBreak),
@@ -1801,6 +1862,9 @@ export function liveStateFingerprint(state: LiveGameState): string {
     state.onFirst,
     state.onSecond,
     state.onThird,
+    state.runnerFirst?.id,
+    state.runnerSecond?.id,
+    state.runnerThird?.id,
     state.atBatPitches.length,
     lastPitch?.pitchNumber,
     lastPitch?.callCode,
@@ -1942,7 +2006,7 @@ export function buildLiveFeedSnapshot(
     homeAbbrev: teams.home.abbreviation ?? teams.home.name.slice(0, 3).toUpperCase(),
     venueId: feed.gameData.venue?.id ?? null,
     venueName: feed.gameData.venue?.name ?? null,
-    linescore: feed.liveData.linescore,
+    linescore: enrichOffenseBaseRunners(feed),
     currentPlay: feed.liveData.plays.currentPlay,
     allPlaysCount: feed.liveData.plays.allPlays?.length ?? 0,
     awayPitcher: pitchers.away,

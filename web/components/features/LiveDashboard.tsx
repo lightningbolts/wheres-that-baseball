@@ -12,6 +12,7 @@ import { ConnectionIndicator } from "@/components/features/ConnectionIndicator";
 import { DashboardSkeleton } from "@/components/features/DashboardSkeleton";
 import { DueUpDialog } from "@/components/features/DueUpDialog";
 import { GameDetailTabs, type GameDetailTab } from "@/components/features/GameDetailTabs";
+import { GameFieldView } from "@/components/features/GameFieldView";
 import { GameHitsView } from "@/components/features/GameHitsView";
 import { GameFinalDialog } from "@/components/features/GameFinalDialog";
 import { NerdInsightToasts } from "@/components/features/NerdInsightToasts";
@@ -186,6 +187,21 @@ function DashboardContent({ game }: { game: SlateGame }) {
           atBatPlayerId={showBatterHighlights ? gameState?.batterId : null}
           onDeckPlayerId={showBatterHighlights ? gameState?.onDeckId : null}
           offenseTeamId={showBatterHighlights ? gameState?.offenseTeamId : null}
+          className="min-h-0 flex-1"
+        />
+      </div>
+
+      <div
+        className={cn(
+          "flex min-h-0 flex-1 flex-col overflow-hidden",
+          activeTab !== "field" && "hidden",
+        )}
+        aria-hidden={activeTab !== "field"}
+      >
+        <GameFieldView
+          gameState={atBatViewState ?? gameState}
+          boxScore={boxScore}
+          isLoading={isFeedLoading && !gameState}
           className="min-h-0 flex-1"
         />
       </div>

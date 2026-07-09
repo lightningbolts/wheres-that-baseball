@@ -32,6 +32,8 @@ export interface PlayPitch {
   spinRate?: number;
   breakHorizontal?: number;
   breakVerticalInduced?: number;
+  /** Present when the pitch was put in play (for live field animation). */
+  hit?: HitData | null;
 }
 
 export interface HitData {
@@ -170,6 +172,12 @@ export interface BatterHotZoneCell {
   temp?: string;
 }
 
+/** Runner occupying a base on the live diamond. */
+export interface BaseRunner {
+  id: number;
+  name: string;
+}
+
 export interface LiveGameState {
   gamePk: number;
   venueId: number | null;
@@ -201,6 +209,10 @@ export interface LiveGameState {
   onFirst: boolean;
   onSecond: boolean;
   onThird: boolean;
+  /** Present on live parses; may be absent on older stored game_state rows. */
+  runnerFirst?: BaseRunner | null;
+  runnerSecond?: BaseRunner | null;
+  runnerThird?: BaseRunner | null;
   awayAbsChallengesRemaining: number;
   homeAbsChallengesRemaining: number;
   atBatPitches: PlayPitch[];
@@ -343,7 +355,10 @@ export interface MLBLiveFeedResponse {
       away: { id?: number; name: string; abbreviation?: string };
       home: { id?: number; name: string; abbreviation?: string };
     };
-    players?: Record<string, { id?: number; teamId?: number }>;
+    players?: Record<
+      string,
+      { id?: number; teamId?: number; fullName?: string; boxscoreName?: string }
+    >;
   };
   liveData: {
     linescore: {
@@ -360,9 +375,9 @@ export interface MLBLiveFeedResponse {
         pitcher?: { id?: number; fullName?: string };
         battingOrder?: number;
         team?: { id?: number; name?: string };
-        first?: { id: number } | null;
-        second?: { id: number } | null;
-        third?: { id: number } | null;
+        first?: { id: number; fullName?: string } | null;
+        second?: { id: number; fullName?: string } | null;
+        third?: { id: number; fullName?: string } | null;
       };
     };
     boxscore?: {

@@ -13,6 +13,7 @@ import { ConnectionIndicator } from "@/components/features/ConnectionIndicator";
 import { DashboardSkeleton } from "@/components/features/DashboardSkeleton";
 import { DueUpDialog } from "@/components/features/DueUpDialog";
 import { GameDetailTabs, type GameDetailTab } from "@/components/features/GameDetailTabs";
+import { GameFieldView } from "@/components/features/GameFieldView";
 import { GameHitsView } from "@/components/features/GameHitsView";
 import { GameFinalDialog } from "@/components/features/GameFinalDialog";
 import { PitchSequence, type StrikeZoneMode } from "@/components/features/PitchSequence";
@@ -447,6 +448,21 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
               atBatPlayerId={showBatterHighlights ? gameState?.batterId : null}
               onDeckPlayerId={showBatterHighlights ? gameState?.onDeckId : null}
               offenseTeamId={showBatterHighlights ? gameState?.offenseTeamId : null}
+            />
+          </div>
+
+          <div
+            className={cn(
+              "flex min-h-0 flex-1 flex-col overflow-hidden",
+              activeTab !== "field" && "hidden",
+            )}
+            aria-hidden={activeTab !== "field"}
+          >
+            <GameFieldView
+              gameState={displayState}
+              boxScore={boxScore}
+              isLoading={isLoading && !gameState}
+              className="min-h-0 flex-1"
             />
           </div>
 

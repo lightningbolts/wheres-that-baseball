@@ -1,15 +1,15 @@
 import type { BaseOccupancy, GameSituation } from "@/types/mlb-live";
 
-function lastName(fullName: string): string {
+export function playerLastName(fullName: string): string {
   const parts = fullName.trim().split(/\s+/);
   return parts[parts.length - 1] ?? fullName;
 }
 
 export function formatRunnerBases(bases: BaseOccupancy): string | null {
   const parts: string[] = [];
-  if (bases.first) parts.push(`${lastName(bases.first)} on 1st`);
-  if (bases.second) parts.push(`${lastName(bases.second)} on 2nd`);
-  if (bases.third) parts.push(`${lastName(bases.third)} on 3rd`);
+  if (bases.first) parts.push(`${playerLastName(bases.first)} on 1st`);
+  if (bases.second) parts.push(`${playerLastName(bases.second)} on 2nd`);
+  if (bases.third) parts.push(`${playerLastName(bases.third)} on 3rd`);
   return parts.length > 0 ? parts.join(", ") : null;
 }
 

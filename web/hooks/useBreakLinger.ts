@@ -61,6 +61,18 @@ function applyCompletedPlayMeta(
     onFirst: completedPlay.onFirst,
     onSecond: completedPlay.onSecond,
     onThird: completedPlay.onThird,
+    runnerFirst:
+      completedPlay.onFirst && completedPlay.bases.first
+        ? { id: 0, name: completedPlay.bases.first }
+        : null,
+    runnerSecond:
+      completedPlay.onSecond && completedPlay.bases.second
+        ? { id: 0, name: completedPlay.bases.second }
+        : null,
+    runnerThird:
+      completedPlay.onThird && completedPlay.bases.third
+        ? { id: 0, name: completedPlay.bases.third }
+        : null,
     awayRuns: completedPlay.awayScore,
     homeRuns: completedPlay.homeScore,
     atBatPitches: pitches,
