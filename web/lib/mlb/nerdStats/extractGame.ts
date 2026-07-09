@@ -155,6 +155,10 @@ interface HalfInningTracker {
   runs: number;
   hits: number;
   pitches: number;
+  /** Defense just took a lead in the previous half-inning. */
+  postLeadDefense: boolean;
+  inning: number;
+  halfInning: string;
 }
 
 function updateMinNullable(current: number | null, value: number): number {
@@ -163,6 +167,19 @@ function updateMinNullable(current: number | null, value: number): number {
 
 function updateMaxNullable(current: number | null, value: number): number {
   return current == null ? value : Math.max(current, value);
+}
+
+function offenseTookLead(play: PlayByPlayEntry): boolean {
+  const before = play.situationBefore;
+  if (!before) return false;
+  const offenseIsHome = play.halfInning === "bottom";
+  const aheadBefore = offenseIsHome
+    ? before.homeScore > before.awayScore
+    : before.awayScore > before.homeScore;
+  const aheadAfter = offenseIsHome
+    ? play.homeScore > play.awayScore
+    : play.awayScore > play.homeScore;
+  return !aheadBefore && aheadAfter;
 }
 
 function finalizeHalfInning(
@@ -180,6 +197,21 @@ function finalizeHalfInning(
   const offense = teamCounters(counters, tracker.offenseId, row, split);
   const defense = teamCounters(counters, tracker.defenseId, row, split);
   const pitches = tracker.pitches;
+
+  if (tracker.postLeadDefense) {
+    defense.leadTakeNextInningRunsAllowed += tracker.runs;
+    if (tracker.runs > 0) {
+      const half = tracker.halfInning === "bottom" ? "Bot" : "Top";
+      pushNotable(defense, {
+        statId: "post-lead-runs-allowed",
+        gamePk: row.game_pk,
+        gameDate: row.game_date,
+        label: `${tracker.runs} run${tracker.runs === 1 ? "" : "s"} allowed after taking lead`,
+        detail: `${half} ${tracker.inning}`,
+        value: tracker.runs,
+      });
+    }
+  }
 
   if (pitches < 10) {
     offense.quickHalfInningsSeen += 1;
@@ -539,6 +571,9 @@ export function extractNerdCountersFromGame(
   const awayGame = createGameTeamState();
   const homeGame = createGameTeamState();
   let halfTracker: HalfInningTracker | null = null;
+  /** Team that took a lead during the half that just ended (pending next defensive half). */
+  let pendingPostLeadDefenseId: number | null = null;
+  let leadTakenThisHalf = false;
   const halfInningStrikeouts = new Map<
     string,
     { offenseId: number; count: number; pitcherName: string; lastAtBatIndex: number }
@@ -556,7 +591,15 @@ export function extractNerdCountersFromGame(
 
     const playHalf = halfKey(play);
     if (!halfTracker || halfTracker.key !== playHalf) {
+      if (halfTracker && leadTakenThisHalf) {
+        pendingPostLeadDefenseId = halfTracker.offenseId;
+      }
       finalizeHalfInning(counters, halfTracker, row, split);
+      const postLeadDefense =
+        pendingPostLeadDefenseId != null && pendingPostLeadDefenseId === defenseId;
+      if (postLeadDefense) {
+        defense.leadTakeNextInningOpportunities += 1;
+      }
       halfTracker = {
         key: playHalf,
         offenseId,
@@ -565,7 +608,12 @@ export function extractNerdCountersFromGame(
         runs: 0,
         hits: 0,
         pitches: 0,
+        postLeadDefense,
+        inning: play.inning,
+        halfInning: play.halfInning,
       };
+      pendingPostLeadDefenseId = null;
+      leadTakenThisHalf = false;
       offense.battingHalfInnings += 1;
       defense.pitchingHalfInnings += 1;
       offenseGame.firstAbOfHalf = true;
@@ -884,6 +932,10 @@ export function extractNerdCountersFromGame(
       offense.runsScored += runsForOffense;
       if (halfTracker && halfTracker.key === playHalf) {
         halfTracker.runs += runsForOffense;
+      }
+
+      if (runsForOffense > 0 && offenseTookLead(play)) {
+        leadTakenThisHalf = true;
       }
 
       if (play.situationBefore.outs === 2 && runsForOffense > 0) {

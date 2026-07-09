@@ -292,6 +292,30 @@ export const NERD_STAT_DEFINITIONS: NerdStatDefinition[] = [
     compute: (c) => c.immaculateInningVictims,
     formatValue: formatCount,
   },
+  {
+    id: "post-lead-runs-allowed",
+    title: "Lead Hangover",
+    subtitle: "Runs allowed in the half-inning right after taking a lead.",
+    category: "misfortune",
+    sort: "desc",
+    unit: "runs",
+    formula: "runs allowed in the next defensive half after taking a lead",
+    compute: (c) => c.leadTakeNextInningRunsAllowed,
+    formatValue: formatCount,
+  },
+  {
+    id: "post-lead-runs-per-chance",
+    title: "Lead Hangover Rate",
+    subtitle: "Average runs allowed in the half after taking a lead.",
+    category: "misfortune",
+    sort: "desc",
+    unit: "runs/half",
+    formula: "post-lead runs allowed ÷ post-lead defensive halves",
+    minGames: 20,
+    compute: (c) =>
+      rate(c.leadTakeNextInningRunsAllowed, c.leadTakeNextInningOpportunities),
+    formatValue: (v) => v.toFixed(2),
+  },
 
   // —— Baserunning ——
   {

@@ -64,6 +64,10 @@ export interface TeamNerdCounters {
   runsAllowed: number;
   firstInningRunsAllowed: number;
   lateInningRunsAllowed: number;
+  /** Runs allowed in the half-inning immediately after taking a lead. */
+  leadTakeNextInningRunsAllowed: number;
+  /** Times a team took a lead and then faced a subsequent defensive half. */
+  leadTakeNextInningOpportunities: number;
   plateAppearances: number;
   strikeouts: number;
   walks: number;
