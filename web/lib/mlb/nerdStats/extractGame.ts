@@ -595,9 +595,9 @@ export function extractNerdCountersFromGame(
         pendingPostLeadDefenseId = halfTracker.offenseId;
       }
       finalizeHalfInning(counters, halfTracker, row, split);
-      const postLeadDefense =
+      const isPostLeadDefense: boolean =
         pendingPostLeadDefenseId != null && pendingPostLeadDefenseId === defenseId;
-      if (postLeadDefense) {
+      if (isPostLeadDefense) {
         defense.leadTakeNextInningOpportunities += 1;
       }
       halfTracker = {
@@ -608,7 +608,7 @@ export function extractNerdCountersFromGame(
         runs: 0,
         hits: 0,
         pitches: 0,
-        postLeadDefense,
+        postLeadDefense: isPostLeadDefense,
         inning: play.inning,
         halfInning: play.halfInning,
       };
