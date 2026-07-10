@@ -310,7 +310,7 @@ export function GameHitsView({
         )}
       >
         {hits.length === 0 ? (
-          <div className="flex flex-1 items-center justify-center px-6 py-12 text-center">
+          <div className="flex flex-1 flex-col items-center justify-center px-6 py-12 text-center">
             <p className="text-sm text-subtle">No tracked hits yet.</p>
             <p className="mt-1 text-xs text-muted">
               Hits will appear as the game progresses
