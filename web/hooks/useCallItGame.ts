@@ -15,7 +15,7 @@ import {
   type CallItPhase,
   type CallItScore,
 } from "@/lib/mlb/callItGame";
-import { isAbsStrike } from "@/lib/mlb/strikeZoneMath";
+import { isAbsStrikeForPitch } from "@/lib/mlb/strikeZoneMath";
 import type { LiveGameState, PlayPitch } from "@/types/mlb-live";
 
 export type { CallItMode, CallItPhase, CallItScore } from "@/lib/mlb/callItGame";
@@ -170,12 +170,7 @@ export function useCallItGame({
     (pitch: PlayPitch, guess: "strike" | "ball") => {
       const actual = pitchActual(pitch);
       const correct = guess === actual;
-      const absSaysStrike = isAbsStrike(
-        pitch.plateX,
-        pitch.plateZ,
-        pitch.strikeZoneTop,
-        pitch.strikeZoneBottom,
-      );
+      const absSaysStrike = isAbsStrikeForPitch(pitch);
       const absDisagrees =
         (actual === "strike" && !absSaysStrike) || (actual === "ball" && absSaysStrike);
 

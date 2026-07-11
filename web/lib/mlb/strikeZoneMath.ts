@@ -1,4 +1,4 @@
-import type { PlayPitch } from "@/types/mlb-live";
+import type { PitchKinematics, PlayPitch } from "@/types/mlb-live";
 
 import { GAMEDAY_PITCH_FX } from "@/lib/mlb/gamedayAssets";
 
@@ -30,6 +30,62 @@ export const PLATE_HALF_WIDTH_FT = ZONE_WIDTH_FT / 2;
 /** Regulation ball radius (~2.9" diameter) for overlap checks. */
 export const BALL_RADIUS_FT = 2.9 / 12 / 2;
 
+/**
+ * Statcast reports pX/pZ at the front of home plate (y ≈ 17").
+ * T-Mobile ABS judges a 2D rectangle at the plate midpoint (8.5" behind the front).
+ */
+export const PLATE_FRONT_Y_FT = 17 / 12;
+export const ABS_ZONE_DEPTH_FT = 8.5 / 12;
+export const ABS_PLANE_Y_FT = PLATE_FRONT_Y_FT - ABS_ZONE_DEPTH_FT;
+
+/** Integrate Statcast quadratic motion to a target y-plane (feet from plate back tip). */
+export function pitchCoordsAtY(
+  k: PitchKinematics,
+  yTarget: number,
+): { x: number; z: number; t: number } | null {
+  const a = 0.5 * k.aY;
+  const b = k.vY0;
+  const c = k.y0 - yTarget;
+  const disc = b * b - 4 * a * c;
+  if (!(disc >= 0) || a === 0) return null;
+
+  // vY0 is negative (toward the plate); take the positive-time root.
+  const t = (-b - Math.sqrt(disc)) / (2 * a);
+  if (!(t >= 0) || !Number.isFinite(t)) return null;
+
+  return {
+    x: k.x0 + k.vX0 * t + 0.5 * k.aX * t * t,
+    z: k.z0 + k.vZ0 * t + 0.5 * k.aZ * t * t,
+    t,
+  };
+}
+
+/**
+ * Plate location on the ABS decision plane (midpoint).
+ * Falls back to front-of-plate pX/pZ when kinematics are missing.
+ */
+export function absPlateLocation(
+  pitch: Pick<PlayPitch, "plateX" | "plateZ" | "kinematics">,
+): { x: number; z: number } {
+  const k = pitch.kinematics;
+  if (
+    k &&
+    Number.isFinite(k.x0) &&
+    Number.isFinite(k.y0) &&
+    Number.isFinite(k.z0) &&
+    Number.isFinite(k.vX0) &&
+    Number.isFinite(k.vY0) &&
+    Number.isFinite(k.vZ0) &&
+    Number.isFinite(k.aX) &&
+    Number.isFinite(k.aY) &&
+    Number.isFinite(k.aZ)
+  ) {
+    const atAbs = pitchCoordsAtY(k, ABS_PLANE_Y_FT);
+    if (atAbs) return { x: atAbs.x, z: atAbs.z };
+  }
+  return { x: pitch.plateX, z: pitch.plateZ };
+}
+
 /** True when the pitch center is inside the ABS rectangle. */
 export function isPitchCenterInZone(
   pX: number,
@@ -56,6 +112,14 @@ export function isAbsStrike(
     pZ + BALL_RADIUS_FT >= szBottom &&
     pZ - BALL_RADIUS_FT <= szTop
   );
+}
+
+/** ABS strike check using the midpoint decision plane when kinematics exist. */
+export function isAbsStrikeForPitch(
+  pitch: Pick<PlayPitch, "plateX" | "plateZ" | "kinematics" | "strikeZoneTop" | "strikeZoneBottom">,
+): boolean {
+  const { x, z } = absPlateLocation(pitch);
+  return isAbsStrike(x, z, pitch.strikeZoneTop, pitch.strikeZoneBottom);
 }
 
 function horizontalPercent(pX: number, viewWidth = VIEW_WIDTH_FT) {

@@ -8,6 +8,7 @@ import {
 } from "@/lib/mlb/gamedayAssets";
 import { cn } from "@/lib/utils";
 import {
+  absPlateLocation,
   PITCH_NEUTRAL_COLOR,
   pitchFxSceneLayout,
   pitchResultColor,
@@ -86,7 +87,8 @@ function PitchDot({
   animateIn: boolean;
   showNumber?: boolean;
 }) {
-  const target = sceneZoneToSvgPercent(pitch.plateX, pitch.plateZ, szTop, szBottom, sceneZone);
+  const abs = absPlateLocation(pitch);
+  const target = sceneZoneToSvgPercent(abs.x, abs.z, szTop, szBottom, sceneZone);
   const [pos, setPos] = useState(target);
 
   useEffect(() => {

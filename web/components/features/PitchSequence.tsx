@@ -10,6 +10,7 @@ import type { BatterHotZoneCell, PlayPitch } from "@/types/mlb-live";
 
 export type StrikeZoneMode = "atBat" | "game";
 import {
+  absPlateLocation,
   homePlatePath,
   pitchResultColor,
   strikeZoneCellRect,
@@ -392,7 +393,9 @@ function StrikeZoneChart({
       {batterZones?.length ? <ZoneHeatCells zone={zone} cells={batterZones} /> : null}
       <ZoneGridLines zone={zone} />
       {plotted.map((pitch) => {
-        const dot = toSvgPercent(pitch.plateX, pitch.plateZ, szTop, szBottom);
+        // ABS judges at the plate midpoint; Statcast pX/pZ are at the front.
+        const abs = absPlateLocation(pitch);
+        const dot = toSvgPercent(abs.x, abs.z, szTop, szBottom);
         const color = pitchResultColor(pitch);
         const isCurrentAtBat = !isZoneDisplayPitch(pitch) || pitch.isCurrentAtBat;
         const currentOrdinal = isCurrentAtBat ? currentAtBatOrdinal++ : -1;
