@@ -27,6 +27,8 @@ export function PitchFeedList({
   size = "compact",
   entranceFromIndex = pitches.length,
   reverse = false,
+  /** Drop horizontal padding when a parent already provides the gutter. */
+  flush = false,
   className,
 }: {
   pitches: PlayPitch[];
@@ -34,6 +36,7 @@ export function PitchFeedList({
   entranceFromIndex?: number;
   /** Newest pitch first (mobile feed). */
   reverse?: boolean;
+  flush?: boolean;
   className?: string;
 }) {
   const styles = FEED_SIZE[size];
@@ -53,7 +56,8 @@ export function PitchFeedList({
           <li
             key={`${pitch.pitchNumber}-${pitch.callCode}-${pitch.balls}-${pitch.strikes}`}
             className={cn(
-              "flex items-start gap-3 px-3",
+              "flex items-start gap-3",
+              flush ? "px-0" : "px-3",
               styles.rowPy,
               animate && "animate-pitch_in",
             )}

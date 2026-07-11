@@ -349,7 +349,7 @@ export function Scorebug({
       className={cn(
         "flex w-full max-w-full shrink-0 items-stretch border-b border-border bg-scorebug text-scorebug-fg",
         useMatchupSlot
-          ? "h-auto min-h-11 flex-col md:h-auto md:min-h-[4.25rem] md:flex-row"
+          ? "h-auto min-h-11 flex-col md:h-14 md:flex-row"
           : "h-auto min-h-11 flex-col lg:h-14 lg:flex-row",
         className,
       )}
@@ -357,8 +357,8 @@ export function Scorebug({
       {/* Game state — stays content-width so matchup can sit flush beside it */}
       <div
         className={cn(
-          "flex min-h-11 min-w-0 items-stretch overflow-x-auto overscroll-x-contain lg:overflow-visible",
-          useMatchupSlot ? "md:min-h-[4.25rem] md:shrink-0" : "lg:h-14 lg:shrink-0",
+          "flex h-11 min-w-0 items-stretch overflow-x-auto overscroll-x-contain lg:overflow-visible",
+          useMatchupSlot ? "md:h-14 md:shrink-0" : "lg:h-14 lg:shrink-0",
         )}
       >
         <StatCell className="min-w-[48px] flex-col gap-0.5 py-1 md:min-w-[56px] lg:min-w-[72px] lg:px-3">
@@ -454,12 +454,12 @@ export function Scorebug({
         </StatCell>
       </div>
 
-      {/* Matchup cluster — grows so RISP/stat cards can use leftover width */}
+      {/* Matchup — players only on desktop; history/RISP live in the panel below */}
       <div
         className={cn(
           "hidden min-w-0 items-center border-t border-border px-3 py-1.5 md:flex",
           useMatchupSlot
-            ? "md:min-w-0 md:flex-1 md:border-l md:border-t-0 md:px-3 md:py-1"
+            ? "md:h-14 md:shrink-0 md:border-l md:border-t-0 md:px-2.5 md:py-0"
             : "lg:h-14 lg:min-w-0 lg:flex-1 lg:border-l lg:border-t-0 lg:py-0 lg:pl-3 lg:pr-3",
         )}
       >

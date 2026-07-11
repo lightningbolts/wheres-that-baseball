@@ -40,6 +40,8 @@ interface PitchSequenceProps {
   dashboardFooter?: ReactNode;
   /** Start with desktop outcome odds collapsed. */
   dashboardFooterCollapsedDefault?: boolean;
+  /** Overlay anchored to the bottom of the strike zone (e.g. outcome toast). */
+  zoneOverlay?: ReactNode;
   /** Optional override for strike zone chart only (e.g. all game pitches). */
   zonePitches?: ZoneDisplayPitch[];
   zoneMode?: StrikeZoneMode;
@@ -86,18 +88,17 @@ const SIZE_STYLES = {
   },
 } as const;
 
-/** Desktop dashboard: pitch feed + outcome odds stay narrow; zone gets the rest. */
+/** Desktop dashboard: pitch feed + outcome odds share a column; zone fills the rest. */
 export const PITCH_FEED_COLUMN_CLASS =
-  "flex w-full min-h-0 min-w-0 shrink-0 flex-col gap-3 overflow-hidden md:w-[33.333%] md:max-w-[38%] md:self-stretch";
+  "flex w-full min-h-0 min-w-0 shrink-0 flex-col gap-2 overflow-hidden md:w-[38%] md:max-w-[42%] md:self-stretch";
+
+/** Shared section label — aligns with “Current at-bat” / Outcome odds. */
+export const ATBAT_SECTION_LABEL_CLASS =
+  "text-[10px] font-semibold uppercase tracking-wide text-muted";
 
 function BatterZoneOpsLabel({ className }: { className?: string }) {
   return (
-    <span
-      className={cn(
-        "shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted",
-        className,
-      )}
-    >
+    <span className={cn("shrink-0", ATBAT_SECTION_LABEL_CLASS, className)}>
       Batter OPS by zone
     </span>
   );
@@ -157,6 +158,7 @@ function ZoneWithOpsLabel({
   zoneMode,
   onZoneModeChange,
   gamePitchCount = 0,
+  zoneOverlay,
 }: {
   batterZones?: BatterHotZoneCell[];
   className?: string;
@@ -164,12 +166,14 @@ function ZoneWithOpsLabel({
   zoneMode?: StrikeZoneMode;
   onZoneModeChange?: (mode: StrikeZoneMode) => void;
   gamePitchCount?: number;
+  /** Overlay anchored to the bottom of the strike zone (e.g. outcome toast). */
+  zoneOverlay?: ReactNode;
 }) {
   const showToggle = zoneMode != null && onZoneModeChange != null;
 
   return (
     <div className={cn("flex min-h-0 flex-col", className)}>
-      <div className="mb-1 flex shrink-0 items-center justify-between gap-2 px-1">
+      <div className="flex h-8 shrink-0 items-center justify-between gap-2">
         <BatterZoneOpsLabel />
         {showToggle ? (
           <StrikeZoneModeToggle
@@ -179,7 +183,14 @@ function ZoneWithOpsLabel({
           />
         ) : null}
       </div>
-      <div className="min-h-0 flex-1">{children}</div>
+      <div className="relative mt-2 flex min-h-0 flex-1 flex-col overflow-hidden">
+        {children}
+        {zoneOverlay ? (
+          <div className="pointer-events-none absolute inset-x-2 bottom-2 z-20 flex justify-center md:inset-x-3 md:bottom-3">
+            <div className="pointer-events-auto w-full max-w-md">{zoneOverlay}</div>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -317,8 +328,7 @@ function EmptyStrikeZone({
       viewBox="0 0 100 100"
       className={cn(
         "w-full border border-border bg-zone-chart-bg",
-        zoneFirst ? mobileZoneHeightClass(mobileZoneCompact) : "h-40",
-        className,
+        className ?? (zoneFirst ? mobileZoneHeightClass(mobileZoneCompact) : "h-40"),
       )}
       aria-hidden
       preserveAspectRatio="xMidYMid meet"
@@ -373,7 +383,7 @@ function StrikeZoneChart({
       viewBox="0 0 100 100"
       className={cn(
         "border border-border bg-zone-chart-bg",
-        fill ? cn("h-full w-full touch-none", styles.chartMinH) : cn("shrink-0", styles.chart),
+        fill ? "h-full min-h-0 w-full touch-none" : cn("shrink-0", styles.chart),
         className,
       )}
       aria-hidden
@@ -439,10 +449,12 @@ function PitchFeed({
   pitches,
   size,
   entranceFromIndex = pitches.length,
+  flush = false,
 }: {
   pitches: PlayPitch[];
   size: keyof typeof SIZE_STYLES;
   entranceFromIndex?: number;
+  flush?: boolean;
 }) {
   const feedSize = size === "large" ? "default" : size === "compact" ? "compact" : "default";
 
@@ -451,6 +463,7 @@ function PitchFeed({
       pitches={pitches}
       size={feedSize}
       entranceFromIndex={entranceFromIndex}
+      flush={flush}
     />
   );
 }
@@ -461,6 +474,7 @@ function PitchFeedColumn({
   contained,
   scrollToLatest,
   entranceFromIndex,
+  flush = false,
   className,
 }: {
   pitches: PlayPitch[];
@@ -468,6 +482,7 @@ function PitchFeedColumn({
   contained: boolean;
   scrollToLatest?: boolean;
   entranceFromIndex: number;
+  flush?: boolean;
   className?: string;
 }) {
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -476,7 +491,7 @@ function PitchFeedColumn({
   useEffect(() => {
     if (!scrollToLatest || pitches.length === 0) return;
     if (pitches.length >= prevCountRef.current) {
-      bottomRef.current?.scrollIntoView({ block: "end" });
+      bottomRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
     }
     prevCountRef.current = pitches.length;
   }, [pitches.length, scrollToLatest]);
@@ -488,6 +503,7 @@ function PitchFeedColumn({
           pitches={pitches}
           size={resolvedSize}
           entranceFromIndex={entranceFromIndex}
+          flush={flush}
         />
         <div ref={bottomRef} className="h-px" aria-hidden />
       </div>
@@ -496,12 +512,13 @@ function PitchFeedColumn({
 
   return (
     <div className={cn("flex min-h-0 flex-col overflow-hidden", className)}>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain pl-1 pr-3 [scrollbar-gutter:stable]">
-        <div>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [scrollbar-gutter:stable]">
+        <div className="pr-3">
           <PitchFeed
             pitches={pitches}
             size={resolvedSize}
             entranceFromIndex={entranceFromIndex}
+            flush={flush}
           />
           <div ref={bottomRef} className="h-px shrink-0" aria-hidden />
         </div>
@@ -522,7 +539,7 @@ function CollapsibleDashboardFooter({
   return (
     <div
       className={cn(
-        "flex min-h-0 shrink-0 flex-col overflow-hidden rounded border border-border/60 bg-panel/40",
+        "flex min-h-0 shrink-0 flex-col overflow-hidden border-t border-border/60",
         open && "h-[min(200px,34vh)]",
       )}
     >
@@ -530,14 +547,14 @@ function CollapsibleDashboardFooter({
         type="button"
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
-        className="flex w-full shrink-0 items-center justify-between px-2 py-1.5 text-left hover:bg-hover"
+        className="flex h-8 w-full shrink-0 items-center justify-between text-left hover:bg-hover"
       >
-        <span className="text-xs font-medium text-muted">Outcome odds</span>
+        <span className={ATBAT_SECTION_LABEL_CLASS}>Outcome odds</span>
         <span className="text-[10px] text-subtle">{open ? "−" : "+"}</span>
       </button>
       {open ? (
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain border-t border-border/50 pl-1 pr-3 pt-1.5 [scrollbar-gutter:stable]">
-          {children}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain pt-1 [scrollbar-gutter:stable]">
+          <div className="pr-3">{children}</div>
         </div>
       ) : null}
     </div>
@@ -554,6 +571,7 @@ function DashboardGridLayout({
   batterZones,
   dashboardFooter,
   dashboardFooterCollapsedDefault = false,
+  zoneOverlay,
   zoneMode,
   onZoneModeChange,
   gamePitchCount,
@@ -568,6 +586,7 @@ function DashboardGridLayout({
   batterZones?: BatterHotZoneCell[];
   dashboardFooter?: ReactNode;
   dashboardFooterCollapsedDefault?: boolean;
+  zoneOverlay?: ReactNode;
   zoneMode?: StrikeZoneMode;
   onZoneModeChange?: (mode: StrikeZoneMode) => void;
   gamePitchCount?: number;
@@ -578,7 +597,7 @@ function DashboardGridLayout({
   return (
     <div
       className={cn(
-        "flex h-full min-h-0 w-full flex-col gap-3 overflow-hidden md:flex-row md:items-stretch",
+        "flex h-full min-h-0 w-full flex-col gap-3 overflow-hidden pt-2 md:flex-row md:items-stretch md:gap-4 md:pt-2.5",
         className,
       )}
     >
@@ -589,6 +608,7 @@ function DashboardGridLayout({
           contained
           scrollToLatest={scrollToLatest}
           entranceFromIndex={entranceFromIndex}
+          flush
           className="min-h-0 flex-1 basis-0 overflow-hidden"
         />
         {dashboardFooter ? (
@@ -602,6 +622,7 @@ function DashboardGridLayout({
         zoneMode={zoneMode}
         onZoneModeChange={onZoneModeChange}
         gamePitchCount={gamePitchCount}
+        zoneOverlay={zoneOverlay}
         className="min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
       >
         <MemoStrikeZoneChart
@@ -738,6 +759,7 @@ export function PitchSequence({
   batterZones,
   dashboardFooter,
   dashboardFooterCollapsedDefault = false,
+  zoneOverlay,
   zonePitches,
   zoneMode,
   onZoneModeChange,
@@ -762,31 +784,37 @@ export function PitchSequence({
   if (layout === "zone") {
     if (chartPitches.length === 0) {
       return (
-        <ZoneWithOpsLabel batterZones={batterZones} className={className} {...zoneHeaderProps}>
+        <ZoneWithOpsLabel
+          batterZones={batterZones}
+          className={cn("overflow-hidden", className)}
+          zoneOverlay={zoneOverlay}
+          {...zoneHeaderProps}
+        >
           <EmptyStrikeZone
             zoneFirst={zoneFirst}
             mobileZoneCompact={mobileZoneCompact}
             batterZones={batterZones}
-            className={cn(
-              zoneFirst ? mobileZoneHeightClass(mobileZoneCompact) : "h-40 w-full",
-            )}
+            className="h-full min-h-0 w-full"
           />
         </ZoneWithOpsLabel>
       );
     }
 
     return (
-      <ZoneWithOpsLabel batterZones={batterZones} className={className} {...zoneHeaderProps}>
+      <ZoneWithOpsLabel
+        batterZones={batterZones}
+        className={cn("overflow-hidden", className)}
+        zoneOverlay={zoneOverlay}
+        {...zoneHeaderProps}
+      >
         <MemoStrikeZoneChart
           pitches={chartPitches}
           size="large"
-          fill={false}
+          fill
           entranceFromIndex={entranceFromIndex}
           zoneEntranceFromIndex={zoneEntranceFromIndex}
           batterZones={batterZones}
-          className={cn(
-            zoneFirst ? mobileZoneHeightClass(mobileZoneCompact) : "h-40 w-full",
-          )}
+          className="h-full min-h-0 w-full"
         />
       </ZoneWithOpsLabel>
     );
@@ -804,6 +832,7 @@ export function PitchSequence({
         batterZones={batterZones}
         dashboardFooter={dashboardFooter}
         dashboardFooterCollapsedDefault={dashboardFooterCollapsedDefault}
+        zoneOverlay={zoneOverlay}
         className={className}
         {...zoneHeaderProps}
       />

@@ -27,6 +27,8 @@ interface PlayByPlayProps {
   selectedAtBatIndex?: number | null;
   onSelectAtBat?: (play: PlayByPlayEntry) => void;
   autoScrollToLatest?: boolean;
+  /** When false, live pitch updates do not pull the scroll container (mobile zone view). */
+  autoScrollOnLivePitches?: boolean;
   /** Fade in newly completed at-bats (live feed). */
   animateEntrance?: boolean;
   /** Sidebar uses collapsible innings; feed is a flat scrollable list for mobile. */
@@ -49,6 +51,8 @@ interface PlayByPlayProps {
   embeddedScroll?: boolean;
   /** Parent scroll container when embeddedScroll is true. */
   parentScrollRef?: React.RefObject<HTMLElement | null>;
+  /** Highlight / scroll to this at-bat as an outcome toast settles into the feed. */
+  settlingAtBatIndex?: number | null;
   /** Nerd insights keyed by at-bat index for inline feed rows. */
   insightsByAtBat?: Map<number, NerdInsight[]>;
   /** Nerd insights keyed by half-inning (e.g. "5-Top"). */
@@ -403,6 +407,7 @@ function PlayFeedRow({
   pitchEntranceFromIndex = 0,
   reverseOrder = false,
   playInsights = [],
+  settling = false,
 }: {
   play: PlayByPlayEntry;
   awayAbbrev: string;
@@ -415,6 +420,7 @@ function PlayFeedRow({
   pitchEntranceFromIndex?: number;
   reverseOrder?: boolean;
   playInsights?: NerdInsight[];
+  settling?: boolean;
 }) {
   const showSituationAfter = entryShowsSituationAfter(play);
   const selected =
@@ -422,7 +428,10 @@ function PlayFeedRow({
 
   return (
     <div
-      className={cn(animate && "animate-play_in")}
+      className={cn(
+        (animate || settling) && "animate-play_in",
+        settling && "bg-overlay/80 ring-1 ring-inset ring-border-strong",
+      )}
       data-at-bat-index={play.isAtBat !== false ? play.atBatIndex : undefined}
     >
       <button
@@ -519,9 +528,11 @@ function CollapsibleFeedHeader({
         type="button"
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
-        className="flex w-full items-center justify-between px-3 py-2.5 text-left hover:bg-hover"
+        className="flex h-9 w-full items-center justify-between px-3 text-left hover:bg-hover"
       >
-        <span className="text-xs font-medium text-muted">{title}</span>
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+          {title}
+        </span>
         <span className="text-[10px] text-subtle">{open ? "−" : "+"}</span>
       </button>
       {open ? <div className="border-t border-border/50 px-3 py-3">{children}</div> : null}
@@ -577,6 +588,7 @@ function PlayFeed({
   halfInsights,
   inningInsights,
   liveInsight = null,
+  settlingAtBatIndex = null,
 }: {
   plays: PlayByPlayEntry[];
   groups: InningGroup[];
@@ -597,6 +609,7 @@ function PlayFeed({
   halfInsights?: Map<string, NerdInsight[]>;
   inningInsights?: Map<number, NerdInsight[]>;
   liveInsight?: NerdInsight | null;
+  settlingAtBatIndex?: number | null;
 }) {
   const inProgress = livePitches.length > 0;
   const orderedGroups = reverseOrder ? [...groups].reverse() : groups;
@@ -677,6 +690,7 @@ function PlayFeed({
                   embeddedPitches={embeddedPitches}
                   reverseOrder={reverseOrder}
                   playInsights={insightsByAtBat?.get(play.atBatIndex) ?? []}
+                  settling={settlingAtBatIndex === play.atBatIndex}
                 />
               );
             })}
@@ -724,6 +738,7 @@ function PlayOutcomeCard({
   setSelectedPlay,
   animate,
   playInsights = [],
+  settling = false,
 }: {
   play: PlayByPlayEntry;
   awayAbbrev: string;
@@ -733,13 +748,17 @@ function PlayOutcomeCard({
   setSelectedPlay: (play: PlayDetail | null) => void;
   animate: boolean;
   playInsights?: NerdInsight[];
+  settling?: boolean;
 }) {
   const showSituationAfter = entryShowsSituationAfter(play);
   const contact = compactContactLine(play.detail.hit);
 
   return (
     <div
-      className={cn(animate && "animate-play_in")}
+      className={cn(
+        (animate || settling) && "animate-play_in",
+        settling && "bg-overlay/80 ring-1 ring-inset ring-border-strong",
+      )}
       data-at-bat-index={play.isAtBat !== false ? play.atBatIndex : undefined}
     >
       <button
@@ -796,6 +815,7 @@ export const PlayByPlay = memo(function PlayByPlay({
   selectedAtBatIndex = null,
   onSelectAtBat,
   autoScrollToLatest = true,
+  autoScrollOnLivePitches = true,
   animateEntrance = true,
   variant = "sidebar",
   feedHeader,
@@ -807,6 +827,7 @@ export const PlayByPlay = memo(function PlayByPlay({
   monitorKey,
   embeddedScroll = false,
   parentScrollRef,
+  settlingAtBatIndex = null,
   insightsByAtBat,
   halfInsights,
   inningInsights,
@@ -947,10 +968,21 @@ export const PlayByPlay = memo(function PlayByPlay({
     }
 
     const playsGrew = plays.length > prevCountRef.current;
-    const pitchesGrew = livePitchesList.length > prevLivePitchCountRef.current;
-    const needsInitialScroll = !hasInitialScrolledRef.current;
+    const pitchesGrew =
+      autoScrollOnLivePitches && livePitchesList.length > prevLivePitchCountRef.current;
+    // Mobile zone view: never jump to the feed on first paint / pitch ticks.
+    const needsInitialScroll =
+      !hasInitialScrolledRef.current &&
+      (autoScrollOnLivePitches || variant !== "feed");
 
-    if (!playsGrew && !pitchesGrew && !needsInitialScroll) return;
+    if (!playsGrew && !pitchesGrew && !needsInitialScroll) {
+      prevLivePitchCountRef.current = livePitchesList.length;
+      if (plays.length > 0) {
+        hasInitialScrolledRef.current = true;
+        prevCountRef.current = plays.length;
+      }
+      return;
+    }
 
     const behavior: ScrollBehavior = needsInitialScroll ? "auto" : "smooth";
     const frame = requestAnimationFrame(() => {
@@ -964,6 +996,7 @@ export const PlayByPlay = memo(function PlayByPlay({
     return () => cancelAnimationFrame(frame);
   }, [
     autoScrollToLatest,
+    autoScrollOnLivePitches,
     plays.length,
     livePitchesList.length,
     latestInningKey,
@@ -971,6 +1004,24 @@ export const PlayByPlay = memo(function PlayByPlay({
     variant,
     scrollFeedToLatest,
   ]);
+
+  useEffect(() => {
+    // Mobile Gameday keeps the zone in view — don't jump to the feed after the toast.
+    if (settlingAtBatIndex == null || embeddedScroll) return;
+
+    const frame = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const container = scrollContainerRef.current;
+        const row = container?.querySelector(
+          `[data-at-bat-index="${settlingAtBatIndex}"]`,
+        );
+        if (!row) return;
+        row.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [embeddedScroll, settlingAtBatIndex]);
 
   const toggleInning = (key: string) => {
     setExpanded((prev) => {
@@ -1048,6 +1099,7 @@ export const PlayByPlay = memo(function PlayByPlay({
               halfInsights={halfInsights}
               inningInsights={inningInsights}
               liveInsight={liveInsight}
+              settlingAtBatIndex={settlingAtBatIndex}
             />
           ) : (
             <div>
@@ -1109,6 +1161,7 @@ export const PlayByPlay = memo(function PlayByPlay({
                               setSelectedPlay={setSelectedPlay}
                               animate={animate}
                               playInsights={insightsByAtBat?.get(play.atBatIndex) ?? []}
+                              settling={settlingAtBatIndex === play.atBatIndex}
                             />
                           );
                         })}

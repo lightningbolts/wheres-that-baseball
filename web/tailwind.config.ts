@@ -47,11 +47,21 @@ const config: Config = {
           "60%": { opacity: "0.85", transform: "translateY(-1px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
+        toastIn: {
+          "0%": { opacity: "0", transform: "translateY(12px) scale(0.98)" },
+          "100%": { opacity: "1", transform: "translateY(0) scale(1)" },
+        },
+        toastOut: {
+          "0%": { opacity: "1", transform: "translateY(0) scale(1)" },
+          "100%": { opacity: "0", transform: "translateY(10px) scale(0.98)" },
+        },
       },
       animation: {
         pulse_slow: "pulse 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite",
         pitch_in: "pitchIn 0.16s ease-out forwards",
         play_in: "playIn 0.38s cubic-bezier(0.22, 1, 0.36, 1) forwards",
+        toast_in: "toastIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards",
+        toast_out: "toastOut 0.42s cubic-bezier(0.4, 0, 0.2, 1) forwards",
       },
     },
   },

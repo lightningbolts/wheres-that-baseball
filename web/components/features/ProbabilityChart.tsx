@@ -91,7 +91,7 @@ export const ProbabilityChart = memo(function ProbabilityChart({
   );
 
   if (!contained) {
-    return <div className={cn("pr-2", className)}>{chart}</div>;
+    return <div className={className}>{chart}</div>;
   }
 
   return (

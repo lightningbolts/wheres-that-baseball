@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AppNav } from "@/components/features/AppNav";
 import { AtBatMatchup } from "@/components/features/AtBatMatchup";
+import { AtBatOutcomeToast } from "@/components/features/AtBatOutcomeToast";
 import { BoxScoreView } from "@/components/features/BoxScoreView";
 import { CallItGame } from "@/components/features/callIt/CallItGame";
 import { ConnectionIndicator } from "@/components/features/ConnectionIndicator";
@@ -21,6 +22,7 @@ import { Scorebug } from "@/components/features/Scorebug";
 import { StealIndicator } from "@/components/features/StealIndicator";
 import { PitchSequence, type StrikeZoneMode } from "@/components/features/PitchSequence";
 import { useArchiveFinishedGame } from "@/hooks/useArchiveFinishedGame";
+import { useAtBatOutcomeToast } from "@/hooks/useAtBatOutcomeToast";
 import { useBatterHotZones } from "@/hooks/useBatterHotZones";
 import { useBatterRisp } from "@/hooks/useBatterRisp";
 import { useBatterVsPitcher } from "@/hooks/useBatterVsPitcher";
@@ -77,6 +79,12 @@ function DashboardContent({ game }: { game: SlateGame }) {
     [feedInsights],
   );
   useArchiveFinishedGame(selectedGamePk, gameOver);
+  const {
+    play: outcomeToastPlay,
+    phase: outcomeToastPhase,
+    settlingAtBatIndex,
+    dismiss: dismissOutcomeToast,
+  } = useAtBatOutcomeToast(gameState?.plays ?? [], !gameOver && activeTab === "plays");
   const { predictions, isLoading: isPredictionsLoading, error, connectionStatus } =
     useLivePredictions(selectedGamePk, {
       batterName: atBatViewState?.batterName,
@@ -172,6 +180,15 @@ function DashboardContent({ game }: { game: SlateGame }) {
           : "Available when live."}
       </p>
     );
+
+  const outcomeToastNode =
+    outcomeToastPlay && outcomeToastPhase !== "hidden" ? (
+      <AtBatOutcomeToast
+        play={outcomeToastPlay}
+        phase={outcomeToastPhase}
+        onDismiss={dismissOutcomeToast}
+      />
+    ) : null;
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -279,9 +296,6 @@ function DashboardContent({ game }: { game: SlateGame }) {
               boxScore={boxScore}
               matchupRecord={matchupRecord}
               isMatchupLoading={isMatchupLoading}
-              rispStats={rispStats}
-              isRispLoading={isRispLoading}
-              showRisp={runnersInScoringPosition}
             />
           ) : undefined
         }
@@ -295,6 +309,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
             homeAbbrev={gameState?.homeAbbrev ?? "HME"}
             venueId={gameState?.venueId}
             className="w-full"
+            settlingAtBatIndex={settlingAtBatIndex}
             insightsByAtBat={insightsByAtBat}
             halfInsights={halfInsights}
             inningInsights={inningInsights}
@@ -334,21 +349,38 @@ function DashboardContent({ game }: { game: SlateGame }) {
                   ) : (
                     <>
                   {atBatViewState && !showBreakUI && (
-                    <AtBatMatchup
-                      variant="panel"
-                      batterId={atBatViewState.batterId}
-                      batterName={atBatViewState.batterName}
-                      pitcherId={atBatViewState.pitcherId}
-                      pitcherName={atBatViewState.pitcherName}
-                      offenseTeamId={atBatViewState.offenseTeamId}
-                      boxScore={boxScore}
-                      matchupRecord={matchupRecord}
-                      isMatchupLoading={isMatchupLoading}
-                      rispStats={rispStats}
-                      isRispLoading={isRispLoading}
-                      showRisp={runnersInScoringPosition}
-                      className="md:hidden"
-                    />
+                    <>
+                      <AtBatMatchup
+                        variant="panel"
+                        batterId={atBatViewState.batterId}
+                        batterName={atBatViewState.batterName}
+                        pitcherId={atBatViewState.pitcherId}
+                        pitcherName={atBatViewState.pitcherName}
+                        offenseTeamId={atBatViewState.offenseTeamId}
+                        boxScore={boxScore}
+                        matchupRecord={matchupRecord}
+                        isMatchupLoading={isMatchupLoading}
+                        rispStats={rispStats}
+                        isRispLoading={isRispLoading}
+                        showRisp={runnersInScoringPosition}
+                        className="md:hidden"
+                      />
+                      <AtBatMatchup
+                        variant="context"
+                        batterId={atBatViewState.batterId}
+                        batterName={atBatViewState.batterName}
+                        pitcherId={atBatViewState.pitcherId}
+                        pitcherName={atBatViewState.pitcherName}
+                        offenseTeamId={atBatViewState.offenseTeamId}
+                        boxScore={boxScore}
+                        matchupRecord={matchupRecord}
+                        isMatchupLoading={isMatchupLoading}
+                        rispStats={rispStats}
+                        isRispLoading={isRispLoading}
+                        showRisp={runnersInScoringPosition}
+                        className="hidden md:block"
+                      />
+                    </>
                   )}
                   {showBreakUI && dueUp ? (
                     <ul className="space-y-2">
@@ -389,7 +421,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
                     <p className="text-sm text-subtle">Loading due up…</p>
                   ) : (
                     <>
-                      <div className="shrink-0 md:hidden">
+                      <div className="shrink-0 px-3 pb-3 pt-2.5 md:hidden">
                         <PitchSequence
                           key={`zone-mobile-${zoneBatterId ?? "none"}`}
                           pitches={atBatViewState?.atBatPitches ?? []}
@@ -402,7 +434,8 @@ function DashboardContent({ game }: { game: SlateGame }) {
                           zoneFirst
                           animateEntrance
                           batterZones={batterHotZones ?? undefined}
-                          className="h-[clamp(14rem,44dvh,26rem)] w-full"
+                          zoneOverlay={outcomeToastNode}
+                          className="h-[clamp(16rem,48dvh,28rem)] w-full"
                         />
                       </div>
                       <div className="hidden min-h-0 flex-1 md:flex">
@@ -419,6 +452,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
                           animateEntrance
                           batterZones={batterHotZones ?? undefined}
                           dashboardFooter={outcomeOddsFooter}
+                          zoneOverlay={outcomeToastNode}
                           className="min-h-0 flex-1"
                         />
                       </div>
@@ -440,7 +474,9 @@ function DashboardContent({ game }: { game: SlateGame }) {
                     embeddedScroll
                     parentScrollRef={mobileScrollRef}
                     className="flex-none"
-                    autoScrollToLatest
+                    autoScrollToLatest={false}
+                    autoScrollOnLivePitches={false}
+                    settlingAtBatIndex={settlingAtBatIndex}
                     livePitches={
                       atBatInProgress || isLingering
                         ? atBatViewState?.atBatPitches
@@ -506,13 +542,13 @@ function Panel({
     <section
       className={cn(
         "flex min-w-0 flex-col overflow-hidden bg-panel md:min-h-[220px] lg:min-h-0",
-        flushMobile ? "min-h-0 p-0 md:min-h-[280px] md:p-3" : "min-h-[280px] p-3",
+        flushMobile ? "min-h-0 p-0 md:min-h-[280px] md:px-3 md:pb-3 md:pt-3" : "min-h-[280px] p-3",
         className,
       )}
     >
       <h3
         className={cn(
-          "shrink-0 text-xs font-medium text-muted",
+          "shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted",
           flushMobile ? "hidden md:mb-2 md:block" : "mb-2",
         )}
       >

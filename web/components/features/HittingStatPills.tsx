@@ -119,23 +119,26 @@ export function HittingStatRow({
 
 /**
  * Compact stat card: summary left, boxed H/HR/K/BB right.
- * Fills available width on desktop without a tall second row.
+ * `dense` keeps a single scorebug-height row on desktop.
  */
 export function HittingStatCard({
   label,
   line,
   className,
   tone = "neutral",
+  dense = false,
 }: {
   label: ReactNode;
   line: BatterHittingLine;
   className?: string;
   tone?: "neutral" | "risp";
+  dense?: boolean;
 }) {
   return (
     <div
       className={cn(
-        "flex min-w-0 items-center gap-2 rounded border px-2 py-1",
+        "flex min-w-0 items-center justify-between gap-2 rounded border",
+        dense ? "px-1.5 py-0.5" : "px-2 py-1",
         tone === "risp"
           ? "border-amber-300/90 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/35"
           : "border-border/70 bg-overlay/60",
@@ -146,7 +149,8 @@ export function HittingStatCard({
         <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
           <span
             className={cn(
-              "text-[10px] font-semibold uppercase tracking-wide",
+              "font-semibold uppercase tracking-wide",
+              dense ? "text-[9px]" : "text-[10px]",
               tone === "risp"
                 ? "text-amber-800 dark:text-amber-300"
                 : "text-subtle",
@@ -156,15 +160,16 @@ export function HittingStatCard({
           </span>
           <HittingLineSummary
             line={line}
-            className={
+            className={cn(
+              dense && "text-[10px]",
               tone === "risp"
                 ? "text-amber-900/85 dark:text-amber-100/70"
-                : undefined
-            }
+                : undefined,
+            )}
           />
         </div>
       </div>
-      <HittingStatPills line={line} size="compact" />
+      <HittingStatPills line={line} size="compact" className="shrink-0" />
     </div>
   );
 }

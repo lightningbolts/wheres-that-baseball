@@ -215,9 +215,10 @@ export function homePlatePath(
   const cx = zone.x + zone.width / 2;
   const halfW = zone.width / 2;
   const groundY = toSvgPercent(0, GROUND_Z, szTop, szBottom).y;
-  const depth = zone.width * 0.22;
+  const depth = zone.width * 0.28;
   const backY = groundY - depth;
-  const pointY = groundY;
+  // Keep the plate tip inside the viewBox with a small margin.
+  const pointY = Math.min(98.5, groundY);
 
   return `M${cx - halfW} ${backY} L${cx + halfW} ${backY} L${cx} ${pointY} Z`;
 }

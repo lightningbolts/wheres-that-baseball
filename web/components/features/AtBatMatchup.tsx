@@ -29,15 +29,15 @@ interface AtBatMatchupProps {
   boxScore: GameBoxScore | null;
   matchupRecord: BatterVsPitcherRecord | null;
   isMatchupLoading: boolean;
-  /** Optional RISP line folded into the scorebug cluster on desktop. */
   rispStats?: BatterRispStats | null;
   isRispLoading?: boolean;
   showRisp?: boolean;
   /**
-   * panel — mobile card with players + history
-   * scorebug — headshots + compact context for the scorebug row (md+)
+   * panel — mobile: players + history/RISP
+   * scorebug — desktop scorebug row: players only
+   * context — desktop below scorebug: history/RISP cards (narrow layout)
    */
-  variant?: "panel" | "scorebug";
+  variant?: "panel" | "scorebug" | "context";
   className?: string;
 }
 
@@ -50,8 +50,8 @@ function PlayerHeadshot({
   name: string;
   size: "sm" | "md";
 }) {
-  const px = size === "sm" ? 36 : 44;
-  const box = size === "sm" ? "h-9 w-9" : "h-11 w-11";
+  const px = size === "sm" ? 32 : 44;
+  const box = size === "sm" ? "h-8 w-8" : "h-11 w-11";
 
   if (!playerId) {
     return (
@@ -111,7 +111,7 @@ function MatchupSide({
     <div
       className={cn(
         "flex min-w-0 items-center gap-2",
-        scorebug ? "max-w-[10.5rem] lg:max-w-[12rem]" : "min-w-0 flex-1",
+        scorebug ? "max-w-[11rem] lg:max-w-[13rem]" : "min-w-0 flex-1",
         align === "right" && "flex-row-reverse text-right",
       )}
     >
@@ -150,7 +150,6 @@ function MatchupContextCards({
   rispStats,
   isRispLoading,
   showRisp,
-  layout,
 }: {
   pitcherLast: string;
   matchupRecord: BatterVsPitcherRecord | null;
@@ -158,48 +157,37 @@ function MatchupContextCards({
   rispStats?: BatterRispStats | null;
   isRispLoading?: boolean;
   showRisp?: boolean;
-  /** scorebug stretches RISP into leftover horizontal space */
-  layout: "scorebug" | "panel";
 }) {
-  const vsBlock = isMatchupLoading ? (
-    <StatBlockSkeleton className="mb-0" />
-  ) : matchupRecord ? (
-    <HittingStatCard label={`vs ${pitcherLast}`} line={matchupRecord} />
-  ) : (
-    <p className="text-[11px] text-muted">No MLB history vs {pitcherLast}</p>
-  );
-
-  const rispBlock =
-    showRisp &&
-    (isRispLoading ? (
-      <StatBlockSkeleton className="mb-0" />
-    ) : rispStats ? (
-      <HittingStatCard
-        label={`${rispStats.season} RISP`}
-        line={rispStats}
-        tone="risp"
-        className={layout === "scorebug" ? "min-w-0 flex-1" : "w-full"}
-      />
-    ) : null);
-
-  if (layout === "scorebug") {
-    return (
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <div className="min-w-0 shrink">{vsBlock}</div>
-        {rispBlock}
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-1.5">
-      {vsBlock}
-      {rispBlock}
+    <div className="flex flex-col items-stretch gap-1.5">
+      {isMatchupLoading ? (
+        <StatBlockSkeleton className="mb-0" />
+      ) : matchupRecord ? (
+        <HittingStatCard
+          label={`vs ${pitcherLast}`}
+          line={matchupRecord}
+          className="w-full"
+        />
+      ) : (
+        <p className="text-[11px] text-muted">No MLB history vs {pitcherLast}</p>
+      )}
+      {showRisp ? (
+        isRispLoading ? (
+          <StatBlockSkeleton className="mb-0" />
+        ) : rispStats ? (
+          <HittingStatCard
+            label={`${rispStats.season} RISP`}
+            line={rispStats}
+            tone="risp"
+            className="w-full"
+          />
+        ) : null
+      ) : null}
     </div>
   );
 }
 
-/** Batter vs pitcher with headshots; scorebug embeds context, panel is mobile-first. */
+/** Batter vs pitcher with headshots; scorebug is players-only, context is history/RISP. */
 export function AtBatMatchup({
   batterId,
   batterName,
@@ -223,28 +211,38 @@ export function AtBatMatchup({
 
   if (variant === "scorebug") {
     return (
-      <div className={cn("flex w-full min-w-0 flex-col justify-center gap-1 py-1", className)}>
-        <div className="flex min-w-0 items-center gap-2.5 lg:gap-3">
-          <MatchupSide
-            playerId={batterId}
-            name={batterName}
-            role="At bat"
-            gameLine={batterGameLine}
-            align="left"
-            density="scorebug"
-          />
-          <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider text-subtle">
-            vs
-          </span>
-          <MatchupSide
-            playerId={pitcherId}
-            name={pitcherName}
-            role="Pitching"
-            gameLine={pitcherGameLine}
-            align="left"
-            density="scorebug"
-          />
-        </div>
+      <div className={cn("flex min-w-0 items-center gap-2 lg:gap-2.5", className)}>
+        <MatchupSide
+          playerId={batterId}
+          name={batterName}
+          role="At bat"
+          gameLine={batterGameLine}
+          align="left"
+          density="scorebug"
+        />
+        <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider text-subtle">
+          vs
+        </span>
+        <MatchupSide
+          playerId={pitcherId}
+          name={pitcherName}
+          role="Pitching"
+          gameLine={pitcherGameLine}
+          align="left"
+          density="scorebug"
+        />
+      </div>
+    );
+  }
+
+  if (variant === "context") {
+    return (
+      <div
+        className={cn(
+          "shrink-0 border-b border-border/60 bg-overlay/30 py-2",
+          className,
+        )}
+      >
         <MatchupContextCards
           pitcherLast={pitcherLast}
           matchupRecord={matchupRecord}
@@ -252,7 +250,6 @@ export function AtBatMatchup({
           rispStats={rispStats}
           isRispLoading={isRispLoading}
           showRisp={showRisp}
-          layout="scorebug"
         />
       </div>
     );
@@ -261,7 +258,7 @@ export function AtBatMatchup({
   return (
     <div
       className={cn(
-        "shrink-0 border-b border-border/60 bg-overlay/40 px-3 py-2",
+        "shrink-0 border-b border-border/60 bg-overlay/40 px-3 py-2.5 md:px-0",
         className,
       )}
     >
@@ -295,7 +292,6 @@ export function AtBatMatchup({
           rispStats={rispStats}
           isRispLoading={isRispLoading}
           showRisp={showRisp}
-          layout="panel"
         />
       </div>
     </div>
