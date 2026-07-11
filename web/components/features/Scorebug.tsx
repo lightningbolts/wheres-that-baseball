@@ -454,12 +454,12 @@ export function Scorebug({
         </StatCell>
       </div>
 
-      {/* Matchup cluster — shrink-wrap beside game state (no flex-1 void) */}
+      {/* Matchup cluster — grows so RISP/stat cards can use leftover width */}
       <div
         className={cn(
           "hidden min-w-0 items-center border-t border-border px-3 py-1.5 md:flex",
           useMatchupSlot
-            ? "md:shrink-0 md:border-l md:border-t-0 md:px-3 md:py-1"
+            ? "md:min-w-0 md:flex-1 md:border-l md:border-t-0 md:px-3 md:py-1"
             : "lg:h-14 lg:min-w-0 lg:flex-1 lg:border-l lg:border-t-0 lg:py-0 lg:pl-3 lg:pr-3",
         )}
       >

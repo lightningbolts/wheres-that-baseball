@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  HittingStatRow,
+  HittingStatCard,
   StatBlockSkeleton,
 } from "@/components/features/HittingStatPills";
 import { cn } from "@/lib/utils";
@@ -38,8 +38,10 @@ export function BatterVsPitcherRecord({
   }
 
   return (
-    <div className={cn("w-fit max-w-full px-1 py-1", className)}>
-      <HittingStatRow label={`vs ${pitcherLast}`} line={record} />
-    </div>
+    <HittingStatCard
+      label={`vs ${pitcherLast}`}
+      line={record}
+      className={cn("mb-2 w-full", className)}
+    />
   );
 }

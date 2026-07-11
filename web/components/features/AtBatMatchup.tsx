@@ -3,7 +3,7 @@
 import Image from "next/image";
 
 import {
-  HittingStatRow,
+  HittingStatCard,
   StatBlockSkeleton,
 } from "@/components/features/HittingStatPills";
 import {
@@ -15,7 +15,6 @@ import {
 import { mlbPlayerHeadshotUrl, mlbPlayerPageUrl } from "@/lib/mlb/cardPitchers";
 import { cn } from "@/lib/utils";
 import type {
-  BatterHittingLine,
   BatterRispStats,
   BatterVsPitcherRecord,
 } from "@/types/mlb-live";
@@ -144,18 +143,14 @@ function MatchupSide({
   );
 }
 
-function hitLine(line: BatterHittingLine): string {
-  return `${line.hits}-${line.atBats}`;
-}
-
-/** Dense broadcast-style context chips for the scorebug cluster. */
-function ContextStrip({
+function MatchupContextCards({
   pitcherLast,
   matchupRecord,
   isMatchupLoading,
   rispStats,
   isRispLoading,
   showRisp,
+  layout,
 }: {
   pitcherLast: string;
   matchupRecord: BatterVsPitcherRecord | null;
@@ -163,52 +158,43 @@ function ContextStrip({
   rispStats?: BatterRispStats | null;
   isRispLoading?: boolean;
   showRisp?: boolean;
+  /** scorebug stretches RISP into leftover horizontal space */
+  layout: "scorebug" | "panel";
 }) {
-  return (
-    <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] leading-none">
-      {isMatchupLoading ? (
-        <span className="text-muted">Loading vs {pitcherLast}…</span>
-      ) : matchupRecord ? (
-        <span className="inline-flex min-w-0 items-center gap-1.5">
-          <span className="font-semibold uppercase tracking-wide text-subtle">
-            vs {pitcherLast}
-          </span>
-          <span className="font-mono tabular-nums text-foreground">
-            {hitLine(matchupRecord)}
-          </span>
-          <span className="font-mono tabular-nums text-secondary">{matchupRecord.avg}</span>
-          <span className="font-mono tabular-nums text-secondary">{matchupRecord.ops} OPS</span>
-          <span className="font-mono tabular-nums text-emerald-700 dark:text-emerald-400">
-            {matchupRecord.homeRuns} HR
-          </span>
-          <span className="font-mono tabular-nums text-red-700 dark:text-red-400">
-            {matchupRecord.strikeOuts} K
-          </span>
-        </span>
-      ) : (
-        <span className="text-muted">No history vs {pitcherLast}</span>
-      )}
+  const vsBlock = isMatchupLoading ? (
+    <StatBlockSkeleton className="mb-0" />
+  ) : matchupRecord ? (
+    <HittingStatCard label={`vs ${pitcherLast}`} line={matchupRecord} />
+  ) : (
+    <p className="text-[11px] text-muted">No MLB history vs {pitcherLast}</p>
+  );
 
-      {showRisp ? (
-        <>
-          <span className="hidden h-3 w-px bg-border sm:block" aria-hidden />
-          {isRispLoading ? (
-            <span className="text-muted">RISP…</span>
-          ) : rispStats ? (
-            <span className="inline-flex items-center gap-1.5 rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-900 dark:text-amber-200">
-              <span className="font-semibold uppercase tracking-wide">RISP</span>
-              <span className="font-mono tabular-nums">{rispStats.avg}</span>
-              <span className="font-mono tabular-nums opacity-80">{rispStats.ops}</span>
-              <span className="font-mono tabular-nums text-emerald-700 dark:text-emerald-400">
-                {rispStats.hits} H
-              </span>
-              <span className="font-mono tabular-nums">
-                {rispStats.homeRuns} HR
-              </span>
-            </span>
-          ) : null}
-        </>
-      ) : null}
+  const rispBlock =
+    showRisp &&
+    (isRispLoading ? (
+      <StatBlockSkeleton className="mb-0" />
+    ) : rispStats ? (
+      <HittingStatCard
+        label={`${rispStats.season} RISP`}
+        line={rispStats}
+        tone="risp"
+        className={layout === "scorebug" ? "min-w-0 flex-1" : "w-full"}
+      />
+    ) : null);
+
+  if (layout === "scorebug") {
+    return (
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <div className="min-w-0 shrink">{vsBlock}</div>
+        {rispBlock}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {vsBlock}
+      {rispBlock}
     </div>
   );
 }
@@ -237,7 +223,7 @@ export function AtBatMatchup({
 
   if (variant === "scorebug") {
     return (
-      <div className={cn("flex min-w-0 flex-col justify-center gap-1 py-1", className)}>
+      <div className={cn("flex w-full min-w-0 flex-col justify-center gap-1 py-1", className)}>
         <div className="flex min-w-0 items-center gap-2.5 lg:gap-3">
           <MatchupSide
             playerId={batterId}
@@ -259,13 +245,14 @@ export function AtBatMatchup({
             density="scorebug"
           />
         </div>
-        <ContextStrip
+        <MatchupContextCards
           pitcherLast={pitcherLast}
           matchupRecord={matchupRecord}
           isMatchupLoading={isMatchupLoading}
           rispStats={rispStats}
           isRispLoading={isRispLoading}
           showRisp={showRisp}
+          layout="scorebug"
         />
       </div>
     );
@@ -300,26 +287,16 @@ export function AtBatMatchup({
         />
       </div>
 
-      <div className="mt-2 space-y-1.5 border-t border-border/50 pt-2">
-        {isMatchupLoading ? (
-          <StatBlockSkeleton className="mb-0 border-0 bg-transparent p-0" />
-        ) : matchupRecord ? (
-          <HittingStatRow label={`vs ${pitcherLast}`} line={matchupRecord} />
-        ) : (
-          <p className="text-[11px] text-muted">No MLB history vs {pitcherLast}</p>
-        )}
-        {showRisp ? (
-          isRispLoading ? (
-            <StatBlockSkeleton className="mb-0 border-0 bg-transparent p-0" />
-          ) : rispStats ? (
-            <HittingStatRow
-              label={`${rispStats.season} RISP`}
-              line={rispStats}
-              labelClassName="text-amber-800 dark:text-amber-300"
-              summaryClassName="text-amber-900/80 dark:text-subtle"
-            />
-          ) : null
-        ) : null}
+      <div className="mt-2 border-t border-border/50 pt-2">
+        <MatchupContextCards
+          pitcherLast={pitcherLast}
+          matchupRecord={matchupRecord}
+          isMatchupLoading={isMatchupLoading}
+          rispStats={rispStats}
+          isRispLoading={isRispLoading}
+          showRisp={showRisp}
+          layout="panel"
+        />
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  HittingStatRow,
+  HittingStatCard,
   StatBlockSkeleton,
 } from "@/components/features/HittingStatPills";
 import { cn } from "@/lib/utils";
@@ -35,18 +35,11 @@ export function BatterRispRecord({
   }
 
   return (
-    <div
-      className={cn(
-        "w-fit max-w-full rounded border border-amber-300/80 bg-amber-50 px-2.5 py-1.5 dark:border-amber-900/50 dark:bg-amber-950/30",
-        className,
-      )}
-    >
-      <HittingStatRow
-        label={`${stats.season} RISP`}
-        line={stats}
-        labelClassName="text-amber-800 dark:text-amber-300"
-        summaryClassName="text-amber-900/80 dark:text-subtle"
-      />
-    </div>
+    <HittingStatCard
+      label={`${stats.season} RISP`}
+      line={stats}
+      tone="risp"
+      className={cn("mx-3 mb-2 w-[calc(100%-1.5rem)] md:mx-0 md:mb-2 md:w-full", className)}
+    />
   );
 }
