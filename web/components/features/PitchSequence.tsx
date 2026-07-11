@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useRef, type ReactNode } from "react";
+import { memo, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 import { PitchFeedList } from "@/components/features/PitchFeedList";
@@ -38,6 +38,8 @@ interface PitchSequenceProps {
   batterZones?: BatterHotZoneCell[];
   /** Outcome odds panel under the pitch feed (desktop dashboard grid). */
   dashboardFooter?: ReactNode;
+  /** Start with desktop outcome odds collapsed. */
+  dashboardFooterCollapsedDefault?: boolean;
   /** Optional override for strike zone chart only (e.g. all game pitches). */
   zonePitches?: ZoneDisplayPitch[];
   zoneMode?: StrikeZoneMode;
@@ -508,6 +510,40 @@ function PitchFeedColumn({
   );
 }
 
+function CollapsibleDashboardFooter({
+  children,
+  defaultOpen = true,
+}: {
+  children: ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <div
+      className={cn(
+        "flex min-h-0 shrink-0 flex-col overflow-hidden rounded border border-border/60 bg-panel/40",
+        open && "h-[min(200px,34vh)]",
+      )}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        aria-expanded={open}
+        className="flex w-full shrink-0 items-center justify-between px-2 py-1.5 text-left hover:bg-hover"
+      >
+        <span className="text-xs font-medium text-muted">Outcome odds</span>
+        <span className="text-[10px] text-subtle">{open ? "−" : "+"}</span>
+      </button>
+      {open ? (
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain border-t border-border/50 pl-1 pr-3 pt-1.5 [scrollbar-gutter:stable]">
+          {children}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function DashboardGridLayout({
   pitches,
   zonePitches,
@@ -517,6 +553,7 @@ function DashboardGridLayout({
   zoneEntranceFromIndex,
   batterZones,
   dashboardFooter,
+  dashboardFooterCollapsedDefault = false,
   zoneMode,
   onZoneModeChange,
   gamePitchCount,
@@ -530,6 +567,7 @@ function DashboardGridLayout({
   zoneEntranceFromIndex?: number;
   batterZones?: BatterHotZoneCell[];
   dashboardFooter?: ReactNode;
+  dashboardFooterCollapsedDefault?: boolean;
   zoneMode?: StrikeZoneMode;
   onZoneModeChange?: (mode: StrikeZoneMode) => void;
   gamePitchCount?: number;
@@ -554,12 +592,9 @@ function DashboardGridLayout({
           className="min-h-0 flex-1 basis-0 overflow-hidden"
         />
         {dashboardFooter ? (
-          <div className="flex h-[min(220px,38vh)] min-h-0 shrink-0 flex-col">
-            <h4 className="mb-2 shrink-0 px-1 text-xs font-medium text-muted">Outcome odds</h4>
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain pl-1 pr-4 [scrollbar-gutter:stable]">
-              {dashboardFooter}
-            </div>
-          </div>
+          <CollapsibleDashboardFooter defaultOpen={!dashboardFooterCollapsedDefault}>
+            {dashboardFooter}
+          </CollapsibleDashboardFooter>
         ) : null}
       </div>
       <ZoneWithOpsLabel
@@ -702,6 +737,7 @@ export function PitchSequence({
   mobileZoneCompact = false,
   batterZones,
   dashboardFooter,
+  dashboardFooterCollapsedDefault = false,
   zonePitches,
   zoneMode,
   onZoneModeChange,
@@ -767,6 +803,7 @@ export function PitchSequence({
         zoneEntranceFromIndex={zoneEntranceFromIndex}
         batterZones={batterZones}
         dashboardFooter={dashboardFooter}
+        dashboardFooterCollapsedDefault={dashboardFooterCollapsedDefault}
         className={className}
         {...zoneHeaderProps}
       />

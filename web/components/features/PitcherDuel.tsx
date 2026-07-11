@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 
-import { mlbPlayerHeadshotUrl } from "@/lib/mlb/cardPitchers";
+import { mlbPlayerHeadshotUrl, mlbPlayerPageUrl } from "@/lib/mlb/cardPitchers";
 import { cn } from "@/lib/utils";
 import type { CardPitcher } from "@/types/mlb";
 
@@ -44,16 +44,23 @@ function PitcherSide({
         align === "right" && "flex-row-reverse text-right",
       )}
     >
-      <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full bg-overlay">
+      <a
+        href={mlbPlayerPageUrl(pitcher.playerId)}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={`${pitcher.name} on MLB.com`}
+        aria-label={`View ${pitcher.name} on MLB.com`}
+        className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full bg-overlay ring-1 ring-border/80 transition hover:ring-2 hover:ring-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground"
+      >
         <Image
           src={mlbPlayerHeadshotUrl(pitcher.playerId, 88)}
-          alt=""
+          alt={pitcher.name}
           width={44}
           height={44}
           className="h-full w-full object-cover object-top"
           unoptimized
         />
-      </div>
+      </a>
       <div className="min-w-0 flex-1">
         <p className="text-[10px] font-medium uppercase tracking-wide text-subtle">{label}</p>
         <p className="truncate text-[12px] font-medium leading-snug text-foreground">

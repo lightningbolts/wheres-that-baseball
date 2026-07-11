@@ -5,6 +5,11 @@ export function mlbPlayerHeadshotUrl(playerId: number, size = 80): string {
   return `https://img.mlbstatic.com/mlb-photos/image/upload/w_${size},q_auto:good/v1/people/${playerId}/headshot/silo/current`;
 }
 
+/** MLB.com player page (same destination Gameday uses for headshot taps). */
+export function mlbPlayerPageUrl(playerId: number): string {
+  return `https://www.mlb.com/player/${playerId}`;
+}
+
 function pitcherLineFromBox(line: PitcherBoxLine): string {
   const ip = line.inningsPitched || "0.0";
   const era = line.seasonEra && line.seasonEra !== "—" ? line.seasonEra : null;

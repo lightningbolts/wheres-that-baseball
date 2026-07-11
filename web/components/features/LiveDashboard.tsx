@@ -5,7 +5,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AppNav } from "@/components/features/AppNav";
 import { AtBatMatchup } from "@/components/features/AtBatMatchup";
-import { BatterRispRecord } from "@/components/features/BatterRispRecord";
 import { BoxScoreView } from "@/components/features/BoxScoreView";
 import { CallItGame } from "@/components/features/callIt/CallItGame";
 import { ConnectionIndicator } from "@/components/features/ConnectionIndicator";
@@ -268,6 +267,24 @@ function DashboardContent({ game }: { game: SlateGame }) {
             ? dueUp?.batters
             : undefined
         }
+        matchupSlot={
+          atBatViewState && !showBreakUI && !gameOver ? (
+            <AtBatMatchup
+              variant="scorebug"
+              batterId={atBatViewState.batterId}
+              batterName={atBatViewState.batterName}
+              pitcherId={atBatViewState.pitcherId}
+              pitcherName={atBatViewState.pitcherName}
+              offenseTeamId={atBatViewState.offenseTeamId}
+              boxScore={boxScore}
+              matchupRecord={matchupRecord}
+              isMatchupLoading={isMatchupLoading}
+              rispStats={rispStats}
+              isRispLoading={isRispLoading}
+              showRisp={runnersInScoringPosition}
+            />
+          ) : undefined
+        }
       />
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -317,26 +334,21 @@ function DashboardContent({ game }: { game: SlateGame }) {
                   ) : (
                     <>
                   {atBatViewState && !showBreakUI && (
-                    <>
-                      <AtBatMatchup
-                        batterId={atBatViewState.batterId}
-                        batterName={atBatViewState.batterName}
-                        pitcherId={atBatViewState.pitcherId}
-                        pitcherName={atBatViewState.pitcherName}
-                        offenseTeamId={atBatViewState.offenseTeamId}
-                        boxScore={boxScore}
-                        matchupRecord={matchupRecord}
-                        isMatchupLoading={isMatchupLoading}
-                      />
-                      {runnersInScoringPosition && (
-                        <BatterRispRecord
-                          batterName={atBatViewState.batterName}
-                          stats={rispStats}
-                          isLoading={isRispLoading}
-                          className="mx-3 mb-1 max-md:py-1.5 md:mx-0 md:mb-2"
-                        />
-                      )}
-                    </>
+                    <AtBatMatchup
+                      variant="panel"
+                      batterId={atBatViewState.batterId}
+                      batterName={atBatViewState.batterName}
+                      pitcherId={atBatViewState.pitcherId}
+                      pitcherName={atBatViewState.pitcherName}
+                      offenseTeamId={atBatViewState.offenseTeamId}
+                      boxScore={boxScore}
+                      matchupRecord={matchupRecord}
+                      isMatchupLoading={isMatchupLoading}
+                      rispStats={rispStats}
+                      isRispLoading={isRispLoading}
+                      showRisp={runnersInScoringPosition}
+                      className="md:hidden"
+                    />
                   )}
                   {showBreakUI && dueUp ? (
                     <ul className="space-y-2">

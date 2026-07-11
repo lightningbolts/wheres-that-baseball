@@ -1,8 +1,7 @@
 "use client";
 
 import {
-  HittingLineSummary,
-  HittingStatPills,
+  HittingStatRow,
   StatBlockSkeleton,
 } from "@/components/features/HittingStatPills";
 import { cn } from "@/lib/utils";
@@ -27,38 +26,20 @@ export function BatterVsPitcherRecord({
   const pitcherLast = pitcherName.split(" ").pop() ?? pitcherName;
 
   if (isLoading) {
-    return <StatBlockSkeleton className={className} />;
+    return <StatBlockSkeleton className={cn("px-3 py-1.5", className)} />;
   }
 
   if (!record) {
     return (
-      <div
-        className={cn(
-          "mb-3 rounded border border-border/60 bg-overlay px-3 py-2",
-          className,
-        )}
-      >
-        <p className="text-xs text-muted">
-          {batterLast} has no MLB history vs {pitcherLast}
-        </p>
-      </div>
+      <p className={cn("px-3 py-1.5 text-xs text-muted", className)}>
+        {batterLast} has no MLB history vs {pitcherLast}
+      </p>
     );
   }
 
   return (
-    <div
-      className={cn(
-        "mb-3 rounded border border-border bg-overlay px-3 py-2.5",
-        className,
-      )}
-    >
-      <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-        <span className="text-[11px] font-medium uppercase tracking-wide text-secondary">
-          Lifetime vs {pitcherLast}
-        </span>
-        <HittingLineSummary line={record} />
-      </div>
-      <HittingStatPills line={record} />
+    <div className={cn("w-fit max-w-full px-1 py-1", className)}>
+      <HittingStatRow label={`vs ${pitcherLast}`} line={record} />
     </div>
   );
 }

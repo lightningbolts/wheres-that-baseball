@@ -1,5 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 import { BaseDiamond } from "@/components/features/BaseDiamond";
 import { TeamLogo } from "@/components/ui/TeamLogo";
 import { isGameOver, isBetweenHalfInnings } from "@/lib/mlb/gameOver";
@@ -12,6 +14,11 @@ interface ScorebugProps {
   dueUpBatters?: DueUpBatter[];
   /** Full-width bar for dashboard headers; compact chip for scene overlays. */
   variant?: "bar" | "overlay";
+  /**
+   * Desktop/laptop replacement for the plain name matchup line (e.g. headshots).
+   * Used when the game is live and not between half-innings; otherwise MatchupLine is shown.
+   */
+  matchupSlot?: ReactNode;
   className?: string;
 }
 
@@ -222,6 +229,7 @@ export function Scorebug({
   gameState,
   dueUpBatters,
   variant = "bar",
+  matchupSlot,
   className,
 }: ScorebugProps) {
   if (!gameState) {
@@ -263,6 +271,7 @@ export function Scorebug({
   const isBreak = isBetweenHalfInnings(gameState);
   const gameEnded = isGameOver(gameState);
   const safeOuts = Math.min(3, Math.max(0, outs));
+  const useMatchupSlot = Boolean(matchupSlot) && !gameEnded && !isBreak;
 
   if (variant === "overlay") {
     return (
@@ -338,13 +347,20 @@ export function Scorebug({
   return (
     <div
       className={cn(
-        "flex w-full max-w-full shrink-0 flex-col border-b border-border bg-scorebug text-scorebug-fg",
-        "lg:flex-row lg:items-stretch lg:h-14",
+        "flex w-full max-w-full shrink-0 items-stretch border-b border-border bg-scorebug text-scorebug-fg",
+        useMatchupSlot
+          ? "h-auto min-h-11 flex-col md:h-auto md:min-h-[4.25rem] md:flex-row"
+          : "h-auto min-h-11 flex-col lg:h-14 lg:flex-row",
         className,
       )}
     >
-      {/* Stats strip — horizontal scroll, never shares a row with matchup below lg */}
-      <div className="flex h-11 min-w-0 items-stretch overflow-x-auto overscroll-x-contain lg:h-14 lg:flex-1 lg:overflow-visible">
+      {/* Game state — stays content-width so matchup can sit flush beside it */}
+      <div
+        className={cn(
+          "flex min-h-11 min-w-0 items-stretch overflow-x-auto overscroll-x-contain lg:overflow-visible",
+          useMatchupSlot ? "md:min-h-[4.25rem] md:shrink-0" : "lg:h-14 lg:shrink-0",
+        )}
+      >
         <StatCell className="min-w-[48px] flex-col gap-0.5 py-1 md:min-w-[56px] lg:min-w-[72px] lg:px-3">
           <TeamLogo abbrev={awayAbbrev} size={18} className="lg:hidden" />
           <TeamLogo abbrev={awayAbbrev} size={22} className="hidden lg:block" />
@@ -438,26 +454,32 @@ export function Scorebug({
         </StatCell>
       </div>
 
-      {/* Matchup — own row when tight; inline panel on lg+ */}
+      {/* Matchup cluster — shrink-wrap beside game state (no flex-1 void) */}
       <div
         className={cn(
           "hidden min-w-0 items-center border-t border-border px-3 py-1.5 md:flex",
-          "lg:h-14 lg:max-w-[min(42%,18rem)] lg:shrink-0 lg:border-l lg:border-t-0 lg:py-0 lg:pl-4",
+          useMatchupSlot
+            ? "md:shrink-0 md:border-l md:border-t-0 md:px-3 md:py-1"
+            : "lg:h-14 lg:min-w-0 lg:flex-1 lg:border-l lg:border-t-0 lg:py-0 lg:pl-3 lg:pr-3",
         )}
       >
-        <MatchupLine
-          gameEnded={gameEnded}
-          isBreak={isBreak}
-          awayAbbrev={awayAbbrev}
-          awayRuns={awayRuns}
-          homeRuns={homeRuns}
-          homeAbbrev={homeAbbrev}
-          dueUpBatters={dueUpBatters}
-          batterName={batterName}
-          onDeckName={onDeckName}
-          inHoleName={inHoleName}
-          pitcherName={pitcherName}
-        />
+        {useMatchupSlot ? (
+          matchupSlot
+        ) : (
+          <MatchupLine
+            gameEnded={gameEnded}
+            isBreak={isBreak}
+            awayAbbrev={awayAbbrev}
+            awayRuns={awayRuns}
+            homeRuns={homeRuns}
+            homeAbbrev={homeAbbrev}
+            dueUpBatters={dueUpBatters}
+            batterName={batterName}
+            onDeckName={onDeckName}
+            inHoleName={inHoleName}
+            pitcherName={pitcherName}
+          />
+        )}
       </div>
     </div>
   );
