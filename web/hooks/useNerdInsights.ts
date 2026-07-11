@@ -3,8 +3,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { buildLiveInsightContext } from "@/lib/mlb/nerdInsights/context";
+import {
+  loadNerdInsightsFeed,
+  saveNerdInsightsFeed,
+} from "@/lib/mlb/nerdInsights/feedStorage";
 import { buildMiniInsight, generateNerdInsight } from "@/lib/mlb/nerdInsights/generate";
-import { collectInsightTriggers, shouldPersistInsightInFeed } from "@/lib/mlb/nerdInsights/insightTriggers";
+import {
+  collectBootstrapFeedTriggers,
+  collectInsightTriggers,
+  shouldPersistInsightInFeed,
+} from "@/lib/mlb/nerdInsights/insightTriggers";
 import { profileFromTeamCard } from "@/lib/mlb/nerdInsights/profile";
 import type { InsightTrigger, NerdInsight } from "@/lib/mlb/nerdInsights/types";
 import { statThemeKey } from "@/lib/mlb/nerdInsights/types";
@@ -62,10 +70,86 @@ function createInsight(
   return { insight, showOverlay };
 }
 
+function restoreDedupState(insights: NerdInsight[]) {
+  const shownIds = new Set<string>();
+  const shownStatIds = new Set<string>();
+  const toastedIds = new Set<string>();
+  const statOccurrence = new Map<string, number>();
+
+  for (const insight of insights) {
+    shownIds.add(insight.id);
+    toastedIds.add(insight.id);
+    if (insight.statId != null && insight.teamId != null) {
+      const themeKey = statThemeKey(insight.statId, insight.teamId);
+      shownStatIds.add(themeKey);
+      statOccurrence.set(themeKey, (statOccurrence.get(themeKey) ?? 0) + 1);
+    }
+  }
+
+  return { shownIds, shownStatIds, toastedIds, statOccurrence };
+}
+
+function insightsFromTriggers(
+  gameState: LiveGameState,
+  triggers: InsightTrigger[],
+  away: NonNullable<ReturnType<typeof profileFromTeamCard>>,
+  home: NonNullable<ReturnType<typeof profileFromTeamCard>>,
+  shownIds: Set<string>,
+  shownStatIds: Set<string>,
+  statOccurrence: Map<string, number>,
+  options: { persistOnly: boolean; toastedIds?: Set<string> },
+): { feedInsights: NerdInsight[]; toasts: NerdInsight[]; liveInsight?: NerdInsight | null } {
+  const feedInsights: NerdInsight[] = [];
+  const toasts: NerdInsight[] = [];
+  let liveInsight: NerdInsight | null | undefined;
+
+  for (const trigger of triggers) {
+    const ctx = buildLiveInsightContext(gameState, trigger);
+    if (!ctx) continue;
+
+    const base = generateNerdInsight(ctx, away, home);
+    if (!base || shownIds.has(base.id)) continue;
+
+    const { insight, showOverlay } = createInsight(
+      base,
+      ctx,
+      away,
+      home,
+      shownStatIds,
+      statOccurrence,
+    );
+
+    shownIds.add(insight.id);
+
+    if (shouldPersistInsightInFeed(trigger)) {
+      feedInsights.push(insight);
+    }
+
+    if (!options.persistOnly) {
+      if (trigger.type === "at-bat-end") {
+        liveInsight = null;
+      } else if (trigger.type === "at-bat-start" || trigger.type === "pitch-thrown") {
+        liveInsight = insight;
+      }
+
+      if (showOverlay && options.toastedIds && !options.toastedIds.has(insight.id)) {
+        options.toastedIds.add(insight.id);
+        toasts.push({
+          ...insight,
+          durationMs: insight.durationMs ?? TOAST_DURATION_MS,
+        });
+      }
+    }
+  }
+
+  return { feedInsights, toasts, liveInsight };
+}
+
 export function useNerdInsights(
   gameState: LiveGameState | null,
   { season = new Date().getFullYear(), enabled = true, gameOver = false }: UseNerdInsightsOptions = {},
 ) {
+  const gamePk = gameState?.gamePk ?? null;
   const [feedInsights, setFeedInsights] = useState<NerdInsight[]>([]);
   const [overlayToasts, setOverlayToasts] = useState<NerdInsight[]>([]);
   const [liveInsight, setLiveInsight] = useState<NerdInsight | null>(null);
@@ -78,18 +162,34 @@ export function useNerdInsights(
   const shownStatIdsRef = useRef<Set<string>>(new Set());
   const toastedIdsRef = useRef<Set<string>>(new Set());
   const statOccurrenceRef = useRef<Map<string, number>>(new Map());
+  const bootstrappedRef = useRef(false);
+  const persistReadyRef = useRef(false);
 
   useEffect(() => {
-    shownIdsRef.current = new Set();
-    shownStatIdsRef.current = new Set();
-    toastedIdsRef.current = new Set();
-    statOccurrenceRef.current = new Map();
+    const stored = gamePk != null ? loadNerdInsightsFeed(gamePk) : [];
+    const restored = restoreDedupState(stored);
+
+    shownIdsRef.current = restored.shownIds;
+    shownStatIdsRef.current = restored.shownStatIds;
+    toastedIdsRef.current = restored.toastedIds;
+    statOccurrenceRef.current = restored.statOccurrence;
     prevStateRef.current = null;
+    bootstrappedRef.current = stored.length > 0;
+    persistReadyRef.current = false;
+
     setProfiles({ away: null, home: null });
-    setFeedInsights([]);
+    setFeedInsights(stored);
     setOverlayToasts([]);
     setLiveInsight(null);
-  }, [gameState?.gamePk]);
+
+    // Allow writes after hydration so we don't clobber storage with [].
+    persistReadyRef.current = true;
+  }, [gamePk]);
+
+  useEffect(() => {
+    if (!persistReadyRef.current || gamePk == null) return;
+    saveNerdInsightsFeed(gamePk, feedInsights);
+  }, [feedInsights, gamePk]);
 
   useEffect(() => {
     if (!enabled || !gameState || gameOver) return;
@@ -118,7 +218,33 @@ export function useNerdInsights(
   }, [enabled, gameOver, gameState, season]);
 
   useEffect(() => {
-    if (!enabled || !gameState || gameOver) return;
+    if (!enabled || !gameState) return;
+
+    const { away, home } = profiles;
+    if (!away || !home) return;
+
+    // First pass after profiles load: rebuild feed from plays if storage was empty.
+    if (!bootstrappedRef.current) {
+      const triggers = collectBootstrapFeedTriggers(gameState);
+      const { feedInsights: bootstrapped } = insightsFromTriggers(
+        gameState,
+        triggers,
+        away,
+        home,
+        shownIdsRef.current,
+        shownStatIdsRef.current,
+        statOccurrenceRef.current,
+        { persistOnly: true },
+      );
+      bootstrappedRef.current = true;
+      prevStateRef.current = gameState;
+      if (bootstrapped.length > 0) {
+        setFeedInsights((current) => (current.length > 0 ? current : bootstrapped));
+      }
+      return;
+    }
+
+    if (gameOver) return;
     if (gameState.gameStatus !== "Live" && gameState.gameStatus !== "In Progress") return;
 
     const prev = prevStateRef.current;
@@ -133,52 +259,17 @@ export function useNerdInsights(
       return;
     }
 
-    const { away, home } = profiles;
-    if (!away || !home) return;
-
-    const newFeedInsights: NerdInsight[] = [];
-    const newToasts: NerdInsight[] = [];
-    let nextLiveInsight: NerdInsight | null | undefined;
-
-    for (const trigger of triggers) {
-      const ctx = buildLiveInsightContext(gameState, trigger);
-      if (!ctx) continue;
-
-      const base = generateNerdInsight(ctx, away, home);
-      if (!base || shownIdsRef.current.has(base.id)) continue;
-
-      const { insight, showOverlay } = createInsight(
-        base,
-        ctx,
+    const { feedInsights: newFeedInsights, toasts: newToasts, liveInsight: nextLiveInsight } =
+      insightsFromTriggers(
+        gameState,
+        triggers,
         away,
         home,
+        shownIdsRef.current,
         shownStatIdsRef.current,
         statOccurrenceRef.current,
+        { persistOnly: false, toastedIds: toastedIdsRef.current },
       );
-
-      shownIdsRef.current.add(insight.id);
-
-      if (shouldPersistInsightInFeed(trigger)) {
-        newFeedInsights.push(insight);
-      }
-
-      if (trigger.type === "at-bat-end") {
-        nextLiveInsight = null;
-      } else if (
-        trigger.type === "at-bat-start" ||
-        trigger.type === "pitch-thrown"
-      ) {
-        nextLiveInsight = insight;
-      }
-
-      if (showOverlay && !toastedIdsRef.current.has(insight.id)) {
-        toastedIdsRef.current.add(insight.id);
-        newToasts.push({
-          ...insight,
-          durationMs: insight.durationMs ?? TOAST_DURATION_MS,
-        });
-      }
-    }
 
     prevStateRef.current = gameState;
 

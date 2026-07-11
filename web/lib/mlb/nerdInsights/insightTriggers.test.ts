@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { collectInsightTriggers, shouldPersistInsightInFeed } from "@/lib/mlb/nerdInsights/insightTriggers";
+import { collectBootstrapFeedTriggers, collectInsightTriggers, shouldPersistInsightInFeed } from "@/lib/mlb/nerdInsights/insightTriggers";
 import type { LiveGameState, PlayByPlayEntry } from "@/types/mlb-live";
 
 function play(
@@ -147,5 +147,22 @@ describe("collectInsightTriggers", () => {
     expect(
       shouldPersistInsightInFeed({ type: "pitch-thrown", atBatIndex: 2, pitchNumber: 6 }),
     ).toBe(false);
+  });
+});
+
+describe("collectBootstrapFeedTriggers", () => {
+  it("rebuilds at-bat-end triggers for every completed play on reload", () => {
+    const current = state([
+      play({ atBatIndex: 1, event: "Strikeout", inning: 1, halfInning: "top" }),
+      play({ atBatIndex: 2, event: "Walk", inning: 1, halfInning: "top" }),
+      play({ atBatIndex: 3, event: "Single", inning: 1, halfInning: "bottom" }),
+    ]);
+
+    const triggers = collectBootstrapFeedTriggers(current);
+    const atBatEnds = triggers.filter((trigger) => trigger.type === "at-bat-end");
+    const halfBreaks = triggers.filter((trigger) => trigger.type === "half-break");
+
+    expect(atBatEnds.map((trigger) => trigger.atBatIndex)).toEqual([1, 2, 3]);
+    expect(halfBreaks).toEqual([{ type: "half-break", halfKey: "1-top" }]);
   });
 });

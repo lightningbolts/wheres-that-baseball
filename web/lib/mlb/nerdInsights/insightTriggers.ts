@@ -135,6 +135,19 @@ export function collectInsightTriggers(
   return dedupeTriggers([...replay, ...incremental]);
 }
 
+/**
+ * Rebuild feed-worthy triggers for every completed at-bat already in the feed.
+ * Used on reload when local storage is empty so insights reappear in the log.
+ */
+export function collectBootstrapFeedTriggers(gameState: LiveGameState): InsightTrigger[] {
+  const empty: LiveGameState = {
+    ...gameState,
+    plays: [],
+    atBatPitches: [],
+  };
+  return missedPlayTriggers(empty, gameState);
+}
+
 /** Only completed plays and inning/half boundaries belong in the play-by-play log. */
 export function shouldPersistInsightInFeed(trigger: InsightTrigger): boolean {
   return (
