@@ -4,8 +4,12 @@ import {
   batterReachedOnError,
   countThrowingErrors,
   isFieldingError,
+  isHardHit,
+  isMeatball,
+  isSweetSpot,
+  launchSpeedAngle,
 } from "@/lib/mlb/nerdStats/extractHelpers";
-import type { PlayByPlayEntry } from "@/types/mlb-live";
+import type { PlayByPlayEntry, PlayPitch } from "@/types/mlb-live";
 
 function makePlay(overrides: Partial<PlayByPlayEntry>): PlayByPlayEntry {
   return {
@@ -58,6 +62,30 @@ function makePlay(overrides: Partial<PlayByPlayEntry>): PlayByPlayEntry {
   };
 }
 
+function makePitch(overrides: Partial<PlayPitch> = {}): PlayPitch {
+  return {
+    pitchNumber: 1,
+    typeCode: "FF",
+    typeDescription: "Four-Seam Fastball",
+    callDescription: "In play, out(s)",
+    callCode: "X",
+    balls: 0,
+    strikes: 0,
+    startSpeed: 93,
+    plateX: 0,
+    plateZ: 2.5,
+    isStrike: true,
+    isBall: false,
+    isInPlay: true,
+    isOut: false,
+    isPitch: true,
+    hasPlateLocation: true,
+    strikeZoneTop: 3.5,
+    strikeZoneBottom: 1.5,
+    ...overrides,
+  };
+}
+
 describe("error helpers", () => {
   it("detects field errors and reached-on-error", () => {
     const play = makePlay({
@@ -90,5 +118,27 @@ describe("error helpers", () => {
     });
 
     expect(countThrowingErrors(play)).toBe(1);
+  });
+});
+
+describe("meatball + contact quality helpers", () => {
+  it("flags heart-of-zone pitches as meatballs", () => {
+    expect(isMeatball(makePitch({ plateX: 0, plateZ: 2.5 }))).toBe(true);
+    expect(isMeatball(makePitch({ plateX: 0.9, plateZ: 2.5 }))).toBe(false);
+    expect(isMeatball(makePitch({ plateX: 0, plateZ: 1.6 }))).toBe(false);
+    expect(isMeatball(makePitch({ hasPlateLocation: false }))).toBe(false);
+  });
+
+  it("grades launch_speed_angle barrels and weak contact", () => {
+    expect(launchSpeedAngle({ launchSpeed: 105, launchAngle: 28 })).toBe(6);
+    expect(launchSpeedAngle({ launchSpeed: 100, launchAngle: 20 })).toBe(5);
+    expect(launchSpeedAngle({ launchSpeed: 50, launchAngle: 10 })).toBe(1);
+  });
+
+  it("detects hard-hit and sweet-spot thresholds", () => {
+    expect(isHardHit({ launchSpeed: 95 })).toBe(true);
+    expect(isHardHit({ launchSpeed: 94.9 })).toBe(false);
+    expect(isSweetSpot({ launchAngle: 20 })).toBe(true);
+    expect(isSweetSpot({ launchAngle: 33 })).toBe(false);
   });
 });

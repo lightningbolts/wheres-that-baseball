@@ -97,6 +97,34 @@ export interface TeamNerdCounters {
   barrelBalls: number;
   chopBalls: number;
   popupBalls: number;
+  /** Statcast hard-hit balls (EV ≥ 95). */
+  hardHitBalls: number;
+  /** Statcast sweet-spot contact (LA 8–32°). */
+  sweetSpotBalls: number;
+  /** launch_speed_angle buckets (How was that hit?): 1 Weak … 6 Barrel. */
+  weakContactBalls: number;
+  toppedContactBalls: number;
+  underContactBalls: number;
+  flareContactBalls: number;
+  solidContactBalls: number;
+  /** Sum of launch_speed_angle codes for averaging. */
+  launchSpeedAngleSum: number;
+  launchSpeedAngleCount: number;
+  /** Heart-of-zone pitches thrown / seen. */
+  meatballsThrown: number;
+  meatballsSeen: number;
+  /** Meatball pitches put in play. */
+  meatballsInPlay: number;
+  meatballsInPlayAllowed: number;
+  /** Hits on meatball pitches put in play. */
+  meatballsPunished: number;
+  meatballsPunishedAllowed: number;
+  /** Barrels on meatball pitches. */
+  meatballBarrels: number;
+  meatballBarrelsAllowed: number;
+  /** Swinging strikes on meatballs. */
+  meatballWhiffs: number;
+  meatballWhiffsInduced: number;
   exitVeloSum: number;
   exitVeloCount: number;
   launchAngleSum: number;

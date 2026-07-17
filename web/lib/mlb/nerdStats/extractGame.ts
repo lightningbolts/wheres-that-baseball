@@ -15,8 +15,12 @@ import {
   findWalkOffPlay,
   hasBattedBallData,
   hitTotalBases,
+  inPlayPitch,
   isBalk,
+  isHardHit,
   isHitEvent,
+  isMeatball,
+  isSweetSpot,
   reachedFullCount,
   isBarrel,
   isBloopSingle,
@@ -32,10 +36,12 @@ import {
   isTriplePlay,
   isTriplePlayOpportunity,
   isWildPitch,
+  launchSpeedAngle,
   runnersLeftOnBases,
   runsForBattingTeam,
   teamWon,
 } from "@/lib/mlb/nerdStats/extractHelpers";
+import { classifyPitch } from "@/lib/mlb/pitchClassification";
 import { recordPitchCounters } from "@/lib/mlb/nerdStats/pitchCounters";
 import { recordPitchTypeThrown } from "@/lib/mlb/nerdStats/pitchTypeStats";
 import {
@@ -629,6 +635,16 @@ export function extractNerdCountersFromGame(
         recordPitchCounters(offense, defense, pitch);
         recordPitchTypeThrown(defense, pitch);
         if (halfTracker) halfTracker.pitches += 1;
+
+        if (isMeatball(pitch)) {
+          offense.meatballsSeen += 1;
+          defense.meatballsThrown += 1;
+          const kind = classifyPitch(pitch);
+          if (kind?.isSwingingStrike) {
+            offense.meatballWhiffs += 1;
+            defense.meatballWhiffsInduced += 1;
+          }
+        }
       }
 
       if (isHitEvent(play.event)) {
@@ -801,6 +817,46 @@ export function extractNerdCountersFromGame(
         if (isBarrel(hit)) offense.barrelBalls += 1;
         if (hit.launchAngle < 5) offense.chopBalls += 1;
         if (hit.launchAngle > 50) offense.popupBalls += 1;
+        if (isHardHit(hit)) offense.hardHitBalls += 1;
+        if (isSweetSpot(hit)) offense.sweetSpotBalls += 1;
+
+        const lsa = launchSpeedAngle(hit);
+        if (lsa != null) {
+          offense.launchSpeedAngleSum += lsa;
+          offense.launchSpeedAngleCount += 1;
+          if (lsa === 1) offense.weakContactBalls += 1;
+          else if (lsa === 2) offense.toppedContactBalls += 1;
+          else if (lsa === 3) offense.underContactBalls += 1;
+          else if (lsa === 4) offense.flareContactBalls += 1;
+          else if (lsa === 5) offense.solidContactBalls += 1;
+          // lsa === 6 counted via barrelBalls (simplified) + solid-plus uses solid+barrel
+        }
+
+        const contactPitch = inPlayPitch(play.detail.pitches);
+        if (contactPitch && isMeatball(contactPitch)) {
+          offense.meatballsInPlay += 1;
+          defense.meatballsInPlayAllowed += 1;
+          if (isHitEvent(play.event)) {
+            offense.meatballsPunished += 1;
+            defense.meatballsPunishedAllowed += 1;
+            pushPlayNotable(offense, row, play, {
+              statId: "meatballs-punished",
+              label: `${play.batterName} punishes meatball · ${play.event}`,
+              detail: `${hit.launchSpeed.toFixed(0)} mph · ${formatPlayInning(play)}`,
+              value: hit.launchSpeed,
+            });
+          }
+          if (isBarrel(hit) || lsa === 6) {
+            offense.meatballBarrels += 1;
+            defense.meatballBarrelsAllowed += 1;
+            pushPlayNotable(offense, row, play, {
+              statId: "meatball-barrel-rate",
+              label: `${play.batterName} barrels a meatball`,
+              detail: `${hit.launchSpeed.toFixed(0)} mph / ${hit.launchAngle.toFixed(0)}° · ${formatPlayInning(play)}`,
+              value: hit.launchSpeed,
+            });
+          }
+        }
 
         const ev = hit.launchSpeed;
         if (offense.hardestHitMph == null || ev > offense.hardestHitMph) {

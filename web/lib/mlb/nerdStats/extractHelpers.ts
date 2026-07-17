@@ -1,7 +1,103 @@
+import { PLATE_HALF_WIDTH_FT } from "@/lib/mlb/strikeZoneMath";
 import type { PlayByPlayEntry, PlayPitch } from "@/types/mlb-live";
 
 export function reachedFullCount(pitches: PlayPitch[]): boolean {
   return pitches.some((pitch) => pitch.balls === 3 && pitch.strikes === 2);
+}
+
+/**
+ * Meatball = heart of the zone: middle ~2/3 of plate width, middle third of
+ * the batter's strike zone. Easy-to-hit pitches down the pipe.
+ */
+export function isMeatball(
+  pitch: Pick<
+    PlayPitch,
+    "plateX" | "plateZ" | "strikeZoneTop" | "strikeZoneBottom" | "hasPlateLocation"
+  >,
+): boolean {
+  if (pitch.hasPlateLocation === false) return false;
+  if (!Number.isFinite(pitch.plateX) || !Number.isFinite(pitch.plateZ)) return false;
+  const height = pitch.strikeZoneTop - pitch.strikeZoneBottom;
+  if (!(height > 0)) return false;
+
+  const halfHeart = PLATE_HALF_WIDTH_FT * (2 / 3);
+  const zLo = pitch.strikeZoneBottom + height / 3;
+  const zHi = pitch.strikeZoneTop - height / 3;
+  return Math.abs(pitch.plateX) <= halfHeart && pitch.plateZ >= zLo && pitch.plateZ <= zHi;
+}
+
+/** Statcast hard-hit threshold. */
+export function isHardHit(hit: { launchSpeed: number }): boolean {
+  return hit.launchSpeed >= 95;
+}
+
+/** Statcast sweet-spot launch angles (8°–32°). */
+export function isSweetSpot(hit: { launchAngle: number }): boolean {
+  return hit.launchAngle >= 8 && hit.launchAngle <= 32;
+}
+
+/**
+ * Statcast launch_speed_angle ("How was that hit?"):
+ * 1 Weak · 2 Topped · 3 Under · 4 Flare/Burner · 5 Solid · 6 Barrel
+ * Formula from Tangotiger / Statcast lab.
+ */
+export function launchSpeedAngle(hit: {
+  launchSpeed: number;
+  launchAngle: number;
+}): 1 | 2 | 3 | 4 | 5 | 6 | null {
+  const speed = hit.launchSpeed;
+  const angle = hit.launchAngle;
+  if (!Number.isFinite(speed) || !Number.isFinite(angle) || speed <= 0) return null;
+
+  if (
+    speed * 1.5 - angle >= 117 &&
+    speed + angle >= 124 &&
+    speed >= 98 &&
+    angle >= 4 &&
+    angle <= 50
+  ) {
+    return 6;
+  }
+
+  if (
+    speed * 1.5 - angle >= 111 &&
+    speed + angle >= 119 &&
+    speed >= 95 &&
+    angle >= 0 &&
+    angle <= 52
+  ) {
+    return 5;
+  }
+
+  if (speed <= 59) return 1;
+
+  if (
+    (speed * 2 - angle >= 87 &&
+      angle <= 41 &&
+      speed * 2 + angle <= 175 &&
+      speed + angle * 1.3 >= 89 &&
+      speed >= 59 &&
+      speed <= 72) ||
+    (speed + angle * 1.3 <= 112 &&
+      speed + angle * 1.55 >= 92 &&
+      speed >= 72 &&
+      speed <= 86) ||
+    (angle <= 20 && speed + angle * 2.4 >= 98 && speed >= 86 && speed <= 95) ||
+    (speed - angle >= 76 && speed + angle * 2.4 >= 98 && speed >= 95 && angle <= 30)
+  ) {
+    return 4;
+  }
+
+  if (speed + angle * 2 >= 116) return 3;
+  if (speed + angle * 2 <= 116) return 2;
+  return null;
+}
+
+export function inPlayPitch(pitches: PlayPitch[]): PlayPitch | null {
+  for (let i = pitches.length - 1; i >= 0; i -= 1) {
+    if (pitches[i]?.isInPlay) return pitches[i]!;
+  }
+  return pitches.at(-1) ?? null;
 }
 
 export function hitTotalBases(event: string): number {

@@ -76,6 +76,25 @@ export function createEmptyTeamCounters(): TeamNerdCounters {
     barrelBalls: 0,
     chopBalls: 0,
     popupBalls: 0,
+    hardHitBalls: 0,
+    sweetSpotBalls: 0,
+    weakContactBalls: 0,
+    toppedContactBalls: 0,
+    underContactBalls: 0,
+    flareContactBalls: 0,
+    solidContactBalls: 0,
+    launchSpeedAngleSum: 0,
+    launchSpeedAngleCount: 0,
+    meatballsThrown: 0,
+    meatballsSeen: 0,
+    meatballsInPlay: 0,
+    meatballsInPlayAllowed: 0,
+    meatballsPunished: 0,
+    meatballsPunishedAllowed: 0,
+    meatballBarrels: 0,
+    meatballBarrelsAllowed: 0,
+    meatballWhiffs: 0,
+    meatballWhiffsInduced: 0,
     exitVeloSum: 0,
     exitVeloCount: 0,
     launchAngleSum: 0,
@@ -272,6 +291,25 @@ export function mergeTeamCounters(target: TeamNerdCounters, source: TeamNerdCoun
   target.barrelBalls += source.barrelBalls;
   target.chopBalls += source.chopBalls;
   target.popupBalls += source.popupBalls;
+  target.hardHitBalls += source.hardHitBalls;
+  target.sweetSpotBalls += source.sweetSpotBalls;
+  target.weakContactBalls += source.weakContactBalls;
+  target.toppedContactBalls += source.toppedContactBalls;
+  target.underContactBalls += source.underContactBalls;
+  target.flareContactBalls += source.flareContactBalls;
+  target.solidContactBalls += source.solidContactBalls;
+  target.launchSpeedAngleSum += source.launchSpeedAngleSum;
+  target.launchSpeedAngleCount += source.launchSpeedAngleCount;
+  target.meatballsThrown += source.meatballsThrown;
+  target.meatballsSeen += source.meatballsSeen;
+  target.meatballsInPlay += source.meatballsInPlay;
+  target.meatballsInPlayAllowed += source.meatballsInPlayAllowed;
+  target.meatballsPunished += source.meatballsPunished;
+  target.meatballsPunishedAllowed += source.meatballsPunishedAllowed;
+  target.meatballBarrels += source.meatballBarrels;
+  target.meatballBarrelsAllowed += source.meatballBarrelsAllowed;
+  target.meatballWhiffs += source.meatballWhiffs;
+  target.meatballWhiffsInduced += source.meatballWhiffsInduced;
   target.exitVeloSum += source.exitVeloSum;
   target.exitVeloCount += source.exitVeloCount;
   target.launchAngleSum += source.launchAngleSum;
