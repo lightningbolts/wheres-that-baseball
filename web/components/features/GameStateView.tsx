@@ -121,10 +121,17 @@ export function GameStateView({
               />
               Negative WPA path
             </div>
+            <div className="flex items-center gap-2">
+              <span
+                className="inline-block h-2.5 w-2.5 rounded-full bg-[var(--state-chart-wpa-pos)]"
+                aria-hidden
+              />
+              Same-state pulse (solo HR, etc.)
+            </div>
             <p className="w-full text-subtle">
               {mode === "re"
-                ? "Diamond color = expected runs remaining from that base-out state (RE24)."
-                : "Diamond color = home win probability at the current score and inning."}
+                ? "Diamond color = expected runs remaining from that base-out state (RE24). Pulses mark scoring/WPA plays that leave bases and outs unchanged."
+                : "Diamond color = home win probability at the current score and inning. Pulses mark scoring/WPA plays that leave bases and outs unchanged."}
             </p>
           </div>
         </div>

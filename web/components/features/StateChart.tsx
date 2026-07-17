@@ -17,11 +17,14 @@ import {
   buildStateChartCells,
   cellDisplayValue,
   findCellCenter,
+  markerDisplayPoint,
+  markerRadius,
   normalizeScale,
   runExpectancyRange,
   STATE_CHART_VIEW,
   type StateChartCursor,
   type StateChartMode,
+  type StateChartPathMarker,
   type StateChartPathSegment,
 } from "@/lib/mlb/stateChartMath";
 import { formatWpa } from "@/lib/mlb/wpa";
@@ -79,7 +82,10 @@ export function StateChart({ plays, cursor, mode = "re", className }: StateChart
   const hoverIdRef = useRef<string | null>(null);
 
   const cells = useMemo(() => buildStateChartCells(cursor), [cursor]);
-  const path = useMemo(() => buildHalfInningPath(plays, cursor), [plays, cursor]);
+  const { segments, markers } = useMemo(
+    () => buildHalfInningPath(plays, cursor),
+    [plays, cursor],
+  );
   const reRange = useMemo(() => runExpectancyRange(cells), [cells]);
 
   const cursorPoint = useMemo(() => {
@@ -126,7 +132,8 @@ export function StateChart({ plays, cursor, mode = "re", className }: StateChart
     <div ref={rootRef} className={cn("relative w-full", className)}>
       <StateChartSvg
         cells={cells}
-        path={path}
+        segments={segments}
+        markers={markers}
         cellFills={cellFills}
         cursorPoint={cursorPoint}
         width={width}
@@ -160,7 +167,8 @@ export function StateChart({ plays, cursor, mode = "re", className }: StateChart
 
 interface StateChartSvgProps {
   cells: ReturnType<typeof buildStateChartCells>;
-  path: StateChartPathSegment[];
+  segments: StateChartPathSegment[];
+  markers: StateChartPathMarker[];
   cellFills: Map<string, string>;
   cursorPoint: ReturnType<typeof findCellCenter> | null;
   width: number;
@@ -172,7 +180,8 @@ interface StateChartSvgProps {
 
 const StateChartSvg = memo(function StateChartSvg({
   cells,
-  path,
+  segments,
+  markers,
   cellFills,
   cursorPoint,
   width,
@@ -264,10 +273,19 @@ const StateChartSvg = memo(function StateChartSvg({
         );
       })}
 
-      {path.map((seg) => (
+      {segments.map((seg) => (
         <PathSegment
           key={seg.id}
           segment={seg}
+          onShowHover={onShowHover}
+          onMoveTooltip={onMoveTooltip}
+        />
+      ))}
+
+      {markers.map((marker) => (
+        <SameCellMarker
+          key={marker.id}
+          marker={marker}
           onShowHover={onShowHover}
           onMoveTooltip={onMoveTooltip}
         />
@@ -322,5 +340,51 @@ const PathSegment = memo(function PathSegment({
       onMouseEnter={(e) => onShowHover(content, e.clientX, e.clientY)}
       onMouseMove={(e) => onMoveTooltip(e.clientX, e.clientY)}
     />
+  );
+});
+
+const SameCellMarker = memo(function SameCellMarker({
+  marker,
+  onShowHover,
+  onMoveTooltip,
+}: {
+  marker: StateChartPathMarker;
+  onShowHover: (next: HoverContent, clientX: number, clientY: number) => void;
+  onMoveTooltip: (clientX: number, clientY: number) => void;
+}) {
+  const wpaLabel = formatWpa(marker.wpa) ?? "0.0%";
+  const { cx, cy } = markerDisplayPoint(marker);
+  const r = markerRadius(marker.wpa);
+  const content = useMemo<HoverContent>(
+    () => ({
+      id: marker.id,
+      title: marker.event,
+      lines: [`WPA ${wpaLabel}`, "Same base-out state"],
+    }),
+    [marker.event, marker.id, wpaLabel],
+  );
+
+  return (
+    <g className="cursor-pointer">
+      <circle
+        cx={cx}
+        cy={cy}
+        r={r + 2.5}
+        fill="none"
+        stroke={segmentStroke(marker.wpa)}
+        strokeWidth={1.25}
+        opacity={0.45}
+      />
+      <circle
+        cx={cx}
+        cy={cy}
+        r={r}
+        fill={segmentStroke(marker.wpa)}
+        stroke="var(--state-chart-bg)"
+        strokeWidth={1.25}
+        onMouseEnter={(e) => onShowHover(content, e.clientX, e.clientY)}
+        onMouseMove={(e) => onMoveTooltip(e.clientX, e.clientY)}
+      />
+    </g>
   );
 });

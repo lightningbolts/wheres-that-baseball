@@ -66,6 +66,31 @@ export interface StateChartPathSegment {
   atBatIndex: number;
 }
 
+/**
+ * Same-cell play marker for events that change score/WPA without changing
+ * the base-out state (e.g. solo home run from an empty diamond).
+ */
+export interface StateChartPathMarker {
+  id: string;
+  cx: number;
+  cy: number;
+  base: BaseStateCode;
+  outs: number;
+  wpa: number;
+  event: string;
+  atBatIndex: number;
+  /** Index among markers sharing this cell (for slight visual offset). */
+  stackIndex: number;
+}
+
+export interface StateChartHalfInningPath {
+  segments: StateChartPathSegment[];
+  markers: StateChartPathMarker[];
+}
+
+/** Minimum |WPA| to draw a same-cell pulse when the play isn't a scoring play. */
+const SAME_CELL_WPA_THRESHOLD = 0.005;
+
 export const STATE_CHART_VIEW = {
   width: 720,
   height: 360,
@@ -164,15 +189,20 @@ export function findCellCenter(
   return { cx, cy, base, outs: cappedOuts };
 }
 
+function shouldEmitSameCellMarker(play: PlayByPlayEntry, wpa: number): boolean {
+  if (play.isScoringPlay) return true;
+  return Math.abs(wpa) >= SAME_CELL_WPA_THRESHOLD;
+}
+
 /**
- * Half-inning path: segments from each play's situationBefore → post-play state.
- * Skips plays that don't change situation when marked.
+ * Half-inning path: segments for base-out transitions, plus same-cell markers
+ * for scoring/WPA events that leave the RE24 state unchanged (solo HR, etc.).
  */
 export function buildHalfInningPath(
   plays: PlayByPlayEntry[],
   cursor: StateChartCursor | null,
-): StateChartPathSegment[] {
-  if (!cursor) return [];
+): StateChartHalfInningPath {
+  if (!cursor) return { segments: [], markers: [] };
 
   const halfPlays = plays.filter(
     (play) =>
@@ -182,29 +212,66 @@ export function buildHalfInningPath(
   );
 
   const segments: StateChartPathSegment[] = [];
+  const markers: StateChartPathMarker[] = [];
+  const stackCounts = new Map<string, number>();
 
   for (const play of halfPlays) {
     const before = play.situationBefore;
     const from = findCellCenter(before.onFirst, before.onSecond, before.onThird, before.outs);
 
-    // After third out the half ends — park the endpoint in the same outs band as the start
-    // if outs would exceed 2 (rare MLB edge cases), else use the play's recorded outs.
+    // After third out the half ends — park the endpoint in the 2-out band.
     const afterOuts = Math.min(Math.max(play.outs, 0), 2);
     const to = findCellCenter(play.onFirst, play.onSecond, play.onThird, afterOuts);
+    const wpa = play.wpa ?? 0;
+    const id = `seg-${play.atBatIndex}-${play.gameEventKey ?? play.event}`;
 
-    if (from.cx === to.cx && from.cy === to.cy) continue;
+    if (from.cx === to.cx && from.cy === to.cy) {
+      if (!shouldEmitSameCellMarker(play, wpa)) continue;
+
+      const cellKey = `${from.base}-${from.outs}`;
+      const stackIndex = stackCounts.get(cellKey) ?? 0;
+      stackCounts.set(cellKey, stackIndex + 1);
+
+      markers.push({
+        id,
+        cx: from.cx,
+        cy: from.cy,
+        base: from.base,
+        outs: from.outs,
+        wpa,
+        event: play.event || "Play",
+        atBatIndex: play.atBatIndex,
+        stackIndex,
+      });
+      continue;
+    }
 
     segments.push({
-      id: `seg-${play.atBatIndex}-${play.gameEventKey ?? play.event}`,
+      id,
       from,
       to,
-      wpa: play.wpa ?? 0,
+      wpa,
       event: play.event || "Play",
       atBatIndex: play.atBatIndex,
     });
   }
 
-  return segments;
+  return { segments, markers };
+}
+
+/** Offset stacked same-cell markers so multiple solo HRs don't fully overlap. */
+export function markerDisplayPoint(marker: StateChartPathMarker): { cx: number; cy: number } {
+  if (marker.stackIndex === 0) return { cx: marker.cx, cy: marker.cy };
+  const angle = -Math.PI / 2 + marker.stackIndex * (Math.PI / 5);
+  const radius = 7 + marker.stackIndex * 2;
+  return {
+    cx: marker.cx + Math.cos(angle) * radius,
+    cy: marker.cy + Math.sin(angle) * radius,
+  };
+}
+
+export function markerRadius(wpa: number): number {
+  return 3.5 + Math.min(5, Math.abs(wpa) * 28);
 }
 
 /** RE range across all 24 cells for color scaling. */
