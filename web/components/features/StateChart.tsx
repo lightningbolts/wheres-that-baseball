@@ -7,7 +7,8 @@ import {
   useMemo,
   useRef,
   useState,
-  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+  type RefObject,
 } from "react";
 
 import {
@@ -17,12 +18,14 @@ import {
   buildStateChartCells,
   cellDisplayValue,
   findCellCenter,
+  hitTestStateChart,
   markerDisplayPoint,
   markerRadius,
   normalizeScale,
   runExpectancyRange,
   STATE_CHART_VIEW,
   type StateChartCursor,
+  type StateChartHitTarget,
   type StateChartMode,
   type StateChartPathMarker,
   type StateChartPathSegment,
@@ -75,10 +78,55 @@ function segmentWidth(wpa: number): number {
   return 1.5 + Math.min(4, Math.abs(wpa) * 40);
 }
 
+function hoverFromHit(hit: StateChartHitTarget): HoverContent {
+  if (hit.kind === "cell") {
+    const { cell } = hit;
+    return {
+      id: cell.id,
+      title: `${cell.label} · ${cell.outs} out${cell.outs === 1 ? "" : "s"}`,
+      lines: [
+        `RE ${cell.expectedRuns.toFixed(2)}`,
+        cell.homeWinProb != null
+          ? `Home WP ${formatProbability(cell.homeWinProb)}`
+          : "Home WP —",
+      ],
+    };
+  }
+  if (hit.kind === "segment") {
+    const { segment } = hit;
+    return {
+      id: segment.id,
+      title: segment.event,
+      lines: [`WPA ${formatWpa(segment.wpa) ?? "0.0%"}`],
+    };
+  }
+  const { marker } = hit;
+  return {
+    id: marker.id,
+    title: marker.event,
+    lines: [`WPA ${formatWpa(marker.wpa) ?? "0.0%"}`, "Same base-out state"],
+  };
+}
+
+function clientToSvgPoint(
+  svg: SVGSVGElement,
+  clientX: number,
+  clientY: number,
+): { x: number; y: number } | null {
+  const ctm = svg.getScreenCTM();
+  if (!ctm) return null;
+  const point = svg.createSVGPoint();
+  point.x = clientX;
+  point.y = clientY;
+  const local = point.matrixTransform(ctm.inverse());
+  return { x: local.x, y: local.y };
+}
+
 export function StateChart({ plays, cursor, mode = "re", className }: StateChartProps) {
   const [hover, setHover] = useState<HoverContent | null>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
   const hoverIdRef = useRef<string | null>(null);
 
   const cells = useMemo(() => buildStateChartCells(cursor), [cursor]);
@@ -106,13 +154,26 @@ export function StateChart({ plays, cursor, mode = "re", className }: StateChart
     const tip = tooltipRef.current;
     if (!root || !tip) return;
     const rect = root.getBoundingClientRect();
-    const x = clientX - rect.left + 12;
-    const y = Math.max(clientY - rect.top - 8, 0);
+    const tipWidth = tip.offsetWidth || 160;
+    const tipHeight = tip.offsetHeight || 48;
+    let x = clientX - rect.left + 12;
+    let y = clientY - rect.top - 8;
+    if (x + tipWidth > rect.width - 4) x = clientX - rect.left - tipWidth - 12;
+    if (y + tipHeight > rect.height - 4) y = clientY - rect.top - tipHeight - 4;
+    x = Math.max(4, Math.min(x, rect.width - tipWidth - 4));
+    y = Math.max(4, y);
     tip.style.transform = `translate(${x}px, ${y}px)`;
   }, []);
 
-  const showHover = useCallback(
-    (next: HoverContent, clientX: number, clientY: number) => {
+  const applyHover = useCallback(
+    (next: HoverContent | null, clientX: number, clientY: number) => {
+      if (!next) {
+        if (hoverIdRef.current != null) {
+          hoverIdRef.current = null;
+          setHover(null);
+        }
+        return;
+      }
       moveTooltip(clientX, clientY);
       if (hoverIdRef.current === next.id) return;
       hoverIdRef.current = next.id;
@@ -121,7 +182,19 @@ export function StateChart({ plays, cursor, mode = "re", className }: StateChart
     [moveTooltip],
   );
 
-  const clearHover = useCallback(() => {
+  const handlePointerMove = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      const svg = svgRef.current;
+      if (!svg) return;
+      const local = clientToSvgPoint(svg, event.clientX, event.clientY);
+      if (!local) return;
+      const hit = hitTestStateChart(local.x, local.y, cells, segments, markers);
+      applyHover(hit ? hoverFromHit(hit) : null, event.clientX, event.clientY);
+    },
+    [applyHover, cells, markers, segments],
+  );
+
+  const handlePointerLeave = useCallback(() => {
     hoverIdRef.current = null;
     setHover(null);
   }, []);
@@ -129,8 +202,14 @@ export function StateChart({ plays, cursor, mode = "re", className }: StateChart
   const { width, height } = STATE_CHART_VIEW;
 
   return (
-    <div ref={rootRef} className={cn("relative w-full", className)}>
+    <div
+      ref={rootRef}
+      className={cn("relative w-full", className)}
+      onPointerMove={handlePointerMove}
+      onPointerLeave={handlePointerLeave}
+    >
       <StateChartSvg
+        svgRef={svgRef}
         cells={cells}
         segments={segments}
         markers={markers}
@@ -138,19 +217,17 @@ export function StateChart({ plays, cursor, mode = "re", className }: StateChart
         cursorPoint={cursorPoint}
         width={width}
         height={height}
-        onShowHover={showHover}
-        onMoveTooltip={moveTooltip}
-        onClearHover={clearHover}
       />
 
       <div
         ref={tooltipRef}
         className={cn(
           "pointer-events-none absolute left-0 top-0 z-10 max-w-[200px] border border-border bg-surface-elevated px-2.5 py-1.5 text-[11px] shadow-sm will-change-transform",
-          hover ? "visible" : "invisible",
+          hover ? "opacity-100" : "opacity-0",
         )}
+        aria-hidden={!hover}
       >
-        {hover && (
+        {hover ? (
           <>
             <p className="font-medium text-foreground">{hover.title}</p>
             {hover.lines.map((line) => (
@@ -159,13 +236,14 @@ export function StateChart({ plays, cursor, mode = "re", className }: StateChart
               </p>
             ))}
           </>
-        )}
+        ) : null}
       </div>
     </div>
   );
 }
 
 interface StateChartSvgProps {
+  svgRef: RefObject<SVGSVGElement | null>;
   cells: ReturnType<typeof buildStateChartCells>;
   segments: StateChartPathSegment[];
   markers: StateChartPathMarker[];
@@ -173,12 +251,10 @@ interface StateChartSvgProps {
   cursorPoint: ReturnType<typeof findCellCenter> | null;
   width: number;
   height: number;
-  onShowHover: (next: HoverContent, clientX: number, clientY: number) => void;
-  onMoveTooltip: (clientX: number, clientY: number) => void;
-  onClearHover: () => void;
 }
 
 const StateChartSvg = memo(function StateChartSvg({
+  svgRef,
   cells,
   segments,
   markers,
@@ -186,17 +262,14 @@ const StateChartSvg = memo(function StateChartSvg({
   cursorPoint,
   width,
   height,
-  onShowHover,
-  onMoveTooltip,
-  onClearHover,
 }: StateChartSvgProps) {
   return (
     <svg
+      ref={svgRef}
       viewBox={`0 0 ${width} ${height}`}
-      className="h-auto w-full"
+      className="h-auto w-full touch-none"
       role="img"
       aria-label="Base-out state chart"
-      onMouseLeave={onClearHover}
     >
       <rect x={0} y={0} width={width} height={height} fill={cssVar("--state-chart-bg")} />
 
@@ -212,7 +285,7 @@ const StateChartSvg = memo(function StateChartSvg({
             y={y}
             textAnchor="middle"
             dominantBaseline="middle"
-            className="fill-[var(--muted)] font-sans text-[11px]"
+            className="pointer-events-none fill-[var(--muted)] font-sans text-[11px]"
             transform={`rotate(-90 14 ${y})`}
           >
             {outs} out{outs === 1 ? "" : "s"}
@@ -229,7 +302,7 @@ const StateChartSvg = memo(function StateChartSvg({
             x={cell.cx}
             y={height - 12}
             textAnchor="middle"
-            className="fill-[var(--muted)] font-sans text-[10px]"
+            className="pointer-events-none fill-[var(--muted)] font-sans text-[10px]"
           >
             {BASE_STATE_LABELS[base]}
           </text>
@@ -242,23 +315,6 @@ const StateChartSvg = memo(function StateChartSvg({
           cell.base === cursorPoint.base &&
           cell.outs === cursorPoint.outs;
 
-        const onEnter = (e: ReactMouseEvent<SVGPolygonElement>) => {
-          onShowHover(
-            {
-              id: cell.id,
-              title: `${cell.label} · ${cell.outs} out${cell.outs === 1 ? "" : "s"}`,
-              lines: [
-                `RE ${cell.expectedRuns.toFixed(2)}`,
-                cell.homeWinProb != null
-                  ? `Home WP ${formatProbability(cell.homeWinProb)}`
-                  : "Home WP —",
-              ],
-            },
-            e.clientX,
-            e.clientY,
-          );
-        };
-
         return (
           <polygon
             key={cell.id}
@@ -266,30 +322,50 @@ const StateChartSvg = memo(function StateChartSvg({
             fill={cellFills.get(cell.id)}
             stroke={isCursor ? cssVar("--state-chart-cursor") : cssVar("--state-chart-grid")}
             strokeWidth={isCursor ? 2.5 : 1}
-            className="cursor-pointer"
-            onMouseEnter={onEnter}
-            onMouseMove={(e) => onMoveTooltip(e.clientX, e.clientY)}
+            className="pointer-events-none"
           />
         );
       })}
 
       {segments.map((seg) => (
-        <PathSegment
+        <line
           key={seg.id}
-          segment={seg}
-          onShowHover={onShowHover}
-          onMoveTooltip={onMoveTooltip}
+          x1={seg.from.cx}
+          y1={seg.from.cy}
+          x2={seg.to.cx}
+          y2={seg.to.cy}
+          stroke={segmentStroke(seg.wpa)}
+          strokeWidth={segmentWidth(seg.wpa)}
+          strokeLinecap="round"
+          className="pointer-events-none"
         />
       ))}
 
-      {markers.map((marker) => (
-        <SameCellMarker
-          key={marker.id}
-          marker={marker}
-          onShowHover={onShowHover}
-          onMoveTooltip={onMoveTooltip}
-        />
-      ))}
+      {markers.map((marker) => {
+        const { cx, cy } = markerDisplayPoint(marker);
+        const r = markerRadius(marker.wpa);
+        return (
+          <g key={marker.id} className="pointer-events-none">
+            <circle
+              cx={cx}
+              cy={cy}
+              r={r + 2.5}
+              fill="none"
+              stroke={segmentStroke(marker.wpa)}
+              strokeWidth={1.25}
+              opacity={0.45}
+            />
+            <circle
+              cx={cx}
+              cy={cy}
+              r={r}
+              fill={segmentStroke(marker.wpa)}
+              stroke="var(--state-chart-bg)"
+              strokeWidth={1.25}
+            />
+          </g>
+        );
+      })}
 
       {cursorPoint && (
         <motion.circle
@@ -299,92 +375,12 @@ const StateChartSvg = memo(function StateChartSvg({
           fill="none"
           stroke={cssVar("--state-chart-cursor")}
           strokeWidth={2}
+          className="pointer-events-none"
           initial={false}
           animate={{ cx: cursorPoint.cx, cy: cursorPoint.cy }}
           transition={{ duration: 0.22, ease: "easeOut" }}
         />
       )}
     </svg>
-  );
-});
-
-const PathSegment = memo(function PathSegment({
-  segment,
-  onShowHover,
-  onMoveTooltip,
-}: {
-  segment: StateChartPathSegment;
-  onShowHover: (next: HoverContent, clientX: number, clientY: number) => void;
-  onMoveTooltip: (clientX: number, clientY: number) => void;
-}) {
-  const wpaLabel = formatWpa(segment.wpa) ?? "0.0%";
-  const content = useMemo<HoverContent>(
-    () => ({
-      id: segment.id,
-      title: segment.event,
-      lines: [`WPA ${wpaLabel}`],
-    }),
-    [segment.event, segment.id, wpaLabel],
-  );
-
-  return (
-    <line
-      x1={segment.from.cx}
-      y1={segment.from.cy}
-      x2={segment.to.cx}
-      y2={segment.to.cy}
-      stroke={segmentStroke(segment.wpa)}
-      strokeWidth={segmentWidth(segment.wpa)}
-      strokeLinecap="round"
-      className="cursor-pointer"
-      onMouseEnter={(e) => onShowHover(content, e.clientX, e.clientY)}
-      onMouseMove={(e) => onMoveTooltip(e.clientX, e.clientY)}
-    />
-  );
-});
-
-const SameCellMarker = memo(function SameCellMarker({
-  marker,
-  onShowHover,
-  onMoveTooltip,
-}: {
-  marker: StateChartPathMarker;
-  onShowHover: (next: HoverContent, clientX: number, clientY: number) => void;
-  onMoveTooltip: (clientX: number, clientY: number) => void;
-}) {
-  const wpaLabel = formatWpa(marker.wpa) ?? "0.0%";
-  const { cx, cy } = markerDisplayPoint(marker);
-  const r = markerRadius(marker.wpa);
-  const content = useMemo<HoverContent>(
-    () => ({
-      id: marker.id,
-      title: marker.event,
-      lines: [`WPA ${wpaLabel}`, "Same base-out state"],
-    }),
-    [marker.event, marker.id, wpaLabel],
-  );
-
-  return (
-    <g className="cursor-pointer">
-      <circle
-        cx={cx}
-        cy={cy}
-        r={r + 2.5}
-        fill="none"
-        stroke={segmentStroke(marker.wpa)}
-        strokeWidth={1.25}
-        opacity={0.45}
-      />
-      <circle
-        cx={cx}
-        cy={cy}
-        r={r}
-        fill={segmentStroke(marker.wpa)}
-        stroke="var(--state-chart-bg)"
-        strokeWidth={1.25}
-        onMouseEnter={(e) => onShowHover(content, e.clientX, e.clientY)}
-        onMouseMove={(e) => onMoveTooltip(e.clientX, e.clientY)}
-      />
-    </g>
   );
 });

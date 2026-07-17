@@ -306,6 +306,117 @@ export function formatHalfInningLabel(cursor: StateChartCursor | null): string {
   return `${cursor.inning}${ordinalSuffix(cursor.inning)} ${arrow}`;
 }
 
+/** Diamond (Manhattan) distance from a point to a cell center. */
+export function diamondDistance(
+  x: number,
+  y: number,
+  cx: number,
+  cy: number,
+): number {
+  return Math.abs(x - cx) + Math.abs(y - cy);
+}
+
+/** True when (x, y) falls inside a diamond of the given half-diagonal size. */
+export function pointInDiamond(
+  x: number,
+  y: number,
+  cx: number,
+  cy: number,
+  size: number = STATE_CHART_VIEW.cellSize,
+): boolean {
+  return diamondDistance(x, y, cx, cy) <= size;
+}
+
+/** Shortest distance from a point to a line segment. */
+export function distanceToSegment(
+  x: number,
+  y: number,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+): number {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq <= 0) return Math.hypot(x - x1, y - y1);
+  const t = Math.max(0, Math.min(1, ((x - x1) * dx + (y - y1) * dy) / lenSq));
+  return Math.hypot(x - (x1 + t * dx), y - (y1 + t * dy));
+}
+
+/** Hit-test threshold (viewBox units) for thin path segments / markers. */
+export const STATE_CHART_PATH_HIT_SLOP = 10;
+
+export type StateChartHitTarget =
+  | { kind: "cell"; cell: StateChartCell }
+  | { kind: "segment"; segment: StateChartPathSegment }
+  | { kind: "marker"; marker: StateChartPathMarker };
+
+/**
+ * Resolve what the pointer is over. Prefers path markers/segments when close,
+ * otherwise the containing (or nearest) diamond so gaps never clear the tooltip.
+ */
+export function hitTestStateChart(
+  x: number,
+  y: number,
+  cells: StateChartCell[],
+  segments: StateChartPathSegment[],
+  markers: StateChartPathMarker[],
+): StateChartHitTarget | null {
+  let bestMarker: StateChartPathMarker | null = null;
+  let bestMarkerDist = STATE_CHART_PATH_HIT_SLOP;
+  for (const marker of markers) {
+    const { cx, cy } = markerDisplayPoint(marker);
+    const dist = Math.hypot(x - cx, y - cy) - markerRadius(marker.wpa);
+    if (dist < bestMarkerDist) {
+      bestMarkerDist = dist;
+      bestMarker = marker;
+    }
+  }
+  if (bestMarker) return { kind: "marker", marker: bestMarker };
+
+  let bestSegment: StateChartPathSegment | null = null;
+  let bestSegmentDist = STATE_CHART_PATH_HIT_SLOP;
+  for (const segment of segments) {
+    const dist = distanceToSegment(
+      x,
+      y,
+      segment.from.cx,
+      segment.from.cy,
+      segment.to.cx,
+      segment.to.cy,
+    );
+    if (dist < bestSegmentDist) {
+      bestSegmentDist = dist;
+      bestSegment = segment;
+    }
+  }
+  if (bestSegment) return { kind: "segment", segment: bestSegment };
+
+  let nearest: StateChartCell | null = null;
+  let nearestDist = Infinity;
+  for (const cell of cells) {
+    const dist = diamondDistance(x, y, cell.cx, cell.cy);
+    if (dist < nearestDist) {
+      nearestDist = dist;
+      nearest = cell;
+    }
+  }
+  if (!nearest) return null;
+
+  // Keep a tooltip while the pointer is anywhere in the plot band, not only
+  // on the diamond fill — gaps between cells were causing flicker.
+  const { width, height, paddingX, paddingTop, paddingBottom } = STATE_CHART_VIEW;
+  const inPlot =
+    x >= paddingX - STATE_CHART_VIEW.cellSize &&
+    x <= width - paddingX + STATE_CHART_VIEW.cellSize &&
+    y >= paddingTop - STATE_CHART_VIEW.cellSize &&
+    y <= height - paddingBottom + STATE_CHART_VIEW.cellSize;
+  if (!inPlot && !pointInDiamond(x, y, nearest.cx, nearest.cy)) return null;
+
+  return { kind: "cell", cell: nearest };
+}
+
 function ordinalSuffix(n: number): string {
   const mod10 = n % 10;
   const mod100 = n % 100;

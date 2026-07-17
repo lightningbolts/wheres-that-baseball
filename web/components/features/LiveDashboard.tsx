@@ -16,7 +16,6 @@ import { GameFieldView } from "@/components/features/GameFieldView";
 import { GameHitsView } from "@/components/features/GameHitsView";
 import { GameFinalDialog } from "@/components/features/GameFinalDialog";
 import { GameStateView } from "@/components/features/GameStateView";
-import { MatchChart } from "@/components/features/MatchChart";
 import { NerdInsightToasts } from "@/components/features/NerdInsightToasts";
 import { PlayByPlay } from "@/components/features/PlayByPlay";
 import { ProbabilityChart } from "@/components/features/ProbabilityChart";
@@ -166,11 +165,6 @@ function DashboardContent({ game }: { game: SlateGame }) {
   const outcomeOddsFooter =
     atBatViewState && gameState?.gameStatus === "Live" && !showBreakUI ? (
       <div className="space-y-3">
-        <MatchChart
-          probabilities={probabilities}
-          oddsKey={oddsKey}
-          atBatKey={matchAtBatKey}
-        />
         <ProbabilityChart
           key={`${atBatViewState.batterId ?? 0}-${atBatViewState.inning}`}
           probabilities={probabilities}
@@ -268,6 +262,13 @@ function DashboardContent({ game }: { game: SlateGame }) {
           plays={gameState?.plays ?? []}
           isLoading={isFeedLoading && !gameState}
           className="min-h-0 flex-1"
+          matchProbabilities={
+            atBatViewState && gameState?.gameStatus === "Live" && !showBreakUI
+              ? probabilities
+              : null
+          }
+          matchOddsKey={oddsKey}
+          matchAtBatKey={matchAtBatKey}
         />
       </div>
 
@@ -514,19 +515,11 @@ function DashboardContent({ game }: { game: SlateGame }) {
                     }
                     feedHeader={
                       atBatViewState && gameState?.gameStatus === "Live" && !showBreakUI ? (
-                        <div className="space-y-2">
-                          <MatchChart
-                            probabilities={probabilities}
-                            oddsKey={oddsKey}
-                            atBatKey={matchAtBatKey}
-                            compact
-                          />
-                          <ProbabilityChart
-                            key={`${atBatViewState.batterId ?? 0}-${atBatViewState.inning}-mobile`}
-                            probabilities={probabilities}
-                            compact
-                          />
-                        </div>
+                        <ProbabilityChart
+                          key={`${atBatViewState.batterId ?? 0}-${atBatViewState.inning}-mobile`}
+                          probabilities={probabilities}
+                          compact
+                        />
                       ) : (
                         <p className="py-2 text-center text-sm text-muted">
                           {LIVE_GAME_STATUSES.has(game.status)

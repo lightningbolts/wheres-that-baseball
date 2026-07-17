@@ -30,6 +30,21 @@ describe("predictClientOutcomeOdds", () => {
     expect(third.sac_fly).toBeGreaterThan(0);
     expect(twoOuts.sac_fly).toBe(0);
   });
+
+  it("uses count priors so 3-0 favors walks and 0-2 favors strikeouts", () => {
+    const threeOh = predictClientOutcomeOdds(3, 0, 3, 1, emptyBases);
+    const ohTwo = predictClientOutcomeOdds(0, 2, 2, 1, emptyBases);
+    expect(threeOh.walk).toBeGreaterThan(0.4);
+    expect(threeOh.walk).toBeGreaterThan(ohTwo.walk);
+    expect(ohTwo.strikeout).toBeGreaterThan(0.3);
+    expect(ohTwo.strikeout).toBeGreaterThan(threeOh.strikeout);
+  });
+
+  it("keeps probabilities normalized to 1", () => {
+    const probs = predictClientOutcomeOdds(2, 2, 5, 123, runnerOnFirst);
+    const sum = Object.values(probs).reduce((acc, value) => acc + value, 0);
+    expect(sum).toBeCloseTo(1, 5);
+  });
 });
 
 describe("predictClientStealOdds", () => {

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 
+import { MatchChart } from "@/components/features/MatchChart";
 import { Scorebug } from "@/components/features/Scorebug";
 import { StateChart } from "@/components/features/StateChart";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -11,6 +12,7 @@ import {
   type StateChartMode,
 } from "@/lib/mlb/stateChartMath";
 import { cn } from "@/lib/utils";
+import type { OutcomeProbabilities } from "@/types/database";
 import type { LiveGameState, PlayByPlayEntry } from "@/types/mlb-live";
 
 interface GameStateViewProps {
@@ -18,6 +20,10 @@ interface GameStateViewProps {
   plays: PlayByPlayEntry[];
   isLoading?: boolean;
   className?: string;
+  /** When set, renders the pitcher/batter/free-pass triangle beside the chart. */
+  matchProbabilities?: OutcomeProbabilities | null;
+  matchOddsKey?: string;
+  matchAtBatKey?: string;
 }
 
 function cursorFromGameState(gameState: LiveGameState | null): StateChartCursor | null {
@@ -44,10 +50,17 @@ export function GameStateView({
   plays,
   isLoading,
   className,
+  matchProbabilities,
+  matchOddsKey,
+  matchAtBatKey,
 }: GameStateViewProps) {
   const [mode, setMode] = useState<StateChartMode>("re");
   const cursor = useMemo(() => cursorFromGameState(gameState), [gameState]);
   const halfLabel = formatHalfInningLabel(cursor);
+  const showMatch =
+    matchProbabilities != null &&
+    matchOddsKey != null &&
+    matchOddsKey !== "none";
 
   if (isLoading && !gameState) {
     return (
@@ -96,44 +109,57 @@ export function GameStateView({
           </div>
         </div>
 
-        <div className="mx-auto w-full max-w-4xl px-3 py-4 sm:px-4">
-          <StateChart plays={plays} cursor={cursor} mode={mode} />
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-3 py-4 sm:px-4 lg:flex-row lg:items-start">
+          <div className="min-w-0 flex-1">
+            <StateChart plays={plays} cursor={cursor} mode={mode} />
 
-          <div className="mt-4 flex flex-wrap gap-4 text-[11px] text-muted">
-            <div className="flex items-center gap-2">
-              <span
-                className="inline-block h-2.5 w-2.5 rounded-full border-2 border-[var(--state-chart-cursor)]"
-                aria-hidden
-              />
-              Current situation
+            <div className="mt-4 flex flex-wrap gap-4 text-[11px] text-muted">
+              <div className="flex items-center gap-2">
+                <span
+                  className="inline-block h-2.5 w-2.5 rounded-full border-2 border-[var(--state-chart-cursor)]"
+                  aria-hidden
+                />
+                Current situation
+              </div>
+              <div className="flex items-center gap-2">
+                <span
+                  className="inline-block h-0.5 w-5 bg-[var(--state-chart-wpa-pos)]"
+                  aria-hidden
+                />
+                Positive WPA path
+              </div>
+              <div className="flex items-center gap-2">
+                <span
+                  className="inline-block h-0.5 w-5 bg-[var(--state-chart-wpa-neg)]"
+                  aria-hidden
+                />
+                Negative WPA path
+              </div>
+              <div className="flex items-center gap-2">
+                <span
+                  className="inline-block h-2.5 w-2.5 rounded-full bg-[var(--state-chart-wpa-pos)]"
+                  aria-hidden
+                />
+                Same-state pulse (solo HR, etc.)
+              </div>
+              <p className="w-full text-subtle">
+                {mode === "re"
+                  ? "Diamond color = expected runs remaining from that base-out state (RE24). Pulses mark scoring/WPA plays that leave bases and outs unchanged."
+                  : "Diamond color = home win probability at the current score and inning. Pulses mark scoring/WPA plays that leave bases and outs unchanged."}
+              </p>
             </div>
-            <div className="flex items-center gap-2">
-              <span
-                className="inline-block h-0.5 w-5 bg-[var(--state-chart-wpa-pos)]"
-                aria-hidden
-              />
-              Positive WPA path
-            </div>
-            <div className="flex items-center gap-2">
-              <span
-                className="inline-block h-0.5 w-5 bg-[var(--state-chart-wpa-neg)]"
-                aria-hidden
-              />
-              Negative WPA path
-            </div>
-            <div className="flex items-center gap-2">
-              <span
-                className="inline-block h-2.5 w-2.5 rounded-full bg-[var(--state-chart-wpa-pos)]"
-                aria-hidden
-              />
-              Same-state pulse (solo HR, etc.)
-            </div>
-            <p className="w-full text-subtle">
-              {mode === "re"
-                ? "Diamond color = expected runs remaining from that base-out state (RE24). Pulses mark scoring/WPA plays that leave bases and outs unchanged."
-                : "Diamond color = home win probability at the current score and inning. Pulses mark scoring/WPA plays that leave bases and outs unchanged."}
-            </p>
           </div>
+
+          {showMatch ? (
+            <div className="w-full shrink-0 border border-border bg-panel p-3 lg:w-[240px]">
+              <MatchChart
+                probabilities={matchProbabilities}
+                oddsKey={matchOddsKey}
+                atBatKey={matchAtBatKey}
+                compact
+              />
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

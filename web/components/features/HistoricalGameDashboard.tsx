@@ -17,7 +17,6 @@ import { GameFieldView } from "@/components/features/GameFieldView";
 import { GameHitsView } from "@/components/features/GameHitsView";
 import { GameFinalDialog } from "@/components/features/GameFinalDialog";
 import { GameStateView } from "@/components/features/GameStateView";
-import { MatchChart } from "@/components/features/MatchChart";
 import { PitchSequence, type StrikeZoneMode } from "@/components/features/PitchSequence";
 import { PlayByPlay } from "@/components/features/PlayByPlay";
 import { ProbabilityChart } from "@/components/features/ProbabilityChart";
@@ -324,12 +323,6 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
       if (atBatViewState && gameState?.gameStatus === "Live" && !showBreakUI) {
         return (
           <div className="space-y-3">
-            <MatchChart
-              probabilities={outcomeProbabilities}
-              oddsKey={matchOddsKey}
-              atBatKey={matchAtBatKey}
-              compact={compact}
-            />
             <ProbabilityChart
               key={`${atBatViewState.batterId ?? 0}-${atBatViewState.inning}`}
               probabilities={outcomeProbabilities}
@@ -358,19 +351,11 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
 
     if (predictionForAtBat) {
       return (
-        <div className="space-y-3">
-          <MatchChart
-            probabilities={outcomeProbabilities}
-            oddsKey={matchOddsKey}
-            atBatKey={matchAtBatKey}
-            compact={compact}
-          />
-          <ProbabilityChart
-            probabilities={outcomeProbabilities}
-            compact={compact}
-            contained={false}
-          />
-        </div>
+        <ProbabilityChart
+          probabilities={outcomeProbabilities}
+          compact={compact}
+          contained={false}
+        />
       );
     }
 
@@ -527,6 +512,15 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
               plays={gameState?.plays ?? []}
               isLoading={isLoading && !gameState}
               className="min-h-0 flex-1"
+              matchProbabilities={
+                (isLive
+                  ? atBatViewState && gameState?.gameStatus === "Live" && !showBreakUI
+                  : predictionForAtBat != null)
+                  ? outcomeProbabilities
+                  : null
+              }
+              matchOddsKey={matchOddsKey}
+              matchAtBatKey={matchAtBatKey}
             />
           </div>
 
