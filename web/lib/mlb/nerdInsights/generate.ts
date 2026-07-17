@@ -554,7 +554,7 @@ const rules: Rule[] = [
       id: `${ctx.gamePk}-extras-${ctx.inning}`,
       eyebrow: "Bonus baseball",
       title: "Free baseball favors someone",
-      message: `${pick.abbrev} win ${pick.stat.displayValue} of extra-inning games (${rankLabel(pick.stat.rank)} in MLB).`,
+      message: `${pick.abbrev} win at a ${pick.stat.displayValue} clip in extras (${rankLabel(pick.stat.rank)} in MLB).`,
       teamId: pick.teamId,
       statId: "extra-inning-win-pct",
     });

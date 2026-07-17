@@ -82,7 +82,7 @@ describe("buildNerdStatHistoryForStat", () => {
 
     const history = buildNerdStatHistoryForStat(2026, statId, caches)!;
     const nyy = history.splits.all.teams["147"]!;
-    expect(nyy.cumulative[0]).toBe(50);
+    expect(nyy.cumulative[0]).toBe(0.5);
   });
 });
 
