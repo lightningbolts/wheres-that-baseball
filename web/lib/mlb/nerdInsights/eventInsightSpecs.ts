@@ -888,9 +888,9 @@ export const EVENT_INSIGHT_SPECS: EventInsightSpec[] = [
     statId: "misfortune-index",
     team: "offense",
     polarity: "cursed",
-    match: (ctx) => ctx.trailingTeamId != null && ctx.runMargin >= 4,
+    match: (ctx) => ctx.trailingTeamId != null && ctx.isCloseGame,
     eyebrow: "Misfortune meter",
-    title: (ctx, abbrev) => `${abbrev} misery mounting`,
+    title: (ctx, abbrev) => `${abbrev} heartbreak watch`,
     message: defaultMessage,
   }),
   inningChange({

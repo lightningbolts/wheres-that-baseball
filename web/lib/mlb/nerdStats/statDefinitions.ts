@@ -60,6 +60,40 @@ function computeFullCountOps(counters: TeamNerdCounters): number | null {
   return obp + slg;
 }
 
+/** Approximate at-bats from plate appearances and non-AB outcomes. */
+function computeAtBats(counters: TeamNerdCounters): number {
+  return (
+    counters.plateAppearances -
+    counters.walks -
+    counters.hbp -
+    counters.sacFlies -
+    counters.sacBunts
+  );
+}
+
+/** Batting average on balls in play: (H − HR) ÷ (AB − K − HR + SF). */
+function computeBabip(counters: TeamNerdCounters): number | null {
+  const atBats = computeAtBats(counters);
+  const denominator = atBats - counters.strikeouts - counters.homeRuns + counters.sacFlies;
+  return rate(counters.hits - counters.homeRuns, denominator);
+}
+
+/**
+ * FanGraphs-style left-on-base percentage:
+ * (H + BB + HBP − R) ÷ (H + BB + HBP − 1.4×HR) × 100.
+ * Higher = more baserunners stranded.
+ */
+function computeLobPct(counters: TeamNerdCounters): number | null {
+  const baserunners = counters.hits + counters.walks + counters.hbp;
+  const numerator = baserunners - counters.runsScored;
+  const denominator = baserunners - 1.4 * counters.homeRuns;
+  return pct(numerator, denominator);
+}
+
+/** League-ish baselines used only to scale BABIP/LOB into the misfortune index. */
+const BABIP_BASELINE = 0.3;
+const LOB_PCT_BASELINE = 72;
+
 export const NERD_STAT_DEFINITIONS: NerdStatDefinition[] = [
   // —— Drama ——
   {
@@ -315,6 +349,30 @@ export const NERD_STAT_DEFINITIONS: NerdStatDefinition[] = [
     compute: (c) =>
       rate(c.leadTakeNextInningRunsAllowed, c.leadTakeNextInningOpportunities),
     formatValue: (v) => v.toFixed(2),
+  },
+  {
+    id: "babip",
+    title: "BABIP",
+    subtitle: "Batting average on balls in play. Lower = fewer hits finding grass.",
+    category: "misfortune",
+    sort: "asc",
+    unit: "AVG",
+    formula: "(H − HR) ÷ (AB − K − HR + SF)",
+    minGames: 20,
+    compute: computeBabip,
+    formatValue: formatBattingAverage,
+  },
+  {
+    id: "lob-pct",
+    title: "LOB%",
+    subtitle: "Share of baserunners left on base. Higher = more stranded traffic.",
+    category: "misfortune",
+    sort: "desc",
+    unit: "%",
+    formula: "(H + BB + HBP − R) ÷ (H + BB + HBP − 1.4×HR) × 100",
+    minGames: 20,
+    compute: computeLobPct,
+    formatValue: (v) => formatPercent(v),
   },
 
   // —— Baserunning ——
@@ -1314,19 +1372,28 @@ export const NERD_STAT_DEFINITIONS: NerdStatDefinition[] = [
   {
     id: "misfortune-index",
     title: "Misfortune Index",
-    subtitle: "GIDP, shutouts, blowout losses, and golden sombreros per game.",
+    subtitle:
+      "Close-loss heartbreak, shutouts, and bad BABIP/LOB% luck — not blowouts or garden-variety GIDPs.",
     category: "misfortune",
     sort: "desc",
     unit: "index",
     formula:
-      "(GIDP + shutout games + blowout losses + golden sombreros) ÷ games with feed",
+      "(3×one-run losses + 2×walk-off losses + extra-inning losses + shutouts + golden sombreros) ÷ games with feed + (0.300 − BABIP)×5 + (LOB% − 72)÷20",
     minGames: 20,
     compute: (c) => {
       if (c.finalGamesWithFeed <= 0) return null;
-      return (
-        (c.gidp + c.shutoutGames + c.blowoutLosses + c.goldenSombreros) /
-        c.finalGamesWithFeed
-      );
+      const babip = computeBabip(c);
+      const lobPct = computeLobPct(c);
+      if (babip == null || lobPct == null) return null;
+      const heartbreak =
+        c.oneRunLosses * 3 +
+        c.walkoffLosses * 2 +
+        c.extraInningLosses +
+        c.shutoutGames +
+        c.goldenSombreros;
+      const babipMisfortune = (BABIP_BASELINE - babip) * 5;
+      const lobMisfortune = (lobPct - LOB_PCT_BASELINE) / 20;
+      return heartbreak / c.finalGamesWithFeed + babipMisfortune + lobMisfortune;
     },
     formatValue: (v) => v.toFixed(2),
   },
