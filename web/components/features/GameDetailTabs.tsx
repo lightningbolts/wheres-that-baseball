@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 
-export type GameDetailTab = "plays" | "box" | "field" | "spray" | "callIt";
+export type GameDetailTab = "plays" | "box" | "field" | "spray" | "state" | "callIt";
 
 interface GameDetailTabsProps {
   activeTab: GameDetailTab;
@@ -20,6 +20,7 @@ const ALL_TABS: { id: GameDetailTab; label: string; shortLabel: string }[] = [
   { id: "box", label: "Box", shortLabel: "Box" },
   { id: "field", label: "Field", shortLabel: "Field" },
   { id: "spray", label: "Spray", shortLabel: "Spray" },
+  { id: "state", label: "State", shortLabel: "State" },
 ];
 
 export function GameDetailTabs({

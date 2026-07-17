@@ -231,3 +231,53 @@ export function homeWinProbability(
     runDiff,
   );
 }
+
+/**
+ * Expected runs remaining in the half-inning from a base-out state (RE24 mean).
+ * Uses the Tango run-expectancy distribution for the encoded base/outs key.
+ */
+export function expectedRunsRemaining(
+  onFirst: boolean,
+  onSecond: boolean,
+  onThird: boolean,
+  outs: number,
+  runsPerGame = DEFAULT_RUNS_PER_GAME,
+): number {
+  const { runExp } = getTables(runsPerGame);
+  const base = encodeBaseState(onFirst, onSecond, onThird);
+  const cappedOuts = Math.min(Math.max(outs, 0), 2);
+  const distribution = runExp[`${base}${cappedOuts}`];
+  if (!distribution) return 0;
+
+  let expected = 0;
+  for (let runs = 0; runs <= 10; runs += 1) {
+    expected += runs * (distribution[runs] ?? 0);
+  }
+  return expected;
+}
+
+/** Decode encodeBaseState (1–8) back to first/second/third occupancy. */
+export function decodeBaseState(base: number): {
+  onFirst: boolean;
+  onSecond: boolean;
+  onThird: boolean;
+} {
+  switch (base) {
+    case 8:
+      return { onFirst: true, onSecond: true, onThird: true };
+    case 7:
+      return { onFirst: false, onSecond: true, onThird: true };
+    case 6:
+      return { onFirst: true, onSecond: false, onThird: true };
+    case 5:
+      return { onFirst: false, onSecond: false, onThird: true };
+    case 4:
+      return { onFirst: true, onSecond: true, onThird: false };
+    case 3:
+      return { onFirst: false, onSecond: true, onThird: false };
+    case 2:
+      return { onFirst: true, onSecond: false, onThird: false };
+    default:
+      return { onFirst: false, onSecond: false, onThird: false };
+  }
+}

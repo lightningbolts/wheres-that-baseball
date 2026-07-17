@@ -56,6 +56,24 @@
     --spray-hit-contact: #8b6914;
     --spray-hit-shadow: rgb(28 43 42 / 0.55);
     --spray-hit-ball-outline: #f5f0e4;
+
+    --state-chart-bg: #f5f0e4;
+    --state-chart-grid: #c4b89a;
+    --state-chart-re-low: #dce8dc;
+    --state-chart-re-high: #1b4332;
+    --state-chart-wp-low: #8b1a1a;
+    --state-chart-wp-mid: #f5f0e4;
+    --state-chart-wp-high: #1d4e89;
+    --state-chart-cursor: #1c2b2a;
+    --state-chart-wpa-pos: #1b5e3b;
+    --state-chart-wpa-neg: #8b1a1a;
+
+    --match-pitcher: #1b4332;
+    --match-batter: #1d4e89;
+    --match-free-pass: #8b6914;
+    --match-point: #1c2b2a;
+    --match-trail: #a89878;
+
     --hover: #e8dfd0;
     --overlay: rgb(27 67 50 / 0.06);
 
@@ -108,6 +126,24 @@
     --spray-hit-contact: #d4a843;
     --spray-hit-shadow: rgb(0 0 0 / 0.75);
     --spray-hit-ball-outline: #e8e2d4;
+
+    --state-chart-bg: #1a211e;
+    --state-chart-grid: #3d4a42;
+    --state-chart-re-low: #1a2e22;
+    --state-chart-re-high: #4caf7a;
+    --state-chart-wp-low: #e07070;
+    --state-chart-wp-mid: #232b27;
+    --state-chart-wp-high: #5b9bd5;
+    --state-chart-cursor: #e8e2d4;
+    --state-chart-wpa-pos: #4caf7a;
+    --state-chart-wpa-neg: #e07070;
+
+    --match-pitcher: #4caf7a;
+    --match-batter: #5b9bd5;
+    --match-free-pass: #d4a843;
+    --match-point: #e8e2d4;
+    --match-trail: #6b7d72;
+
     --hover: #252d28;
     --overlay: rgb(45 106 79 / 0.1);
 

@@ -15,6 +15,8 @@ import { GameDetailTabs, type GameDetailTab } from "@/components/features/GameDe
 import { GameFieldView } from "@/components/features/GameFieldView";
 import { GameHitsView } from "@/components/features/GameHitsView";
 import { GameFinalDialog } from "@/components/features/GameFinalDialog";
+import { GameStateView } from "@/components/features/GameStateView";
+import { MatchChart } from "@/components/features/MatchChart";
 import { NerdInsightToasts } from "@/components/features/NerdInsightToasts";
 import { PlayByPlay } from "@/components/features/PlayByPlay";
 import { ProbabilityChart } from "@/components/features/ProbabilityChart";
@@ -95,11 +97,15 @@ function DashboardContent({ game }: { game: SlateGame }) {
     });
   const mlPredictions = useMlPredictions(atBatViewState, !gameOver);
 
-  const { probabilities, stealProbabilities, matchedPrediction } = useOutcomeOdds(
+  const { probabilities, stealProbabilities, oddsKey } = useOutcomeOdds(
     atBatViewState,
     predictions,
     mlPredictions,
   );
+
+  const matchAtBatKey = atBatViewState
+    ? `${atBatViewState.batterId ?? 0}-${atBatViewState.inning}-${atBatViewState.inningHalf}`
+    : "none";
 
   const onFirst = atBatViewState?.onFirst ?? gameState?.onFirst ?? false;
   const onSecond = atBatViewState?.onSecond ?? gameState?.onSecond ?? false;
@@ -159,7 +165,12 @@ function DashboardContent({ game }: { game: SlateGame }) {
 
   const outcomeOddsFooter =
     atBatViewState && gameState?.gameStatus === "Live" && !showBreakUI ? (
-      <div className="space-y-2">
+      <div className="space-y-3">
+        <MatchChart
+          probabilities={probabilities}
+          oddsKey={oddsKey}
+          atBatKey={matchAtBatKey}
+        />
         <ProbabilityChart
           key={`${atBatViewState.batterId ?? 0}-${atBatViewState.inning}`}
           probabilities={probabilities}
@@ -240,6 +251,21 @@ function DashboardContent({ game }: { game: SlateGame }) {
           venueName={gameState?.venueName}
           awayAbbrev={gameState?.awayAbbrev ?? "AWY"}
           homeAbbrev={gameState?.homeAbbrev ?? "HME"}
+          isLoading={isFeedLoading && !gameState}
+          className="min-h-0 flex-1"
+        />
+      </div>
+
+      <div
+        className={cn(
+          "flex min-h-0 flex-1 flex-col overflow-hidden",
+          activeTab !== "state" && "hidden",
+        )}
+        aria-hidden={activeTab !== "state"}
+      >
+        <GameStateView
+          gameState={atBatViewState ?? gameState}
+          plays={gameState?.plays ?? []}
           isLoading={isFeedLoading && !gameState}
           className="min-h-0 flex-1"
         />
@@ -488,11 +514,19 @@ function DashboardContent({ game }: { game: SlateGame }) {
                     }
                     feedHeader={
                       atBatViewState && gameState?.gameStatus === "Live" && !showBreakUI ? (
-                        <ProbabilityChart
-                          key={`${atBatViewState.batterId ?? 0}-${atBatViewState.inning}-mobile`}
-                          probabilities={probabilities}
-                          compact
-                        />
+                        <div className="space-y-2">
+                          <MatchChart
+                            probabilities={probabilities}
+                            oddsKey={oddsKey}
+                            atBatKey={matchAtBatKey}
+                            compact
+                          />
+                          <ProbabilityChart
+                            key={`${atBatViewState.batterId ?? 0}-${atBatViewState.inning}-mobile`}
+                            probabilities={probabilities}
+                            compact
+                          />
+                        </div>
                       ) : (
                         <p className="py-2 text-center text-sm text-muted">
                           {LIVE_GAME_STATUSES.has(game.status)

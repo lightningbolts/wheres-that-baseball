@@ -16,6 +16,8 @@ import { GameDetailTabs, type GameDetailTab } from "@/components/features/GameDe
 import { GameFieldView } from "@/components/features/GameFieldView";
 import { GameHitsView } from "@/components/features/GameHitsView";
 import { GameFinalDialog } from "@/components/features/GameFinalDialog";
+import { GameStateView } from "@/components/features/GameStateView";
+import { MatchChart } from "@/components/features/MatchChart";
 import { PitchSequence, type StrikeZoneMode } from "@/components/features/PitchSequence";
 import { PlayByPlay } from "@/components/features/PlayByPlay";
 import { ProbabilityChart } from "@/components/features/ProbabilityChart";
@@ -215,14 +217,25 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
     pitchCount: atBatViewState?.atBatPitches.length,
   });
 
-  const { probabilities: liveOutcomeProbabilities, stealProbabilities, matchedPrediction } = useOutcomeOdds(
-    isLive ? atBatViewState : null,
-    livePredictions,
-  );
+  const {
+    probabilities: liveOutcomeProbabilities,
+    stealProbabilities,
+    oddsKey: liveOddsKey,
+  } = useOutcomeOdds(isLive ? atBatViewState : null, livePredictions);
 
   const outcomeProbabilities = isLive
     ? liveOutcomeProbabilities
     : normalizeOutcomeProbabilities(predictionForAtBat?.outcome_probabilities);
+
+  const matchOddsKey = isLive
+    ? liveOddsKey
+    : predictionForAtBat
+      ? `archive-${predictionForAtBat.id}`
+      : "archive-none";
+
+  const matchAtBatKey = displayState
+    ? `${displayState.batterId ?? 0}-${displayState.inning}-${displayState.inningHalf}`
+    : "none";
 
   const onFirst = isLive
     ? (atBatViewState?.onFirst ?? gameState?.onFirst ?? false)
@@ -310,7 +323,13 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
     if (isLive) {
       if (atBatViewState && gameState?.gameStatus === "Live" && !showBreakUI) {
         return (
-          <div className="space-y-2">
+          <div className="space-y-3">
+            <MatchChart
+              probabilities={outcomeProbabilities}
+              oddsKey={matchOddsKey}
+              atBatKey={matchAtBatKey}
+              compact={compact}
+            />
             <ProbabilityChart
               key={`${atBatViewState.batterId ?? 0}-${atBatViewState.inning}`}
               probabilities={outcomeProbabilities}
@@ -339,11 +358,19 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
 
     if (predictionForAtBat) {
       return (
-        <ProbabilityChart
-          probabilities={outcomeProbabilities}
-          compact={compact}
-          contained={false}
-        />
+        <div className="space-y-3">
+          <MatchChart
+            probabilities={outcomeProbabilities}
+            oddsKey={matchOddsKey}
+            atBatKey={matchAtBatKey}
+            compact={compact}
+          />
+          <ProbabilityChart
+            probabilities={outcomeProbabilities}
+            compact={compact}
+            contained={false}
+          />
+        </div>
       );
     }
 
@@ -485,6 +512,21 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
               awayAbbrev={gameState?.awayAbbrev ?? game.away_team_abbrev}
               homeAbbrev={gameState?.homeAbbrev ?? game.home_team_abbrev}
               isLoading={isLoading && !gameState}
+            />
+          </div>
+
+          <div
+            className={cn(
+              "flex min-h-0 flex-1 flex-col overflow-hidden",
+              activeTab !== "state" && "hidden",
+            )}
+            aria-hidden={activeTab !== "state"}
+          >
+            <GameStateView
+              gameState={displayState}
+              plays={gameState?.plays ?? []}
+              isLoading={isLoading && !gameState}
+              className="min-h-0 flex-1"
             />
           </div>
 
