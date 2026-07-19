@@ -13,6 +13,7 @@ import {
   extractPinchHitterName,
   fieldingTeamId,
   findWalkOffPlay,
+  firstPitchOfAtBat,
   hasBattedBallData,
   hitTotalBases,
   inPlayPitch,
@@ -42,7 +43,7 @@ import {
   teamWon,
 } from "@/lib/mlb/nerdStats/extractHelpers";
 import { classifyPitch } from "@/lib/mlb/pitchClassification";
-import { recordPitchCounters } from "@/lib/mlb/nerdStats/pitchCounters";
+import { recordFirstPitchCounters, recordPitchCounters } from "@/lib/mlb/nerdStats/pitchCounters";
 import { recordPitchTypeThrown } from "@/lib/mlb/nerdStats/pitchTypeStats";
 import {
   formatPlayInning,
@@ -645,6 +646,11 @@ export function extractNerdCountersFromGame(
             defense.meatballWhiffsInduced += 1;
           }
         }
+      }
+
+      const firstPitch = firstPitchOfAtBat(play.detail.pitches);
+      if (firstPitch) {
+        recordFirstPitchCounters(offense, defense, firstPitch, play);
       }
 
       if (isHitEvent(play.event)) {

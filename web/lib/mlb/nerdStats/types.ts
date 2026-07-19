@@ -182,6 +182,31 @@ export interface TeamNerdCounters {
   fullCountHbp: number;
   fullCountSacFlies: number;
   fullCountTotalBases: number;
+  /** First pitches seen / thrown (PAs with at least one tracked pitch). */
+  firstPitchesSeen: number;
+  firstPitchesThrown: number;
+  /** Traditional first-pitch strikes (called, swinging, foul, or in play). */
+  firstPitchStrikes: number;
+  firstPitchStrikesThrown: number;
+  firstPitchBalls: number;
+  firstPitchBallsThrown: number;
+  firstPitchCalledStrikes: number;
+  firstPitchCalledStrikesInduced: number;
+  firstPitchSwingingStrikes: number;
+  firstPitchSwingingStrikesInduced: number;
+  firstPitchFouls: number;
+  firstPitchFoulsInduced: number;
+  /** Any swing on the first pitch (whiff, foul, or in play). */
+  firstPitchSwings: number;
+  firstPitchSwingsInduced: number;
+  firstPitchInPlay: number;
+  firstPitchInPlayAllowed: number;
+  firstPitchHits: number;
+  firstPitchHitsAllowed: number;
+  firstPitchHomeRuns: number;
+  firstPitchHomeRunsAllowed: number;
+  firstPitchTotalBases: number;
+  firstPitchTotalBasesAllowed: number;
   pitchingStrikeouts: number;
   backToBackHrSequences: number;
   pitchesSeen: number;

@@ -5,6 +5,14 @@ export function reachedFullCount(pitches: PlayPitch[]): boolean {
   return pitches.some((pitch) => pitch.balls === 3 && pitch.strikes === 2);
 }
 
+/** First tracked pitch of a plate appearance (skips non-pitch feed events). */
+export function firstPitchOfAtBat(pitches: PlayPitch[]): PlayPitch | null {
+  for (const pitch of pitches) {
+    if (pitch.isPitch) return pitch;
+  }
+  return null;
+}
+
 /**
  * Meatball = heart of the zone: middle ~2/3 of plate width, middle third of
  * the batter's strike zone. Easy-to-hit pitches down the pipe.

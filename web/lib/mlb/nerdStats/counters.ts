@@ -152,6 +152,28 @@ export function createEmptyTeamCounters(): TeamNerdCounters {
     fullCountHbp: 0,
     fullCountSacFlies: 0,
     fullCountTotalBases: 0,
+    firstPitchesSeen: 0,
+    firstPitchesThrown: 0,
+    firstPitchStrikes: 0,
+    firstPitchStrikesThrown: 0,
+    firstPitchBalls: 0,
+    firstPitchBallsThrown: 0,
+    firstPitchCalledStrikes: 0,
+    firstPitchCalledStrikesInduced: 0,
+    firstPitchSwingingStrikes: 0,
+    firstPitchSwingingStrikesInduced: 0,
+    firstPitchFouls: 0,
+    firstPitchFoulsInduced: 0,
+    firstPitchSwings: 0,
+    firstPitchSwingsInduced: 0,
+    firstPitchInPlay: 0,
+    firstPitchInPlayAllowed: 0,
+    firstPitchHits: 0,
+    firstPitchHitsAllowed: 0,
+    firstPitchHomeRuns: 0,
+    firstPitchHomeRunsAllowed: 0,
+    firstPitchTotalBases: 0,
+    firstPitchTotalBasesAllowed: 0,
     pitchingStrikeouts: 0,
     backToBackHrSequences: 0,
     pitchesSeen: 0,
@@ -365,6 +387,28 @@ export function mergeTeamCounters(target: TeamNerdCounters, source: TeamNerdCoun
   target.fullCountHbp += source.fullCountHbp;
   target.fullCountSacFlies += source.fullCountSacFlies;
   target.fullCountTotalBases += source.fullCountTotalBases;
+  target.firstPitchesSeen += source.firstPitchesSeen;
+  target.firstPitchesThrown += source.firstPitchesThrown;
+  target.firstPitchStrikes += source.firstPitchStrikes;
+  target.firstPitchStrikesThrown += source.firstPitchStrikesThrown;
+  target.firstPitchBalls += source.firstPitchBalls;
+  target.firstPitchBallsThrown += source.firstPitchBallsThrown;
+  target.firstPitchCalledStrikes += source.firstPitchCalledStrikes;
+  target.firstPitchCalledStrikesInduced += source.firstPitchCalledStrikesInduced;
+  target.firstPitchSwingingStrikes += source.firstPitchSwingingStrikes;
+  target.firstPitchSwingingStrikesInduced += source.firstPitchSwingingStrikesInduced;
+  target.firstPitchFouls += source.firstPitchFouls;
+  target.firstPitchFoulsInduced += source.firstPitchFoulsInduced;
+  target.firstPitchSwings += source.firstPitchSwings;
+  target.firstPitchSwingsInduced += source.firstPitchSwingsInduced;
+  target.firstPitchInPlay += source.firstPitchInPlay;
+  target.firstPitchInPlayAllowed += source.firstPitchInPlayAllowed;
+  target.firstPitchHits += source.firstPitchHits;
+  target.firstPitchHitsAllowed += source.firstPitchHitsAllowed;
+  target.firstPitchHomeRuns += source.firstPitchHomeRuns;
+  target.firstPitchHomeRunsAllowed += source.firstPitchHomeRunsAllowed;
+  target.firstPitchTotalBases += source.firstPitchTotalBases;
+  target.firstPitchTotalBasesAllowed += source.firstPitchTotalBasesAllowed;
   target.pitchingStrikeouts += source.pitchingStrikeouts;
   target.backToBackHrSequences += source.backToBackHrSequences;
   target.pitchesSeen += source.pitchesSeen;
