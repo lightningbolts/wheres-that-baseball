@@ -118,6 +118,8 @@ export function createEmptyTeamCounters(): TeamNerdCounters {
     multiErrorGames: 0,
     errorFreeGames: 0,
     basesLoadedNoRuns: 0,
+    nobletigers: 0,
+    nobletigersInduced: 0,
     cycleGames: 0,
     backToBackHrGames: 0,
     backToBackToBackHrGames: 0,
@@ -355,6 +357,8 @@ export function mergeTeamCounters(target: TeamNerdCounters, source: TeamNerdCoun
   target.multiErrorGames += source.multiErrorGames;
   target.errorFreeGames += source.errorFreeGames;
   target.basesLoadedNoRuns += source.basesLoadedNoRuns;
+  target.nobletigers += source.nobletigers;
+  target.nobletigersInduced += source.nobletigersInduced;
   target.cycleGames += source.cycleGames;
   target.backToBackHrGames += source.backToBackHrGames;
   target.backToBackToBackHrGames += source.backToBackToBackHrGames;

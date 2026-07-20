@@ -72,6 +72,8 @@ export const HAND_CRAFTED_INSIGHT_STAT_IDS = new Set([
   "risp-batting",
   "runs-with-two-outs-pct",
   "bases-loaded-no-runs",
+  "nobletigers",
+  "nobletigers-induced",
   "pitches-per-pa",
   "foul-rate",
   "ball-rate",

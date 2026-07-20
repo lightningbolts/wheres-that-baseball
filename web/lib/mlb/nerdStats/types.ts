@@ -148,6 +148,10 @@ export interface TeamNerdCounters {
   multiErrorGames: number;
   errorFreeGames: number;
   basesLoadedNoRuns: number;
+  /** Half-innings: bases loaded with nobody out, then zero runs scored. */
+  nobletigers: number;
+  /** Defensive half-innings that induced a nobletiger on the opponent. */
+  nobletigersInduced: number;
   cycleGames: number;
   backToBackHrGames: number;
   backToBackToBackHrGames: number;

@@ -303,6 +303,35 @@ const rules: Rule[] = [
 
   (ctx, away, home) => {
     if (ctx.trigger.type !== "at-bat-start" || !ctx.basesLoaded) return null;
+
+    if (ctx.outs === 0) {
+      const defense = profileForTeam({ away, home }, ctx.defenseTeamId);
+      const induced = getTeamStat(defense, "nobletigers-induced");
+      if (isEliteRank(induced, 5)) {
+        return fullInsight(ctx, {
+          id: `${ctx.gamePk}-nobletiger-${ctx.trigger.atBatIndex}`,
+          eyebrow: "Noble Tiger watch",
+          title: "Nobody out, nowhere to go",
+          message: `${ctx.defenseAbbrev} induce Noble Tigers at an elite clip — ${rankLabel(induced.rank)} (${induced.displayValue} times).`,
+          teamId: ctx.defenseTeamId,
+          statId: "nobletigers-induced",
+        });
+      }
+
+      const offense = profileForTeam({ away, home }, ctx.offenseTeamId);
+      const tigers = getTeamStat(offense, "nobletigers");
+      if (isEliteRank(tigers, 5)) {
+        return fullInsight(ctx, {
+          id: `${ctx.gamePk}-nobletiger-off-${ctx.trigger.atBatIndex}`,
+          eyebrow: "Noble Tiger watch",
+          title: "Bases juiced, outs optional",
+          message: `${ctx.offenseAbbrev} own the Noble Tiger leaderboard — ${rankLabel(tigers.rank)} with ${tigers.displayValue} this season.`,
+          teamId: ctx.offenseTeamId,
+          statId: "nobletigers",
+        });
+      }
+    }
+
     const defense = profileForTeam({ away, home }, ctx.defenseTeamId);
     const stranded = getTeamStat(defense, "bases-loaded-no-runs");
     if (!isEliteRank(stranded, 5)) return null;
@@ -681,6 +710,10 @@ const MINI_LABELS: Record<string, (abbrev: string, count: number, display: strin
     `Two-out spot #${count} — ${abbrev} score ${display} of runs with two outs (${rankLabel(rank)}).`,
   "bases-loaded-no-runs": (abbrev, count, _display, rank) =>
     `Bases loaded #${count} — ${abbrev} strand patrol (${rankLabel(rank)}).`,
+  "nobletigers": (abbrev, count, _display, rank) =>
+    `Noble Tiger #${count} — ${abbrev} loaded nobody-out flop (${rankLabel(rank)}).`,
+  "nobletigers-induced": (abbrev, count, _display, rank) =>
+    `Noble Tiger induced #${count} — ${abbrev} escape artists (${rankLabel(rank)}).`,
   "quick-half-innings-seen": (abbrev, count, display, rank) =>
     `Quick half #${count} — ${abbrev} ${display} sub-10-pitch halves (${rankLabel(rank)}).`,
   "long-half-innings-seen": (abbrev, count, display, rank) =>

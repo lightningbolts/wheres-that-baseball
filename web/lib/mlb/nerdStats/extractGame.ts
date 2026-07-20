@@ -111,6 +111,11 @@ function basesLoaded(before: PlayByPlayEntry["situationBefore"]): boolean {
   return before.onFirst && before.onSecond && before.onThird;
 }
 
+/** True nobletiger setup: ducks on the pond with nobody out. */
+function basesLoadedNoOuts(before: PlayByPlayEntry["situationBefore"]): boolean {
+  return basesLoaded(before) && before.outs === 0;
+}
+
 interface BatterCycleState {
   name: string;
   types: Set<string>;
@@ -159,6 +164,8 @@ interface HalfInningTracker {
   offenseId: number;
   defenseId: number;
   basesLoadedSeen: boolean;
+  /** Bases loaded with 0 outs at any point in the half. */
+  basesLoadedNoOutsSeen: boolean;
   runs: number;
   hits: number;
   pitches: number;
@@ -197,12 +204,33 @@ function finalizeHalfInning(
 ): void {
   if (!tracker) return;
 
-  if (tracker.basesLoadedSeen && tracker.runs === 0) {
-    teamCounters(counters, tracker.offenseId, row, split).basesLoadedNoRuns += 1;
-  }
-
   const offense = teamCounters(counters, tracker.offenseId, row, split);
   const defense = teamCounters(counters, tracker.defenseId, row, split);
+
+  if (tracker.basesLoadedSeen && tracker.runs === 0) {
+    offense.basesLoadedNoRuns += 1;
+  }
+
+  if (tracker.basesLoadedNoOutsSeen && tracker.runs === 0) {
+    offense.nobletigers += 1;
+    defense.nobletigersInduced += 1;
+    const half = tracker.halfInning === "bottom" ? "Bot" : "Top";
+    pushNotable(offense, {
+      statId: "nobletigers",
+      gamePk: row.game_pk,
+      gameDate: row.game_date,
+      label: "Noble Tiger",
+      detail: `${half} ${tracker.inning} · bases loaded, nobody out, zero runs`,
+    });
+    pushNotable(defense, {
+      statId: "nobletigers-induced",
+      gamePk: row.game_pk,
+      gameDate: row.game_date,
+      label: "Noble Tiger induced",
+      detail: `${half} ${tracker.inning} · stranded bases loaded with nobody out`,
+    });
+  }
+
   const pitches = tracker.pitches;
 
   if (tracker.postLeadDefense) {
@@ -612,6 +640,7 @@ export function extractNerdCountersFromGame(
         offenseId,
         defenseId,
         basesLoadedSeen: basesLoaded(play.situationBefore),
+        basesLoadedNoOutsSeen: basesLoadedNoOuts(play.situationBefore),
         runs: 0,
         hits: 0,
         pitches: 0,
@@ -624,8 +653,13 @@ export function extractNerdCountersFromGame(
       offense.battingHalfInnings += 1;
       defense.pitchingHalfInnings += 1;
       offenseGame.firstAbOfHalf = true;
-    } else if (basesLoaded(play.situationBefore)) {
-      halfTracker.basesLoadedSeen = true;
+    } else {
+      if (basesLoaded(play.situationBefore)) {
+        halfTracker.basesLoadedSeen = true;
+      }
+      if (basesLoadedNoOuts(play.situationBefore)) {
+        halfTracker.basesLoadedNoOutsSeen = true;
+      }
     }
 
     if (play.isAtBat) {
