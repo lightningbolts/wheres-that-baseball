@@ -59,6 +59,34 @@ function videoPreviewSrc(url: string): string {
   return `${url}#t=0.1`;
 }
 
+/** Compact rotating ring for video resolve / first-frame wait. */
+function VideoLoadingSpinner({ className }: { className?: string }) {
+  return (
+    <span
+      role="status"
+      aria-label="Loading video"
+      className={cn("inline-flex size-7 text-muted", className)}
+    >
+      <svg viewBox="0 0 24 24" fill="none" className="size-full animate-spin" aria-hidden>
+        <circle
+          cx="12"
+          cy="12"
+          r="9"
+          stroke="currentColor"
+          strokeOpacity="0.25"
+          strokeWidth="2.5"
+        />
+        <path
+          d="M21 12a9 9 0 0 0-9-9"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+        />
+      </svg>
+    </span>
+  );
+}
+
 export function PlayVideoPlayer({
   playId,
   autoLoad = false,
@@ -177,13 +205,13 @@ export function PlayVideoPlayer({
           {showLoadingOverlay ? (
             <div
               className={cn(
-                "flex items-center justify-center bg-field-chart-canvas px-4 text-xs text-subtle",
+                "flex items-center justify-center bg-field-chart-canvas",
                 showVideo ? "absolute inset-0 z-10" : frameClass,
               )}
               aria-busy
               aria-live="polite"
             >
-              Loading preview…
+              <VideoLoadingSpinner />
             </div>
           ) : null}
           {showVideo && showTitle && video.title && frameReady ? (
