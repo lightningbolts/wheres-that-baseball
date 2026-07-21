@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import {
+  peekLiveFeedState,
   refreshLiveFeedNow,
   subscribeLiveFeed,
   type LiveFeedCoordinatorState,
@@ -31,10 +32,13 @@ export function useGameBoxScore(
   const shouldPoll = options?.poll ?? false;
   const pollBurstKey = options?.pollBurstKey;
 
-  const [boxScore, setBoxScore] = useState<GameBoxScore | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [source, setSource] = useState<"supabase" | "mlb" | null>(null);
+  const peeked = shouldPoll && gamePk ? peekLiveFeedState(gamePk) : null;
+  const [boxScore, setBoxScore] = useState<GameBoxScore | null>(peeked?.boxScore ?? null);
+  const [isLoading, setIsLoading] = useState(() => (peeked ? peeked.isLoading : true));
+  const [error, setError] = useState<string | null>(peeked?.error ?? null);
+  const [source, setSource] = useState<"supabase" | "mlb" | null>(
+    peeked?.boxScore ? "mlb" : null,
+  );
   const [feedSyncedAt, setFeedSyncedAt] = useState<string | null>(null);
 
   const fetchBoxScore = useCallback(async () => {
@@ -72,11 +76,19 @@ export function useGameBoxScore(
     }
 
     if (shouldPoll) {
-      setBoxScore(null);
-      setIsLoading(true);
-      setError(null);
-      setSource("mlb");
-      setFeedSyncedAt(null);
+      const cached = peekLiveFeedState(gamePk);
+      if (cached) {
+        setBoxScore(cached.boxScore);
+        setIsLoading(cached.isLoading);
+        setError(cached.error);
+        setSource("mlb");
+      } else {
+        setBoxScore(null);
+        setIsLoading(true);
+        setError(null);
+        setSource("mlb");
+        setFeedSyncedAt(null);
+      }
 
       const onCoordinator = (state: LiveFeedCoordinatorState) => {
         setBoxScore(state.boxScore);

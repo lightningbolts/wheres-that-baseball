@@ -87,7 +87,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
     settlingAtBatIndex,
     dismiss: dismissOutcomeToast,
   } = useAtBatOutcomeToast(gameState?.plays ?? [], !gameOver && activeTab === "plays");
-  const { predictions, isLoading: isPredictionsLoading, error, connectionStatus } =
+  const { predictions, error, connectionStatus } =
     useLivePredictions(selectedGamePk, {
       batterName: atBatViewState?.batterName,
       inning: atBatViewState?.inning,
@@ -146,7 +146,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
     [gameZonePitches],
   );
 
-  const showSkeleton = isFeedLoading && !gameState && isPredictionsLoading && predictions.length === 0;
+  const showSkeleton = Boolean(selectedGamePk) && isFeedLoading && !gameState;
   const showBatterHighlights =
     gameState != null &&
     gameState.gameStatus === "Live" &&

@@ -73,6 +73,11 @@ function defaultState(): LiveFeedCoordinatorState {
   };
 }
 
+/** Snapshot of an in-memory feed (if any) — used to avoid a loading flash on remount. */
+export function peekLiveFeedState(gamePk: number): LiveFeedCoordinatorState | null {
+  return instances.get(gamePk)?.state ?? null;
+}
+
 function notify(instance: CoordinatorInstance): void {
   for (const sub of instance.subscribers) {
     sub(instance.state);

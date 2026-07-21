@@ -53,7 +53,9 @@ export function Dialog({ open, onClose, title, children, className }: DialogProp
       onClose={handleClose}
       onClick={handleBackdropClick}
       className={cn(
-        "flex w-[min(100%,560px)] max-w-[calc(100%-2rem)] max-h-[90vh] flex-col border border-border-strong bg-panel p-0 text-foreground shadow-2xl backdrop:bg-black/60",
+        // display is controlled by globals.css (dialog[open] / :not([open])) so a closed
+        // dialog never leaks into the page when we keep it mounted.
+        "w-[min(100%,560px)] max-w-[calc(100%-2rem)] max-h-[90vh] flex-col border border-border-strong bg-panel p-0 text-foreground shadow-2xl backdrop:bg-black/60",
         "max-md:fixed max-md:inset-0 max-md:m-0 max-md:h-dvh max-md:max-h-none max-md:w-full max-md:max-w-none max-md:rounded-none max-md:border-0",
         className,
       )}

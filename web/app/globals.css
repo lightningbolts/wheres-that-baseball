@@ -229,6 +229,15 @@
     background: var(--dialog-backdrop);
   }
 
+  /* Author `display: flex` utilities override the UA closed-dialog rule — keep closed dialogs hidden. */
+  dialog:not([open]) {
+    display: none !important;
+  }
+
+  dialog[open] {
+    display: flex;
+  }
+
   dialog {
     margin: auto;
   }

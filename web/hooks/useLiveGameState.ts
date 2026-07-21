@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import {
+  peekLiveFeedState,
   refreshLiveFeedNow,
   subscribeLiveFeed,
   type LiveFeedCoordinatorState,
@@ -24,6 +25,17 @@ export interface UseLiveGameStateResult {
   refreshNow: () => Promise<void>;
 }
 
+function emptyState(isLoading: boolean): LiveFeedCoordinatorState {
+  return {
+    gameState: null,
+    boxScore: null,
+    isLoading,
+    error: null,
+    consecutiveErrors: 0,
+    realtimeConnected: false,
+  };
+}
+
 /**
  * Shared coordinator polls the coalesced snapshot API once per game.
  * Box score and game state derive from the same server-side MLB fetch.
@@ -34,36 +46,27 @@ export function useLiveGameState(
 ): UseLiveGameStateResult {
   const enabled = options?.enabled ?? true;
   const pollBurstKey = options?.pollBurstKey;
-  const [coordinatorState, setCoordinatorState] = useState<LiveFeedCoordinatorState>({
-    gameState: null,
-    boxScore: null,
-    isLoading: true,
-    error: null,
-    consecutiveErrors: 0,
-    realtimeConnected: false,
+  const [coordinatorState, setCoordinatorState] = useState<LiveFeedCoordinatorState>(() => {
+    if (!gamePk || !enabled) return emptyState(false);
+    return peekLiveFeedState(gamePk) ?? emptyState(true);
   });
 
   useEffect(() => {
     if (!gamePk || !enabled) {
-      setCoordinatorState({
-        gameState: null,
-        boxScore: null,
-        isLoading: false,
-        error: null,
-        consecutiveErrors: 0,
-        realtimeConnected: false,
-      });
+      setCoordinatorState(emptyState(false));
       return;
     }
 
-    setCoordinatorState({
-      gameState: null,
-      boxScore: null,
-      isLoading: true,
-      error: null,
-      consecutiveErrors: 0,
-      realtimeConnected: false,
-    });
+    // Prefer cached coordinator state immediately — don't blank the UI while
+    // (re)subscribing to an already-warmed feed.
+    const cached = peekLiveFeedState(gamePk);
+    if (cached) {
+      setCoordinatorState(cached);
+    } else {
+      setCoordinatorState((current) =>
+        current.gameState ? { ...current, isLoading: true } : emptyState(true),
+      );
+    }
 
     return subscribeLiveFeed(gamePk, setCoordinatorState);
   }, [gamePk, enabled]);
