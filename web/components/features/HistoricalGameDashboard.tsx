@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AppNav } from "@/components/features/AppNav";
 import { BatterRispRecord } from "@/components/features/BatterRispRecord";
@@ -74,7 +74,9 @@ function Panel({
     <section
       className={cn(
         "flex min-w-0 flex-col overflow-hidden bg-panel md:min-h-[220px] lg:min-h-0",
-        flushMobile ? "min-h-0 p-0 md:min-h-[280px] md:p-3" : "min-h-[280px] p-3",
+        flushMobile
+          ? "min-h-0 p-0 max-md:min-h-0 md:min-h-[280px] md:px-3 md:pb-3 md:pt-3"
+          : "min-h-[280px] p-3",
         className,
       )}
     >
@@ -102,6 +104,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
 
   const isLive = isLiveStatus(game.status);
   const [activeTab, setActiveTab] = useState<GameDetailTab>("plays");
+  const mobileScrollRef = useRef<HTMLElement>(null);
 
   const {
     gameState: liveGameState,
@@ -390,11 +393,11 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
   };
 
   return (
-    <div className="flex h-screen min-h-0 flex-col overflow-x-hidden bg-background text-foreground">
+    <div className="flex h-dvh min-h-0 flex-col overflow-x-hidden bg-background text-foreground">
       <AppNav />
 
-      <div className="border-b border-border bg-surface px-3 py-3 sm:px-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="shrink-0 border-b border-border bg-surface px-3 py-2 sm:px-4 sm:py-3">
+        <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
           <div className="min-w-0">
             <Link
               href={seasonHistoryHref}
@@ -402,14 +405,16 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
             >
               ← Season history
             </Link>
-            <h1 className="mt-1 text-lg font-medium text-foreground">{formatMatchup(game)}</h1>
-            <p className="mt-0.5 text-sm text-muted">
+            <h1 className="mt-0.5 text-base font-medium text-foreground sm:mt-1 sm:text-lg">
+              {formatMatchup(game)}
+            </h1>
+            <p className="mt-0.5 truncate text-[11px] text-muted sm:text-sm">
               {formatGameDate(game.game_date)}
               {game.venue_name ? ` · ${game.venue_name}` : ""}
               {score ? ` · Final ${score}` : ""}
             </p>
           </div>
-          <div className="shrink-0 text-xs text-subtle sm:text-right">
+          <div className="hidden shrink-0 text-xs text-subtle sm:block sm:text-right">
             {feedSyncedAt ? (
               <span>Feed synced {new Date(feedSyncedAt).toLocaleString()}</span>
             ) : source === "mlb" ? (
@@ -438,6 +443,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
             activeTab={activeTab}
             onTabChange={setActiveTab}
             showCallItTab={false}
+            compact
           />
 
           <div
@@ -568,6 +574,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
             <ConnectionIndicator status={connectionStatus} error={livePredictionsError} />
           )}
           <Scorebug
+            className="shrink-0"
             gameState={scorebugState}
             dueUpBatters={
               isLive && gameState && !gameOver && isHalfInningBreak(gameState.inningState)
@@ -576,7 +583,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
             }
           />
 
-          <div className="flex min-h-0 flex-1 overflow-x-hidden">
+          <div className="flex min-h-0 flex-1 overflow-hidden">
             <div className="hidden w-[300px] shrink-0 border-r border-border md:flex lg:w-[320px]">
               <PlayByPlay
                 plays={plays}
@@ -592,12 +599,15 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
               />
             </div>
 
-            <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden">
-              <div className="flex min-h-0 flex-1 flex-col gap-px overflow-x-hidden bg-border">
+            <main
+              ref={mobileScrollRef}
+              className="flex min-h-0 min-w-0 flex-1 flex-col max-md:overflow-y-auto max-md:overscroll-y-contain md:overflow-hidden"
+            >
+              <div className="flex min-h-0 flex-1 flex-col gap-px overflow-hidden bg-border max-md:flex-none max-md:overflow-visible">
                 <Panel
                   title={panelTitle}
                   flushMobile
-                  className="order-1 min-h-0 flex-1 overflow-hidden md:order-none md:min-h-[380px]"
+                  className="order-1 min-h-0 flex-1 overflow-hidden max-md:min-h-0 md:order-none md:min-h-[380px]"
                 >
                   {displayState ? (
                     <>
@@ -616,35 +626,21 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
                           />
                         )}
                       </div>
-                      {(displayState.atBatPitches.length ?? 0) === 0 ? (
-                        <div className="shrink-0 md:hidden">
-                          <PitchSequence
-                            key={`zone-mobile-${zoneBatterId ?? selectedAtBatIndex ?? "none"}`}
-                            pitches={[]}
-                            zonePitches={zoneMode === "game" ? gameZonePitches : undefined}
-                            zoneMode={zoneMode}
-                            onZoneModeChange={setZoneMode}
-                            totalGamePitchCount={totalGamePitchCount}
-                            layout="zone"
-                            zoneFirst
-                            batterZones={batterHotZones ?? undefined}
-                          />
-                        </div>
-                      ) : (
-                        <div className="shrink-0 md:hidden">
-                          <PitchSequence
-                            key={`zone-mobile-${zoneBatterId ?? selectedAtBatIndex ?? "none"}`}
-                            pitches={displayState.atBatPitches}
-                            zonePitches={zoneMode === "game" ? gameZonePitches : undefined}
-                            zoneMode={zoneMode}
-                            onZoneModeChange={setZoneMode}
-                            totalGamePitchCount={totalGamePitchCount}
-                            layout="zone"
-                            zoneFirst
-                            batterZones={batterHotZones ?? undefined}
-                          />
-                        </div>
-                      )}
+                      <div className="shrink-0 px-3 pb-3 pt-2.5 md:hidden">
+                        <PitchSequence
+                          key={`zone-mobile-${zoneBatterId ?? selectedAtBatIndex ?? "none"}`}
+                          pitches={displayState.atBatPitches}
+                          zonePitches={zoneMode === "game" ? gameZonePitches : undefined}
+                          zoneMode={zoneMode}
+                          onZoneModeChange={setZoneMode}
+                          totalGamePitchCount={totalGamePitchCount}
+                          layout="zone"
+                          size="large"
+                          zoneFirst
+                          batterZones={batterHotZones ?? undefined}
+                          className="h-[clamp(16rem,42dvh,26rem)] w-full"
+                        />
+                      </div>
                       <div className="hidden min-h-0 flex-1 md:flex">
                         <PitchSequence
                           key={`zone-desktop-${zoneBatterId ?? selectedAtBatIndex ?? "none"}`}
@@ -669,7 +665,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
                   )}
                 </Panel>
 
-                <div className="order-2 flex min-h-0 flex-1 flex-col md:hidden">
+                <div className="order-2 flex min-h-0 flex-1 flex-col max-md:flex-none md:hidden">
                   <PlayByPlay
                     plays={plays}
                     awayAbbrev={gameState.awayAbbrev}
@@ -680,9 +676,12 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
                       isLive ? undefined : (play) => setSelectedAtBatIndex(play.atBatIndex)
                     }
                     autoScrollToLatest={isLive}
+                    autoScrollOnLivePitches={false}
                     variant="feed"
                     animateEntrance={isLive}
-                    className="min-h-0 flex-1"
+                    embeddedScroll
+                    parentScrollRef={mobileScrollRef}
+                    className="flex-none"
                     livePitches={
                       isLive && (atBatInProgress || isLingering)
                         ? atBatViewState?.atBatPitches

@@ -38,7 +38,7 @@ function StatCell({
   return (
     <div
       className={cn(
-        "flex shrink-0 items-center justify-center border-r border-border px-2 md:px-2.5",
+        "flex items-center justify-center border-r border-border px-1.5 sm:px-2 md:shrink-0 md:px-2.5",
         className,
       )}
     >
@@ -354,14 +354,14 @@ export function Scorebug({
         className,
       )}
     >
-      {/* Game state — stays content-width so matchup can sit flush beside it */}
+      {/* Game state — full width on mobile; content-width on desktop beside matchup */}
       <div
         className={cn(
-          "flex h-11 min-w-0 items-stretch overflow-x-auto overscroll-x-contain lg:overflow-visible",
-          useMatchupSlot ? "md:h-14 md:shrink-0" : "lg:h-14 lg:shrink-0",
+          "flex h-11 min-w-0 items-stretch overflow-x-auto overscroll-x-contain max-md:w-full max-md:overflow-x-hidden lg:overflow-visible",
+          useMatchupSlot ? "md:h-14 md:w-auto md:shrink-0" : "lg:h-14 lg:w-auto lg:shrink-0",
         )}
       >
-        <StatCell className="min-w-[48px] flex-col gap-0.5 py-1 md:min-w-[56px] lg:min-w-[72px] lg:px-3">
+        <StatCell className="min-w-[48px] flex-col gap-0.5 py-1 max-md:min-w-0 max-md:flex-1 md:min-w-[56px] lg:min-w-[72px] lg:px-3">
           <TeamLogo abbrev={awayAbbrev} size={18} className="lg:hidden" />
           <TeamLogo abbrev={awayAbbrev} size={22} className="hidden lg:block" />
           <span className="font-mono text-xl font-bold leading-none tabular-nums lg:text-2xl">
@@ -369,7 +369,7 @@ export function Scorebug({
           </span>
         </StatCell>
 
-        <StatCell className="min-w-[48px] flex-col gap-0.5 py-1 md:min-w-[56px] lg:min-w-[72px] lg:px-3">
+        <StatCell className="min-w-[48px] flex-col gap-0.5 py-1 max-md:min-w-0 max-md:flex-1 md:min-w-[56px] lg:min-w-[72px] lg:px-3">
           <TeamLogo abbrev={homeAbbrev} size={18} className="lg:hidden" />
           <TeamLogo abbrev={homeAbbrev} size={22} className="hidden lg:block" />
           <span className="font-mono text-xl font-bold leading-none tabular-nums lg:text-2xl">
@@ -377,7 +377,7 @@ export function Scorebug({
           </span>
         </StatCell>
 
-        <StatCell className="min-w-[56px] flex-col py-1 md:min-w-[64px] lg:min-w-[72px] lg:px-3">
+        <StatCell className="min-w-[56px] flex-col py-1 max-md:min-w-0 max-md:flex-1 md:min-w-[64px] lg:min-w-[72px] lg:px-3">
           <AbsChallengesField
             awayRemaining={awayAbsChallengesRemaining}
             homeRemaining={homeAbsChallengesRemaining}
@@ -386,14 +386,14 @@ export function Scorebug({
           />
         </StatCell>
 
-        <StatCell className="min-w-[44px] md:min-w-[52px] lg:min-w-[64px] lg:px-3">
+        <StatCell className="min-w-[44px] max-md:min-w-0 max-md:flex-1 md:min-w-[52px] lg:min-w-[64px] lg:px-3">
           <span className="font-mono text-xs font-semibold tracking-wide md:text-sm">
             {gameEnded ? "FINAL" : inningLabel(inning, inningHalf)}
           </span>
         </StatCell>
 
         {/* Compact count — tight / medium layouts */}
-        <StatCell className="gap-1 lg:hidden">
+        <StatCell className="gap-1 max-md:min-w-0 max-md:flex-1 lg:hidden">
           <span className="font-mono text-base font-bold tabular-nums text-green-700 dark:text-green-400">
             {isBreak ? "–" : balls}
           </span>
@@ -419,7 +419,7 @@ export function Scorebug({
           </div>
         </StatCell>
 
-        <StatCell className="flex-col py-1 lg:px-3" aria-label={`${safeOuts} outs`}>
+        <StatCell className="flex-col py-1 max-md:min-w-0 max-md:flex-1 lg:px-3" aria-label={`${safeOuts} outs`}>
           <span className="mb-0.5 text-[8px] font-semibold text-scorebug-muted lg:mb-1 lg:text-[9px]">
             OUT
           </span>
@@ -436,7 +436,7 @@ export function Scorebug({
           </div>
         </StatCell>
 
-        <StatCell className="pr-2 lg:px-3">
+        <StatCell className="pr-2 max-md:min-w-0 max-md:flex-1 lg:px-3">
           <BaseDiamond
             onFirst={onFirst}
             onSecond={onSecond}

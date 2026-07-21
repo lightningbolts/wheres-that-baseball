@@ -265,15 +265,15 @@ function SituationMarker({
   const runners = formatRunnerBases(situation.bases);
 
   return (
-    <div className="flex items-center gap-2 border-t border-border/40 bg-overlay px-3 py-2">
+    <div className="flex items-start gap-2 border-t border-border/40 bg-overlay px-3 py-2 sm:items-center">
       <BaseDiamond
         onFirst={situation.onFirst}
         onSecond={situation.onSecond}
         onThird={situation.onThird}
         size="tiny"
-        className="shrink-0"
+        className="mt-0.5 shrink-0 sm:mt-0"
       />
-      <div className="min-w-0 flex-1 text-[11px] leading-snug text-muted">
+      <div className="min-w-0 flex-1 text-[11px] leading-relaxed text-muted sm:leading-snug">
         <span className="font-mono tabular-nums text-secondary">
           {awayAbbrev} {formatGameScore(situation.awayScore, situation.homeScore)} {homeAbbrev}
         </span>
@@ -282,7 +282,7 @@ function SituationMarker({
         {runners && (
           <>
             <span className="mx-1.5 text-faint">·</span>
-            <span>{runners}</span>
+            <span className="break-words">{runners}</span>
           </>
         )}
       </div>
