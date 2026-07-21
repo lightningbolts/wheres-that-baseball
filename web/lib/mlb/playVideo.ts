@@ -8,6 +8,18 @@ export const SPORTY_CLIP_MP4_RE =
 const BROWSER_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
+/** Decode the HTML entities Savant uses in clip URLs (`&#x3D;` → `=`). */
+export function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) =>
+      String.fromCharCode(Number.parseInt(hex, 16)),
+    )
+    .replace(/&#(\d+);/g, (_, dec: string) => String.fromCharCode(Number.parseInt(dec, 10)))
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#x27;|&apos;/g, "'");
+}
+
 export function savantSportyVideosUrl(playId: string): string {
   return `${SAVANT_SPORTY_VIDEOS_BASE}?playId=${encodeURIComponent(playId)}`;
 }
@@ -26,18 +38,17 @@ export interface ResolvedPlayVideo {
 }
 
 export function extractSportyClipMp4(html: string): string | null {
-  const matches = html.match(SPORTY_CLIP_MP4_RE);
+  // Savant often HTML-encodes `=` in clip paths (`…WA&#x3D;&#x3D;.mp4`).
+  const decoded = decodeHtmlEntities(html);
+  const matches = decoded.match(SPORTY_CLIP_MP4_RE);
   return matches?.[0] ?? null;
 }
 
 export function extractSportyVideoTitle(html: string): string | null {
   const match = html.match(/<title>([^<]+)<\/title>/i);
   if (!match?.[1]) return null;
-  return match[1]
+  return decodeHtmlEntities(match[1])
     .replace(/\s*\|\s*Baseball Savant Videos.*$/i, "")
-    .replace(/&#x27;/g, "'")
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
     .trim();
 }
 

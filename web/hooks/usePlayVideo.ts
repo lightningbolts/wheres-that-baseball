@@ -28,7 +28,8 @@ async function fetchResolved(playId: string): Promise<ResolvedPlayVideo | null> 
   const promise = (async () => {
     const response = await fetch(`/api/plays/video?playId=${encodeURIComponent(playId)}`);
     if (response.status === 404) {
-      sharedCache.set(playId, null);
+      // Don't permanently cache misses — Savant HTML shape can change and
+      // transient failures should be retryable in-session.
       return null;
     }
     if (!response.ok) {

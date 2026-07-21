@@ -2,7 +2,9 @@
  * Aggregate ballpark hits from archived games.game_state into web/data/ballpark-hits/.
  * Does not write to Supabase — keeps the database small on the free tier.
  *
- * Usage: npm run aggregate-ballpark-hits -- --season=2026 [--since=2026-06-30]
+ * Usage:
+ *   npm run aggregate-ballpark-hits -- --season=2026 [--since=2026-06-30]
+ *   npm run aggregate-ballpark-hits -- --season=2026 --repair-empty
  */
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -12,15 +14,19 @@ import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 
 import {
+  extractVenueHitsFromFeed,
   extractVenueHitsFromStoredGame,
   type GameHitsSourceRow,
 } from "../lib/mlb/ballparkHitsAggregate";
 import { resolveBallparkVenueId } from "../lib/mlb/ballparkPaths";
 import {
   appendGameHitsToStore,
+  listEmptyProcessedBallparkGames,
   loadBallparkHitsManifest,
   writeFullBallparkHitsStore,
 } from "../lib/mlb/ballparkHitsStore";
+import { fetchMLBLiveFeed, parseLiveFeed } from "../lib/mlb/liveFeed";
+import type { MLBLiveFeedResponse } from "../types/mlb-live";
 
 const WEB_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const REPO_ROOT = join(WEB_ROOT, "..");
@@ -62,6 +68,79 @@ function readArg(name: string): string | undefined {
 
 function readDateRange(): { since?: string; until?: string } {
   return { since: readArg("since"), until: readArg("until") };
+}
+
+function hasFlag(name: string): boolean {
+  return process.argv.includes(`--${name}`);
+}
+
+function rowFromLiveFeed(gamePk: number, feed: MLBLiveFeedResponse): GameHitsSourceRow {
+  const state = parseLiveFeed(gamePk, feed);
+  const teams = feed.gameData.teams;
+  const datetime = feed.gameData.datetime as
+    | { officialDate?: string; originalDate?: string }
+    | undefined;
+  const gameMeta = (feed.gameData as { game?: { season?: string | number } }).game;
+  const gameDate =
+    datetime?.officialDate ??
+    datetime?.originalDate ??
+    new Date().toISOString().slice(0, 10);
+  const seasonRaw = gameMeta?.season;
+  const season =
+    typeof seasonRaw === "number"
+      ? seasonRaw
+      : Number.parseInt(String(seasonRaw ?? gameDate.slice(0, 4)), 10);
+
+  return {
+    game_pk: gamePk,
+    game_date: gameDate,
+    season,
+    venue_id: state.venueId,
+    home_team_id: teams.home.id ?? null,
+    away_team_abbrev: teams.away.abbreviation ?? teams.away.name.slice(0, 3).toUpperCase(),
+    home_team_abbrev: teams.home.abbreviation ?? teams.home.name.slice(0, 3).toUpperCase(),
+    game_state: feed,
+  };
+}
+
+/** Re-fetch MLB feeds for games marked processed with 0 stored hits. */
+async function repairEmptyProcessedGames(season: number): Promise<void> {
+  const empty = listEmptyProcessedBallparkGames(season);
+  if (empty.length === 0) {
+    console.log("No empty processed games to repair.");
+    return;
+  }
+
+  console.log(`Repairing ${empty.length} processed game(s) with 0 stored hits…`);
+  let repaired = 0;
+  let hitCount = 0;
+
+  for (let i = 0; i < empty.length; i += 1) {
+    const gamePk = empty[i]!;
+    try {
+      const feed = await fetchMLBLiveFeed(gamePk);
+      const row = rowFromLiveFeed(gamePk, feed);
+      if (row.season !== season) continue;
+
+      const hits = extractVenueHitsFromFeed(row, feed);
+      if (hits.length > 0) {
+        appendGameHitsToStore(season, row, hits);
+        repaired += 1;
+        hitCount += hits.length;
+      }
+    } catch (error) {
+      console.warn(`\nFailed to repair ${gamePk}:`, error);
+    }
+
+    if ((i + 1) % 5 === 0 || i + 1 === empty.length) {
+      process.stdout.write(
+        `\rChecked ${i + 1}/${empty.length}, repaired ${repaired} games (${hitCount} hits)…`,
+      );
+    }
+  }
+
+  process.stdout.write("\n");
+  console.log(`Repair complete: ${repaired} game(s), ${hitCount} hits restored.`);
 }
 
 async function fetchGamesViaSupabase(
@@ -157,6 +236,11 @@ async function main() {
   const season = Number.parseInt(readArg("season") ?? String(new Date().getFullYear()), 10);
   const dateRange = readDateRange();
   const incremental = Boolean(dateRange.since || dateRange.until);
+
+  if (hasFlag("repair-empty")) {
+    await repairEmptyProcessedGames(season);
+    return;
+  }
 
   const creds = resolveDbCredentials(REPO_ROOT);
   const games =

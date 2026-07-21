@@ -86,6 +86,15 @@ describe("playVideo helpers", () => {
     expect(extractSportyVideoTitle(html)).toBe("Michael Helman's grand slam");
   });
 
+  it("decodes HTML entities in sporty clip mp4 urls", () => {
+    const html = `
+      <source src="https://sporty-clips.mlb.com/WnhxeWVfV0ZRVkV3dEdEUT09X0RnWlhYVmNDVmxBQVdWdFVBd0FIQUZCVEFBTldWd01BQUZ4V1ZRUldDRmRTVWdGWA&#x3D;&#x3D;.mp4" type="video/mp4" />
+    `;
+    expect(extractSportyClipMp4(html)).toBe(
+      "https://sporty-clips.mlb.com/WnhxeWVfV0ZRVkV3dEdEUT09X0RnWlhYVmNDVmxBQVdWdFVBd0FIQUZCVEFBTldWd01BQUZ4V1ZRUldDRmRTVWdGWA==.mp4",
+    );
+  });
+
   it("extracts playId map from feed", () => {
     const map = extractPlayIdMapFromFeed({
       liveData: {

@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-import { resolveBallparkVenueId } from "@/lib/mlb/ballparkPaths";
+import { ballparkIndex, resolveBallparkVenueId } from "@/lib/mlb/ballparkPaths";
 import {
   buildBallparkHitsAggregate,
   buildBallparkHitsDetail,
@@ -136,15 +136,41 @@ export function appendGameHitsToStore(
   ensureSeasonDir(season);
 
   const manifest = loadBallparkHitsManifest(season);
-  if (manifest.processedGamePks.includes(row.game_pk)) {
+  const venueId = resolveBallparkVenueId(row.venue_id, row.home_team_id);
+  const alreadyProcessed = manifest.processedGamePks.includes(row.game_pk);
+
+  if (alreadyProcessed) {
+    // Repair path: game was marked processed with 0 hits (incomplete archive).
+    if (hits.length === 0 || venueId == null) return;
+    if (!ballparkIndex.parks[String(venueId)]) return;
+
+    const existingHits = loadBallparkHitsDetail(season, venueId)?.hits ?? [];
+    if (existingHits.some((hit) => hit.gamePk === row.game_pk)) return;
+
+    const hitsByVenue = loadAllVenueHits(season);
+    const gamesByVenue = gamesByVenueFromManifest(manifest);
+    const gameSet = gamesByVenue.get(venueId) ?? new Set<number>();
+    gameSet.add(row.game_pk);
+    gamesByVenue.set(venueId, gameSet);
+
+    const merged = mergeVenueHits(existingHits, hits);
+    hitsByVenue.set(venueId, merged);
+    writeJson(venuePath(season, venueId), buildBallparkHitsDetail(season, venueId, merged));
+
+    manifest.gamesByVenue = manifestGamesByVenue(gamesByVenue);
+    manifest.generatedAt = new Date().toISOString();
+    const summary = buildBallparkHitsAggregate(season, hitsByVenue, gamesByVenue, {
+      indexedGameCount: manifest.processedGamePks.length,
+    });
+    writeJson(manifestPath(season), manifest);
+    writeJson(summaryPath(season), summary);
     return;
   }
 
   const hitsByVenue = loadAllVenueHits(season);
   const gamesByVenue = gamesByVenueFromManifest(manifest);
-  const venueId = resolveBallparkVenueId(row.venue_id, row.home_team_id);
 
-  if (venueId != null) {
+  if (venueId != null && ballparkIndex.parks[String(venueId)]) {
     const gameSet = gamesByVenue.get(venueId) ?? new Set<number>();
     gameSet.add(row.game_pk);
     gamesByVenue.set(venueId, gameSet);
@@ -159,6 +185,9 @@ export function appendGameHitsToStore(
     }
   }
 
+  // Only mark processed when we stored hits, or when the game truly had none
+  // after a complete extract — still record the game so gameCount stays honest,
+  // but repair path above can fill hits later if this was premature.
   manifest.processedGamePks.push(row.game_pk);
   manifest.processedGamePks.sort((a, b) => a - b);
   manifest.gamesByVenue = manifestGamesByVenue(gamesByVenue);
@@ -170,6 +199,17 @@ export function appendGameHitsToStore(
 
   writeJson(manifestPath(season), manifest);
   writeJson(summaryPath(season), summary);
+}
+
+/** Game pks marked processed that have no hits in venue files (incomplete archive). */
+export function listEmptyProcessedBallparkGames(season: number): number[] {
+  const manifest = loadBallparkHitsManifest(season);
+  const hitsByVenue = loadAllVenueHits(season);
+  const gamesWithHits = new Set<number>();
+  for (const hits of hitsByVenue.values()) {
+    for (const hit of hits) gamesWithHits.add(hit.gamePk);
+  }
+  return manifest.processedGamePks.filter((gamePk) => !gamesWithHits.has(gamePk));
 }
 
 /** Full rebuild from extracted per-game hit batches. */
