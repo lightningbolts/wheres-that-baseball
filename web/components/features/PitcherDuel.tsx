@@ -44,12 +44,16 @@ function PitcherSide({
         align === "right" && "flex-row-reverse text-right",
       )}
     >
-      <a
-        href={mlbPlayerPageUrl(pitcher.playerId)}
-        target="_blank"
-        rel="noopener noreferrer"
+      <button
+        type="button"
         title={`${pitcher.name} on MLB.com`}
         aria-label={`View ${pitcher.name} on MLB.com`}
+        onClick={(event) => {
+          // LiveGameCard wraps the slate in a Link — avoid nested <a> and navigate separately.
+          event.preventDefault();
+          event.stopPropagation();
+          window.open(mlbPlayerPageUrl(pitcher.playerId), "_blank", "noopener,noreferrer");
+        }}
         className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full bg-overlay ring-1 ring-border/80 transition hover:ring-2 hover:ring-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground"
       >
         <Image
@@ -60,7 +64,7 @@ function PitcherSide({
           className="h-full w-full object-cover object-top"
           unoptimized
         />
-      </a>
+      </button>
       <div className="min-w-0 flex-1">
         <p className="text-[10px] font-medium uppercase tracking-wide text-subtle">{label}</p>
         <p className="truncate text-[12px] font-medium leading-snug text-foreground">
