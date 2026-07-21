@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { useTheme } from "@/components/providers/ThemeProvider";
-import { SITE_NAME, SITE_NAME_SHORT } from "@/lib/site";
+import { SITE_NAME, SITE_NAME_SHORT, DONATE_URL } from "@/lib/site";
 import type { Theme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
@@ -13,9 +13,8 @@ const NAV_ITEMS = [
   { href: "/games", label: "Season History", shortLabel: "History" },
   { href: "/ballparks", label: "Ballpark Hits", shortLabel: "Parks" },
   { href: "/nerd", label: "Nerd Standings", shortLabel: "Nerd" },
+  { href: "/about", label: "About", shortLabel: "About" },
 ] as const;
-
-const DONATE_URL = "https://buymeacoffee.com/timberlake2025";
 
 function ThemeToggle() {
   const { theme, setTheme } = useTheme();
