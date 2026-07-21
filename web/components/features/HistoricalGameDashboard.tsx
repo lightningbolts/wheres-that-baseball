@@ -509,6 +509,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
               venueName={gameState?.venueName ?? game.venue_name}
               awayAbbrev={gameState?.awayAbbrev ?? game.away_team_abbrev}
               homeAbbrev={gameState?.homeAbbrev ?? game.home_team_abbrev}
+              gamePk={game.game_pk}
               isLoading={isLoading && !gameState}
             />
           </div>
@@ -521,6 +522,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
             aria-hidden={activeTab !== "highlights"}
           >
             <GameHighlightsView
+              gamePk={game.game_pk}
               plays={plays}
               isLive={isLive}
               isLoading={isLoading && !gameState}
@@ -590,6 +592,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
                 awayAbbrev={gameState.awayAbbrev}
                 homeAbbrev={gameState.homeAbbrev}
                 venueId={gameState.venueId}
+                gamePk={game.game_pk}
                 selectedAtBatIndex={isLive ? undefined : selectedAtBatIndex}
                 onSelectAtBat={
                   isLive ? undefined : (play) => setSelectedAtBatIndex(play.atBatIndex)
@@ -671,6 +674,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
                     awayAbbrev={gameState.awayAbbrev}
                     homeAbbrev={gameState.homeAbbrev}
                     venueId={gameState.venueId}
+                    gamePk={game.game_pk}
                     selectedAtBatIndex={isLive ? undefined : selectedAtBatIndex}
                     onSelectAtBat={
                       isLive ? undefined : (play) => setSelectedAtBatIndex(play.atBatIndex)

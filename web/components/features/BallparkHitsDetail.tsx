@@ -273,6 +273,7 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
   useRestoreScrollWhenReady(!isLoading && (data?.stats.total ?? 0) > 0);
   const [selectedHitKey, setSelectedHitKey] = useState<string | null>(null);
   const [detailPlay, setDetailPlay] = useState<PlayDetail | null>(null);
+  const [detailGamePk, setDetailGamePk] = useState<number | null>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const hitsScrollRef = useRef<HTMLDivElement>(null);
 
@@ -323,6 +324,7 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
         hit.gamePk,
         hit.atBatIndex,
       );
+      setDetailGamePk(hit.gamePk ?? null);
       setDetailPlay(enriched);
     },
     [fetchHitDetail],
@@ -545,7 +547,11 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
       <PlayDetailDialog
         play={detailPlay}
         venueId={data?.park.venueId}
-        onClose={() => setDetailPlay(null)}
+        gamePk={detailGamePk}
+        onClose={() => {
+          setDetailPlay(null);
+          setDetailGamePk(null);
+        }}
       />
     </div>
   );

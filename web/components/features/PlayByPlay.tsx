@@ -24,6 +24,7 @@ interface PlayByPlayProps {
   awayAbbrev: string;
   homeAbbrev: string;
   venueId?: number | null;
+  gamePk?: number | null;
   className?: string;
   selectedAtBatIndex?: number | null;
   onSelectAtBat?: (play: PlayByPlayEntry) => void;
@@ -818,6 +819,7 @@ export const PlayByPlay = memo(function PlayByPlay({
   awayAbbrev,
   homeAbbrev,
   venueId,
+  gamePk,
   className,
   selectedAtBatIndex = null,
   onSelectAtBat,
@@ -1203,6 +1205,7 @@ export const PlayByPlay = memo(function PlayByPlay({
       <PlayDetailDialog
         play={selectedPlay}
         venueId={venueId}
+        gamePk={gamePk}
         onClose={() => setSelectedPlay(null)}
       />
     </>

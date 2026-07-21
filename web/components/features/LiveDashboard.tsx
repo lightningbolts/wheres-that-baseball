@@ -246,6 +246,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
           venueName={gameState?.venueName}
           awayAbbrev={gameState?.awayAbbrev ?? "AWY"}
           homeAbbrev={gameState?.homeAbbrev ?? "HME"}
+          gamePk={selectedGamePk}
           isLoading={isFeedLoading && !gameState}
           className="min-h-0 flex-1"
         />
@@ -259,6 +260,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
         aria-hidden={activeTab !== "highlights"}
       >
         <GameHighlightsView
+          gamePk={selectedGamePk}
           plays={gameState?.plays ?? []}
           isLive
           isLoading={isFeedLoading && !gameState}
@@ -351,6 +353,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
             awayAbbrev={gameState?.awayAbbrev ?? "AWY"}
             homeAbbrev={gameState?.homeAbbrev ?? "HME"}
             venueId={gameState?.venueId}
+            gamePk={selectedGamePk}
             className="w-full"
             settlingAtBatIndex={settlingAtBatIndex}
             insightsByAtBat={insightsByAtBat}
@@ -513,6 +516,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
                     awayAbbrev={gameState?.awayAbbrev ?? "AWY"}
                     homeAbbrev={gameState?.homeAbbrev ?? "HME"}
                     venueId={gameState?.venueId}
+                    gamePk={selectedGamePk}
                     variant="feed"
                     embeddedScroll
                     parentScrollRef={mobileScrollRef}

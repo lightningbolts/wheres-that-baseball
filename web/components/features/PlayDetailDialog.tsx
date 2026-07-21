@@ -87,6 +87,8 @@ function LazyBallTrajectory3D({
 interface PlayDetailDialogProps {
   play: PlayDetail | null;
   venueId?: number | null;
+  /** Enables MLB Content video resolve during live games (before Savant). */
+  gamePk?: number | null;
   onClose: () => void;
 }
 
@@ -256,7 +258,7 @@ function AtBatResultSection({
   );
 }
 
-export function PlayDetailDialog({ play, venueId, onClose }: PlayDetailDialogProps) {
+export function PlayDetailDialog({ play, venueId, gamePk, onClose }: PlayDetailDialogProps) {
   const hit = play?.hit ?? null;
   const finalPitch = play ? getFinalPitch(play.pitches) : null;
   const winProbabilityLine = play ? formatPlayWinProbabilityLine(play) : null;
@@ -295,6 +297,7 @@ export function PlayDetailDialog({ play, venueId, onClose }: PlayDetailDialogPro
           {(play.playId || play.pitches.some((p) => p.playId)) && (
             <PlayVideoPlayer
               playId={play.playId ?? [...play.pitches].reverse().find((p) => p.playId)?.playId}
+              gamePk={gamePk}
               autoLoad
               size="compact"
               showTitle

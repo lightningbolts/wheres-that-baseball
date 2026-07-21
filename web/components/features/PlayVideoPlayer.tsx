@@ -9,10 +9,17 @@ import type { PlayByPlayEntry } from "@/types/mlb-live";
 
 interface PlayVideoPlayerProps {
   playId: string | null | undefined;
-  /** Resolve immediately (e.g. detail dialog / in-view gallery). Default: wait for user click. */
+  /** Resolve via MLB Content first when known (live-friendly). */
+  gamePk?: number | null;
+  /** Skip resolve when the gallery already has a direct MP4. */
+  videoUrl?: string | null;
+  videoTitle?: string | null;
+  /** Poster image — avoids downloading the MP4 until play. */
+  posterUrl?: string | null;
+  /** Resolve immediately (e.g. detail dialog). Gallery should leave this false. */
   autoLoad?: boolean;
   size?: "compact" | "full";
-  /** Show Savant title under the video (detail dialog). Gallery hides it. */
+  /** Show title under the video (detail dialog). Gallery hides it. */
   showTitle?: boolean;
   className?: string;
 }
@@ -53,12 +60,6 @@ export function playShowsVideoIcon(
   return playHasVideo(play);
 }
 
-/** Force browsers to paint the first frame as a preview poster. */
-function videoPreviewSrc(url: string): string {
-  if (url.includes("#")) return url;
-  return `${url}#t=0.1`;
-}
-
 /** Compact rotating ring for video resolve / first-frame wait. */
 function VideoLoadingSpinner({ className }: { className?: string }) {
   return (
@@ -89,56 +90,59 @@ function VideoLoadingSpinner({ className }: { className?: string }) {
 
 export function PlayVideoPlayer({
   playId,
+  gamePk = null,
+  videoUrl = null,
+  videoTitle = null,
+  posterUrl = null,
   autoLoad = false,
   size = "full",
   showTitle = true,
   className,
 }: PlayVideoPlayerProps) {
   const [opened, setOpened] = useState(autoLoad);
-  const enabled = Boolean(playId) && (opened || autoLoad);
-  const { status, video, savantUrl, error } = usePlayVideo(playId, enabled);
+  const hasDirectUrl = Boolean(videoUrl);
+  // Direct gallery URLs skip network resolve; only hit the API when we need Savant/Content lookup.
+  const shouldResolve = Boolean(playId) && !hasDirectUrl && (opened || autoLoad);
+  const { status, video, savantUrl, error } = usePlayVideo(playId, shouldResolve, {
+    gamePk,
+  });
+
+  const resolvedVideo = hasDirectUrl && videoUrl
+    ? {
+        playId: playId ?? "direct",
+        url: videoUrl,
+        title: videoTitle ?? null,
+        savantUrl: null as string | null,
+      }
+    : video;
+  const resolvedStatus =
+    hasDirectUrl
+      ? opened || autoLoad
+        ? ("ready" as const)
+        : ("idle" as const)
+      : status;
+
   const rootRef = useRef<HTMLDivElement>(null);
   const [frameReady, setFrameReady] = useState(false);
 
   useEffect(() => {
     if (autoLoad) setOpened(true);
-  }, [autoLoad, playId]);
+  }, [autoLoad, playId, videoUrl]);
 
   useEffect(() => {
     setFrameReady(false);
-  }, [video?.url]);
+  }, [resolvedVideo?.url]);
 
-  useEffect(() => {
-    if (!autoLoad || !playId || opened) return;
-    const node = rootRef.current;
-    if (!node || typeof IntersectionObserver === "undefined") {
-      setOpened(true);
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          setOpened(true);
-          observer.disconnect();
-        }
-      },
-      { rootMargin: "120px 0px", threshold: 0.05 },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [autoLoad, playId, opened]);
-
-  if (!playId) return null;
+  if (!playId && !videoUrl) return null;
 
   const frameClass =
     size === "compact" ? "aspect-video w-full" : "aspect-video w-full min-h-[200px]";
 
   const showIdlePrompt = !opened && !autoLoad;
-  const showResolving = !showIdlePrompt && (status === "loading" || status === "idle");
-  const showVideo = !showIdlePrompt && status === "ready" && video;
-  const showUnavailable =
-    !showIdlePrompt && !showResolving && !showVideo;
+  const showResolving =
+    !showIdlePrompt && (resolvedStatus === "loading" || resolvedStatus === "idle");
+  const showVideo = !showIdlePrompt && resolvedStatus === "ready" && resolvedVideo;
+  const showUnavailable = !showIdlePrompt && !showResolving && !showVideo;
   const showLoadingOverlay = showResolving || (showVideo && !frameReady);
 
   return (
@@ -154,14 +158,26 @@ export function PlayVideoPlayer({
           type="button"
           onClick={() => setOpened(true)}
           className={cn(
-            "flex w-full flex-col items-center justify-center gap-2 bg-field-chart-canvas px-4 text-sm text-muted transition-colors hover:bg-hover hover:text-foreground",
+            "relative flex w-full flex-col items-center justify-center gap-2 overflow-hidden bg-field-chart-canvas px-4 text-sm text-muted transition-colors hover:bg-hover hover:text-foreground",
             frameClass,
           )}
         >
-          <span className="grid size-10 place-items-center rounded-full border border-border bg-surface text-foreground">
+          {posterUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- MLB CDN posters; next/image not configured for these hosts
+            <img
+              src={posterUrl}
+              alt=""
+              className="absolute inset-0 size-full object-cover"
+              loading="lazy"
+              decoding="async"
+            />
+          ) : null}
+          <span className="relative z-[1] grid size-10 place-items-center rounded-full border border-border bg-surface/95 text-foreground shadow-sm">
             <PlayGlyph className="size-4" />
           </span>
-          <span>Load play video</span>
+          <span className="relative z-[1] rounded bg-surface/90 px-2 py-0.5 text-xs">
+            {posterUrl || hasDirectUrl ? "Play clip" : "Load play video"}
+          </span>
         </button>
       ) : showUnavailable ? (
         <div
@@ -171,11 +187,11 @@ export function PlayVideoPlayer({
           )}
         >
           <p className="text-xs text-subtle">
-            {status === "error"
+            {resolvedStatus === "error"
               ? error ?? "Could not load video"
-              : "No clip available for this play"}
+              : "No clip available for this play yet"}
           </p>
-          {savantUrl && (
+          {savantUrl && playId && (
             <a
               href={savantUrl}
               target="_blank"
@@ -190,13 +206,17 @@ export function PlayVideoPlayer({
         <div className="relative bg-field-chart-canvas">
           {showVideo ? (
             <video
-              key={video.url}
+              key={resolvedVideo.url}
               controls
               playsInline
+              // Only one clip loads after the user taps — metadata is enough for a poster frame.
               preload="metadata"
+              poster={posterUrl ?? undefined}
               className={cn("bg-black object-contain", frameClass)}
-              src={videoPreviewSrc(video.url)}
+              src={resolvedVideo.url}
               onLoadedData={() => setFrameReady(true)}
+              onLoadedMetadata={() => setFrameReady(true)}
+              onCanPlay={() => setFrameReady(true)}
               onError={() => setFrameReady(true)}
             >
               <track kind="captions" />
@@ -211,12 +231,20 @@ export function PlayVideoPlayer({
               aria-busy
               aria-live="polite"
             >
-              <VideoLoadingSpinner />
+              {posterUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={posterUrl}
+                  alt=""
+                  className="absolute inset-0 size-full object-cover opacity-40"
+                />
+              ) : null}
+              <VideoLoadingSpinner className="relative z-[1]" />
             </div>
           ) : null}
-          {showVideo && showTitle && video.title && frameReady ? (
+          {showVideo && showTitle && (resolvedVideo.title || videoTitle) && frameReady ? (
             <p className="border-t border-border/40 bg-field-chart-canvas px-2.5 py-1.5 text-[11px] leading-snug text-subtle">
-              {video.title}
+              {resolvedVideo.title || videoTitle}
             </p>
           ) : null}
         </div>

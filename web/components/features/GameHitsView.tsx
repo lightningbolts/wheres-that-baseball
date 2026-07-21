@@ -38,6 +38,7 @@ interface GameHitsViewProps {
   venueName?: string | null;
   awayAbbrev: string;
   homeAbbrev: string;
+  gamePk?: number | null;
   isLoading?: boolean;
   className?: string;
 }
@@ -279,6 +280,7 @@ export function GameHitsView({
   venueName,
   awayAbbrev,
   homeAbbrev,
+  gamePk,
   isLoading = false,
   className,
 }: GameHitsViewProps) {
@@ -441,6 +443,7 @@ export function GameHitsView({
       <PlayDetailDialog
         play={detailPlay}
         venueId={venueId}
+        gamePk={gamePk}
         onClose={() => setDetailPlay(null)}
       />
     </>
