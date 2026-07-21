@@ -3,15 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 
 import {
+  fetchPlayIdMap,
   mergePlayIdsOntoPlays,
   playsNeedPlayIdEnrichment,
 } from "@/lib/mlb/playVideo";
 import type { PlayByPlayEntry } from "@/types/mlb-live";
-
-interface PlayIdsResponse {
-  gamePk: number;
-  playIds: Record<string, string>;
-}
 
 /**
  * For historical/legacy archives missing playId, fetch a one-shot
@@ -33,14 +29,8 @@ export function usePlayIdMap(
 
     void (async () => {
       try {
-        const response = await fetch(`/api/game/${gamePk}/play-ids`, {
-          signal: controller.signal,
-        });
-        if (!response.ok) return;
-        const data = (await response.json()) as PlayIdsResponse;
-        if (!cancelled && data.playIds) {
-          setPlayIds(data.playIds);
-        }
+        const map = await fetchPlayIdMap(gamePk, controller.signal);
+        if (!cancelled) setPlayIds(map);
       } catch {
         // Enrichment is best-effort; UI still works without icons.
       }

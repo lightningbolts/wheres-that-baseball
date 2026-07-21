@@ -186,3 +186,62 @@ export function uniqueHighlightPlays(plays: PlayByPlayEntry[]): PlayByPlayEntry[
     return a.atBatIndex - b.atBatIndex;
   });
 }
+
+/** Browser-side cache of gamePk → atBatIndex → playId (from /api/game/.../play-ids). */
+const playIdMapCache = new Map<number, Record<string, string>>();
+const playIdMapInflight = new Map<number, Promise<Record<string, string>>>();
+
+export async function fetchPlayIdMap(
+  gamePk: number,
+  signal?: AbortSignal,
+): Promise<Record<string, string>> {
+  if (!Number.isFinite(gamePk) || gamePk <= 0) return {};
+
+  const cached = playIdMapCache.get(gamePk);
+  if (cached) return cached;
+
+  const pending = playIdMapInflight.get(gamePk);
+  if (pending) return pending;
+
+  const promise = (async () => {
+    const response = await fetch(`/api/game/${gamePk}/play-ids`, { signal });
+    if (!response.ok) return {};
+    const data = (await response.json()) as { playIds?: Record<string, string> };
+    const playIds = data.playIds ?? {};
+    playIdMapCache.set(gamePk, playIds);
+    return playIds;
+  })().finally(() => {
+    playIdMapInflight.delete(gamePk);
+  });
+
+  playIdMapInflight.set(gamePk, promise);
+  return promise;
+}
+
+export async function resolveAtBatPlayId(
+  gamePk: number,
+  atBatIndex: number,
+  signal?: AbortSignal,
+): Promise<string | undefined> {
+  const map = await fetchPlayIdMap(gamePk, signal);
+  return map[String(atBatIndex)] ?? undefined;
+}
+
+/** Attach Savant playId onto a PlayDetail when missing (legacy archives / ballpark JSON). */
+export async function enrichPlayDetailWithPlayId(
+  detail: PlayDetail,
+  gamePk: number | null | undefined,
+  atBatIndex?: number,
+  signal?: AbortSignal,
+): Promise<PlayDetail> {
+  if (detail.playId) return detail;
+  if (gamePk == null || gamePk <= 0) return detail;
+  const index = atBatIndex ?? detail.atBatIndex;
+  try {
+    const playId = await resolveAtBatPlayId(gamePk, index, signal);
+    if (!playId) return detail;
+    return { ...detail, playId };
+  } catch {
+    return detail;
+  }
+}

@@ -18,6 +18,7 @@ import {
   type SprayChartHit,
 } from "@/lib/mlb/gameHits";
 import type { SprayPreviewHit, VenueHit } from "@/lib/mlb/ballparkHits";
+import { enrichPlayDetailWithPlayId } from "@/lib/mlb/playVideo";
 import { cn, formatInningHalf } from "@/lib/utils";
 import type { PlayDetail } from "@/types/mlb-live";
 
@@ -310,7 +311,19 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
   const openHitDetail = useCallback(
     async (hitKey: string) => {
       const hit = await fetchHitDetail(hitKey);
-      if (hit?.detail) setDetailPlay(hit.detail);
+      if (!hit?.detail) return;
+
+      const withExisting =
+        hit.detail.playId || !hit.playId
+          ? hit.detail
+          : { ...hit.detail, playId: hit.playId };
+
+      const enriched = await enrichPlayDetailWithPlayId(
+        withExisting,
+        hit.gamePk,
+        hit.atBatIndex,
+      );
+      setDetailPlay(enriched);
     },
     [fetchHitDetail],
   );

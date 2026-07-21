@@ -4,6 +4,7 @@ import {
   extractPlayIdMapFromFeed,
   extractSportyClipMp4,
   extractSportyVideoTitle,
+  enrichPlayDetailWithPlayId,
   isValidPlayId,
   mergePlayIdsOntoPlays,
   playsNeedPlayIdEnrichment,
@@ -175,5 +176,13 @@ describe("playVideo helpers", () => {
     const unique = uniqueHighlightPlays(plays);
     expect(unique).toHaveLength(2);
     expect(unique.map((p) => p.event)).toEqual(["Home Run", "Groundout"]);
+  });
+
+  it("enrichPlayDetailWithPlayId is a no-op when playId already set", async () => {
+    const detail = stubDetail({
+      playId: "ffffffff-ffff-ffff-ffff-ffffffffffff",
+    });
+    const enriched = await enrichPlayDetailWithPlayId(detail, 42, 3);
+    expect(enriched).toBe(detail);
   });
 });
