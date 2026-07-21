@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -15,7 +15,8 @@ interface DialogProps {
 export function Dialog({ open, onClose, title, children, className }: DialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
 
-  useEffect(() => {
+  // useLayoutEffect: open before paint so the page never flashes a closed dialog frame.
+  useLayoutEffect(() => {
     const el = dialogRef.current;
     if (!el) return;
 

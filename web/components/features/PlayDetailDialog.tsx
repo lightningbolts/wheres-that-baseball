@@ -1,6 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useEffect, useRef, useState } from "react";
+
 import { Dialog } from "@/components/ui/Dialog";
 import { PitchSequence } from "@/components/features/PitchSequence";
 import { PlayVideoPlayer } from "@/components/features/PlayVideoPlayer";
@@ -19,6 +21,68 @@ const BallTrajectory3D = dynamic(
     ),
   },
 );
+
+/** Defer WebGL until the trajectory is near the viewport — avoids page flicker on dialog open. */
+function LazyBallTrajectory3D({
+  hit,
+  venueId,
+  className,
+}: {
+  hit: HitData;
+  venueId?: number | null;
+  className?: string;
+}) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [shouldRender, setShouldRender] = useState(false);
+
+  useEffect(() => {
+    setShouldRender(false);
+    const node = rootRef.current;
+    if (!node) return;
+
+    let idleId: number | undefined;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    const startRender = () => {
+      setShouldRender(true);
+    };
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return;
+        observer.disconnect();
+        // Let the dialog + video paint before spinning up a second WebGL context.
+        if (typeof requestIdleCallback !== "undefined") {
+          idleId = requestIdleCallback(startRender, { timeout: 400 });
+        } else {
+          timeoutId = setTimeout(startRender, 150);
+        }
+      },
+      { rootMargin: "80px", threshold: 0.01 },
+    );
+
+    observer.observe(node);
+    return () => {
+      observer.disconnect();
+      if (idleId != null && typeof cancelIdleCallback !== "undefined") {
+        cancelIdleCallback(idleId);
+      }
+      if (timeoutId != null) clearTimeout(timeoutId);
+    };
+  }, [hit]);
+
+  return (
+    <div ref={rootRef} className={className}>
+      {shouldRender ? (
+        <BallTrajectory3D hit={hit} venueId={venueId} />
+      ) : (
+        <div className="flex h-[220px] items-center justify-center rounded border border-border bg-field-chart-canvas text-xs text-subtle sm:h-[280px]">
+          Scroll to load trajectory…
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface PlayDetailDialogProps {
   play: PlayDetail | null;
@@ -159,7 +223,7 @@ function ContactMetrics({ hit, venueId }: { hit: HitData; venueId?: number | nul
           )}
         </div>
       </div>
-      <BallTrajectory3D hit={hit} venueId={venueId} className="mt-4" />
+      <LazyBallTrajectory3D hit={hit} venueId={venueId} className="mt-4" />
     </div>
   );
 }
@@ -193,79 +257,83 @@ function AtBatResultSection({
 }
 
 export function PlayDetailDialog({ play, venueId, onClose }: PlayDetailDialogProps) {
-  if (!play) return null;
-
-  const hit = play.hit;
-  const finalPitch = getFinalPitch(play.pitches);
-
-  const winProbabilityLine = formatPlayWinProbabilityLine(play);
+  const hit = play?.hit ?? null;
+  const finalPitch = play ? getFinalPitch(play.pitches) : null;
+  const winProbabilityLine = play ? formatPlayWinProbabilityLine(play) : null;
+  const title = play
+    ? `${play.batterName} — ${play.event} (${play.batterHits}-${play.batterAtBats})`
+    : "Play details";
 
   return (
     <Dialog
-      open
+      open={Boolean(play)}
       onClose={onClose}
-      title={`${play.batterName} — ${play.event} (${play.batterHits}-${play.batterAtBats})`}
+      title={title}
       className="w-[min(100%,760px)]"
     >
-      <div className="space-y-3 md:space-y-4">
-        <div className="flex items-baseline justify-between gap-2 text-[11px] text-subtle">
-          <span>
-            {play.inning} {play.halfInning}
-            {winProbabilityLine && (
-              <>
-                {" "}
-                · {winProbabilityLine}
-              </>
-            )}
-          </span>
-          <span className="font-mono tabular-nums">
-            {play.awayScore}–{play.homeScore}
-          </span>
+      {play ? (
+        <div className="space-y-3 md:space-y-4">
+          <div className="flex items-baseline justify-between gap-2 text-[11px] text-subtle">
+            <span>
+              {play.inning} {play.halfInning}
+              {winProbabilityLine && (
+                <>
+                  {" "}
+                  · {winProbabilityLine}
+                </>
+              )}
+            </span>
+            <span className="font-mono tabular-nums">
+              {play.awayScore}–{play.homeScore}
+            </span>
+          </div>
+
+          <p className="text-[13px] leading-relaxed text-secondary md:text-[14px]">
+            {play.description}
+          </p>
+
+          {(play.playId || play.pitches.some((p) => p.playId)) && (
+            <PlayVideoPlayer
+              playId={play.playId ?? [...play.pitches].reverse().find((p) => p.playId)?.playId}
+              autoLoad
+              size="compact"
+              showTitle
+            />
+          )}
+
+          {play.pitches.length > 0 && (
+            <>
+              <div className="md:hidden">
+                <PitchSequence
+                  pitches={play.pitches}
+                  layout="zone"
+                  size="compact"
+                  zoneFirst
+                  contained={false}
+                />
+              </div>
+              <div className="hidden md:block">
+                <PitchSequence
+                  pitches={play.pitches}
+                  layout="split"
+                  size="default"
+                  contained={false}
+                />
+              </div>
+            </>
+          )}
+
+          {hit && <ContactMetrics hit={hit} venueId={venueId} />}
+
+          {!hit && finalPitch && (
+            <AtBatResultSection play={play} finalPitch={finalPitch} />
+          )}
+
+          {!hit && !finalPitch && play.pitches.length === 0 && (
+            <p className="text-sm text-subtle">No pitch data.</p>
+          )}
         </div>
-
-        <p className="text-[13px] leading-relaxed text-secondary md:text-[14px]">{play.description}</p>
-
-        {(play.playId || play.pitches.some((p) => p.playId)) && (
-          <PlayVideoPlayer
-            playId={play.playId ?? [...play.pitches].reverse().find((p) => p.playId)?.playId}
-            autoLoad
-            size="compact"
-            showTitle
-          />
-        )}
-
-        {play.pitches.length > 0 && (
-          <>
-            <div className="md:hidden">
-              <PitchSequence
-                pitches={play.pitches}
-                layout="zone"
-                size="compact"
-                zoneFirst
-                contained={false}
-              />
-            </div>
-            <div className="hidden md:block">
-              <PitchSequence
-                pitches={play.pitches}
-                layout="split"
-                size="default"
-                contained={false}
-              />
-            </div>
-          </>
-        )}
-
-        {hit && <ContactMetrics hit={hit} venueId={venueId} />}
-
-        {!hit && finalPitch && (
-          <AtBatResultSection play={play} finalPitch={finalPitch} />
-        )}
-
-        {!hit && !finalPitch && play.pitches.length === 0 && (
-          <p className="text-sm text-subtle">No pitch data.</p>
-        )}
-      </div>
+      ) : null}
     </Dialog>
   );
 }

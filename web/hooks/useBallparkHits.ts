@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 
 import type { BallparkHitsAggregate, BallparkHitsDetail, VenueHit } from "@/lib/mlb/ballparkHits";
 import {
@@ -199,16 +199,20 @@ export function useBallparkHitsDetail(
       const body = (await response.json()) as { hit?: VenueHit; error?: string };
       if (!response.ok || !body.hit) return null;
 
-      setData((current) => {
-        if (!current) return current;
-        const next = {
-          ...current,
-          hits: current.hits.map((hit) =>
-            hit.hitKey === hitKey ? { ...hit, detail: body.hit!.detail } : hit,
-          ),
-        };
-        setCachedBallparkHitsDetail(season, venueId, next);
-        return next;
+      // Cache in the background so opening the dialog isn't competing with a
+      // full page re-render (spray/WebGL) — that was flashing the page.
+      startTransition(() => {
+        setData((current) => {
+          if (!current) return current;
+          const next = {
+            ...current,
+            hits: current.hits.map((hit) =>
+              hit.hitKey === hitKey ? { ...hit, detail: body.hit!.detail } : hit,
+            ),
+          };
+          setCachedBallparkHitsDetail(season, venueId, next);
+          return next;
+        });
       });
 
       return body.hit;

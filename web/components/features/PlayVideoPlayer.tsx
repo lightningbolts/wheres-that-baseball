@@ -70,10 +70,15 @@ export function PlayVideoPlayer({
   const enabled = Boolean(playId) && (opened || autoLoad);
   const { status, video, savantUrl, error } = usePlayVideo(playId, enabled);
   const rootRef = useRef<HTMLDivElement>(null);
+  const [frameReady, setFrameReady] = useState(false);
 
   useEffect(() => {
     if (autoLoad) setOpened(true);
   }, [autoLoad, playId]);
+
+  useEffect(() => {
+    setFrameReady(false);
+  }, [video?.url]);
 
   useEffect(() => {
     if (!autoLoad || !playId || opened) return;
@@ -101,6 +106,13 @@ export function PlayVideoPlayer({
   const frameClass =
     size === "compact" ? "aspect-video w-full" : "aspect-video w-full min-h-[200px]";
 
+  const showIdlePrompt = !opened && !autoLoad;
+  const showResolving = !showIdlePrompt && (status === "loading" || status === "idle");
+  const showVideo = !showIdlePrompt && status === "ready" && video;
+  const showUnavailable =
+    !showIdlePrompt && !showResolving && !showVideo;
+  const showLoadingOverlay = showResolving || (showVideo && !frameReady);
+
   return (
     <div
       ref={rootRef}
@@ -109,7 +121,7 @@ export function PlayVideoPlayer({
         className,
       )}
     >
-      {!opened && !autoLoad ? (
+      {showIdlePrompt ? (
         <button
           type="button"
           onClick={() => setOpened(true)}
@@ -123,33 +135,7 @@ export function PlayVideoPlayer({
           </span>
           <span>Load play video</span>
         </button>
-      ) : status === "loading" || status === "idle" ? (
-        <div
-          className={cn(
-            "flex items-center justify-center bg-field-chart-canvas px-4 text-xs text-subtle",
-            frameClass,
-          )}
-        >
-          Loading preview…
-        </div>
-      ) : status === "ready" && video ? (
-        <div className="bg-black">
-          <video
-            controls
-            playsInline
-            preload="metadata"
-            className={cn("bg-black object-contain", frameClass)}
-            src={videoPreviewSrc(video.url)}
-          >
-            <track kind="captions" />
-          </video>
-          {showTitle && video.title && (
-            <p className="border-t border-border/40 bg-field-chart-canvas px-2.5 py-1.5 text-[11px] leading-snug text-subtle">
-              {video.title}
-            </p>
-          )}
-        </div>
-      ) : (
+      ) : showUnavailable ? (
         <div
           className={cn(
             "flex flex-col items-center justify-center gap-2 bg-field-chart-canvas px-4 text-center",
@@ -171,6 +157,40 @@ export function PlayVideoPlayer({
               Open on Baseball Savant
             </a>
           )}
+        </div>
+      ) : (
+        <div className="relative bg-field-chart-canvas">
+          {showVideo ? (
+            <video
+              key={video.url}
+              controls
+              playsInline
+              preload="metadata"
+              className={cn("bg-black object-contain", frameClass)}
+              src={videoPreviewSrc(video.url)}
+              onLoadedData={() => setFrameReady(true)}
+              onError={() => setFrameReady(true)}
+            >
+              <track kind="captions" />
+            </video>
+          ) : null}
+          {showLoadingOverlay ? (
+            <div
+              className={cn(
+                "flex items-center justify-center bg-field-chart-canvas px-4 text-xs text-subtle",
+                showVideo ? "absolute inset-0 z-10" : frameClass,
+              )}
+              aria-busy
+              aria-live="polite"
+            >
+              Loading preview…
+            </div>
+          ) : null}
+          {showVideo && showTitle && video.title && frameReady ? (
+            <p className="border-t border-border/40 bg-field-chart-canvas px-2.5 py-1.5 text-[11px] leading-snug text-subtle">
+              {video.title}
+            </p>
+          ) : null}
         </div>
       )}
     </div>
