@@ -15,6 +15,7 @@ import { DueUpDialog } from "@/components/features/DueUpDialog";
 import { GameDetailTabs, type GameDetailTab } from "@/components/features/GameDetailTabs";
 import { GameFieldView } from "@/components/features/GameFieldView";
 import { GameHitsView } from "@/components/features/GameHitsView";
+import { GameHighlightsView } from "@/components/features/GameHighlightsView";
 import { GameFinalDialog } from "@/components/features/GameFinalDialog";
 import { GameStateView } from "@/components/features/GameStateView";
 import { PitchSequence, type StrikeZoneMode } from "@/components/features/PitchSequence";
@@ -35,6 +36,7 @@ import { useBatterRisp } from "@/hooks/useBatterRisp";
 import { useBatterVsPitcher } from "@/hooks/useBatterVsPitcher";
 import { useBreakLinger } from "@/hooks/useBreakLinger";
 import { useLiveGameOverlays } from "@/hooks/useLiveGameOverlays";
+import { usePlayIdMap } from "@/hooks/usePlayIdMap";
 import { formatGameDate, formatMatchup, formatScore, isLiveStatus } from "@/lib/games/format";
 import { buildSeasonHistoryHref } from "@/lib/mlb/schedule";
 import { gameStateForAtBat, findPlayByAtBatIndex } from "@/lib/games/replay";
@@ -118,6 +120,11 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
   } = useGameState(game.game_pk, { enabled: !isLive });
   const gameState = isLive ? liveGameState : archivedGameState;
   const isLoading = isLive ? liveLoading : archivedLoading;
+  const plays = usePlayIdMap(
+    game.game_pk,
+    gameState?.plays ?? [],
+    !isLive && Boolean(gameState),
+  );
   const error = isLive ? liveError : archivedError;
 
   const {
@@ -147,8 +154,8 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
   }, [activeTab]);
 
   const atBatPlays = useMemo(
-    () => gameState?.plays.filter(isPlayByPlayAtBat) ?? [],
-    [gameState],
+    () => plays.filter(isPlayByPlayAtBat),
+    [plays],
   );
 
   useEffect(() => {
@@ -175,8 +182,8 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
 
   const selectedPlay = useMemo<PlayByPlayEntry | null>(() => {
     if (!gameState || selectedAtBatIndex == null) return null;
-    return findPlayByAtBatIndex(gameState.plays, selectedAtBatIndex) ?? null;
-  }, [gameState, selectedAtBatIndex]);
+    return findPlayByAtBatIndex(plays, selectedAtBatIndex) ?? null;
+  }, [gameState, plays, selectedAtBatIndex]);
 
   const replayState = useMemo(() => {
     if (!gameState || !selectedPlay || isLive) return null;
@@ -303,9 +310,9 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
     (atBatViewState?.atBatPitches.length ?? 0) > 0;
 
   const lastCompletedAtBatIndex = useMemo(() => {
-    const atBats = gameState?.plays.filter(isPlayByPlayAtBat) ?? [];
+    const atBats = plays.filter(isPlayByPlayAtBat);
     return atBats.at(-1)?.atBatIndex ?? null;
-  }, [gameState?.plays]);
+  }, [plays]);
 
   const scorebugState =
     isLive && gameState ? { ...gameState, onFirst, onSecond, onThird } : displayState;
@@ -491,12 +498,27 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
             aria-hidden={activeTab !== "spray"}
           >
             <GameHitsView
-              plays={gameState?.plays ?? []}
+              plays={plays}
               venueId={gameState?.venueId ?? game.venue_id}
               venueName={gameState?.venueName ?? game.venue_name}
               awayAbbrev={gameState?.awayAbbrev ?? game.away_team_abbrev}
               homeAbbrev={gameState?.homeAbbrev ?? game.home_team_abbrev}
               isLoading={isLoading && !gameState}
+            />
+          </div>
+
+          <div
+            className={cn(
+              "flex min-h-0 flex-1 flex-col overflow-hidden",
+              activeTab !== "highlights" && "hidden",
+            )}
+            aria-hidden={activeTab !== "highlights"}
+          >
+            <GameHighlightsView
+              plays={plays}
+              isLive={isLive}
+              isLoading={isLoading && !gameState}
+              className="min-h-0 flex-1"
             />
           </div>
 
@@ -509,7 +531,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
           >
             <GameStateView
               gameState={displayState}
-              plays={gameState?.plays ?? []}
+              plays={plays}
               isLoading={isLoading && !gameState}
               className="min-h-0 flex-1"
               matchProbabilities={
@@ -557,7 +579,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
           <div className="flex min-h-0 flex-1 overflow-x-hidden">
             <div className="hidden w-[300px] shrink-0 border-r border-border md:flex lg:w-[320px]">
               <PlayByPlay
-                plays={gameState.plays}
+                plays={plays}
                 awayAbbrev={gameState.awayAbbrev}
                 homeAbbrev={gameState.homeAbbrev}
                 venueId={gameState.venueId}
@@ -649,7 +671,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
 
                 <div className="order-2 flex min-h-0 flex-1 flex-col md:hidden">
                   <PlayByPlay
-                    plays={gameState.plays}
+                    plays={plays}
                     awayAbbrev={gameState.awayAbbrev}
                     homeAbbrev={gameState.homeAbbrev}
                     venueId={gameState.venueId}

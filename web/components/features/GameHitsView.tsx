@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { PlayDetailDialog } from "@/components/features/PlayDetailDialog";
+import { PlayVideoIcon, playShowsVideoIcon } from "@/components/features/PlayVideoPlayer";
 import { GameHitsSprayChart } from "@/components/features/GameHitsSprayChart";
 import { Skeleton } from "@/components/ui/Skeleton";
 import {
@@ -81,7 +82,7 @@ function HitRow({
         selected && "bg-overlay ring-1 ring-inset ring-border-strong",
       )}
     >
-      <div className="mb-1 flex items-baseline justify-between gap-2">
+      <div className="mb-1 flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <span
             className="h-2 w-2 shrink-0 rounded-full"
@@ -95,8 +96,15 @@ function HitRow({
             {gameHit.batterName}
           </span>
         </div>
-        <span className="shrink-0 font-mono text-[10px] tabular-nums text-subtle">
-          {gameHit.inning} {formatInningHalf(gameHit.halfInning)}
+        <span className="flex shrink-0 items-center gap-1.5">
+          {playShowsVideoIcon({
+            isAtBat: true,
+            playId: gameHit.playId ?? gameHit.detail.playId,
+            detail: gameHit.detail,
+          }) && <PlayVideoIcon />}
+          <span className="font-mono text-[10px] tabular-nums text-subtle">
+            {gameHit.inning} {formatInningHalf(gameHit.halfInning)}
+          </span>
         </span>
       </div>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted">

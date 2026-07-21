@@ -3,6 +3,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { PlayDetailDialog } from "@/components/features/PlayDetailDialog";
+import { PlayVideoIcon, playShowsVideoIcon } from "@/components/features/PlayVideoPlayer";
 import { BaseDiamond } from "@/components/features/BaseDiamond";
 import { InningInsightMarker, PlayInsightInline } from "@/components/features/PlayInsightInline";
 import { PitchFeedList } from "@/components/features/PitchFeedList";
@@ -454,8 +455,11 @@ function PlayFeedRow({
           </p>
           <PlayWpaBadge play={play} />
         </div>
-        <span className="shrink-0 pt-0.5 font-mono text-[10px] tabular-nums text-subtle">
-          {formatBatterLine(play.batterHits, play.batterAtBats)}
+        <span className="flex shrink-0 items-center gap-1.5 pt-0.5">
+          {playShowsVideoIcon(play) && <PlayVideoIcon />}
+          <span className="font-mono text-[10px] tabular-nums text-subtle">
+            {formatBatterLine(play.batterHits, play.batterAtBats)}
+          </span>
         </span>
       </button>
       {playInsights.map((insight) => (
@@ -775,12 +779,15 @@ function PlayOutcomeCard({
             "bg-overlay ring-1 ring-inset ring-border-strong",
         )}
       >
-        <div className="mb-1.5 flex items-baseline justify-between gap-2">
+        <div className="mb-1.5 flex items-center justify-between gap-2">
           <span className="truncate text-[14px] font-medium text-foreground">
             {play.batterName}
           </span>
-          <span className="shrink-0 font-mono text-[11px] tabular-nums text-subtle">
-            {formatBatterLine(play.batterHits, play.batterAtBats)}
+          <span className="flex shrink-0 items-center gap-1.5">
+            {playShowsVideoIcon(play) && <PlayVideoIcon />}
+            <span className="font-mono text-[11px] tabular-nums text-subtle">
+              {formatBatterLine(play.batterHits, play.batterAtBats)}
+            </span>
           </span>
         </div>
         <div className="flex items-center gap-x-1.5 text-[13px] leading-snug text-muted">

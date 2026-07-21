@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { Dialog } from "@/components/ui/Dialog";
 import { PitchSequence } from "@/components/features/PitchSequence";
+import { PlayVideoPlayer } from "@/components/features/PlayVideoPlayer";
 import { SprayChart } from "@/components/features/SprayChart";
 import { formatPlayWinProbabilityLine } from "@/lib/mlb/wpa";
 import type { HitData, PlayDetail, PlayPitch } from "@/types/mlb-live";
@@ -223,6 +224,15 @@ export function PlayDetailDialog({ play, venueId, onClose }: PlayDetailDialogPro
         </div>
 
         <p className="text-[13px] leading-relaxed text-secondary md:text-[14px]">{play.description}</p>
+
+        {(play.playId || play.pitches.some((p) => p.playId)) && (
+          <PlayVideoPlayer
+            playId={play.playId ?? [...play.pitches].reverse().find((p) => p.playId)?.playId}
+            autoLoad
+            size="compact"
+            showTitle
+          />
+        )}
 
         {play.pitches.length > 0 && (
           <>

@@ -322,6 +322,13 @@ function buildGameEventFromPlayEvent(
   const eventName = event.details?.event ?? event.type ?? "Game Event";
   const description = event.details?.description ?? eventName;
   const batterId = play.matchup?.batter?.id ?? 0;
+  // Timeouts / mound visits share the PA's pitch GUID in MLB payloads — never attach it.
+  // Steals and similar runner events can keep their own playId for Savant clips.
+  const keepPlayId =
+    Boolean(event.playId) &&
+    !/mound visit|batter timeout|pickoff attempt|step\s*off|stepoff|substitution|ejection|timeout|warmup|advisory|challenge|review/i.test(
+      `${eventName} ${description}`,
+    );
 
   const detail: PlayDetail = {
     atBatIndex: play.about.atBatIndex ?? 0,
@@ -340,6 +347,7 @@ function buildGameEventFromPlayEvent(
     isScoringPlay: Boolean(event.details?.isScoringPlay),
     pitches: [],
     hit: null,
+    playId: keepPlayId ? event.playId : undefined,
   };
 
   return {
@@ -364,6 +372,7 @@ function buildGameEventFromPlayEvent(
     isAtBat: false,
     affectsSituation,
     gameEventKey,
+    playId: detail.playId,
     detail,
   };
 }
@@ -1269,6 +1278,7 @@ function parsePitchEvent(event: PitchEventRaw, pitchNumber: number): PlayPitch |
     pfxZ: coords?.pfxZ,
     kinematics,
     hit,
+    playId: event.playId || undefined,
   };
 }
 
@@ -1299,7 +1309,28 @@ function parseActionEvent(event: PitchEventRaw, rowNumber: number): PlayPitch | 
     isPitch: false,
     strikeZoneTop: 3.5,
     strikeZoneBottom: 1.5,
+    playId: event.playId || undefined,
   };
+}
+
+/** Last MLB playId on the plate appearance (Savant clip key). */
+export function terminalPlayIdFromPitches(pitches: PlayPitch[]): string | undefined {
+  for (let i = pitches.length - 1; i >= 0; i -= 1) {
+    const id = pitches[i]?.playId;
+    if (id) return id;
+  }
+  return undefined;
+}
+
+export function terminalPlayIdFromPlayEvents(
+  playEvents: PitchEventRaw[] | undefined,
+): string | undefined {
+  if (!playEvents?.length) return undefined;
+  for (let i = playEvents.length - 1; i >= 0; i -= 1) {
+    const id = playEvents[i]?.playId;
+    if (id) return id;
+  }
+  return undefined;
 }
 
 function parsePitchesFromEvents(
@@ -1449,6 +1480,8 @@ function parsePlayDetail(
   const event = rawEvent ?? desc ?? "";
   const description = desc ?? rawEvent ?? event;
   const pitches = parsePitchesFromEvents(play.playEvents, description, play.reviewDetails);
+  const playId =
+    terminalPlayIdFromPitches(pitches) ?? terminalPlayIdFromPlayEvents(play.playEvents);
 
   return {
     atBatIndex: play.about.atBatIndex ?? 0,
@@ -1467,6 +1500,7 @@ function parsePlayDetail(
     isScoringPlay: Boolean(play.about.isScoringPlay),
     pitches,
     hit: parseHitFromEvents(play.playEvents),
+    playId,
     playReview: parsePlayReview(play.reviewDetails),
   };
 }
@@ -1680,6 +1714,7 @@ function parsePlayEntry(
     isAtBat,
     awayAbsChallengesRemaining: absRemaining.away,
     homeAbsChallengesRemaining: absRemaining.home,
+    playId: detail.playId,
     detail,
   };
 

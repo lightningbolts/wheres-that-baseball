@@ -28,6 +28,8 @@ export interface GameHit {
   homeScore: number;
   hit: HitData;
   color: string;
+  /** Terminal pitch GUID for Savant clip lookup. */
+  playId?: string;
   detail: PlayDetail;
 }
 
@@ -67,6 +69,7 @@ export function extractGameHits(plays: PlayByPlayEntry[]): GameHit[] {
       homeScore: play.homeScore,
       hit,
       color: HIT_TYPE_COLORS[play.event],
+      playId: play.playId ?? play.detail.playId,
       detail: play.detail,
     });
   }

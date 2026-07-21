@@ -56,6 +56,8 @@ export interface PlayPitch {
   kinematics?: PitchKinematics | null;
   /** Present when the pitch was put in play (for live field animation). */
   hit?: HitData | null;
+  /** MLB pitch GUID — used for Baseball Savant sporty-video clips. */
+  playId?: string;
 }
 
 export interface HitData {
@@ -118,6 +120,8 @@ export interface PlayDetail {
   isScoringPlay: boolean;
   pitches: PlayPitch[];
   hit: HitData | null;
+  /** Terminal pitch GUID for Savant clip lookup (last playEvent with playId). */
+  playId?: string;
   /** Terminal ABS review on the plate appearance (may differ from per-pitch reviews). */
   playReview?: PitchReview;
   /** Home-team win probability before the plate appearance (0–1). */
@@ -162,6 +166,8 @@ export interface PlayByPlayEntry {
   homeWinProbAfter?: number;
   /** Win probability added for the batting team (0–1 scale). */
   wpa?: number;
+  /** Terminal pitch GUID for Savant clip lookup (mirrors detail.playId). */
+  playId?: string;
   detail: PlayDetail;
 }
 
@@ -247,6 +253,8 @@ interface PitchEventRaw {
   type?: string;
   index?: number;
   pitchNumber?: number;
+  /** MLB pitch/play GUID used by Baseball Savant video clips. */
+  playId?: string;
   startTime?: string;
   endTime?: string;
   reviewDetails?: {

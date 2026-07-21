@@ -14,6 +14,7 @@ import { DueUpDialog } from "@/components/features/DueUpDialog";
 import { GameDetailTabs, type GameDetailTab } from "@/components/features/GameDetailTabs";
 import { GameFieldView } from "@/components/features/GameFieldView";
 import { GameHitsView } from "@/components/features/GameHitsView";
+import { GameHighlightsView } from "@/components/features/GameHighlightsView";
 import { GameFinalDialog } from "@/components/features/GameFinalDialog";
 import { GameStateView } from "@/components/features/GameStateView";
 import { NerdInsightToasts } from "@/components/features/NerdInsightToasts";
@@ -245,6 +246,21 @@ function DashboardContent({ game }: { game: SlateGame }) {
           venueName={gameState?.venueName}
           awayAbbrev={gameState?.awayAbbrev ?? "AWY"}
           homeAbbrev={gameState?.homeAbbrev ?? "HME"}
+          isLoading={isFeedLoading && !gameState}
+          className="min-h-0 flex-1"
+        />
+      </div>
+
+      <div
+        className={cn(
+          "flex min-h-0 flex-1 flex-col overflow-hidden",
+          activeTab !== "highlights" && "hidden",
+        )}
+        aria-hidden={activeTab !== "highlights"}
+      >
+        <GameHighlightsView
+          plays={gameState?.plays ?? []}
+          isLive
           isLoading={isFeedLoading && !gameState}
           className="min-h-0 flex-1"
         />
