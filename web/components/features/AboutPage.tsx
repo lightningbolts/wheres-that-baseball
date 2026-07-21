@@ -22,9 +22,7 @@ function Section({
 }) {
   return (
     <section id={id} className="scroll-mt-8 border-t border-border pt-8">
-      <h2 className="font-serif text-xl font-medium text-foreground">
-        {title}
-      </h2>
+      <h2 className="font-serif text-xl font-medium text-foreground">{title}</h2>
       <div className="mt-3 space-y-3 text-sm leading-relaxed text-secondary">{children}</div>
     </section>
   );
@@ -137,8 +135,9 @@ export function AboutPage() {
           <Section id="developer" title="About the developer">
             <p>
               Built by <span className="font-medium text-foreground">{DEVELOPER_NAME}</span>
-              , a college student studying computer science and longtime Seattle resident swept up in the 2025 Mariners' season;
-              avidly followed baseball ever since.
+              , a college student studying computer science and longtime Seattle resident
+              swept up in the 2025 Mariners&apos; season; avidly followed baseball ever
+              since.
             </p>
             <p>
               Feedback, bugs, and feature ideas are welcome at{" "}
@@ -152,7 +151,8 @@ export function AboutPage() {
               <ExternalLink href={DONATE_URL}>buy me a coffee</ExternalLink>!
             </p>
             <p>
-              Check out my other projects <ExternalLink href="https://kairui-cheng.vercel.app/">here</ExternalLink>!
+              Check out my other projects{" "}
+              <ExternalLink href="https://kairui-cheng.vercel.app/">here</ExternalLink>!
             </p>
             <p className="text-muted">
               Source is released under the MIT License. Copyright © 2026 WTBB.

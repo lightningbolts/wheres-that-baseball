@@ -47,7 +47,9 @@ export function PlayVideoIcon({ className }: { className?: string }) {
   );
 }
 
-export function playShowsVideoIcon(play: PlayByPlayEntry): boolean {
+export function playShowsVideoIcon(
+  play: Pick<PlayByPlayEntry, "playId" | "detail" | "isAtBat">,
+): boolean {
   return playHasVideo(play);
 }
 

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { WtbbMark } from "@/components/brand/WtbbMark";
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { SITE_NAME, SITE_NAME_SHORT, DONATE_URL } from "@/lib/site";
 import type { Theme } from "@/lib/theme";
@@ -126,8 +127,12 @@ export function AppNav({ compact = false }: { compact?: boolean }) {
         {/* Desktop: title + tabs left, actions right */}
         <div className="hidden items-center justify-between gap-4 sm:flex">
           <div className="flex min-w-0 items-center gap-4 lg:gap-6">
-            <Link href="/" className="shrink-0 text-sm font-medium text-foreground">
-              {SITE_NAME}
+            <Link
+              href="/"
+              className="flex shrink-0 items-center gap-2 text-sm font-medium text-foreground"
+            >
+              <WtbbMark className="size-11 text-foreground sm:size-12" />
+              <span>{SITE_NAME}</span>
             </Link>
             <nav className="flex items-center gap-0.5 lg:gap-1" aria-label="Main">
               <NavLinks pathname={pathname} />
@@ -142,8 +147,12 @@ export function AppNav({ compact = false }: { compact?: boolean }) {
         {/* Mobile: title + actions, then scrollable tabs */}
         <div className={cn("flex flex-col sm:hidden", isGamePage ? "gap-1" : "gap-2")}>
           <div className="flex items-center justify-between gap-2">
-            <Link href="/" className="shrink-0 text-sm font-medium text-foreground">
-              {SITE_NAME_SHORT}
+            <Link
+              href="/"
+              className="flex shrink-0 items-center gap-1.5 text-sm font-medium text-foreground"
+            >
+              <WtbbMark className="size-10 text-foreground" />
+              <span>{SITE_NAME_SHORT}</span>
             </Link>
             <div className="flex shrink-0 items-center gap-1.5">
               {!isGamePage ? <DonateButton /> : null}

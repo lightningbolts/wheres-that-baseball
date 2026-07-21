@@ -16,7 +16,9 @@
     "aggregate-ballpark-hits": "tsx scripts/aggregate-ballpark-hits.ts",
     "aggregate-nerd-stats": "tsx scripts/aggregate-nerd-stats.ts",
     "refresh-nerd-stats-local": "tsx scripts/refresh-nerd-stats-local.ts",
-    "daily-nerd-post": "tsx scripts/daily-nerd-social-post.ts"
+    "daily-nerd-post": "tsx scripts/daily-nerd-social-post.ts",
+    "brand:logo": "node scripts/generate-wtbb-logo.mjs --png",
+    "brand:monogram": "node scripts/generate-wtbb-logo.mjs --png"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
@@ -35,6 +37,7 @@
   "devDependencies": {
     "@emnapi/core": "1.11.1",
     "@emnapi/runtime": "1.11.1",
+    "@resvg/resvg-js": "^2.6.2",
     "@types/pg": "^8.15.4",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
@@ -43,6 +46,7 @@
     "eslint": "^9.39.1",
     "eslint-config-next": "16.2.9",
     "happy-dom": "^20.10.6",
+    "opentype.js": "^2.0.0",
     "pg": "^8.16.3",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.20.3",
