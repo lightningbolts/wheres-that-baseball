@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { toPlayableClipUrl } from "@/lib/mlb/fastballClips";
 import type { ResolvedPlayVideo } from "@/lib/mlb/playVideo";
 import { isValidPlayId, savantSportyVideosUrl } from "@/lib/mlb/playVideo";
 import { getCachedHighlightForPlayId } from "@/hooks/useGameHighlights";
@@ -81,7 +82,7 @@ function fromPreset(
 ): ResolvedPlayVideo {
   return {
     playId,
-    url: preset.url,
+    url: toPlayableClipUrl(preset.url),
     title: preset.title ?? null,
     savantUrl: savantSportyVideosUrl(playId),
   };

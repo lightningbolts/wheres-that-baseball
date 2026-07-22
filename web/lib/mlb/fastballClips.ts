@@ -29,6 +29,29 @@ export function fastballClipUrl(
   return `${FASTBALL_CLIPS_BASE}/${gamePk}/${feed}/${playId}.mp4`;
 }
 
+/** Browser-playable URL — proxies Fastball CDN (hotlink-protected for non-MLB origins). */
+export function proxiedFastballClipUrl(
+  gamePk: number,
+  playId: string,
+  feed: FastballFeed = "home",
+): string {
+  const params = new URLSearchParams({
+    gamePk: String(gamePk),
+    playId,
+    feed,
+  });
+  return `/api/plays/video/stream?${params.toString()}`;
+}
+
+/** Rewrite a direct fastball-clips URL to our same-origin stream proxy. */
+export function toPlayableClipUrl(url: string): string {
+  const match = url.match(
+    /fastball-clips\.mlb\.com\/(\d+)\/(home|away)\/([0-9a-f-]{36})\.mp4/i,
+  );
+  if (!match) return url;
+  return proxiedFastballClipUrl(Number(match[1]), match[3], match[2].toLowerCase() as FastballFeed);
+}
+
 /** Cheap existence check — Range GET for the ISO BMFF `ftyp` header. */
 export async function probeFastballClipUrl(
   url: string,
@@ -46,6 +69,10 @@ export async function probeFastballClipUrl(
     });
     if (!(response.ok || response.status === 206)) return false;
     const contentType = response.headers.get("content-type") ?? "";
+    // Hotlink protection often returns 200 text/html instead of video.
+    if (contentType.includes("text/html") || contentType.includes("text/plain")) {
+      return false;
+    }
     if (contentType.includes("video/")) return true;
     const bytes = new Uint8Array(await response.arrayBuffer());
     // MP4/ISOBMFF: bytes 4..8 === "ftyp"
@@ -77,7 +104,13 @@ export async function resolveFastballClip(
     for (const feed of ["home", "away"] as const) {
       const url = fastballClipUrl(gamePk, playId, feed);
       if (await probeFastballClipUrl(url, signal)) {
-        return { playId, gamePk, feed, url, title: null };
+        return {
+          playId,
+          gamePk,
+          feed,
+          url: proxiedFastballClipUrl(gamePk, playId, feed),
+          title: null,
+        };
       }
     }
   }
@@ -164,11 +197,12 @@ export async function resolveFilmroomClipByPlayId(
           const feedName: FastballFeed =
             (feed.type ?? "").toUpperCase() === "AWAY" ? "away" : "home";
           const gamePkMatch = clipUrl.match(/fastball-clips\.mlb\.com\/(\d+)\//);
+          const gamePk = gamePkMatch ? Number(gamePkMatch[1]) : 0;
           return {
             playId,
-            gamePk: gamePkMatch ? Number(gamePkMatch[1]) : 0,
+            gamePk,
             feed: feedName,
-            url: clipUrl,
+            url: toPlayableClipUrl(clipUrl),
             title: playback.title ?? null,
           };
         }

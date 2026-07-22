@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { usePlayVideo } from "@/hooks/usePlayVideo";
+import { toPlayableClipUrl } from "@/lib/mlb/fastballClips";
 import { playHasVideo } from "@/lib/mlb/playVideo";
 import { cn } from "@/lib/utils";
 import type { PlayByPlayEntry } from "@/types/mlb-live";
@@ -114,11 +115,14 @@ export function PlayVideoPlayer({
   const resolvedVideo = hasDirectUrl && videoUrl
     ? {
         playId: playId ?? "direct",
-        url: videoUrl,
+        // Fastball CDN is hotlink-protected; rewrite to same-origin proxy.
+        url: toPlayableClipUrl(videoUrl),
         title: videoTitle ?? null,
         savantUrl: null as string | null,
       }
-    : video;
+    : video
+      ? { ...video, url: toPlayableClipUrl(video.url) }
+      : null;
   const resolvedStatus =
     hasDirectUrl
       ? opened || autoLoad
