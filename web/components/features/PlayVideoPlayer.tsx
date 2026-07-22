@@ -157,8 +157,9 @@ export function PlayVideoPlayer({
         <button
           type="button"
           onClick={() => setOpened(true)}
+          aria-label="Play clip"
           className={cn(
-            "relative flex w-full flex-col items-center justify-center gap-2 overflow-hidden bg-field-chart-canvas px-4 text-sm text-muted transition-colors hover:bg-hover hover:text-foreground",
+            "group relative flex w-full items-center justify-center overflow-hidden bg-neutral-900",
             frameClass,
           )}
         >
@@ -167,16 +168,16 @@ export function PlayVideoPlayer({
             <img
               src={posterUrl}
               alt=""
-              className="absolute inset-0 size-full object-cover"
+              className="absolute inset-0 size-full object-cover transition duration-200 group-hover:scale-[1.02]"
               loading="lazy"
               decoding="async"
             />
-          ) : null}
-          <span className="relative z-[1] grid size-10 place-items-center rounded-full border border-border bg-surface/95 text-foreground shadow-sm">
-            <PlayGlyph className="size-4" />
-          </span>
-          <span className="relative z-[1] rounded bg-surface/90 px-2 py-0.5 text-xs">
-            {posterUrl || hasDirectUrl ? "Play clip" : "Load play video"}
+          ) : (
+            <span className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.08),transparent_65%)]" />
+          )}
+          <span className="absolute inset-0 bg-black/40 transition-colors group-hover:bg-black/50" />
+          <span className="relative z-[1] grid size-14 place-items-center rounded-full bg-white text-neutral-950 shadow-[0_8px_24px_rgba(0,0,0,0.45)] transition-transform duration-200 group-hover:scale-105">
+            <PlayGlyph className="size-5 translate-x-px" />
           </span>
         </button>
       ) : showUnavailable ? (

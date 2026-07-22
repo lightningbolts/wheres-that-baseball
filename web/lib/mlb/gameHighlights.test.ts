@@ -23,23 +23,24 @@ describe("gameHighlights", () => {
     ).toBeNull();
   });
 
-  it("keeps in-game clips with play GUIDs and drops lineups/recaps", () => {
+  it("keeps in-game clips even when tagged imagen-feed", () => {
     const content: MlbGameContentResponse = {
       highlights: {
         highlights: {
           items: [
             {
               type: "video",
-              id: "rocchio-rbi",
-              guid: "85d03d72-3cb3-33de-84bd-c5f90734ae4e",
-              headline: "Brayan Rocchio's RBI single",
+              id: "muncy-hr",
+              guid: "70929de6-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+              headline: "Max Muncy's two-run home run (19)",
               date: "2026-07-21T23:20:00Z",
               playbacks: [
-                { name: "mp4Avc", url: "https://bdata-producedclips.mlb.com/a.mp4" },
+                { name: "mp4Avc", url: "https://bdata-producedclips.mlb.com/hr.mp4" },
               ],
               keywordsAll: [
                 { type: "taxonomy", value: "in-game-highlight" },
-                { type: "taxonomy", value: "game-action-tracking" },
+                { type: "taxonomy", value: "imagen-feed" },
+                { type: "taxonomy", value: "home-run" },
               ],
               image: {
                 cuts: [{ width: 640, height: 360, src: "https://img.mlbstatic.com/a.jpg" }],
@@ -66,6 +67,15 @@ describe("gameHighlights", () => {
                 { type: "taxonomy", value: "condensed-game" },
               ],
             },
+            {
+              type: "video",
+              id: "rain",
+              headline: "Dodgers vs. Phillies starts in a rain delay",
+              playbacks: [
+                { name: "mp4Avc", url: "https://bdata-producedclips.mlb.com/rain.mp4" },
+              ],
+              keywordsAll: [{ type: "taxonomy", value: "in-game-highlight" }],
+            },
           ],
         },
       },
@@ -73,18 +83,18 @@ describe("gameHighlights", () => {
 
     const clips = parseGameHighlightClips(content);
     expect(clips).toHaveLength(1);
-    expect(clips[0].playId).toBe("85d03d72-3cb3-33de-84bd-c5f90734ae4e");
+    expect(clips[0].playId).toBe("70929de6-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
     expect(clips[0].url).toContain(".mp4");
     expect(clips[0].thumbnailUrl).toContain("img.mlbstatic.com");
   });
 
-  it("accepts in-game highlights even without a guid", () => {
+  it("keeps ABS challenge clips", () => {
     expect(
       isPlayHighlightItem({
         type: "video",
-        headline: "Strikeout confirmed after ABS challenge",
+        headline: "Strike 3 overturned after ABS challenge",
         playbacks: [{ name: "mp4Avc", url: "https://bdata-producedclips.mlb.com/abs.mp4" }],
-        keywordsAll: [{ type: "taxonomy", value: "in-game-highlight" }],
+        keywordsAll: [{ type: "taxonomy", value: "abs" }],
       }),
     ).toBe(true);
   });

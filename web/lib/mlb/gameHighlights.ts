@@ -2,10 +2,8 @@ import { isValidPlayId } from "@/lib/mlb/playVideo";
 
 const MLB_CONTENT_BASE = "https://statsapi.mlb.com/api/v1";
 
-/** Editorial / pregame assets that aren't play clips. */
-const EXCLUDED_TAXONOMY = new Set([
-  "condensed-game",
-  "game-recap",
+/** Distribution / package tags — only exclude when they are the *sole* signal. */
+const DISTRIBUTION_TAXONOMY = new Set([
   "international-feed",
   "eclat-feed",
   "alexa",
@@ -14,8 +12,25 @@ const EXCLUDED_TAXONOMY = new Set([
   "3-yahoo-ads-feed",
 ]);
 
+/** Always drop these package types (recaps / condensed games). */
+const EXCLUDED_TAXONOMY = new Set([
+  "condensed-game",
+  "game-recap",
+]);
+
 const EXCLUDED_TITLE_RE =
-  /lineups?|bench availability|fielding alignment|bullpen availability|probable pitchers|bat tracking|measuring the stats|against the /i;
+  /lineups?|bench availability|fielding alignment|bullpen availability|probable pitchers|bat tracking|measuring the stats|against the |outing against|breaking down .+ pitches|rain delay|starts in a|visualizing .+ swing/i;
+
+const PLAY_SIGNAL_TAXONOMY = new Set([
+  "in-game-highlight",
+  "game-action-tracking",
+  "game-story-highlight",
+  "highlight",
+  "abs",
+  "home-run",
+  "highlight-reel-offense",
+  "highlight-reel-defense",
+]);
 
 export interface MlbContentPlayback {
   name?: string;
@@ -143,7 +158,13 @@ export function isPlayHighlightItem(item: MlbContentHighlightItem): boolean {
   const playId = item.guid?.trim() ?? "";
   if (playId && isValidPlayId(playId)) return true;
 
-  return tax.has("in-game-highlight") || tax.has("game-action-tracking");
+  for (const signal of PLAY_SIGNAL_TAXONOMY) {
+    if (tax.has(signal)) return true;
+  }
+
+  // Distribution-only tags without a play signal are editorial packages.
+  const nonDistribution = [...tax].filter((value) => !DISTRIBUTION_TAXONOMY.has(value));
+  return nonDistribution.length > 0 && !title.toLowerCase().includes("availability");
 }
 
 export function parseGameHighlightClips(
