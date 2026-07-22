@@ -165,24 +165,48 @@ export function usePlayVideo(
     }
 
     let cancelled = false;
+    let settled = false;
     setStatus("loading");
     setError(null);
 
+    const retryId = window.setInterval(() => {
+      if (cancelled || settled) return;
+      void fetchResolved(validId, gamePk, candidatePlayIds).then((resolved) => {
+        if (cancelled || settled || !resolved) return;
+        settled = true;
+        sharedCache.set(cacheKey(validId, gamePk, candidatePlayIds ?? []), resolved);
+        setVideo(resolved);
+        setStatus("ready");
+        setError(null);
+        window.clearInterval(retryId);
+      });
+    }, 8_000);
+
     void fetchResolved(validId, gamePk, candidatePlayIds)
       .then((resolved) => {
-        if (cancelled) return;
+        if (cancelled || settled) return;
+        if (resolved) {
+          settled = true;
+          window.clearInterval(retryId);
+        }
         setVideo(resolved);
         setStatus(resolved ? "ready" : "unavailable");
       })
       .catch((err: unknown) => {
-        if (cancelled) return;
+        if (cancelled || settled) return;
         setVideo(null);
         setStatus("error");
         setError(err instanceof Error ? err.message : "Failed to load video");
       });
 
+    const stopId = window.setTimeout(() => {
+      window.clearInterval(retryId);
+    }, 90_000);
+
     return () => {
       cancelled = true;
+      window.clearInterval(retryId);
+      window.clearTimeout(stopId);
     };
   }, [validId, enabled, gamePk, preset?.url, preset?.title, candidateKey]);
 

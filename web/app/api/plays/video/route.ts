@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 
+import {
+  resolveFastballClip,
+  resolveFilmroomClipByPlayId,
+} from "@/lib/mlb/fastballClips";
 import { resolveHighlightByPlayIds } from "@/lib/mlb/gameHighlights";
 import {
   isValidPlayId,
@@ -11,8 +15,8 @@ import {
 export const dynamic = "force-dynamic";
 
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
-/** Live misses clear quickly — clips often appear minutes later. */
-const NEGATIVE_TTL_MS = 45 * 1000;
+/** Misses clear fast — Gameday clips often appear within seconds of the PA. */
+const NEGATIVE_TTL_MS = 8 * 1000;
 
 interface CacheEntry {
   value: ResolvedPlayVideo | null;
@@ -40,13 +44,48 @@ function cacheKey(playIds: string[], gamePk: number | null): string {
   return gamePk != null ? `${idKey}|${gamePk}` : idKey;
 }
 
-async function resolveWithContentFallback(
+async function resolveWithFallbacks(
   playIds: string[],
   gamePk: number | null,
 ): Promise<ResolvedPlayVideo | null> {
   const primary = playIds[0];
   if (!primary) return null;
 
+  // 1) Fastball CDN — same path Gameday uses; usually live within seconds.
+  if (gamePk != null) {
+    try {
+      const fastball = await resolveFastballClip(gamePk, playIds);
+      if (fastball) {
+        return {
+          playId: fastball.playId,
+          url: fastball.url,
+          title: fastball.title,
+          savantUrl: savantSportyVideosUrl(fastball.playId),
+        };
+      }
+    } catch {
+      // continue
+    }
+  }
+
+  // 2) Film Room GraphQL by PlayId (works even when CDN probe is cold).
+  for (const playId of playIds) {
+    try {
+      const filmroom = await resolveFilmroomClipByPlayId(playId);
+      if (filmroom) {
+        return {
+          playId: filmroom.playId,
+          url: filmroom.url,
+          title: filmroom.title,
+          savantUrl: savantSportyVideosUrl(filmroom.playId),
+        };
+      }
+    } catch {
+      // try next
+    }
+  }
+
+  // 3) StatsAPI curated Content highlights (broadcast packages).
   if (gamePk != null) {
     try {
       const clip = await resolveHighlightByPlayIds(gamePk, playIds);
@@ -59,11 +98,11 @@ async function resolveWithContentFallback(
         };
       }
     } catch {
-      // Content is best-effort; fall through to Savant.
+      // continue
     }
   }
 
-  // Try each GUID — Content/Savant may key the in-play pitch, not the terminal one.
+  // 4) Baseball Savant sporty-videos (often next-day for full archive coverage).
   for (const playId of playIds) {
     try {
       const resolved = await resolvePlayVideo(playId);
@@ -72,6 +111,7 @@ async function resolveWithContentFallback(
       // try next
     }
   }
+
   return null;
 }
 
@@ -94,12 +134,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Video not found" }, { status: 404 });
     }
     return NextResponse.json(cached.value, {
-      headers: { "Cache-Control": "public, max-age=120" },
+      headers: { "Cache-Control": "public, max-age=60" },
     });
   }
 
   try {
-    const resolved = await resolveWithContentFallback(playIds, gamePk);
+    const resolved = await resolveWithFallbacks(playIds, gamePk);
     cache.set(key, {
       value: resolved,
       expiresAt: Date.now() + (resolved ? CACHE_TTL_MS : NEGATIVE_TTL_MS),

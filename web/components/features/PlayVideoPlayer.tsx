@@ -194,7 +194,7 @@ export function PlayVideoPlayer({
           <p className="text-xs text-subtle">
             {resolvedStatus === "error"
               ? error ?? "Could not load video"
-              : "MLB has not published a clip for this play"}
+              : "Clip not ready yet — retrying…"}
           </p>
           {savantUrl && playId && (
             <a
