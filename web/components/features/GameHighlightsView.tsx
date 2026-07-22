@@ -71,6 +71,8 @@ function eventShortLabel(event: string): string {
 interface HighlightCardModel {
   key: string;
   playId: string | null;
+  /** Pitch + terminal GUIDs — same candidates dialogs use for Fastball resolve. */
+  candidatePlayIds: string[];
   title: string;
   description: string;
   eventLabel: string | null;
@@ -124,6 +126,7 @@ function HighlightCard({
       </div>
       <PlayVideoPlayer
         playId={card.playId}
+        candidatePlayIds={card.candidatePlayIds}
         gamePk={gamePk}
         videoUrl={card.videoUrl}
         videoTitle={card.title}
@@ -135,16 +138,6 @@ function HighlightCard({
       />
     </article>
   );
-}
-
-/** PBP rows that should always appear in the gallery (hits + scoring), even before MLB Content. */
-function galleryPriorityPlays(plays: PlayByPlayEntry[]): PlayByPlayEntry[] {
-  return uniqueHighlightPlays(plays).filter((play) => {
-    if (!isVideoEligiblePlay(play)) return false;
-    if (HIT_EVENTS.has(play.event)) return true;
-    if (play.isScoringPlay) return true;
-    return /stolen base|caught stealing/i.test(play.event);
-  });
 }
 
 function indexPlaysByAnyPlayId(plays: PlayByPlayEntry[]): Map<string, PlayByPlayEntry> {
@@ -180,10 +173,13 @@ function cardFromPlay(
   play: PlayByPlayEntry,
   clip?: GameHighlightClip | null,
 ): HighlightCardModel {
-  const playId = play.playId ?? play.detail.playId ?? clip?.playId ?? null;
+  const candidatePlayIds = collectPlayIds(play);
+  const playId =
+    play.playId ?? play.detail.playId ?? clip?.playId ?? candidatePlayIds[0] ?? null;
   return {
     key: playId ?? `ab-${play.atBatIndex}`,
     playId,
+    candidatePlayIds,
     title: clip?.title ?? play.event,
     description: play.description,
     eventLabel: eventShortLabel(play.event),
@@ -191,6 +187,7 @@ function cardFromPlay(
     inningLabel: `${play.inning} ${formatInningHalf(play.halfInning)}`,
     isHit: HIT_EVENTS.has(play.event),
     atBatIndex: play.atBatIndex,
+    // Content MP4 when curated; otherwise PlayVideoPlayer resolves Fastball on tap.
     videoUrl: clip?.url ?? null,
     posterUrl: clip?.thumbnailUrl ?? null,
   };
@@ -201,6 +198,7 @@ function cardFromClipOnly(clip: GameHighlightClip): HighlightCardModel {
   return {
     key: clip.id,
     playId: clip.playId,
+    candidatePlayIds: clip.playId ? [clip.playId] : [],
     title: clip.title,
     description: clip.description ?? clip.title,
     eventLabel: null,
@@ -214,8 +212,8 @@ function cardFromClipOnly(clip: GameHighlightClip): HighlightCardModel {
 }
 
 /**
- * Content clips (direct MP4s) merged with play-by-play candidates so every hit
- * shows up even when MLB hasn't published a curated highlight yet.
+ * Every video-eligible PA (Gameday Fastball coverage) merged with Content clips.
+ * Content MP4s attach when published; otherwise each card resolves Fastball on tap.
  */
 export function buildHighlightCards(
   clips: GameHighlightClip[],
@@ -231,8 +229,9 @@ export function buildHighlightCards(
   const usedClipIds = new Set<string>();
   const cards: HighlightCardModel[] = [];
 
-  // 1) Hits / scoring / steals first — attach Content MP4 when known.
-  for (const play of galleryPriorityPlays(plays)) {
+  // 1) All finished PAs / steal rows with a play GUID — same set dialogs can play.
+  for (const play of uniqueHighlightPlays(plays)) {
+    if (!isVideoEligiblePlay(play)) continue;
     const ids = collectPlayIds(play);
     const clip = ids.map((id) => clipByPlayId.get(id)).find(Boolean) ?? null;
     if (clip) usedClipIds.add(clip.id);
@@ -255,10 +254,10 @@ export function buildHighlightCards(
   }
 
   cards.sort((a, b) => {
-    if (a.isHit !== b.isHit) return a.isHit ? -1 : 1;
     const aIdx = a.atBatIndex ?? Number.MAX_SAFE_INTEGER;
     const bIdx = b.atBatIndex ?? Number.MAX_SAFE_INTEGER;
     if (aIdx !== bIdx) return aIdx - bIdx;
+    if (a.isHit !== b.isHit) return a.isHit ? -1 : 1;
     return a.title.localeCompare(b.title);
   });
 
@@ -305,7 +304,7 @@ export function GameHighlightsView({
               : "No play videos available for this game"}
         </p>
         <p className="max-w-sm text-[11px] text-subtle">
-          Hits show up here as soon as the play has a GUID; MLB/Savant video attaches when published.
+          Every finished at-bat shows here once it has a play GUID — tap to load the Gameday clip.
         </p>
       </div>
     );
