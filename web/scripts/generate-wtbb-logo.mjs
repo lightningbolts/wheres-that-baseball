@@ -79,25 +79,25 @@ function cubicTan(p0, p1, p2, p3, t) {
 }
 
 /**
- * Real baseball face (reference photo): red seams across TOP and BOTTOM,
- * curving away from each other with open white leather in the center.
+ * Classic baseball face: red seams across TOP and BOTTOM, arching toward
+ * the center (∪ and ∩) — not parallel to the outer rim.
  * V-chevrons along each seam.
  */
 function baseballSeams() {
   const seams = [
     {
-      // upper seam — wide arc across the top half
-      p0: { x: CX - R * 0.88, y: CY - R * 0.28 },
-      p1: { x: CX - R * 0.28, y: CY - R * 0.78 },
-      p2: { x: CX + R * 0.28, y: CY - R * 0.78 },
-      p3: { x: CX + R * 0.88, y: CY - R * 0.28 },
+      // upper seam — U-curve toward center
+      p0: { x: CX - R * 0.85, y: CY - R * 0.5 },
+      p1: { x: CX - R * 0.3, y: CY - R * 0.08 },
+      p2: { x: CX + R * 0.3, y: CY - R * 0.08 },
+      p3: { x: CX + R * 0.85, y: CY - R * 0.5 },
     },
     {
-      // lower seam — wide arc across the bottom half
-      p0: { x: CX - R * 0.88, y: CY + R * 0.28 },
-      p1: { x: CX - R * 0.28, y: CY + R * 0.78 },
-      p2: { x: CX + R * 0.28, y: CY + R * 0.78 },
-      p3: { x: CX + R * 0.88, y: CY + R * 0.28 },
+      // lower seam — ∩-curve toward center
+      p0: { x: CX - R * 0.85, y: CY + R * 0.5 },
+      p1: { x: CX - R * 0.3, y: CY + R * 0.08 },
+      p2: { x: CX + R * 0.3, y: CY + R * 0.08 },
+      p3: { x: CX + R * 0.85, y: CY + R * 0.5 },
     },
   ];
 
