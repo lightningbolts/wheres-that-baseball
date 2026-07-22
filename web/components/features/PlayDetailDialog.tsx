@@ -296,7 +296,14 @@ export function PlayDetailDialog({ play, venueId, gamePk, onClose }: PlayDetailD
 
           {(play.playId || play.pitches.some((p) => p.playId)) && (
             <PlayVideoPlayer
-              playId={play.playId ?? [...play.pitches].reverse().find((p) => p.playId)?.playId}
+              playId={
+                play.playId ??
+                [...play.pitches].reverse().find((p) => p.playId)?.playId
+              }
+              candidatePlayIds={[
+                ...(play.playId ? [play.playId] : []),
+                ...play.pitches.map((p) => p.playId).filter((id): id is string => Boolean(id)),
+              ]}
               gamePk={gamePk}
               autoLoad
               size="compact"

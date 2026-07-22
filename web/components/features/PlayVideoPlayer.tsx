@@ -9,6 +9,8 @@ import type { PlayByPlayEntry } from "@/types/mlb-live";
 
 interface PlayVideoPlayerProps {
   playId: string | null | undefined;
+  /** Extra pitch GUIDs from the same PA for Content matching. */
+  candidatePlayIds?: string[] | null;
   /** Resolve via MLB Content first when known (live-friendly). */
   gamePk?: number | null;
   /** Skip resolve when the gallery already has a direct MP4. */
@@ -90,6 +92,7 @@ function VideoLoadingSpinner({ className }: { className?: string }) {
 
 export function PlayVideoPlayer({
   playId,
+  candidatePlayIds = null,
   gamePk = null,
   videoUrl = null,
   videoTitle = null,
@@ -105,6 +108,7 @@ export function PlayVideoPlayer({
   const shouldResolve = Boolean(playId) && !hasDirectUrl && (opened || autoLoad);
   const { status, video, savantUrl, error } = usePlayVideo(playId, shouldResolve, {
     gamePk,
+    candidatePlayIds,
   });
 
   const resolvedVideo = hasDirectUrl && videoUrl
@@ -190,7 +194,7 @@ export function PlayVideoPlayer({
           <p className="text-xs text-subtle">
             {resolvedStatus === "error"
               ? error ?? "Could not load video"
-              : "No clip available for this play yet"}
+              : "MLB has not published a clip for this play"}
           </p>
           {savantUrl && playId && (
             <a

@@ -68,6 +68,9 @@ export async function fetchSavantSportyVideoHtml(playId: string): Promise<string
 
 export async function resolvePlayVideo(playId: string): Promise<ResolvedPlayVideo | null> {
   const html = await fetchSavantSportyVideoHtml(playId);
+  // Savant now client-renders clips and often SSR-serves "No Video Found"
+  // even for finished-game PAs — treat that as a definitive miss.
+  if (/no video found/i.test(html)) return null;
   const url = extractSportyClipMp4(html);
   if (!url) return null;
   return {

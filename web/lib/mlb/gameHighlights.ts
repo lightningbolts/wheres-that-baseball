@@ -53,6 +53,7 @@ export interface MlbContentHighlightItem {
   title?: string;
   blurb?: string;
   description?: string;
+  mediaPlaybackId?: string;
   playbacks?: MlbContentPlayback[];
   keywordsAll?: MlbContentKeyword[];
   image?: {
@@ -84,6 +85,20 @@ export function mlbGameContentUrl(gamePk: number): string {
   return `${MLB_CONTENT_BASE}/game/${gamePk}/content`;
 }
 
+/**
+ * StatsAPI content often ships broadcast clips as HLS-only. Diamond forge assets
+ * also publish progressive MP4s at a stable suffix we can derive.
+ */
+export function mp4UrlFromForgeHls(url: string): string | null {
+  const trimmed = url.trim();
+  if (!/mlb-cuts-diamond\.mlb\.com\/FORGE\//i.test(trimmed)) return null;
+  if (!trimmed.includes(".m3u8")) return null;
+  const withoutQuery = trimmed.split("?")[0] ?? trimmed;
+  const base = withoutQuery.replace(/\.m3u8$/i, "");
+  // Prefer the 4Mbps 720p progressive cut (verified available for 2026 forge assets).
+  return `${base}_1280x720_59_4000K.mp4`;
+}
+
 /** Prefer a progressive MP4 for `<video src>` (works without HLS). */
 export function pickHighlightMp4Url(playbacks: MlbContentPlayback[] | undefined): string | null {
   if (!playbacks?.length) return null;
@@ -95,20 +110,27 @@ export function pickHighlightMp4Url(playbacks: MlbContentPlayback[] | undefined)
       const name = (playback.name ?? "").toLowerCase();
       let score = 0;
       if (name === "mp4avc") score = 100;
-      else if (name.includes("mp4")) score = 80;
+      else if (name.includes("mp4") || name === "highbit") score = 80;
       else if (url.endsWith(".mp4")) score = 70;
       else if (name.includes("hls") || url.includes(".m3u8")) score = 10;
       else score = 20;
-      return { url, score };
+      return { url, score, name };
     })
-    .filter((row): row is { url: string; score: number } => row != null);
+    .filter((row): row is { url: string; score: number; name: string } => row != null);
 
   if (scored.length === 0) return null;
   scored.sort((a, b) => b.score - a.score);
-  const best = scored[0];
-  // Only return progressive MP4 — HLS needs a different player stack.
-  if (best.score < 70) return null;
-  return best.url;
+
+  const bestMp4 = scored.find((row) => row.score >= 70);
+  if (bestMp4) return bestMp4.url;
+
+  // HLS-only Content items (common for broadcast HR clips) → derive forge MP4.
+  for (const row of scored) {
+    const derived = mp4UrlFromForgeHls(row.url);
+    if (derived) return derived;
+  }
+
+  return null;
 }
 
 export function pickHighlightThumbnail(
@@ -269,6 +291,66 @@ export async function resolveHighlightByPlayId(
   playId: string,
   signal?: AbortSignal,
 ): Promise<GameHighlightClip | null> {
+  return resolveHighlightByPlayIds(gamePk, [playId], signal);
+}
+
+/** Match any of several pitch GUIDs from the same PA (Content often keys the in-play pitch). */
+export async function resolveHighlightByPlayIds(
+  gamePk: number,
+  playIds: string[],
+  signal?: AbortSignal,
+): Promise<GameHighlightClip | null> {
+  const wanted = new Set(playIds.filter((id) => isValidPlayId(id)));
+  if (wanted.size === 0) return null;
+
   const clips = await fetchGameHighlightClips(gamePk, signal);
-  return clips.find((clip) => clip.playId === playId) ?? null;
+  const matched = clips.find((clip) => clip.playId && wanted.has(clip.playId));
+  if (matched) return matched;
+
+  // Content list can lag the item map — re-fetch raw content and match guids directly,
+  // including forge-derived MP4s that the list parser already understands.
+  try {
+    const content = await fetchMlbGameContent(gamePk, signal);
+    for (const item of content.highlights?.highlights?.items ?? []) {
+      const guid = item.guid?.trim() ?? "";
+      if (!guid || !wanted.has(guid)) continue;
+
+      let url = pickHighlightMp4Url(item.playbacks);
+      if (!url) {
+        url = await fetchDataServiceMp4(item.id || item.mediaPlaybackId);
+      }
+      if (!url) continue;
+
+      return {
+        id: item.id || guid,
+        playId: guid,
+        title: (item.headline || item.title || "Play highlight").trim(),
+        description: item.description?.trim() || item.blurb?.trim() || null,
+        url,
+        thumbnailUrl: pickHighlightThumbnail(item.image),
+        date: item.date ?? null,
+      };
+    }
+  } catch {
+    // best-effort
+  }
+
+  return null;
+}
+
+async function fetchDataServiceMp4(
+  slugOrId: string | null | undefined,
+): Promise<string | null> {
+  if (!slugOrId) return null;
+  try {
+    const response = await fetch(
+      `https://www.mlb.com/data-service/en/videos/${encodeURIComponent(slugOrId)}`,
+      { headers: { Accept: "application/json" }, cache: "no-store" },
+    );
+    if (!response.ok) return null;
+    const data = (await response.json()) as { playbacks?: MlbContentPlayback[] };
+    return pickHighlightMp4Url(data.playbacks);
+  } catch {
+    return null;
+  }
 }

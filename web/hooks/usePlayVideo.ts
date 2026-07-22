@@ -18,6 +18,8 @@ interface UsePlayVideoResult {
 interface UsePlayVideoOptions {
   /** When set, resolve via MLB Content first (works during live games). */
   gamePk?: number | null;
+  /** Extra pitch GUIDs from the same PA (Content often keys the in-play pitch). */
+  candidatePlayIds?: string[] | null;
   /** Skip network resolve when the gallery already has a direct MP4. */
   preset?: Pick<ResolvedPlayVideo, "url" | "title"> | null;
 }
@@ -25,15 +27,23 @@ interface UsePlayVideoOptions {
 const sharedCache = new Map<string, ResolvedPlayVideo | null>();
 const inflight = new Map<string, Promise<ResolvedPlayVideo | null>>();
 
-function cacheKey(playId: string, gamePk: number | null | undefined): string {
-  return gamePk != null && gamePk > 0 ? `${playId}|${gamePk}` : playId;
+function cacheKey(
+  playId: string,
+  gamePk: number | null | undefined,
+  candidates: string[] = [],
+): string {
+  const extras = candidates.filter((id) => id !== playId).join(",");
+  const base = gamePk != null && gamePk > 0 ? `${playId}|${gamePk}` : playId;
+  return extras ? `${base}|${extras}` : base;
 }
 
 async function fetchResolved(
   playId: string,
   gamePk?: number | null,
+  candidatePlayIds?: string[] | null,
 ): Promise<ResolvedPlayVideo | null> {
-  const key = cacheKey(playId, gamePk);
+  const candidates = (candidatePlayIds ?? []).filter((id) => isValidPlayId(id));
+  const key = cacheKey(playId, gamePk, candidates);
   if (sharedCache.has(key)) {
     return sharedCache.get(key) ?? null;
   }
@@ -44,6 +54,8 @@ async function fetchResolved(
   const promise = (async () => {
     const params = new URLSearchParams({ playId });
     if (gamePk != null && gamePk > 0) params.set("gamePk", String(gamePk));
+    const alts = candidates.filter((id) => id !== playId);
+    if (alts.length > 0) params.set("playIds", alts.join(","));
     const response = await fetch(`/api/plays/video?${params.toString()}`);
     if (response.status === 404) {
       // Don't permanently cache misses — clips often appear minutes later live.
@@ -87,7 +99,9 @@ export function usePlayVideo(
   const validId = playId && isValidPlayId(playId) ? playId : null;
   const gamePk = options.gamePk;
   const preset = options.preset;
-  const key = validId ? cacheKey(validId, gamePk) : null;
+  const candidatePlayIds = options.candidatePlayIds ?? null;
+  const candidateKey = (candidatePlayIds ?? []).filter(isValidPlayId).join(",");
+  const key = validId ? cacheKey(validId, gamePk, candidatePlayIds ?? []) : null;
 
   const [status, setStatus] = useState<Status>(() => {
     if (!validId || !enabled) return "idle";
@@ -115,7 +129,7 @@ export function usePlayVideo(
 
     if (preset?.url) {
       const resolved = fromPreset(validId, preset);
-      sharedCache.set(cacheKey(validId, gamePk), resolved);
+      sharedCache.set(cacheKey(validId, gamePk, candidatePlayIds ?? []), resolved);
       setVideo(resolved);
       setStatus("ready");
       setError(null);
@@ -123,21 +137,25 @@ export function usePlayVideo(
     }
 
     if (gamePk != null && gamePk > 0) {
-      const cachedClip = getCachedHighlightForPlayId(gamePk, validId);
-      if (cachedClip?.url) {
-        const resolved = fromPreset(validId, {
-          url: cachedClip.url,
-          title: cachedClip.title,
-        });
-        sharedCache.set(cacheKey(validId, gamePk), resolved);
-        setVideo(resolved);
-        setStatus("ready");
-        setError(null);
-        return;
+      const idsToCheck = [validId, ...(candidatePlayIds ?? [])];
+      for (const id of idsToCheck) {
+        if (!isValidPlayId(id)) continue;
+        const cachedClip = getCachedHighlightForPlayId(gamePk, id);
+        if (cachedClip?.url) {
+          const resolved = fromPreset(validId, {
+            url: cachedClip.url,
+            title: cachedClip.title,
+          });
+          sharedCache.set(cacheKey(validId, gamePk, candidatePlayIds ?? []), resolved);
+          setVideo(resolved);
+          setStatus("ready");
+          setError(null);
+          return;
+        }
       }
     }
 
-    const resolveKey = cacheKey(validId, gamePk);
+    const resolveKey = cacheKey(validId, gamePk, candidatePlayIds ?? []);
     if (sharedCache.has(resolveKey)) {
       const cached = sharedCache.get(resolveKey) ?? null;
       setVideo(cached);
@@ -150,7 +168,7 @@ export function usePlayVideo(
     setStatus("loading");
     setError(null);
 
-    void fetchResolved(validId, gamePk)
+    void fetchResolved(validId, gamePk, candidatePlayIds)
       .then((resolved) => {
         if (cancelled) return;
         setVideo(resolved);
@@ -166,7 +184,7 @@ export function usePlayVideo(
     return () => {
       cancelled = true;
     };
-  }, [validId, enabled, gamePk, preset?.url, preset?.title]);
+  }, [validId, enabled, gamePk, preset?.url, preset?.title, candidateKey]);
 
   return {
     status,

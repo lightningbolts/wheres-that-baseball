@@ -88,6 +88,19 @@ describe("gameHighlights", () => {
     expect(clips[0].thumbnailUrl).toContain("img.mlbstatic.com");
   });
 
+  it("derives progressive MP4 URLs from diamond forge HLS playbacks", () => {
+    expect(
+      pickHighlightMp4Url([
+        {
+          name: "hlsCloud",
+          url: "https://mlb-cuts-diamond.mlb.com/FORGE/2026/2026-07/21/e37a8689-9f802596-cf239b14-csvm-diamondgcp-asset.m3u8",
+        },
+      ]),
+    ).toBe(
+      "https://mlb-cuts-diamond.mlb.com/FORGE/2026/2026-07/21/e37a8689-9f802596-cf239b14-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+    );
+  });
+
   it("keeps ABS challenge clips", () => {
     expect(
       isPlayHighlightItem({
