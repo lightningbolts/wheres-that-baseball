@@ -22,14 +22,14 @@ function DecisionRow({ label, value }: { label: string; value: string | null }) 
 }
 
 export function GameFinalDialog({ gameState, boxScore, open, onClose }: GameFinalDialogProps) {
-  if (!gameState || !open) return null;
+  if (!gameState) return null;
 
   const { awayAbbrev, homeAbbrev, awayRuns, homeRuns, awayTeam, homeTeam } = gameState;
   const decisions = boxScore?.decisions;
 
   return (
     <Dialog
-      open
+      open={open}
       onClose={onClose}
       title="Final"
       className="w-[min(100%,480px)]"

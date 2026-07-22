@@ -274,6 +274,8 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
   const [selectedHitKey, setSelectedHitKey] = useState<string | null>(null);
   const [detailPlay, setDetailPlay] = useState<PlayDetail | null>(null);
   const [detailGamePk, setDetailGamePk] = useState<number | null>(null);
+  const detailRequestRef = useRef(0);
+  const ignoreOpenUntilRef = useRef(0);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const hitsScrollRef = useRef<HTMLDivElement>(null);
 
@@ -309,10 +311,22 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
     return chartHit;
   }, [chartHits, data, selectedHitKey]);
 
+  const closeHitDetail = useCallback(() => {
+    // Invalidate in-flight opens so a late enrich can't reopen after dismiss.
+    detailRequestRef.current += 1;
+    ignoreOpenUntilRef.current = Date.now() + 450;
+    setDetailPlay(null);
+    setDetailGamePk(null);
+  }, []);
+
   const openHitDetail = useCallback(
     async (hitKey: string) => {
+      // Mobile dismiss can synthesize a click on "Play details" underneath.
+      if (Date.now() < ignoreOpenUntilRef.current) return;
+
+      const requestId = ++detailRequestRef.current;
       const hit = await fetchHitDetail(hitKey);
-      if (!hit?.detail) return;
+      if (requestId !== detailRequestRef.current || !hit?.detail) return;
 
       const withExisting =
         hit.detail.playId || !hit.playId
@@ -324,6 +338,8 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
         hit.gamePk,
         hit.atBatIndex,
       );
+      if (requestId !== detailRequestRef.current) return;
+
       setDetailGamePk(hit.gamePk ?? null);
       setDetailPlay(enriched);
     },
@@ -548,10 +564,7 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
         play={detailPlay}
         venueId={data?.park.venueId}
         gamePk={detailGamePk}
-        onClose={() => {
-          setDetailPlay(null);
-          setDetailGamePk(null);
-        }}
+        onClose={closeHitDetail}
       />
     </div>
   );

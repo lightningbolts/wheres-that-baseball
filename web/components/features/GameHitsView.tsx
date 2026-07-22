@@ -288,6 +288,7 @@ export function GameHitsView({
   const stats = useMemo(() => computeGameHitStats(hits), [hits]);
   const [selectedAtBatIndex, setSelectedAtBatIndex] = useState<number | null>(null);
   const [detailPlay, setDetailPlay] = useState<GameHit["detail"] | null>(null);
+  const detailOpenLockRef = useRef(false);
 
   const selectedHit =
     selectedAtBatIndex != null
@@ -298,6 +299,20 @@ export function GameHitsView({
     setSelectedAtBatIndex((current) =>
       current === gameHit.atBatIndex ? null : gameHit.atBatIndex,
     );
+  }, []);
+
+  const openHitDetail = useCallback((detail: GameHit["detail"]) => {
+    // Ignore the synthetic click that can fall through after dismissing on mobile.
+    if (detailOpenLockRef.current) return;
+    setDetailPlay(detail);
+  }, []);
+
+  const closeHitDetail = useCallback(() => {
+    detailOpenLockRef.current = true;
+    setDetailPlay(null);
+    window.setTimeout(() => {
+      detailOpenLockRef.current = false;
+    }, 450);
   }, []);
 
   if (isLoading && plays.length === 0) {
@@ -405,7 +420,7 @@ export function GameHitsView({
                           inning={selectedHit.inning}
                           halfInning={selectedHit.halfInning}
                           launchSpeed={selectedHit.hit.launchSpeed}
-                          onOpenDetail={() => setDetailPlay(selectedHit.detail)}
+                          onOpenDetail={() => openHitDetail(selectedHit.detail)}
                           onClear={() => setSelectedAtBatIndex(null)}
                         />
                       ) : null
@@ -444,7 +459,7 @@ export function GameHitsView({
         play={detailPlay}
         venueId={venueId}
         gamePk={gamePk}
-        onClose={() => setDetailPlay(null)}
+        onClose={closeHitDetail}
       />
     </>
   );

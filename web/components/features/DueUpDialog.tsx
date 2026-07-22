@@ -10,11 +10,11 @@ interface DueUpDialogProps {
 }
 
 export function DueUpDialog({ context, open, onClose }: DueUpDialogProps) {
-  if (!context || !open) return null;
+  if (!context) return null;
 
   return (
     <Dialog
-      open
+      open={open}
       onClose={onClose}
       title={`Due up — ${context.teamAbbrev}`}
       className="w-[min(100%,420px)]"
