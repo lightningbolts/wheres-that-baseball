@@ -94,10 +94,11 @@ function HighlightCard({
   if (!card.playId && !card.videoUrl) return null;
 
   return (
-    <article className="flex flex-col overflow-hidden rounded border border-border bg-surface">
-      <div className="flex items-start justify-between gap-2 border-b border-border/60 px-3 py-2">
-        <div className="min-w-0">
-          <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[13px] text-foreground">
+    <article className="flex h-full flex-col overflow-hidden rounded border border-border bg-surface">
+      {/* Fixed header height so aspect-video frames align across the grid */}
+      <div className="flex shrink-0 items-start justify-between gap-2 border-b border-border/60 px-3 py-2.5">
+        <div className="min-w-0 flex-1">
+          <p className="flex min-h-[1.125rem] items-center gap-x-1.5 text-[13px] leading-none text-foreground">
             {card.eventLabel ? (
               <span
                 className={cn(
@@ -110,16 +111,16 @@ function HighlightCard({
                 {card.eventLabel}
               </span>
             ) : null}
-            <span className="truncate font-medium">
+            <span className="truncate font-medium leading-tight">
               {card.batterName ?? card.title}
             </span>
           </p>
-          <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-muted">
+          <p className="mt-1.5 line-clamp-2 min-h-[2.125rem] text-[11px] leading-snug text-muted">
             {card.description || card.title}
           </p>
         </div>
         {card.inningLabel ? (
-          <span className="shrink-0 pt-0.5 font-mono text-[10px] tabular-nums text-subtle">
+          <span className="shrink-0 pt-px font-mono text-[10px] tabular-nums text-subtle">
             {card.inningLabel}
           </span>
         ) : null}
@@ -134,7 +135,7 @@ function HighlightCard({
         autoLoad={false}
         size="compact"
         showTitle={false}
-        className="rounded-none border-0 border-t-0"
+        className="mt-auto shrink-0 rounded-none border-0 border-t-0"
       />
     </article>
   );
