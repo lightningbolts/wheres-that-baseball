@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { PlayDetailDialog } from "@/components/features/PlayDetailDialog";
-import { PlayVideoIcon, playShowsVideoIcon } from "@/components/features/PlayVideoPlayer";
+import { PlayVideoIcon } from "@/components/features/PlayVideoPlayer";
 import { GameHitsSprayChart } from "@/components/features/GameHitsSprayChart";
 import { Skeleton } from "@/components/ui/Skeleton";
 import {
@@ -24,7 +24,7 @@ import {
 } from "@/lib/mlb/gameHits";
 import { notableGameHref } from "@/lib/mlb/nerdStats/notableEvents";
 import { cn, formatInningHalf } from "@/lib/utils";
-import type { PlayByPlayEntry } from "@/types/mlb-live";
+import type { PlayByPlayEntry, PlayDetail } from "@/types/mlb-live";
 
 const GameHitsTrajectory3D = dynamic(
   () =>
@@ -105,11 +105,7 @@ function HitRow({
           </span>
         </div>
         <span className="flex shrink-0 items-center gap-1.5">
-          {playShowsVideoIcon({
-            isAtBat: true,
-            playId: gameHit.playId ?? gameHit.detail.playId,
-            detail: gameHit.detail,
-          }) && <PlayVideoIcon />}
+          {Boolean(gameHit.playId ?? gameHit.detail?.playId) && <PlayVideoIcon />}
           <span className="font-mono text-[10px] tabular-nums text-subtle">
             {gameHit.inning} {formatInningHalf(gameHit.halfInning)}
           </span>
@@ -318,7 +314,7 @@ export function GameHitsView({
   }, [allHits, bipFamily, hitTypeFilter]);
   const stats = useMemo(() => computeGameHitStats(allHits), [allHits]);
   const [selectedAtBatIndex, setSelectedAtBatIndex] = useState<number | null>(null);
-  const [detailPlay, setDetailPlay] = useState<GameHit["detail"] | null>(null);
+  const [detailPlay, setDetailPlay] = useState<PlayDetail | null>(null);
   const detailOpenLockRef = useRef(false);
 
   const selectedHit =
@@ -332,7 +328,7 @@ export function GameHitsView({
     );
   }, []);
 
-  const openHitDetail = useCallback((detail: GameHit["detail"]) => {
+  const openHitDetail = useCallback((detail: PlayDetail) => {
     // Ignore the synthetic click that can fall through after dismissing on mobile.
     if (detailOpenLockRef.current) return;
     setDetailPlay(detail);
@@ -492,7 +488,9 @@ export function GameHitsView({
                           launchSpeed={selectedHit.hit.launchSpeed}
                           gamePk={gamePk}
                           atBatIndex={selectedHit.atBatIndex}
-                          onOpenDetail={() => openHitDetail(selectedHit.detail)}
+                          onOpenDetail={() => {
+                            if (selectedHit.detail) openHitDetail(selectedHit.detail);
+                          }}
                           onClear={() => setSelectedAtBatIndex(null)}
                         />
                       ) : null

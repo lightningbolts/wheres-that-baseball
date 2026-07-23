@@ -17,6 +17,7 @@
     "aggregate-nerd-stats": "tsx scripts/aggregate-nerd-stats.ts",
     "refresh-nerd-stats-local": "tsx scripts/refresh-nerd-stats-local.ts",
     "refresh-ballpark-bip-local": "tsx scripts/refresh-ballpark-bip-local.ts",
+    "slim-bip-json": "tsx scripts/slim-bip-json.ts",
     "daily-nerd-post": "tsx scripts/daily-nerd-social-post.ts",
     "brand:logo": "node scripts/generate-wtbb-logo.mjs --png",
     "brand:monogram": "node scripts/generate-wtbb-logo.mjs --png"

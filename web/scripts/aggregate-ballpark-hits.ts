@@ -25,6 +25,7 @@ import {
   loadBallparkHitsManifest,
   writeFullBallparkHitsStore,
 } from "../lib/mlb/ballparkHitsStore";
+import { appendHitsToPlayerBipStore, rebuildPlayerBipStore } from "../lib/mlb/playerBipStore";
 import { fetchMLBLiveFeed, parseLiveFeed } from "../lib/mlb/liveFeed";
 import type { MLBLiveFeedResponse } from "../types/mlb-live";
 
@@ -124,7 +125,10 @@ async function repairEmptyProcessedGames(season: number): Promise<void> {
 
       const hits = extractVenueHitsFromFeed(row, feed);
       if (hits.length > 0) {
-        appendGameHitsToStore(season, row, hits);
+        const { venueId, appendedHits } = appendGameHitsToStore(season, row, hits);
+        if (venueId != null && appendedHits.length > 0) {
+          appendHitsToPlayerBipStore(season, venueId, appendedHits);
+        }
         repaired += 1;
         hitCount += hits.length;
       }
@@ -265,7 +269,10 @@ async function main() {
       const game = pending[i]!;
       const hits = extractVenueHitsFromStoredGame(game);
       hitCount += hits.length;
-      appendGameHitsToStore(season, game, hits);
+      const { venueId, appendedHits } = appendGameHitsToStore(season, game, hits);
+      if (venueId != null && appendedHits.length > 0) {
+        appendHitsToPlayerBipStore(season, venueId, appendedHits);
+      }
 
       if ((i + 1) % 10 === 0 || i + 1 === pending.length) {
         process.stdout.write(`\rProcessed ${i + 1}/${pending.length} games, ${hitCount} hits…`);
@@ -276,7 +283,7 @@ async function main() {
     console.log(
       `Updated ballpark hits with ${pending.length} game(s) (${hitCount} hits) in data/ballpark-hits/${season}/`,
     );
-    const { rebuildPlayerBipStore } = await import("../lib/mlb/playerBipStore");
+    // Full rebuild keeps index/stats consistent after a batch of incremental appends.
     const playerBip = rebuildPlayerBipStore(season);
     console.log(
       `Rebuilt player BIP index: ${playerBip.playerCount} players, ${playerBip.bipCount} BIP`,
@@ -308,6 +315,7 @@ async function main() {
   process.stdout.write(`\n`);
 
   writeFullBallparkHitsStore(season, gameRows);
+  const playerBip = rebuildPlayerBipStore(season);
 
   const venuesWithHits = new Set(
     gameRows.filter((row) => row.hits.length > 0).map((row) => row.venueId),
@@ -315,6 +323,9 @@ async function main() {
 
   console.log(
     `Wrote ballpark hits for ${gameRows.length} games (${hitCount} hits, ${venuesWithHits} venues) to data/ballpark-hits/${season}/`,
+  );
+  console.log(
+    `Rebuilt player BIP index: ${playerBip.playerCount} players, ${playerBip.bipCount} BIP`,
   );
   console.log("Run the drop migration in Supabase SQL editor to reclaim game_hits table space.");
 }

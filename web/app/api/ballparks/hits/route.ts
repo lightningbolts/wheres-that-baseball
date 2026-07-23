@@ -8,6 +8,7 @@ import {
   loadBallparkHitsDetail,
   loadBallparkHitsSummary,
 } from "@/lib/mlb/ballparkHitsStore";
+import { enrichVenueHitDetail } from "@/lib/mlb/hitDetailFromArchive";
 
 export const dynamic = "force-dynamic";
 
@@ -68,7 +69,11 @@ export async function GET(request: Request) {
       if (!hit) {
         return NextResponse.json({ error: "Hit not found" }, { status: 404 });
       }
-      return NextResponse.json({ hit }, { headers: { "Cache-Control": "public, max-age=300" } });
+      const enriched = await enrichVenueHitDetail(hit);
+      return NextResponse.json(
+        { hit: enriched },
+        { headers: { "Cache-Control": "public, max-age=300" } },
+      );
     }
 
     if (venueId != null) {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { classifyBipKind, computeGameHitStats } from "@/lib/mlb/gameHits";
+import { enrichVenueHitDetail } from "@/lib/mlb/hitDetailFromArchive";
 import type { PlayerBipDetail } from "@/lib/mlb/playerBip";
 import { loadPlayerBipDetail } from "@/lib/mlb/playerBipStore";
 
@@ -35,8 +36,9 @@ export async function GET(request: Request, context: RouteContext) {
     for (const park of detail.parks) {
       const hit = park.hits.find((h) => h.hitKey === hitKey);
       if (hit) {
+        const enriched = await enrichVenueHitDetail(hit);
         return NextResponse.json(
-          { hit },
+          { hit: enriched },
           { headers: { "Cache-Control": "public, max-age=300" } },
         );
       }

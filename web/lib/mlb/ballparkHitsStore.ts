@@ -15,7 +15,6 @@ import type {
   BallparkHitsDetail,
   VenueHit,
 } from "@/lib/mlb/ballparkHits";
-import { rebuildPlayerBipStore } from "@/lib/mlb/playerBipStore";
 
 export interface BallparkHitsManifest {
   season: number;
@@ -128,12 +127,18 @@ export function saveBallparkHitsBundle(
   }
 }
 
+export interface AppendGameHitsResult {
+  venueId: number | null;
+  /** Hits that were newly written (caller should sync player-bip). */
+  appendedHits: VenueHit[];
+}
+
 /** Append hits from one archived game into on-disk season aggregates. */
 export function appendGameHitsToStore(
   season: number,
   row: Pick<GameHitsSourceRow, "game_pk" | "game_date" | "venue_id" | "home_team_id" | "away_team_abbrev" | "home_team_abbrev">,
   hits: VenueHit[],
-): void {
+): AppendGameHitsResult {
   ensureSeasonDir(season);
 
   const manifest = loadBallparkHitsManifest(season);
@@ -142,11 +147,17 @@ export function appendGameHitsToStore(
 
   if (alreadyProcessed) {
     // Repair path: game was marked processed with 0 hits (incomplete archive).
-    if (hits.length === 0 || venueId == null) return;
-    if (!ballparkIndex.parks[String(venueId)]) return;
+    if (hits.length === 0 || venueId == null) {
+      return { venueId, appendedHits: [] };
+    }
+    if (!ballparkIndex.parks[String(venueId)]) {
+      return { venueId, appendedHits: [] };
+    }
 
     const existingHits = loadBallparkHitsDetail(season, venueId)?.hits ?? [];
-    if (existingHits.some((hit) => hit.gamePk === row.game_pk)) return;
+    if (existingHits.some((hit) => hit.gamePk === row.game_pk)) {
+      return { venueId, appendedHits: [] };
+    }
 
     const hitsByVenue = loadAllVenueHits(season);
     const gamesByVenue = gamesByVenueFromManifest(manifest);
@@ -165,11 +176,12 @@ export function appendGameHitsToStore(
     });
     writeJson(manifestPath(season), manifest);
     writeJson(summaryPath(season), summary);
-    return;
+    return { venueId, appendedHits: hits };
   }
 
   const hitsByVenue = loadAllVenueHits(season);
   const gamesByVenue = gamesByVenueFromManifest(manifest);
+  let appendedHits: VenueHit[] = [];
 
   if (venueId != null && ballparkIndex.parks[String(venueId)]) {
     const gameSet = gamesByVenue.get(venueId) ?? new Set<number>();
@@ -183,6 +195,7 @@ export function appendGameHitsToStore(
         venuePath(season, venueId),
         buildBallparkHitsDetail(season, venueId, merged),
       );
+      appendedHits = hits;
     }
   }
 
@@ -200,6 +213,7 @@ export function appendGameHitsToStore(
 
   writeJson(manifestPath(season), manifest);
   writeJson(summaryPath(season), summary);
+  return { venueId, appendedHits };
 }
 
 /** Game pks marked processed that have no hits in venue files (incomplete archive). */
@@ -250,7 +264,8 @@ export function writeFullBallparkHitsStore(
   }
 
   saveBallparkHitsBundle(season, manifest, summary, venueDetails);
-  rebuildPlayerBipStore(season);
+  // Caller (aggregate/refresh scripts) must rebuild player-bip separately so this
+  // module stays out of the /api/ballparks/hits serverless file-trace graph.
 }
 
 export function getEmptyBallparkHitsSummary(season: number): BallparkHitsAggregate {

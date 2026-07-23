@@ -7,6 +7,7 @@ const heavyDataExcludes = [
   ...gameCacheExcludes,
   "./data/nerd-stats/**/history/**",
   "./data/ballpark-hits/**",
+  "./data/player-bip/**",
 ];
 
 const nerdStatsIncludes = [
@@ -35,6 +36,8 @@ const nextConfig = {
     "/api/matchup": heavyDataExcludes,
     "/api/predict": heavyDataExcludes,
     "/api/batter/**": heavyDataExcludes,
+    "/api/ballparks/hits": ["./data/player-bip/**", "./data/nerd-stats/**"],
+    "/api/players/**": ["./data/ballpark-hits/**", "./data/nerd-stats/**"],
     "/games/**": heavyDataExcludes,
     "/games": heavyDataExcludes,
     "/live/**": heavyDataExcludes,
@@ -46,7 +49,9 @@ const nextConfig = {
   outputFileTracingIncludes: {
     "/api/nerd-stats": nerdStatsIncludes,
     "/api/nerd-stats/**": nerdStatsIncludes,
+    // Slimmed season JSON only — keep under Vercel's 250MB uncompressed function limit.
     "/api/ballparks/hits": ["./data/ballpark-hits/**"],
+    "/api/players/**": ["./data/player-bip/**"],
     "/nerd/**": [
       "./data/nerd-stats/**/summary.json",
       "./data/nerd-stats/**/stats/**",

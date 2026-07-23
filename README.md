@@ -119,6 +119,7 @@ Then follow [`supabase/setup-cron.sql`](supabase/setup-cron.sql) to schedule sch
 - **Web** — Vercel (set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`; optionally `ML_ENGINE_URL` / `NEXT_PUBLIC_ML_ENGINE_URL`).
 - **ml-engine** — Render free tier via Docker ([`render.yaml`](render.yaml)); cold starts can exceed Vercel's proxy timeout, so browser-direct `NEXT_PUBLIC_ML_ENGINE_URL` is useful.
 - **Nerd stats** — daily GitHub Action [`.github/workflows/daily-nerd-stats.yml`](.github/workflows/daily-nerd-stats.yml) aggregates and commits season counters.
+- **Ballpark / player BIP JSON** — season spray data lives under `web/data/ballpark-hits` and `web/data/player-bip`. See [`docs/data-storage.md`](docs/data-storage.md) for size limits, mobile cost, and why uncapped GitHub JSON breaks Vercel deploys.
 
 ## Repo layout
 
