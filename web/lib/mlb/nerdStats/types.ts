@@ -300,6 +300,10 @@ export interface PlayerNerdStatContribution {
   shareOfTeam: number | null;
   playerActions: number | null;
   teamActions: number | null;
+  /** 1-based rank among teammates with a comparable value for this stat. */
+  teamRank: number | null;
+  /** How many teammates were ranked for this stat (denominator for "N of M"). */
+  teamRankedCount: number | null;
 }
 
 export interface PlayerNerdCard {

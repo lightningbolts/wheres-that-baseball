@@ -25,15 +25,27 @@ function formatActions(row: PlayerNerdStatContribution): string {
   return "—";
 }
 
+function formatTeamRank(row: PlayerNerdStatContribution): string {
+  if (row.teamRank == null || row.teamRankedCount == null || row.teamRankedCount <= 0) {
+    return "—";
+  }
+  return `#${row.teamRank}/${row.teamRankedCount}`;
+}
+
 function NerdStatCard({ row }: { row: PlayerNerdStatContribution }) {
   return (
     <li className="border-b border-border/60 px-3 py-3 last:border-b-0">
-      <Link
-        href={`/nerd/${row.statId}`}
-        className="text-[13px] font-medium text-foreground underline-offset-2 hover:underline"
-      >
-        {row.title}
-      </Link>
+      <div className="flex items-start justify-between gap-2">
+        <Link
+          href={`/nerd/${row.statId}`}
+          className="text-[13px] font-medium text-foreground underline-offset-2 hover:underline"
+        >
+          {row.title}
+        </Link>
+        <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted">
+          {formatTeamRank(row)}
+        </span>
+      </div>
       <p className="mt-0.5 line-clamp-2 text-[10px] text-subtle">{row.subtitle}</p>
       <dl className="mt-2 grid grid-cols-4 gap-2 text-center">
         <div>
@@ -86,8 +98,8 @@ export function PlayerNerdContributionPanel({
       <div className="border-b border-border px-3 py-3 sm:px-4">
         <h3 className="text-sm font-medium text-foreground">Nerd standings contribution</h3>
         <p className="mt-1 text-[11px] text-muted">
-          How this player relates to {card?.teamAbbrev ?? "team"} nerd stats — values, share of
-          team actions, and counts.
+          How this player relates to {card?.teamAbbrev ?? "team"} nerd stats — values, team rank,
+          share of team actions, and counts.
         </p>
         <div className="-mx-3 mt-3 flex gap-1.5 overflow-x-auto px-3 pb-0.5 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
           <button
@@ -151,6 +163,7 @@ export function PlayerNerdContributionPanel({
                   <th className="px-3 py-2 font-medium">Stat</th>
                   <th className="px-2 py-2 font-medium">Player</th>
                   <th className="px-2 py-2 font-medium">Team</th>
+                  <th className="px-2 py-2 font-medium">Rank</th>
                   <th className="px-2 py-2 font-medium">Share</th>
                   <th className="px-3 py-2 font-medium">Actions</th>
                 </tr>
@@ -172,6 +185,9 @@ export function PlayerNerdContributionPanel({
                     </td>
                     <td className="px-2 py-2 font-mono tabular-nums text-muted">
                       {row.teamDisplay}
+                    </td>
+                    <td className="px-2 py-2 font-mono tabular-nums text-muted">
+                      {formatTeamRank(row)}
                     </td>
                     <td className="px-2 py-2 font-mono tabular-nums text-muted">
                       {formatShare(row.shareOfTeam)}

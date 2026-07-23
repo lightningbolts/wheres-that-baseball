@@ -5,6 +5,7 @@ import { buildPlayerNerdCard } from "@/lib/mlb/nerdStats/playerNerdBuild";
 import { mergePlayerSeasonCounters } from "@/lib/mlb/nerdStats/playerMirror";
 import type {
   PlayerNerdCard,
+  PlayerNerdCounters,
   PlayerNerdIndex,
   PlayerNerdIndexEntry,
   SeasonNerdCounters,
@@ -68,13 +69,23 @@ export function writePlayerNerdStore(
 
   const indexEntries: PlayerNerdIndexEntry[] = [];
   const generatedAt = new Date().toISOString();
+  const playersByTeam = new Map<number, PlayerNerdCounters[]>();
+
+  for (const player of Object.values(players)) {
+    if (!player?.playerId) continue;
+    if (player.plateAppearances === 0 && player.pitchesThrown === 0) continue;
+    const list = playersByTeam.get(player.teamId) ?? [];
+    list.push(player);
+    playersByTeam.set(player.teamId, list);
+  }
 
   for (const player of Object.values(players)) {
     if (!player?.playerId) continue;
     if (player.plateAppearances === 0 && player.pitchesThrown === 0) continue;
 
     const team = teamCounters[String(player.teamId)] ?? null;
-    const card = buildPlayerNerdCard(season, player, team);
+    const teammates = playersByTeam.get(player.teamId) ?? [player];
+    const card = buildPlayerNerdCard(season, player, team, teammates);
     card.generatedAt = generatedAt;
     writeJson(playerPath(season, player.playerId), card);
 

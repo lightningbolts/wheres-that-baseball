@@ -25,6 +25,24 @@ export async function GET(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Invalid season" }, { status: 400 });
   }
 
+  const players = loadSeasonPlayerCounters(season);
+  const player = players[String(playerId)];
+
+  // Prefer live build from counters so team ranks stay current without a card rebuild.
+  if (player) {
+    const teams = loadSeasonCounters(season);
+    const team = teams[String(player.teamId)] ?? null;
+    const teammates = Object.values(players).filter(
+      (mate) =>
+        mate.teamId === player.teamId &&
+        (mate.plateAppearances > 0 || mate.pitchesThrown > 0),
+    );
+    const card = buildPlayerNerdCard(season, player, team, teammates);
+    return NextResponse.json(card, {
+      headers: { "Cache-Control": "public, max-age=60" },
+    });
+  }
+
   const cached = loadPlayerNerdCardFile(season, playerId);
   if (cached) {
     return NextResponse.json(cached, {
@@ -32,18 +50,5 @@ export async function GET(request: Request, context: RouteContext) {
     });
   }
 
-  // Fallback: build on the fly from player-counters.json if cards are missing.
-  const players = loadSeasonPlayerCounters(season);
-  const player = players[String(playerId)];
-  if (!player) {
-    return NextResponse.json({ error: "Player nerd card not found" }, { status: 404 });
-  }
-
-  const teams = loadSeasonCounters(season);
-  const team = teams[String(player.teamId)] ?? null;
-  const card = buildPlayerNerdCard(season, player, team);
-
-  return NextResponse.json(card, {
-    headers: { "Cache-Control": "public, max-age=60" },
-  });
+  return NextResponse.json({ error: "Player nerd card not found" }, { status: 404 });
 }

@@ -1,4 +1,4 @@
-import { NERD_STAT_DEFINITIONS } from "@/lib/mlb/nerdStats/statDefinitions";
+import { NERD_STAT_DEFINITIONS, type NerdStatDefinition } from "@/lib/mlb/nerdStats/statDefinitions";
 import {
   TEAM_ONLY_NERD_STAT_IDS,
   type PlayerNerdCard,
@@ -210,11 +210,51 @@ function resolveActions(
   return null;
 }
 
+/** Competition rank (1,2,2,4) among teammates with a finite value for this stat. */
+export function rankPlayerOnTeam(
+  playerId: number,
+  teammates: PlayerNerdCounters[],
+  def: NerdStatDefinition,
+): { teamRank: number | null; teamRankedCount: number | null } {
+  const scored = teammates
+    .map((mate) => ({
+      playerId: mate.playerId,
+      value: def.compute(mate),
+    }))
+    .filter(
+      (row): row is { playerId: number; value: number } =>
+        row.value != null && Number.isFinite(row.value),
+    );
+
+  if (scored.length === 0) {
+    return { teamRank: null, teamRankedCount: null };
+  }
+
+  scored.sort((a, b) => (def.sort === "asc" ? a.value - b.value : b.value - a.value));
+
+  let rank = 1;
+  for (let i = 0; i < scored.length; i += 1) {
+    if (i > 0 && scored[i]!.value !== scored[i - 1]!.value) {
+      rank = i + 1;
+    }
+    if (scored[i]!.playerId === playerId) {
+      return { teamRank: rank, teamRankedCount: scored.length };
+    }
+  }
+
+  return { teamRank: null, teamRankedCount: scored.length };
+}
+
 export function buildPlayerNerdContributions(
   player: PlayerNerdCounters,
   team: TeamNerdCounters | null,
+  teammates: PlayerNerdCounters[] = [],
 ): PlayerNerdStatContribution[] {
   const contributions: PlayerNerdStatContribution[] = [];
+  const roster =
+    teammates.length > 0
+      ? teammates
+      : [player];
 
   for (const def of NERD_STAT_DEFINITIONS) {
     if (TEAM_ONLY_NERD_STAT_IDS.has(def.id)) continue;
@@ -241,6 +281,8 @@ export function buildPlayerNerdContributions(
       shareOfTeam = Math.min(1, playerActions / teamActions);
     }
 
+    const { teamRank, teamRankedCount } = rankPlayerOnTeam(player.playerId, roster, def);
+
     contributions.push({
       statId: def.id,
       title: def.title,
@@ -255,6 +297,8 @@ export function buildPlayerNerdContributions(
       shareOfTeam,
       playerActions,
       teamActions,
+      teamRank,
+      teamRankedCount,
     });
   }
 
@@ -262,6 +306,9 @@ export function buildPlayerNerdContributions(
     const shareA = a.shareOfTeam ?? -1;
     const shareB = b.shareOfTeam ?? -1;
     if (shareA !== shareB) return shareB - shareA;
+    const rankA = a.teamRank ?? Number.POSITIVE_INFINITY;
+    const rankB = b.teamRank ?? Number.POSITIVE_INFINITY;
+    if (rankA !== rankB) return rankA - rankB;
     return a.title.localeCompare(b.title);
   });
 
@@ -272,6 +319,7 @@ export function buildPlayerNerdCard(
   season: number,
   player: PlayerNerdCounters,
   team: TeamNerdCounters | null,
+  teammates: PlayerNerdCounters[] = [],
 ): PlayerNerdCard {
   return {
     season,
@@ -280,6 +328,6 @@ export function buildPlayerNerdCard(
     teamId: player.teamId,
     teamAbbrev: player.teamAbbrev,
     generatedAt: new Date().toISOString(),
-    contributions: buildPlayerNerdContributions(player, team),
+    contributions: buildPlayerNerdContributions(player, team, teammates),
   };
 }
