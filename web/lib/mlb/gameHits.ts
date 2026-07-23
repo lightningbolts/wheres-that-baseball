@@ -69,7 +69,8 @@ export interface GameHit {
   color: string;
   /** Terminal pitch GUID for Savant clip lookup. */
   playId?: string;
-  detail: PlayDetail;
+  /** Play detail — omitted from on-disk season JSON; loaded on demand via hitKey. */
+  detail?: PlayDetail;
 }
 
 export type SprayChartHit = Pick<GameHit, "atBatIndex" | "event" | "hit" | "color">;

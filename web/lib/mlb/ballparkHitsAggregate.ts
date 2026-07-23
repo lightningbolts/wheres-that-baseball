@@ -3,8 +3,6 @@ import { ballparkIndex, resolveBallparkVenueId } from "@/lib/mlb/ballparkPaths";
 import {
   computeGameHitStats,
   extractGameHits,
-  HIT_TYPE_COLORS,
-  type GameHitStats,
 } from "@/lib/mlb/gameHits";
 import type {
   BallparkHitsAggregate,
@@ -15,6 +13,14 @@ import type {
 } from "@/lib/mlb/ballparkHits";
 import { parseLiveFeed } from "@/lib/mlb/liveFeed";
 import type { MLBLiveFeedResponse } from "@/types/mlb-live";
+
+/** Cap spray previews on the ballparks index to keep summary.json mobile-friendly. */
+export const PREVIEW_HITS_PER_PARK = 80;
+
+function slimVenueHit(hit: VenueHit): VenueHit {
+  const { detail: _detail, ...rest } = hit;
+  return rest as VenueHit;
+}
 
 export interface GameHitsSourceRow {
   game_pk: number;
@@ -91,6 +97,14 @@ export function extractVenueHitsFromFeed(
   return extractGameHits(state.plays).map((hit) => toVenueHit(resolvedRow, hit));
 }
 
+export function selectPreviewHits(hits: VenueHit[], limit = PREVIEW_HITS_PER_PARK): SprayPreviewHit[] {
+  if (hits.length === 0 || limit <= 0) return [];
+  const sorted = [...hits].sort(
+    (a, b) => b.gameDate.localeCompare(a.gameDate) || b.atBatIndex - a.atBatIndex,
+  );
+  return sorted.slice(0, limit).map(toSprayPreview);
+}
+
 export function buildBallparkHitsAggregate(
   season: number,
   hitsByVenue: Map<number, VenueHit[]>,
@@ -108,7 +122,7 @@ export function buildBallparkHitsAggregate(
       stadiumSlug: park.stadiumSlug,
       stats: computeGameHitStats(hits),
       gameCount: gamesByVenue.get(park.venueId)?.size ?? 0,
-      previewHits: hits.map(toSprayPreview),
+      previewHits: selectPreviewHits(hits),
     };
   });
 
@@ -147,7 +161,8 @@ export function buildBallparkHitsDetail(
   return {
     season,
     park,
-    hits: sorted,
+    // Persist list rows without play detail — detail is loaded on demand via hitKey.
+    hits: sorted.map(slimVenueHit),
     stats: computeGameHitStats(sorted),
     gameCount: new Set(sorted.map((hit) => hit.gamePk)).size,
     generatedAt: new Date().toISOString(),
