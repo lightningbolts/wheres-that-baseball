@@ -160,7 +160,7 @@ interface PlayerDetailViewProps {
 
 export function PlayerDetailView({ playerId }: PlayerDetailViewProps) {
   const { data, isLoading, error, fetchHitDetail } = usePlayerBip(playerId, CURRENT_SEASON);
-  const [bipFamily, setBipFamily] = useState<BipFamilyFilter>("all");
+  const [bipFamily, setBipFamily] = useState<BipFamilyFilter>("hit");
   const [hitTypeFilter, setHitTypeFilter] = useState<HitType | "all">("all");
   const [parkFilter, setParkFilter] = useState<number | "all">("all");
   const [selectedHitKey, setSelectedHitKey] = useState<string | null>(null);
