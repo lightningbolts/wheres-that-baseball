@@ -18,6 +18,7 @@ import {
   filterBipByHitType,
   HIT_TYPE_COLORS,
   HIT_TYPE_LABELS,
+  officialHitCount,
   type BipFamilyFilter,
   type HitType,
   type SprayChartHit,
@@ -394,6 +395,10 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
     return filtered;
   }, [bipFamily, data, hitTypeFilter]);
 
+  const hitCount = data ? officialHitCount(data.stats) : 0;
+  // Season-wide matching count for the active filters (chartHits is unpaginated).
+  const matchingTotal = chartHits.length;
+
   const selectedHitMeta = useMemo(() => {
     if (!selectedHitKey || !data) return null;
 
@@ -485,8 +490,14 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
                 <h1 className="text-xl font-medium text-foreground">{data.park.venueName}</h1>
                 <p className="mt-1 text-sm text-muted">
                   {data.park.teamName} · {CURRENT_SEASON} season · {data.gameCount} game
-                  {data.gameCount === 1 ? "" : "s"} · {data.stats.total} hit
-                  {data.stats.total === 1 ? "" : "s"}
+                  {data.gameCount === 1 ? "" : "s"} · {hitCount.toLocaleString()} hit
+                  {hitCount === 1 ? "" : "s"}
+                  {data.stats.total > hitCount ? (
+                    <span className="text-subtle">
+                      {" "}
+                      · {data.stats.total.toLocaleString()} BIP
+                    </span>
+                  ) : null}
                 </p>
               </div>
             </div>
@@ -548,9 +559,26 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
                 )}
                 <p className="pb-1.5 text-[11px] text-subtle">
                   Showing{" "}
-                  <span className="font-mono tabular-nums text-muted">{listHits.length}</span>
-                  {" / "}
-                  <span className="font-mono tabular-nums text-muted">{data.stats.total}</span>
+                  <span className="font-mono tabular-nums text-muted">
+                    {matchingTotal.toLocaleString()}
+                  </span>
+                  {bipFamily === "hit" && hitTypeFilter === "all" ? null : (
+                    <>
+                      {" / "}
+                      <span className="font-mono tabular-nums text-muted">
+                        {(bipFamily === "all" ? data.stats.total : hitCount).toLocaleString()}
+                      </span>
+                    </>
+                  )}
+                  <span className="ml-1">
+                    {bipFamily === "hit"
+                      ? hitTypeFilter === "all"
+                        ? "hits"
+                        : "matching"
+                      : bipFamily === "all"
+                        ? "BIP"
+                        : "matching"}
+                  </span>
                 </p>
               </div>
 
@@ -652,11 +680,16 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
                 <aside className="flex max-h-[min(50vh,28rem)] flex-col overflow-hidden border-t border-border bg-surface lg:absolute lg:inset-y-0 lg:right-0 lg:max-h-none lg:w-[min(320px,34%)] lg:border-l lg:border-t-0">
                   <div className="shrink-0 border-b border-border px-3 py-2">
                     <h3 className="text-xs font-medium text-muted">
-                      Balls in play{" "}
+                      {bipFamily === "hit"
+                        ? "Hits"
+                        : bipFamily === "all"
+                          ? "Balls in play"
+                          : BIP_FAMILY_FILTER_OPTIONS.find((o) => o.value === bipFamily)?.label ??
+                            "Results"}{" "}
                       <span className="font-mono tabular-nums text-subtle">
-                        ({listHits.length}
-                        {(data.hitsTotal ?? data.stats.total) > listHits.length
-                          ? ` of ${data.hitsTotal ?? data.stats.total}`
+                        ({listHits.length.toLocaleString()}
+                        {matchingTotal > listHits.length
+                          ? ` of ${matchingTotal.toLocaleString()}`
                           : ""}
                         )
                       </span>

@@ -224,3 +224,8 @@ export function computeGameHitStats(
     maxDistance: distances.length > 0 ? Math.max(...distances) : null,
   };
 }
+
+/** Official hits (1B/2B/3B/HR) — not total balls in play. */
+export function officialHitCount(stats: Pick<GameHitStats, "singles" | "doubles" | "triples" | "homeRuns">): number {
+  return stats.singles + stats.doubles + stats.triples + stats.homeRuns;
+}

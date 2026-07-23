@@ -3,11 +3,13 @@
 import Link from "next/link";
 
 import { AppNav } from "@/components/features/AppNav";
+import { GameHitsSprayChart } from "@/components/features/GameHitsSprayChart";
 import { TeamLogo } from "@/components/ui/TeamLogo";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useBallparkHitsSummary } from "@/hooks/useBallparkHits";
 import { useRestoreScrollWhenReady } from "@/hooks/useRestoreScrollWhenReady";
-import { HIT_TYPE_LABELS } from "@/lib/mlb/gameHits";
+import { HIT_TYPE_LABELS, officialHitCount, type GameHit } from "@/lib/mlb/gameHits";
+import type { SprayPreviewHit } from "@/lib/mlb/ballparkHits";
 import { cn } from "@/lib/utils";
 
 const CURRENT_SEASON = new Date().getFullYear();
@@ -56,60 +58,71 @@ export function BallparkHitsBrowser() {
           </div>
         )}
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {isLoading
             ? Array.from({ length: 9 }).map((_, index) => (
                 <div key={index} className="rounded-xl border border-border bg-surface p-4">
-                  <div className="flex items-start gap-3">
-                    <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
-                    <div className="min-w-0 flex-1 space-y-2">
-                      <Skeleton className="h-4 w-40" />
-                      <Skeleton className="h-3 w-28" />
-                    </div>
-                    <Skeleton className="h-7 w-12" />
-                  </div>
+                  <Skeleton className="h-5 w-32" />
+                  <Skeleton className="mt-3 aspect-square w-full" />
+                  <Skeleton className="mt-3 h-4 w-24" />
                 </div>
               ))
-            : data?.parks.map((park) => (
-                <Link
-                  key={park.venueId}
-                  href={`/ballparks/${park.venueId}`}
-                  className={cn(
-                    "group flex flex-col rounded-xl border border-border bg-surface p-4 transition-colors",
-                    "hover:border-border-strong hover:bg-surface-elevated",
-                  )}
-                >
-                  <div className="flex items-start gap-3">
-                    <TeamLogo teamId={park.teamId} size={36} />
-                    <div className="min-w-0 flex-1">
-                      <h2 className="truncate text-sm font-medium text-foreground group-hover:text-foreground">
-                        {park.venueName}
-                      </h2>
-                      <p className="text-xs text-muted">
-                        {park.teamName} · {park.gameCount} game{park.gameCount === 1 ? "" : "s"}
-                      </p>
+            : data?.parks.map((park) => {
+                const hitCount = officialHitCount(park.stats);
+                return (
+                  <Link
+                    key={park.venueId}
+                    href={`/ballparks/${park.venueId}`}
+                    className={cn(
+                      "group flex flex-col rounded-xl border border-border bg-surface p-4 transition-colors",
+                      "hover:border-border-strong hover:bg-surface-elevated",
+                    )}
+                  >
+                    <div className="mb-3 flex items-start gap-3">
+                      <TeamLogo teamId={park.teamId} size={36} />
+                      <div className="min-w-0 flex-1">
+                        <h2 className="truncate text-sm font-medium text-foreground group-hover:text-foreground">
+                          {park.venueName}
+                        </h2>
+                        <p className="text-xs text-muted">
+                          {park.teamName} · {park.gameCount} game
+                          {park.gameCount === 1 ? "" : "s"}
+                        </p>
+                      </div>
+                      <span className="font-mono text-lg font-semibold tabular-nums text-foreground">
+                        {hitCount}
+                      </span>
                     </div>
-                    <span className="font-mono text-lg font-semibold tabular-nums text-foreground">
-                      {park.stats.total}
-                    </span>
-                  </div>
 
-                  <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted">
-                    <span className="font-mono tabular-nums">
-                      {HIT_TYPE_LABELS.Single} {park.stats.singles}
-                    </span>
-                    <span className="font-mono tabular-nums">
-                      {HIT_TYPE_LABELS.Double} {park.stats.doubles}
-                    </span>
-                    <span className="font-mono tabular-nums">
-                      {HIT_TYPE_LABELS.Triple} {park.stats.triples}
-                    </span>
-                    <span className="font-mono tabular-nums">
-                      {HIT_TYPE_LABELS["Home Run"]} {park.stats.homeRuns}
-                    </span>
-                  </div>
-                </Link>
-              ))}
+                    <div className="pointer-events-none">
+                      <GameHitsSprayChart
+                        hits={park.previewHits as unknown as GameHit[]}
+                        venueId={park.venueId}
+                        getHitKey={(hit) => (hit as unknown as SprayPreviewHit).hitKey}
+                        showLines={false}
+                        ballRadius={hitCount > 500 ? 0.45 : hitCount > 300 ? 0.55 : 0.7}
+                        hideVenueLabel
+                        className="opacity-90"
+                      />
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted">
+                      <span className="font-mono tabular-nums">
+                        {HIT_TYPE_LABELS.Single} {park.stats.singles}
+                      </span>
+                      <span className="font-mono tabular-nums">
+                        {HIT_TYPE_LABELS.Double} {park.stats.doubles}
+                      </span>
+                      <span className="font-mono tabular-nums">
+                        {HIT_TYPE_LABELS.Triple} {park.stats.triples}
+                      </span>
+                      <span className="font-mono tabular-nums">
+                        {HIT_TYPE_LABELS["Home Run"]} {park.stats.homeRuns}
+                      </span>
+                    </div>
+                  </Link>
+                );
+              })}
         </div>
       </div>
     </div>

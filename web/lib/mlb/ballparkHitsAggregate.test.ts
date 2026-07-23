@@ -41,21 +41,35 @@ function makeHit(
 }
 
 describe("selectPreviewHits", () => {
-  it("returns empty when PREVIEW_HITS_PER_PARK is 0 (count-only index)", () => {
-    const hits = Array.from({ length: 40 }, (_, i) =>
-      makeHit({
-        hitKey: `100-${i}`,
-        gameDate: "2026-07-01",
-        atBatIndex: i,
-        gamePk: 100,
-      }),
-    );
+  it("caps to PREVIEW_HITS_PER_PARK, prefers recent dates, and uses hits only", () => {
+    const hits = [
+      ...Array.from({ length: 40 }, (_, i) =>
+        makeHit({
+          hitKey: `100-out-${i}`,
+          gameDate: "2026-07-20",
+          atBatIndex: i,
+          gamePk: 100,
+          event: "Groundout",
+          bipKind: "out",
+        }),
+      ),
+      ...Array.from({ length: PREVIEW_HITS_PER_PARK + 10 }, (_, i) =>
+        makeHit({
+          hitKey: `100-hit-${i}`,
+          gameDate: i < 10 ? "2026-04-01" : "2026-07-01",
+          atBatIndex: 100 + i,
+          gamePk: 100,
+        }),
+      ),
+    ];
 
-    expect(PREVIEW_HITS_PER_PARK).toBe(0);
-    expect(selectPreviewHits(hits)).toEqual([]);
+    const preview = selectPreviewHits(hits);
+    expect(preview).toHaveLength(PREVIEW_HITS_PER_PARK);
+    expect(preview.every((hit) => hit.bipKind === "hit")).toBe(true);
+    expect(preview.every((hit) => hit.gameDate === "2026-07-01")).toBe(true);
   });
 
-  it("caps and prefers recent dates when a positive limit is passed", () => {
+  it("respects an explicit positive limit", () => {
     const hits = Array.from({ length: 50 }, (_, i) =>
       makeHit({
         hitKey: `100-${i}`,

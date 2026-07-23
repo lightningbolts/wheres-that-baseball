@@ -45,7 +45,13 @@ export function useBallparkHitsSummary(season: number): UseBallparkHitsSummaryRe
 
   const refetch = useCallback(async () => {
     const requestId = ++requestIdRef.current;
-    setIsLoading(true);
+    const fromCache = getCachedBallparkHitsSummary(season);
+    if (fromCache) {
+      setData(fromCache);
+      setIsLoading(false);
+    } else {
+      setIsLoading(true);
+    }
     setError(null);
 
     try {
@@ -66,7 +72,7 @@ export function useBallparkHitsSummary(season: number): UseBallparkHitsSummaryRe
     } catch (fetchError) {
       if (requestId !== requestIdRef.current) return;
       setError(fetchError instanceof Error ? fetchError.message : "Failed to load ballpark hits");
-      setData(null);
+      if (!fromCache) setData(null);
     } finally {
       if (requestId === requestIdRef.current) {
         setIsLoading(false);
@@ -75,17 +81,8 @@ export function useBallparkHitsSummary(season: number): UseBallparkHitsSummaryRe
   }, [season]);
 
   useEffect(() => {
-    const cached = getCachedBallparkHitsSummary(season);
-    if (cached) {
-      setData(cached);
-      setIsLoading(false);
-      setError(null);
-      return;
-    }
-    setData(null);
-    setIsLoading(true);
     void refetch();
-  }, [refetch, season]);
+  }, [refetch]);
 
   return { data, isLoading, error, refetch };
 }

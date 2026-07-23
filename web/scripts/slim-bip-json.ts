@@ -2,7 +2,7 @@
  * Slim season ballpark-hits + player-bip JSON for Vercel function size / mobile payloads.
  *
  * - Strips embedded play `detail` from venue and player hit lists
- * - Regenerates count-only summary.json (empty previewHits)
+ * - Regenerates hit-only summary.json previewHits
  * - Rebuilds player-bip from slimmed venues
  *
  * Usage:
@@ -79,7 +79,7 @@ function main() {
   rebuildBallparkHitsSummary(season);
   const summaryPath = join(WEB_ROOT, "data", "ballpark-hits", String(season), "summary.json");
   const summaryBytes = existsSync(summaryPath) ? Buffer.byteLength(readFileSync(summaryPath)) : 0;
-  console.log(`Summary: ${(summaryBytes / 1e6).toFixed(2)}MB (count-only, no previewHits)`);
+  console.log(`Summary: ${(summaryBytes / 1e6).toFixed(2)}MB (hit-only previewHits)`);
 
   const playerBip = rebuildPlayerBipStore(season);
   console.log(

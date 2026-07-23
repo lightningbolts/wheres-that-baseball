@@ -3,6 +3,7 @@ import { ballparkIndex, resolveBallparkVenueId } from "@/lib/mlb/ballparkPaths";
 import {
   computeGameHitStats,
   extractGameHits,
+  classifyBipKind,
 } from "@/lib/mlb/gameHits";
 import type {
   BallparkHitsAggregate,
@@ -15,11 +16,7 @@ import { parseLiveFeed } from "@/lib/mlb/liveFeed";
 import type { MLBLiveFeedResponse } from "@/types/mlb-live";
 
 /** Cap spray previews on the ballparks index to keep summary.json mobile-friendly. */
-/**
- * Index cards show hit counts only (no spray dots). Keep previewHits empty in
- * summary.json so /ballparks stays tiny for mobile clients and Vercel deploys.
- */
-export const PREVIEW_HITS_PER_PARK = 0;
+export const PREVIEW_HITS_PER_PARK = 80;
 
 function slimVenueHit(hit: VenueHit): VenueHit {
   const { detail: _detail, ...rest } = hit;
@@ -103,7 +100,13 @@ export function extractVenueHitsFromFeed(
 
 export function selectPreviewHits(hits: VenueHit[], limit = PREVIEW_HITS_PER_PARK): SprayPreviewHit[] {
   if (hits.length === 0 || limit <= 0) return [];
-  const sorted = [...hits].sort(
+  // Index cards default to hit dots (not every BIP / out), matching the detail
+  // page's default "Hits" filter.
+  const officialHits = hits.filter(
+    (hit) => (hit.bipKind ?? classifyBipKind(hit.event)) === "hit",
+  );
+  const source = officialHits.length > 0 ? officialHits : hits;
+  const sorted = [...source].sort(
     (a, b) => b.gameDate.localeCompare(a.gameDate) || b.atBatIndex - a.atBatIndex,
   );
   return sorted.slice(0, limit).map(toSprayPreview);
@@ -117,6 +120,7 @@ export function buildBallparkHitsAggregate(
 ): BallparkHitsAggregate {
   const parks: BallparkHitsSummary[] = Object.values(ballparkIndex.parks).map((park) => {
     const hits = hitsByVenue.get(park.venueId) ?? [];
+    const stats = computeGameHitStats(hits);
     return {
       venueId: park.venueId,
       venueName: park.venueName,
@@ -124,7 +128,7 @@ export function buildBallparkHitsAggregate(
       teamAbbrev: park.teamAbbrev,
       teamName: park.teamName,
       stadiumSlug: park.stadiumSlug,
-      stats: computeGameHitStats(hits),
+      stats,
       gameCount: gamesByVenue.get(park.venueId)?.size ?? 0,
       previewHits: selectPreviewHits(hits),
     };
@@ -132,7 +136,11 @@ export function buildBallparkHitsAggregate(
 
   parks.sort((a, b) => a.venueName.localeCompare(b.venueName));
 
-  const indexedHitCount = parks.reduce((sum, park) => sum + park.stats.total, 0);
+  const indexedHitCount = parks.reduce(
+    (sum, park) =>
+      sum + park.stats.singles + park.stats.doubles + park.stats.triples + park.stats.homeRuns,
+    0,
+  );
 
   return {
     season,
@@ -140,7 +148,10 @@ export function buildBallparkHitsAggregate(
     generatedAt: new Date().toISOString(),
     indexedHitCount,
     indexedGameCount: options?.indexedGameCount ?? 0,
-    ballparksWithHits: parks.filter((park) => park.stats.total > 0).length,
+    ballparksWithHits: parks.filter(
+      (park) =>
+        park.stats.singles + park.stats.doubles + park.stats.triples + park.stats.homeRuns > 0,
+    ).length,
     backfillPending: options?.backfillPending ?? false,
   };
 }
