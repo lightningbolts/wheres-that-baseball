@@ -72,8 +72,13 @@ function PlayerSearchBox({
                     {player.name}
                   </span>
                   <span className="text-[11px] text-muted">
-                    {player.teamAbbrev ?? "—"} · {player.bipCount} BIP · {player.hitCount} hits ·{" "}
-                    {player.venueCount} parks
+                    <span className="sm:hidden">
+                      {player.teamAbbrev ?? "—"} · {player.bipCount} BIP · {player.venueCount} parks
+                    </span>
+                    <span className="hidden sm:inline">
+                      {player.teamAbbrev ?? "—"} · {player.bipCount} BIP · {player.hitCount} hits ·{" "}
+                      {player.venueCount} parks
+                    </span>
                   </span>
                 </span>
               </button>
@@ -92,14 +97,14 @@ export function PlayersBrowser() {
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <AppNav />
-      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-8">
-        <h1 className="text-2xl font-medium text-foreground">Players</h1>
-        <p className="mt-2 max-w-2xl text-sm text-muted">
+      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-3 py-6 sm:px-4 sm:py-8">
+        <h1 className="text-xl font-medium text-foreground sm:text-2xl">Players</h1>
+        <p className="mt-2 max-w-2xl text-[13px] text-muted sm:text-sm">
           Search for a batter to see balls in play across every park — spray charts, 3D
-          trajectories, play video, and how they contribute to their team&apos;s nerd standings.
+          trajectories, play video, and nerd standings contribution.
         </p>
 
-        <div className="mt-6">
+        <div className="mt-5 sm:mt-6">
           <PlayerSearchBox
             query={query}
             onQueryChange={setQuery}
@@ -112,7 +117,7 @@ export function PlayersBrowser() {
           />
         </div>
 
-        <div className="mt-10 rounded-xl border border-border bg-surface px-6 py-12 text-center">
+        <div className="mt-8 rounded-xl border border-border bg-surface px-4 py-10 text-center sm:mt-10 sm:px-6 sm:py-12">
           <p className="text-sm text-secondary">Start typing a player name to explore season BIP.</p>
           <p className="mt-2 text-xs text-muted">
             Suggestions include season balls in play and parks visited.{" "}

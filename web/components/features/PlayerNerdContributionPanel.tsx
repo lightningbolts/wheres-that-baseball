@@ -8,12 +8,61 @@ import { usePlayerNerd } from "@/hooks/usePlayerBip";
 import {
   NERD_STAT_CATEGORIES,
   type NerdStatCategory,
+  type PlayerNerdStatContribution,
 } from "@/lib/mlb/nerdStats/types";
 import { cn } from "@/lib/utils";
 
 function formatShare(share: number | null): string {
   if (share == null || !Number.isFinite(share)) return "—";
   return `${(share * 100).toFixed(1)}%`;
+}
+
+function formatActions(row: PlayerNerdStatContribution): string {
+  if (row.playerActions != null && row.teamActions != null) {
+    return `${row.playerActions}/${row.teamActions}`;
+  }
+  if (row.playerActions != null) return String(row.playerActions);
+  return "—";
+}
+
+function NerdStatCard({ row }: { row: PlayerNerdStatContribution }) {
+  return (
+    <li className="border-b border-border/60 px-3 py-3 last:border-b-0">
+      <Link
+        href={`/nerd/${row.statId}`}
+        className="text-[13px] font-medium text-foreground underline-offset-2 hover:underline"
+      >
+        {row.title}
+      </Link>
+      <p className="mt-0.5 line-clamp-2 text-[10px] text-subtle">{row.subtitle}</p>
+      <dl className="mt-2 grid grid-cols-4 gap-2 text-center">
+        <div>
+          <dt className="text-[9px] uppercase tracking-wide text-muted">Player</dt>
+          <dd className="mt-0.5 font-mono text-[12px] tabular-nums text-foreground">
+            {row.playerDisplay}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-[9px] uppercase tracking-wide text-muted">Team</dt>
+          <dd className="mt-0.5 font-mono text-[12px] tabular-nums text-muted">
+            {row.teamDisplay}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-[9px] uppercase tracking-wide text-muted">Share</dt>
+          <dd className="mt-0.5 font-mono text-[12px] tabular-nums text-muted">
+            {formatShare(row.shareOfTeam)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-[9px] uppercase tracking-wide text-muted">Acts</dt>
+          <dd className="mt-0.5 font-mono text-[12px] tabular-nums text-subtle">
+            {formatActions(row)}
+          </dd>
+        </div>
+      </dl>
+    </li>
+  );
 }
 
 export function PlayerNerdContributionPanel({
@@ -40,12 +89,12 @@ export function PlayerNerdContributionPanel({
           How this player relates to {card?.teamAbbrev ?? "team"} nerd stats — values, share of
           team actions, and counts.
         </p>
-        <div className="mt-3 flex flex-wrap gap-1.5">
+        <div className="-mx-3 mt-3 flex gap-1.5 overflow-x-auto px-3 pb-0.5 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
           <button
             type="button"
             onClick={() => setCategory("all")}
             className={cn(
-              "rounded-md border px-2 py-1 text-[11px]",
+              "shrink-0 rounded-md border px-2.5 py-1.5 text-[11px] sm:py-1",
               category === "all"
                 ? "border-border-strong bg-panel text-foreground"
                 : "border-border text-muted hover:bg-hover",
@@ -59,7 +108,7 @@ export function PlayerNerdContributionPanel({
               type="button"
               onClick={() => setCategory(cat.id)}
               className={cn(
-                "rounded-md border px-2 py-1 text-[11px]",
+                "shrink-0 rounded-md border px-2.5 py-1.5 text-[11px] sm:py-1",
                 category === cat.id
                   ? "border-border-strong bg-panel text-foreground"
                   : "border-border text-muted hover:bg-hover",
@@ -86,48 +135,56 @@ export function PlayerNerdContributionPanel({
       ) : rows.length === 0 ? (
         <p className="px-4 py-6 text-center text-xs text-muted">No applicable nerd stats yet.</p>
       ) : (
-        <div className="max-h-[28rem] overflow-y-auto">
-          <table className="w-full text-left text-[12px]">
-            <thead className="sticky top-0 bg-surface text-[10px] uppercase tracking-wide text-muted">
-              <tr className="border-b border-border">
-                <th className="px-3 py-2 font-medium">Stat</th>
-                <th className="px-2 py-2 font-medium">Player</th>
-                <th className="px-2 py-2 font-medium">Team</th>
-                <th className="px-2 py-2 font-medium">Share</th>
-                <th className="px-3 py-2 font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.statId} className="border-b border-border/60 hover:bg-hover/60">
-                  <td className="px-3 py-2">
-                    <Link
-                      href={`/nerd/${row.statId}`}
-                      className="font-medium text-foreground underline-offset-2 hover:underline"
-                    >
-                      {row.title}
-                    </Link>
-                    <p className="text-[10px] text-subtle">{row.subtitle}</p>
-                  </td>
-                  <td className="px-2 py-2 font-mono tabular-nums text-foreground">
-                    {row.playerDisplay}
-                  </td>
-                  <td className="px-2 py-2 font-mono tabular-nums text-muted">{row.teamDisplay}</td>
-                  <td className="px-2 py-2 font-mono tabular-nums text-muted">
-                    {formatShare(row.shareOfTeam)}
-                  </td>
-                  <td className="px-3 py-2 font-mono tabular-nums text-subtle">
-                    {row.playerActions != null && row.teamActions != null
-                      ? `${row.playerActions}/${row.teamActions}`
-                      : row.playerActions != null
-                        ? String(row.playerActions)
-                        : "—"}
-                  </td>
+        <>
+          {/* Mobile: stacked cards */}
+          <ul className="max-h-[28rem] overflow-y-auto overscroll-y-contain md:hidden">
+            {rows.map((row) => (
+              <NerdStatCard key={row.statId} row={row} />
+            ))}
+          </ul>
+
+          {/* Desktop: table */}
+          <div className="hidden max-h-[28rem] overflow-y-auto md:block">
+            <table className="w-full text-left text-[12px]">
+              <thead className="sticky top-0 bg-surface text-[10px] uppercase tracking-wide text-muted">
+                <tr className="border-b border-border">
+                  <th className="px-3 py-2 font-medium">Stat</th>
+                  <th className="px-2 py-2 font-medium">Player</th>
+                  <th className="px-2 py-2 font-medium">Team</th>
+                  <th className="px-2 py-2 font-medium">Share</th>
+                  <th className="px-3 py-2 font-medium">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.statId} className="border-b border-border/60 hover:bg-hover/60">
+                    <td className="px-3 py-2">
+                      <Link
+                        href={`/nerd/${row.statId}`}
+                        className="font-medium text-foreground underline-offset-2 hover:underline"
+                      >
+                        {row.title}
+                      </Link>
+                      <p className="text-[10px] text-subtle">{row.subtitle}</p>
+                    </td>
+                    <td className="px-2 py-2 font-mono tabular-nums text-foreground">
+                      {row.playerDisplay}
+                    </td>
+                    <td className="px-2 py-2 font-mono tabular-nums text-muted">
+                      {row.teamDisplay}
+                    </td>
+                    <td className="px-2 py-2 font-mono tabular-nums text-muted">
+                      {formatShare(row.shareOfTeam)}
+                    </td>
+                    <td className="px-3 py-2 font-mono tabular-nums text-subtle">
+                      {formatActions(row)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </section>
   );

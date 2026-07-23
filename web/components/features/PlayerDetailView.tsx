@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AppNav } from "@/components/features/AppNav";
 import { GameHitsSprayChart } from "@/components/features/GameHitsSprayChart";
@@ -33,7 +33,7 @@ const GameHitsTrajectory3D = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex h-[220px] items-center justify-center rounded border border-border bg-field-chart-canvas text-xs text-subtle">
+      <div className="flex h-[200px] items-center justify-center rounded border border-border bg-field-chart-canvas text-xs text-subtle sm:h-[220px]">
         Loading trajectories…
       </div>
     ),
@@ -46,6 +46,92 @@ const HIT_TYPES: HitType[] = ["Single", "Double", "Triple", "Home Run"];
 function fmtNum(value: number | null, digits = 1, suffix = ""): string {
   if (value == null || Number.isNaN(value)) return "—";
   return `${value.toFixed(digits)}${suffix}`;
+}
+
+function LazyParkTrajectory3D({
+  hits,
+  venueId,
+  getHitKey,
+  selectedHitKey,
+  onSelectHit,
+}: {
+  hits: SprayPreviewHit[];
+  venueId: number;
+  getHitKey: (hit: { hitKey?: string; atBatIndex: number }) => string;
+  selectedHitKey: string | null;
+  onSelectHit: (hit: SprayChartHit & { hitKey?: string }) => void;
+}) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [inView, setInView] = useState(false);
+
+  useEffect(() => {
+    const node = rootRef.current;
+    if (!node) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          setInView(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "120px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={rootRef} className="border-t border-border bg-panel p-3 sm:p-4 lg:border-l lg:border-t-0">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="text-[10px] font-medium uppercase tracking-wide text-muted">
+          3D trajectories
+        </p>
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="rounded-md border border-border px-2 py-1 text-[11px] text-secondary hover:bg-hover lg:hidden"
+        >
+          {expanded ? "Hide 3D" : "Show 3D"}
+        </button>
+      </div>
+
+      {/* Desktop: load when near viewport. Mobile: only after explicit expand. */}
+      <div className="hidden lg:block">
+        {inView ? (
+          <GameHitsTrajectory3D
+            hits={hits}
+            venueId={venueId}
+            getHitKey={getHitKey}
+            selectedHitKey={selectedHitKey}
+            onSelectHit={onSelectHit}
+            className="mx-auto w-full max-w-3xl"
+          />
+        ) : (
+          <div className="flex h-[220px] items-center justify-center rounded border border-border bg-field-chart-canvas text-xs text-subtle">
+            Scroll to load 3D…
+          </div>
+        )}
+      </div>
+
+      <div className="lg:hidden">
+        {expanded ? (
+          <GameHitsTrajectory3D
+            hits={hits}
+            venueId={venueId}
+            getHitKey={getHitKey}
+            selectedHitKey={selectedHitKey}
+            onSelectHit={onSelectHit}
+            className="mx-auto w-full"
+          />
+        ) : (
+          <p className="rounded border border-border bg-field-chart-canvas px-3 py-6 text-center text-[11px] text-subtle">
+            Tap Show 3D to load trajectories for this park.
+          </p>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function ParkBipSection({
@@ -83,10 +169,10 @@ function ParkBipSection({
 
   return (
     <section className="overflow-hidden rounded-xl border border-border bg-surface">
-      <div className="flex items-center gap-2 border-b border-border px-3 py-2.5 sm:px-4">
-        <h3 className="text-sm font-medium text-foreground">{park.venueName}</h3>
-        <span className="font-mono text-[11px] text-muted">
-          {park.teamAbbrev} · {filtered.length} BIP
+      <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 border-b border-border px-3 py-2.5 sm:px-4">
+        <h3 className="min-w-0 text-sm font-medium text-foreground">{park.venueName}</h3>
+        <span className="shrink-0 font-mono text-[11px] text-muted">
+          {park.teamAbbrev} · {filtered.length}
         </span>
       </div>
       <div className="grid gap-0 lg:grid-cols-2">
@@ -102,31 +188,25 @@ function ParkBipSection({
             onSelectHit={onSelectHit}
             showLines={false}
             ballRadius={1.2}
-            className="mx-auto w-full max-w-[min(100%,420px)]"
+            className="mx-auto w-full max-w-[min(100%,360px)] sm:max-w-[min(100%,420px)]"
           />
         </div>
-        <div className="border-t border-border bg-panel p-3 sm:p-4 lg:border-l lg:border-t-0">
-          <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted">
-            3D trajectories
-          </p>
-          <GameHitsTrajectory3D
-            hits={filtered}
-            venueId={park.venueId}
-            getHitKey={getHitKey}
-            selectedHitKey={selectedHitKey}
-            onSelectHit={onSelectHit}
-            className="mx-auto w-full max-w-3xl"
-          />
-        </div>
+        <LazyParkTrajectory3D
+          hits={filtered}
+          venueId={park.venueId}
+          getHitKey={getHitKey}
+          selectedHitKey={selectedHitKey}
+          onSelectHit={onSelectHit}
+        />
       </div>
-      <ul className="max-h-56 overflow-y-auto border-t border-border">
+      <ul className="max-h-52 overflow-y-auto overscroll-y-contain border-t border-border sm:max-h-56">
         {listHits.map((hit) => (
           <li key={hit.hitKey}>
             <button
               type="button"
               onClick={() => onSelectHit(hit)}
               className={cn(
-                "flex w-full items-center justify-between gap-2 border-t border-border/50 px-3 py-2 text-left text-[12px] hover:bg-hover first:border-t-0",
+                "flex w-full flex-col gap-0.5 border-t border-border/50 px-3 py-2.5 text-left text-[12px] hover:bg-hover first:border-t-0 sm:flex-row sm:items-center sm:justify-between sm:gap-2 sm:py-2",
                 selectedHitKey === hit.hitKey && "bg-overlay",
               )}
             >
@@ -136,14 +216,14 @@ function ParkBipSection({
                   style={{ backgroundColor: hit.color }}
                   aria-hidden
                 />
-                <span className="font-mono text-[11px] text-muted">
+                <span className="shrink-0 font-mono text-[11px] text-muted">
                   {bipEventLabel(hit.event)}
                 </span>
                 <span className="truncate text-foreground">
                   {hit.awayAbbrev} {hit.awayScore}–{hit.homeScore} {hit.homeAbbrev}
                 </span>
               </span>
-              <span className="shrink-0 font-mono text-[10px] text-subtle">
+              <span className="pl-4 font-mono text-[10px] text-subtle sm:pl-0 sm:shrink-0">
                 {hit.gameDate} · {hit.inning} {formatInningHalf(hit.halfInning)}
               </span>
             </button>
@@ -217,7 +297,7 @@ export function PlayerDetailView({ playerId }: PlayerDetailViewProps) {
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <AppNav />
 
-      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 px-4 py-6">
+      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-3 px-3 py-4 sm:gap-4 sm:px-4 sm:py-6">
         <div>
           <Link
             href="/players"
@@ -233,11 +313,16 @@ export function PlayerDetailView({ playerId }: PlayerDetailViewProps) {
               <Skeleton className="mt-2 h-4 w-56" />
             </div>
           ) : (
-            <div className="mt-3 flex items-center gap-3">
-              {data.teamId ? <TeamLogo teamId={data.teamId} size={44} /> : null}
-              <div>
-                <h1 className="text-xl font-medium text-foreground">{data.name}</h1>
-                <p className="mt-1 text-sm text-muted">
+            <div className="mt-3 flex items-start gap-2.5 sm:items-center sm:gap-3">
+              {data.teamId ? <TeamLogo teamId={data.teamId} size={40} className="sm:hidden" /> : null}
+              {data.teamId ? (
+                <TeamLogo teamId={data.teamId} size={44} className="hidden sm:block" />
+              ) : null}
+              <div className="min-w-0">
+                <h1 className="truncate text-lg font-medium text-foreground sm:text-xl">
+                  {data.name}
+                </h1>
+                <p className="mt-0.5 text-[12px] text-muted sm:mt-1 sm:text-sm">
                   {data.teamAbbrev ?? "—"} · {CURRENT_SEASON} · {data.bipCount} BIP ·{" "}
                   {data.parks.length} parks
                 </p>
@@ -247,7 +332,7 @@ export function PlayerDetailView({ playerId }: PlayerDetailViewProps) {
         </div>
 
         {error ? (
-          <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+          <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-400 sm:px-4">
             {error}
           </div>
         ) : null}
@@ -259,71 +344,73 @@ export function PlayerDetailView({ playerId }: PlayerDetailViewProps) {
           </div>
         ) : data ? (
           <>
-            <div className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-surface px-3 py-3">
-              <label className="flex flex-col gap-1 text-[10px] text-muted">
-                Result
-                <select
-                  value={bipFamily}
-                  onChange={(e) => {
-                    setBipFamily(e.target.value as BipFamilyFilter);
-                    setSelectedHitKey(null);
-                  }}
-                  className="h-8 rounded-md border border-border bg-panel px-2 text-[12px] text-foreground"
-                >
-                  {BIP_FAMILY_FILTER_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {(bipFamily === "hit" || bipFamily === "all") && (
-                <label className="flex flex-col gap-1 text-[10px] text-muted">
-                  Hit type
+            <div className="rounded-xl border border-border bg-surface px-3 py-3">
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end sm:gap-3">
+                <label className="flex min-w-0 flex-col gap-1 text-[10px] text-muted">
+                  Result
                   <select
-                    value={hitTypeFilter}
+                    value={bipFamily}
                     onChange={(e) => {
-                      setHitTypeFilter(e.target.value as HitType | "all");
+                      setBipFamily(e.target.value as BipFamilyFilter);
                       setSelectedHitKey(null);
                     }}
-                    className="h-8 rounded-md border border-border bg-panel px-2 text-[12px] text-foreground"
+                    className="h-9 w-full rounded-md border border-border bg-panel px-2 text-[12px] text-foreground sm:h-8 sm:w-auto"
                   >
-                    <option value="all">All hits</option>
-                    {HIT_TYPES.map((type) => (
-                      <option key={type} value={type}>
-                        {HIT_TYPE_LABELS[type]}
+                    {BIP_FAMILY_FILTER_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
                       </option>
                     ))}
                   </select>
                 </label>
-              )}
-              <label className="flex flex-col gap-1 text-[10px] text-muted">
-                Park
-                <select
-                  value={parkFilter === "all" ? "all" : String(parkFilter)}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setParkFilter(v === "all" ? "all" : Number.parseInt(v, 10));
-                    setSelectedHitKey(null);
-                  }}
-                  className="h-8 max-w-[220px] rounded-md border border-border bg-panel px-2 text-[12px] text-foreground"
-                >
-                  <option value="all">All parks</option>
-                  {data.parks.map((park) => (
-                    <option key={park.venueId} value={park.venueId}>
-                      {park.venueName} ({park.stats.total})
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <p className="pb-1.5 text-[11px] text-subtle">
+                {(bipFamily === "hit" || bipFamily === "all") && (
+                  <label className="flex min-w-0 flex-col gap-1 text-[10px] text-muted">
+                    Hit type
+                    <select
+                      value={hitTypeFilter}
+                      onChange={(e) => {
+                        setHitTypeFilter(e.target.value as HitType | "all");
+                        setSelectedHitKey(null);
+                      }}
+                      className="h-9 w-full rounded-md border border-border bg-panel px-2 text-[12px] text-foreground sm:h-8 sm:w-auto"
+                    >
+                      <option value="all">All hits</option>
+                      {HIT_TYPES.map((type) => (
+                        <option key={type} value={type}>
+                          {HIT_TYPE_LABELS[type]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                <label className="col-span-2 flex min-w-0 flex-col gap-1 text-[10px] text-muted sm:col-span-1">
+                  Park
+                  <select
+                    value={parkFilter === "all" ? "all" : String(parkFilter)}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setParkFilter(v === "all" ? "all" : Number.parseInt(v, 10));
+                      setSelectedHitKey(null);
+                    }}
+                    className="h-9 w-full rounded-md border border-border bg-panel px-2 text-[12px] text-foreground sm:h-8 sm:max-w-[220px]"
+                  >
+                    <option value="all">All parks</option>
+                    {data.parks.map((park) => (
+                      <option key={park.venueId} value={park.venueId}>
+                        {park.venueName} ({park.stats.total})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <p className="mt-2.5 text-[11px] leading-relaxed text-subtle sm:mt-3">
                 Avg EV {fmtNum(data.stats.avgExitVelo)} mph · Hardest{" "}
                 {fmtNum(data.stats.maxExitVelo, 0)} mph · Longest{" "}
                 {fmtNum(data.stats.maxDistance, 0, " ft")}
               </p>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               {parks.map((park) => (
                 <ParkBipSection
                   key={park.venueId}
