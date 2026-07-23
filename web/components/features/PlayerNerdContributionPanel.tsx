@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Skeleton } from "@/components/ui/Skeleton";
+import { usePlayerNerd } from "@/hooks/usePlayerBip";
 import {
   NERD_STAT_CATEGORIES,
   type NerdStatCategory,
-  type PlayerNerdCard,
 } from "@/lib/mlb/nerdStats/types";
 import { cn } from "@/lib/utils";
 
@@ -23,39 +23,8 @@ export function PlayerNerdContributionPanel({
   playerId: number;
   season: number;
 }) {
-  const [card, setCard] = useState<PlayerNerdCard | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: card, isLoading, error } = usePlayerNerd(playerId, season);
   const [category, setCategory] = useState<NerdStatCategory | "all">("all");
-
-  useEffect(() => {
-    let cancelled = false;
-    setIsLoading(true);
-    setError(null);
-    void (async () => {
-      try {
-        const params = new URLSearchParams({ season: String(season) });
-        const response = await fetch(`/api/players/${playerId}/nerd?${params.toString()}`, {
-          cache: "no-store",
-        });
-        const body = (await response.json()) as PlayerNerdCard | { error?: string };
-        if (!response.ok) {
-          throw new Error("error" in body && body.error ? body.error : "Failed to load nerd card");
-        }
-        if (!cancelled) setCard(body as PlayerNerdCard);
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to load nerd card");
-          setCard(null);
-        }
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [playerId, season]);
 
   const rows = useMemo(() => {
     if (!card) return [];

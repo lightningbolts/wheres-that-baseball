@@ -7,23 +7,90 @@ import {
   type TeamNerdCounters,
 } from "@/lib/mlb/nerdStats/types";
 
-/** Prefer a clear count field when the computed value is a rate. */
-const SHARE_ACTION_FIELDS: Partial<Record<string, keyof TeamNerdCounters>> = {
-  gidp: "gidp",
+/**
+ * Map stat IDs → the counter field that represents "actions" for share-of-team.
+ * For rates, this is the numerator (e.g. barrels for barrel-rate).
+ */
+const SHARE_ACTION_FIELDS: Record<string, keyof TeamNerdCounters> = {
+  "walkoff-bloop-singles": "walkoffBloopSingles",
+  "double-plays-hit-into": "gidp",
   "rally-killer-gidp": "rallyKillerGidp",
-  "home-runs": "homeRuns",
-  barrels: "barrelBalls",
-  "hard-hit-balls": "hardHitBalls",
-  "sweet-spot-balls": "sweetSpotBalls",
+  "triple-plays-hit-into": "triplePlays",
+  "triple-play-rate": "triplePlays",
+  "hit-by-pitch": "hbp",
+  "golden-sombrero": "goldenSombreros",
+  "multi-hr-games-allowed": "multiHrGamesAllowed",
+  "immaculate-inning-victim": "immaculateInningVictims",
+  "post-lead-runs-allowed": "leadTakeNextInningRunsAllowed",
+  "pickoffs-suffered": "pickoffs",
+  "caught-stealing": "caughtStealing",
+  "moonshot-hrs": "moonshotHomeRuns",
+  "wall-scraper-hrs": "wallScraperHomeRuns",
+  "no-doubter-hr-rate": "noDoubterHomeRuns",
+  "barrel-rate": "barrelBalls",
+  "solid-plus-rate": "solidContactBalls",
+  "weak-contact-rate": "weakContactBalls",
+  "hard-hit-rate": "hardHitBalls",
+  "sweet-spot-rate": "sweetSpotBalls",
+  "meatballs-punished": "meatballsPunished",
+  "meatball-punish-rate": "meatballsPunished",
+  "meatball-barrel-rate": "meatballBarrels",
+  "meatballs-thrown": "meatballsThrown",
+  "meatball-rate": "meatballsThrown",
+  "meatballs-punished-allowed": "meatballsPunishedAllowed",
+  "meatball-whiff-rate": "meatballWhiffs",
+  "chop-rate": "chopBalls",
+  "popup-rate": "popupBalls",
   "bloop-singles": "bloopSingles",
   "infield-singles": "infieldSingles",
-  "plate-appearances": "plateAppearances",
+  "gidp-induced": "gidpInduced",
+  "nobletigers-induced": "nobletigersInduced",
+  "triple-plays-turned": "triplePlaysTurned",
+  "no-hitter-bid-ruined": "noHitterBidRuined",
+  "errors-committed": "errorsCommitted",
+  "errors-per-game": "errorsCommitted",
+  "fielding-errors": "fieldingErrors",
+  "throwing-errors": "throwingErrors",
+  "error-runs-allowed": "errorRunsAllowed",
+  "error-games": "errorGames",
+  "multi-error-games": "multiErrorGames",
+  "late-inning-runs": "lateInningRuns",
+  "first-inning-runs": "firstInningRuns",
+  "first-inning-runs-allowed": "firstInningRunsAllowed",
+  "late-inning-runs-allowed": "lateInningRunsAllowed",
+  "strikeout-rate": "strikeouts",
+  "walk-rate": "walks",
+  "intent-walk-rate": "intentWalks",
+  "sac-fly-rate": "sacFlies",
+  "sac-bunt-society": "sacBunts",
+  "zero-walk-games": "zeroWalkGames",
+  "balk-beneficiaries": "balkBenefits",
+  "wild-pitch-runs": "wildPitchBenefits",
+  "passed-ball-runs": "passedBallBenefits",
+  "reached-on-error": "reachedOnError",
+  "cycle-games": "cycleGames",
+  "back-to-back-hr-games": "backToBackHrGames",
+  "back-to-back-to-back-hr-games": "backToBackToBackHrGames",
+  "bases-loaded-no-runs": "basesLoadedNoRuns",
+  nobletigers: "nobletigers",
+  "left-on-base": "leftOnBase",
+  "lob-nightmare-games": "lobNightmareGames",
+  "player-cycle-games": "playerCycleGames",
+  "pinch-hit-chaos": "pinchHitChaos",
+  "pinch-hit-hits": "pinchHitHits",
+  "runs-with-two-outs-pct": "runsWithTwoOuts",
+  "steal-success-rate": "stolenBases",
+  "steal-attempt-rate": "stolenBases",
+  babip: "hits",
+  "hard-hit-balls": "hardHitBalls",
+  "sweet-spot-balls": "sweetSpotBalls",
+  barrels: "barrelBalls",
+  hits: "hits",
+  "home-runs": "homeRuns",
   strikeouts: "strikeouts",
   walks: "walks",
   hbp: "hbp",
-  hits: "hits",
-  "meatballs-punished": "meatballsPunished",
-  "meatballs-seen": "meatballsSeen",
+  "plate-appearances": "plateAppearances",
   "balls-in-play": "ballsInPlay",
   "pitching-strikeouts": "pitchingStrikeouts",
   "hits-allowed": "hitsAllowed",
@@ -39,11 +106,20 @@ function actionCount(
   const field = SHARE_ACTION_FIELDS[statId];
   if (field) {
     const value = counters[field];
-    return typeof value === "number" ? value : null;
+    if (typeof value === "number" && Number.isFinite(value)) return value;
   }
-  if (computed != null && Number.isInteger(computed) && computed >= 0 && computed < 1_000_000) {
+
+  // Direct count stats: computed value is already a non-negative integer count.
+  if (
+    computed != null &&
+    Number.isFinite(computed) &&
+    Number.isInteger(computed) &&
+    computed >= 0 &&
+    computed < 1_000_000
+  ) {
     return computed;
   }
+
   return null;
 }
 
@@ -74,8 +150,8 @@ export function buildPlayerNerdContributions(
     const teamActions = team ? actionCount(team, def.id, teamValue) : null;
 
     let shareOfTeam: number | null = null;
-    if (playerActions != null && teamActions != null && teamActions > 0 && playerActions >= 0) {
-      shareOfTeam = playerActions / teamActions;
+    if (playerActions != null && teamActions != null && teamActions > 0) {
+      shareOfTeam = Math.min(1, playerActions / teamActions);
     }
 
     contributions.push({

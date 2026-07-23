@@ -66,11 +66,11 @@ function toSprayPreview(hit: VenueHit): SprayPreviewHit {
 }
 
 export function extractVenueHitsFromStoredGame(row: GameHitsSourceRow): VenueHit[] {
-  const venueId = resolveBallparkVenueId(row.venue_id, row.home_team_id);
-  if (venueId == null) return [];
-
   const state = parseStoredGameState(row.game_state, row.game_pk);
   if (!state?.plays?.length) return [];
+
+  const venueId = resolveBallparkVenueId(row.venue_id ?? state.venueId, row.home_team_id);
+  if (venueId == null) return [];
 
   const resolvedRow = { ...row, venue_id: venueId };
   return extractGameHits(state.plays).map((hit) => toVenueHit(resolvedRow, hit));
