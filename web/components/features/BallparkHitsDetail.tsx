@@ -111,6 +111,7 @@ function HitRow({
 
 function SelectedHitBanner({
   hitKey,
+  batterId,
   batterName,
   event,
   awayAbbrev,
@@ -127,6 +128,7 @@ function SelectedHitBanner({
   onClear,
 }: {
   hitKey: string;
+  batterId?: number;
   batterName: string;
   event: HitType | string;
   awayAbbrev?: string;
@@ -152,6 +154,7 @@ function SelectedHitBanner({
           return `${href}${sep}date=${encodeURIComponent(gameDate)}&view=date`;
         })()
       : null;
+  const playerHref = batterId != null && batterId > 0 ? `/players/${batterId}` : null;
 
   return (
     <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface px-3 py-2.5">
@@ -177,7 +180,7 @@ function SelectedHitBanner({
           ) : null}
         </p>
       </div>
-      <div className="flex shrink-0 items-center gap-3">
+      <div className="flex shrink-0 flex-wrap items-center gap-3">
         <button
           type="button"
           onClick={() => onOpenDetail(hitKey)}
@@ -185,6 +188,14 @@ function SelectedHitBanner({
         >
           Play details
         </button>
+        {playerHref ? (
+          <Link
+            href={playerHref}
+            className="text-[11px] font-medium text-secondary underline-offset-2 hover:underline"
+          >
+            View player
+          </Link>
+        ) : null}
         {gameHref ? (
           <Link
             href={gameHref}
@@ -239,7 +250,8 @@ function LazyTrajectorySection({
   className?: string;
 }) {
   const sectionRef = useRef<HTMLElement>(null);
-  const [shouldRender, setShouldRender] = useState(false);
+  const [inView, setInView] = useState(false);
+  const [mobileExpanded, setMobileExpanded] = useState(false);
 
   useEffect(() => {
     const node = sectionRef.current;
@@ -248,7 +260,7 @@ function LazyTrajectorySection({
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry?.isIntersecting) {
-          setShouldRender(true);
+          setInView(true);
           observer.disconnect();
         }
       },
@@ -261,33 +273,71 @@ function LazyTrajectorySection({
 
   return (
     <section ref={sectionRef} className="border-t border-border bg-panel p-3 sm:p-4">
-      <p className="mb-3 text-[10px] font-medium uppercase tracking-wide text-muted">
-        3D trajectories
-      </p>
-      {shouldRender ? (
-        <>
-          <GameHitsTrajectory3D
-            hits={hits}
-            venueId={venueId}
-            getHitKey={getHitKey}
-            selectedHitKey={selectedHitKey}
-            onSelectHit={onSelectHit}
-            className={className}
-          />
-          <div className="mt-3">
-            {selectedHitBanner ?? <HitBannerPlaceholder />}
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="flex h-[240px] items-center justify-center rounded border border-border bg-field-chart-canvas text-xs text-subtle sm:h-[300px] xl:h-[360px]">
-            Scroll to load 3D view…
-          </div>
-          <div className="mt-3" aria-hidden>
-            <HitBannerPlaceholder />
-          </div>
-        </>
-      )}
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <p className="text-[10px] font-medium uppercase tracking-wide text-muted">
+          3D trajectories
+        </p>
+        <button
+          type="button"
+          onClick={() => setMobileExpanded((v) => !v)}
+          className="rounded-md border border-border px-2 py-1 text-[11px] text-secondary hover:bg-hover lg:hidden"
+        >
+          {mobileExpanded ? "Hide 3D" : "Show 3D"}
+        </button>
+      </div>
+
+      {/* Desktop: load when near viewport. Mobile: only after explicit expand. */}
+      <div className="hidden lg:block">
+        {inView ? (
+          <>
+            <GameHitsTrajectory3D
+              hits={hits}
+              venueId={venueId}
+              getHitKey={getHitKey}
+              selectedHitKey={selectedHitKey}
+              onSelectHit={onSelectHit}
+              className={className}
+            />
+            <div className="mt-3">
+              {selectedHitBanner ?? <HitBannerPlaceholder />}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex h-[240px] items-center justify-center rounded border border-border bg-field-chart-canvas text-xs text-subtle sm:h-[300px] xl:h-[360px]">
+              Scroll to load 3D view…
+            </div>
+            <div className="mt-3" aria-hidden>
+              <HitBannerPlaceholder />
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="lg:hidden">
+        {mobileExpanded ? (
+          <>
+            <GameHitsTrajectory3D
+              hits={hits}
+              venueId={venueId}
+              getHitKey={getHitKey}
+              selectedHitKey={selectedHitKey}
+              onSelectHit={onSelectHit}
+              className={className}
+            />
+            <div className="mt-3">
+              {selectedHitBanner ?? <HitBannerPlaceholder />}
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="rounded border border-border bg-field-chart-canvas px-3 py-6 text-center text-[11px] text-subtle">
+              Tap Show 3D to load trajectories for this park.
+            </p>
+            <div className="mt-3">{selectedHitBanner ?? <HitBannerPlaceholder />}</div>
+          </>
+        )}
+      </div>
     </section>
   );
 }
@@ -567,6 +617,9 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
                       selectedHitMeta ? (
                         <SelectedHitBanner
                           hitKey={getHitKey(selectedHitMeta)}
+                          batterId={
+                            "batterId" in selectedHitMeta ? selectedHitMeta.batterId : undefined
+                          }
                           batterName={selectedHitMeta.batterName}
                           event={selectedHitMeta.event}
                           awayAbbrev={

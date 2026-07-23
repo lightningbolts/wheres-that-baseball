@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 
 import { stripHitDetail } from "@/lib/mlb/ballparkHitsApi";
 import { ballparkIndex } from "@/lib/mlb/ballparkPaths";
-import type { BallparkHitsDetail, SprayPreviewHit, VenueHit } from "@/lib/mlb/ballparkHits";
+import type { BallparkHitsDetail, VenueHit } from "@/lib/mlb/ballparkHits";
 import { classifyBipKind, computeGameHitStats } from "@/lib/mlb/gameHits";
 import type {
   PlayerBipDetail,
@@ -36,27 +36,6 @@ function readJson<T>(path: string): T | null {
 function writeJson(path: string, data: unknown): void {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${JSON.stringify(data)}\n`, "utf8");
-}
-
-function toSprayPreview(hit: VenueHit): SprayPreviewHit {
-  return {
-    atBatIndex: hit.atBatIndex,
-    event: hit.event,
-    bipKind: hit.bipKind ?? classifyBipKind(hit.event),
-    hit: hit.hit,
-    color: hit.color,
-    hitKey: hit.hitKey,
-    batterId: hit.batterId,
-    batterName: hit.batterName,
-    inning: hit.inning,
-    halfInning: hit.halfInning,
-    awayScore: hit.awayScore,
-    homeScore: hit.homeScore,
-    gamePk: hit.gamePk,
-    gameDate: hit.gameDate,
-    awayAbbrev: hit.awayAbbrev,
-    homeAbbrev: hit.homeAbbrev,
-  };
 }
 
 function slimHit(hit: VenueHit): VenueHit {
@@ -145,7 +124,8 @@ function buildPlayerDetailFromVenues(
       teamAbbrev: park?.teamAbbrev ?? "",
       stats: computeGameHitStats(slimHits),
       hits: slimHits,
-      chartHits: slimHits.map(toSprayPreview),
+      // Charts use `hits` — avoid duplicating every BIP row on disk / in deploys.
+      chartHits: [],
     });
     allHits.push(...slimHits);
   }

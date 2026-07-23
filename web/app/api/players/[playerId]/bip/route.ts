@@ -53,6 +53,8 @@ export async function GET(request: Request, context: RouteContext) {
 
   const slimParks = parks.map((park) => ({
     ...park,
+    // Prefer list hits for charts — avoid doubling the payload with chartHits.
+    chartHits: undefined,
     hits: park.hits.map((hit) => {
       if (includeDetail) return hit;
       const { detail: _detail, ...rest } = hit;

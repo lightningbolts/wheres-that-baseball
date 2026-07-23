@@ -314,16 +314,26 @@ export function PlayDetailDialog({
             {play.description}
           </p>
 
-          {gameHref ? (
-            <p>
-              <Link
-                href={gameHref}
-                className="text-[12px] font-medium text-secondary underline-offset-2 hover:underline"
-              >
-                View in game →
-              </Link>
+          {(gameHref || (play.batterId != null && play.batterId > 0)) && (
+            <p className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              {gameHref ? (
+                <Link
+                  href={gameHref}
+                  className="text-[12px] font-medium text-secondary underline-offset-2 hover:underline"
+                >
+                  View in game →
+                </Link>
+              ) : null}
+              {play.batterId != null && play.batterId > 0 ? (
+                <Link
+                  href={`/players/${play.batterId}`}
+                  className="text-[12px] font-medium text-secondary underline-offset-2 hover:underline"
+                >
+                  View player profile →
+                </Link>
+              ) : null}
             </p>
-          ) : null}
+          )}
 
           {(play.playId || play.pitches.some((p) => p.playId)) && (
             <PlayVideoPlayer

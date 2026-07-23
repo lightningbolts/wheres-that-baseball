@@ -15,7 +15,11 @@ import { parseLiveFeed } from "@/lib/mlb/liveFeed";
 import type { MLBLiveFeedResponse } from "@/types/mlb-live";
 
 /** Cap spray previews on the ballparks index to keep summary.json mobile-friendly. */
-export const PREVIEW_HITS_PER_PARK = 80;
+/**
+ * Index cards show hit counts only (no spray dots). Keep previewHits empty in
+ * summary.json so /ballparks stays tiny for mobile clients and Vercel deploys.
+ */
+export const PREVIEW_HITS_PER_PARK = 0;
 
 function slimVenueHit(hit: VenueHit): VenueHit {
   const { detail: _detail, ...rest } = hit;

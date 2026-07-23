@@ -3,13 +3,11 @@
 import Link from "next/link";
 
 import { AppNav } from "@/components/features/AppNav";
-import { GameHitsSprayChart } from "@/components/features/GameHitsSprayChart";
 import { TeamLogo } from "@/components/ui/TeamLogo";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useBallparkHitsSummary } from "@/hooks/useBallparkHits";
 import { useRestoreScrollWhenReady } from "@/hooks/useRestoreScrollWhenReady";
-import { HIT_TYPE_LABELS, type GameHit } from "@/lib/mlb/gameHits";
-import type { SprayPreviewHit } from "@/lib/mlb/ballparkHits";
+import { HIT_TYPE_LABELS } from "@/lib/mlb/gameHits";
 import { cn } from "@/lib/utils";
 
 const CURRENT_SEASON = new Date().getFullYear();
@@ -58,13 +56,18 @@ export function BallparkHitsBrowser() {
           </div>
         )}
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {isLoading
             ? Array.from({ length: 9 }).map((_, index) => (
                 <div key={index} className="rounded-xl border border-border bg-surface p-4">
-                  <Skeleton className="h-5 w-32" />
-                  <Skeleton className="mt-3 aspect-square w-full" />
-                  <Skeleton className="mt-3 h-4 w-24" />
+                  <div className="flex items-start gap-3">
+                    <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <Skeleton className="h-4 w-40" />
+                      <Skeleton className="h-3 w-28" />
+                    </div>
+                    <Skeleton className="h-7 w-12" />
+                  </div>
                 </div>
               ))
             : data?.parks.map((park) => (
@@ -76,7 +79,7 @@ export function BallparkHitsBrowser() {
                     "hover:border-border-strong hover:bg-surface-elevated",
                   )}
                 >
-                  <div className="mb-3 flex items-start gap-3">
+                  <div className="flex items-start gap-3">
                     <TeamLogo teamId={park.teamId} size={36} />
                     <div className="min-w-0 flex-1">
                       <h2 className="truncate text-sm font-medium text-foreground group-hover:text-foreground">
@@ -89,20 +92,6 @@ export function BallparkHitsBrowser() {
                     <span className="font-mono text-lg font-semibold tabular-nums text-foreground">
                       {park.stats.total}
                     </span>
-                  </div>
-
-                  <div className="pointer-events-none">
-                    <GameHitsSprayChart
-                      hits={park.previewHits as unknown as GameHit[]}
-                      venueId={park.venueId}
-                      getHitKey={(hit) => (hit as unknown as SprayPreviewHit).hitKey}
-                      showLines={false}
-                      ballRadius={
-                        park.stats.total > 500 ? 0.45 : park.stats.total > 300 ? 0.55 : 0.7
-                      }
-                      hideVenueLabel
-                      className="opacity-90"
-                    />
                   </div>
 
                   <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted">

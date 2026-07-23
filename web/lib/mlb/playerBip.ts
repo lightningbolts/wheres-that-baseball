@@ -24,7 +24,8 @@ export interface PlayerVenueBip {
   teamAbbrev: string;
   stats: GameHitStats;
   hits: VenueHit[];
-  chartHits: SprayPreviewHit[];
+  /** Optional; APIs may omit this and clients should fall back to `hits`. */
+  chartHits?: SprayPreviewHit[];
 }
 
 export interface PlayerBipDetail {

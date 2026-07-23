@@ -41,18 +41,32 @@ function makeHit(
 }
 
 describe("selectPreviewHits", () => {
-  it("caps to PREVIEW_HITS_PER_PARK and prefers recent dates", () => {
-    const hits = Array.from({ length: PREVIEW_HITS_PER_PARK + 40 }, (_, i) =>
+  it("returns empty when PREVIEW_HITS_PER_PARK is 0 (count-only index)", () => {
+    const hits = Array.from({ length: 40 }, (_, i) =>
       makeHit({
         hitKey: `100-${i}`,
-        gameDate: i < 40 ? "2026-04-01" : "2026-07-01",
+        gameDate: "2026-07-01",
         atBatIndex: i,
         gamePk: 100,
       }),
     );
 
-    const preview = selectPreviewHits(hits);
-    expect(preview).toHaveLength(PREVIEW_HITS_PER_PARK);
+    expect(PREVIEW_HITS_PER_PARK).toBe(0);
+    expect(selectPreviewHits(hits)).toEqual([]);
+  });
+
+  it("caps and prefers recent dates when a positive limit is passed", () => {
+    const hits = Array.from({ length: 50 }, (_, i) =>
+      makeHit({
+        hitKey: `100-${i}`,
+        gameDate: i < 20 ? "2026-04-01" : "2026-07-01",
+        atBatIndex: i,
+        gamePk: 100,
+      }),
+    );
+
+    const preview = selectPreviewHits(hits, 12);
+    expect(preview).toHaveLength(12);
     expect(preview.every((hit) => hit.gameDate === "2026-07-01")).toBe(true);
   });
 

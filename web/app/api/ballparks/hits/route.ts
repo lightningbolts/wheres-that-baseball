@@ -107,7 +107,12 @@ export async function GET(request: Request) {
       });
     }
 
-    const result = loadSummary(season);
+    const summary = loadSummary(season);
+    // Never ship previewHits on the index — spray dots live on the venue page.
+    const result: BallparkHitsAggregate = {
+      ...summary,
+      parks: summary.parks.map((park) => ({ ...park, previewHits: [] })),
+    };
     return NextResponse.json(result, {
       headers: { "Cache-Control": "public, max-age=120" },
     });

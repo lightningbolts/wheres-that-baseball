@@ -148,12 +148,13 @@ function ParkBipSection({
   onSelectHit: (hit: SprayChartHit & { hitKey?: string }) => void;
 }) {
   const filtered = useMemo(() => {
-    let hits = filterBipByFamily(park.chartHits, bipFamily);
+    const chartSource = park.chartHits?.length ? park.chartHits : park.hits;
+    let hits = filterBipByFamily(chartSource, bipFamily);
     if (bipFamily === "hit" || bipFamily === "all") {
       hits = filterBipByHitType(hits, hitTypeFilter);
     }
     return hits;
-  }, [bipFamily, hitTypeFilter, park.chartHits]);
+  }, [bipFamily, hitTypeFilter, park.chartHits, park.hits]);
 
   if (filtered.length === 0) return null;
 
@@ -422,7 +423,8 @@ export function PlayerDetailView({ playerId }: PlayerDetailViewProps) {
                 />
               ))}
               {parks.every((park) => {
-                let hits: SprayPreviewHit[] = filterBipByFamily(park.chartHits, bipFamily);
+                const chartSource = park.chartHits?.length ? park.chartHits : park.hits;
+                let hits: SprayPreviewHit[] = filterBipByFamily(chartSource, bipFamily);
                 if (bipFamily === "hit" || bipFamily === "all") {
                   hits = filterBipByHitType(hits, hitTypeFilter);
                 }
