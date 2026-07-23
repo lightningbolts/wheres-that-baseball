@@ -5,6 +5,7 @@ import { getServiceSupabase } from "@/lib/games/supabaseAdmin";
 import { extractVenueHitsFromFeed } from "@/lib/mlb/ballparkHitsAggregate";
 import { appendGameHitsToStore } from "@/lib/mlb/ballparkHitsStore";
 import { appendHitsToPlayerBipStore } from "@/lib/mlb/playerBipStore";
+import { appendHitsToPlayerPitchBipStore } from "@/lib/mlb/playerPitchBipStore";
 import { appendGameNerdStatsToStore } from "@/lib/mlb/nerdStats/store";
 import { parseBoxScore } from "@/lib/mlb/boxScore";
 import { parseLiveFeed, wrapMlbFeedForStorage } from "@/lib/mlb/liveFeed";
@@ -109,6 +110,7 @@ async function persistArchivedGame(
     const { venueId, appendedHits } = appendGameHitsToStore(row.season, row, hits);
     if (venueId != null && appendedHits.length > 0) {
       appendHitsToPlayerBipStore(row.season, venueId, appendedHits);
+      appendHitsToPlayerPitchBipStore(row.season, venueId, appendedHits);
     }
   } catch (err) {
     console.warn(`append ballpark hits ${row.game_pk} failed:`, err);

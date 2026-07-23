@@ -3,7 +3,7 @@
  *
  * - Strips embedded play `detail` from venue and player hit lists
  * - Regenerates hit-only summary.json previewHits
- * - Rebuilds player-bip from slimmed venues
+ * - Rebuilds player-bip and player-pitch-bip from slimmed venues
  *
  * Usage:
  *   npx tsx scripts/slim-bip-json.ts [--season=2026]
@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import type { BallparkHitsDetail, VenueHit } from "../lib/mlb/ballparkHits";
 import { rebuildBallparkHitsSummary } from "../lib/mlb/ballparkHitsStore";
 import { rebuildPlayerBipStore } from "../lib/mlb/playerBipStore";
+import { rebuildPlayerPitchBipStore } from "../lib/mlb/playerPitchBipStore";
 
 const WEB_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -84,6 +85,10 @@ function main() {
   const playerBip = rebuildPlayerBipStore(season);
   console.log(
     `Rebuilt player-bip: ${playerBip.playerCount} players, ${playerBip.bipCount} BIP`,
+  );
+  const playerPitchBip = rebuildPlayerPitchBipStore(season);
+  console.log(
+    `Rebuilt player-pitch-bip: ${playerPitchBip.playerCount} pitchers, ${playerPitchBip.bipCount} BIP allowed`,
   );
 }
 

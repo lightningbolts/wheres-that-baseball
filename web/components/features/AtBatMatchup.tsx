@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 
 import {
   HittingStatCard,
@@ -12,7 +13,7 @@ import {
   formatBatterGameLine,
   formatPitcherGameLine,
 } from "@/lib/mlb/boxScoreLookup";
-import { mlbPlayerHeadshotUrl, mlbPlayerPageUrl } from "@/lib/mlb/cardPitchers";
+import { mlbPlayerHeadshotUrl } from "@/lib/mlb/cardPitchers";
 import { cn } from "@/lib/utils";
 import type {
   BatterRispStats,
@@ -67,12 +68,10 @@ function PlayerHeadshot({
   }
 
   return (
-    <a
-      href={mlbPlayerPageUrl(playerId)}
-      target="_blank"
-      rel="noopener noreferrer"
-      title={`${name} on MLB.com`}
-      aria-label={`View ${name} on MLB.com`}
+    <Link
+      href={`/players/${playerId}`}
+      title={`View ${name} profile`}
+      aria-label={`View ${name} profile`}
       className={cn(
         "relative shrink-0 overflow-hidden rounded-full bg-black/5 ring-1 ring-border/80 transition hover:ring-2 hover:ring-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground dark:bg-white/10",
         box,
@@ -86,7 +85,7 @@ function PlayerHeadshot({
         className="h-full w-full object-cover object-top"
         unoptimized
       />
-    </a>
+    </Link>
   );
 }
 

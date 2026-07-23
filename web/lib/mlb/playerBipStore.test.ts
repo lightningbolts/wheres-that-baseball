@@ -65,6 +65,8 @@ function makeHit(
     gameDate: "2026-07-01",
     awayAbbrev: "NYY",
     homeAbbrev: "BOS",
+    pitcherId: 2,
+    pitcherName: "Pitcher",
     detail,
     ...overrides,
   };

@@ -7,9 +7,16 @@ import { useState } from "react";
 import { AppNav } from "@/components/features/AppNav";
 import { TeamLogo } from "@/components/ui/TeamLogo";
 import { usePlayerSearch } from "@/hooks/usePlayerBip";
-import type { PlayerBipIndexEntry } from "@/lib/mlb/playerBip";
+import type { PlayerBipIndexEntry, PlayerProfileRole } from "@/lib/mlb/playerBip";
 
 const CURRENT_SEASON = new Date().getFullYear();
+
+function roleLabel(roles: PlayerProfileRole[] | undefined): string {
+  const set = new Set(roles ?? []);
+  if (set.has("batter") && set.has("pitcher")) return "Both";
+  if (set.has("pitcher")) return "Pitcher";
+  return "Batter";
+}
 
 function PlayerSearchBox({
   query,
@@ -68,8 +75,13 @@ function PlayerSearchBox({
               >
                 {player.teamId ? <TeamLogo teamId={player.teamId} size={28} /> : null}
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px] font-medium text-foreground">
-                    {player.name}
+                  <span className="flex items-center gap-2">
+                    <span className="block truncate text-[13px] font-medium text-foreground">
+                      {player.name}
+                    </span>
+                    <span className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted">
+                      {roleLabel(player.roles)}
+                    </span>
                   </span>
                   <span className="text-[11px] text-muted">
                     <span className="sm:hidden">
@@ -100,8 +112,8 @@ export function PlayersBrowser() {
       <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-3 py-6 sm:px-4 sm:py-8">
         <h1 className="text-xl font-medium text-foreground sm:text-2xl">Players</h1>
         <p className="mt-2 max-w-2xl text-[13px] text-muted sm:text-sm">
-          Search for a batter to see balls in play across every park — spray charts, 3D
-          trajectories, play video, and nerd standings contribution.
+          Search for a batter or pitcher — spray charts and trajectories for balls in play,
+          season pitching lines and pitch mix for pitchers, plus nerd standings contribution.
         </p>
 
         <div className="mt-5 sm:mt-6">
@@ -118,9 +130,11 @@ export function PlayersBrowser() {
         </div>
 
         <div className="mt-8 rounded-xl border border-border bg-surface px-4 py-10 text-center sm:mt-10 sm:px-6 sm:py-12">
-          <p className="text-sm text-secondary">Start typing a player name to explore season BIP.</p>
+          <p className="text-sm text-secondary">
+            Start typing a player name to explore season BIP.
+          </p>
           <p className="mt-2 text-xs text-muted">
-            Suggestions include season balls in play and parks visited.{" "}
+            Suggestions include batters and pitchers.{" "}
             <Link href="/nerd" className="underline-offset-2 hover:underline">
               Nerd standings
             </Link>{" "}

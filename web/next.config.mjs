@@ -8,6 +8,7 @@ const heavyDataExcludes = [
   "./data/nerd-stats/**/history/**",
   "./data/ballpark-hits/**",
   "./data/player-bip/**",
+  "./data/player-pitch-bip/**",
 ];
 
 const nerdStatsIncludes = [
@@ -36,7 +37,11 @@ const nextConfig = {
     "/api/matchup": heavyDataExcludes,
     "/api/predict": heavyDataExcludes,
     "/api/batter/**": heavyDataExcludes,
-    "/api/ballparks/hits": ["./data/player-bip/**", "./data/nerd-stats/**"],
+    "/api/ballparks/hits": [
+      "./data/player-bip/**",
+      "./data/player-pitch-bip/**",
+      "./data/nerd-stats/**",
+    ],
     "/api/players/**": [
       "./data/ballpark-hits/**",
       "./data/nerd-stats/**/games/**",
@@ -61,6 +66,7 @@ const nextConfig = {
     "/api/ballparks/hits": ["./data/ballpark-hits/**"],
     "/api/players/**": [
       "./data/player-bip/**",
+      "./data/player-pitch-bip/**",
       "./data/nerd-stats/**/player-counters.json",
       "./data/nerd-stats/**/players-index.json",
       "./data/nerd-stats/**/players/**",

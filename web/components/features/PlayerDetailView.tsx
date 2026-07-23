@@ -10,7 +10,11 @@ import { PlayDetailDialog } from "@/components/features/PlayDetailDialog";
 import { PlayerNerdContributionPanel } from "@/components/features/PlayerNerdContributionPanel";
 import { TeamLogo } from "@/components/ui/TeamLogo";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { usePlayerBip } from "@/hooks/usePlayerBip";
+import {
+  usePlayerBip,
+  usePlayerPitchBip,
+  usePlayerPitchingLine,
+} from "@/hooks/usePlayerBip";
 import type { SprayPreviewHit } from "@/lib/mlb/ballparkHits";
 import {
   BIP_FAMILY_FILTER_OPTIONS,
@@ -22,7 +26,8 @@ import {
   type HitType,
   type SprayChartHit,
 } from "@/lib/mlb/gameHits";
-import type { PlayerVenueBip } from "@/lib/mlb/playerBip";
+import type { PlayerBipDetail, PlayerVenueBip } from "@/lib/mlb/playerBip";
+import type { PlayerPitchingResponse } from "@/lib/mlb/playerCache";
 import { enrichPlayDetailWithPlayId } from "@/lib/mlb/playVideo";
 import { cn, formatInningHalf } from "@/lib/utils";
 import type { PlayDetail } from "@/types/mlb-live";
@@ -43,9 +48,16 @@ const GameHitsTrajectory3D = dynamic(
 const CURRENT_SEASON = new Date().getFullYear();
 const HIT_TYPES: HitType[] = ["Single", "Double", "Triple", "Home Run"];
 
+type ProfileMode = "hitting" | "pitching";
+
 function fmtNum(value: number | null, digits = 1, suffix = ""): string {
   if (value == null || Number.isNaN(value)) return "—";
   return `${value.toFixed(digits)}${suffix}`;
+}
+
+function fmtStat(value: number | string | null | undefined): string {
+  if (value == null || value === "") return "—";
+  return String(value);
 }
 
 function LazyParkTrajectory3D({
@@ -96,7 +108,6 @@ function LazyParkTrajectory3D({
         </button>
       </div>
 
-      {/* Desktop: load when near viewport. Mobile: only after explicit expand. */}
       <div className="hidden lg:block">
         {inView ? (
           <GameHitsTrajectory3D
@@ -222,6 +233,7 @@ function ParkBipSection({
                 </span>
                 <span className="truncate text-foreground">
                   {hit.awayAbbrev} {hit.awayScore}–{hit.homeScore} {hit.homeAbbrev}
+                  {hit.batterName ? ` · ${hit.batterName}` : ""}
                 </span>
               </span>
               <span className="pl-4 font-mono text-[10px] text-subtle sm:pl-0 sm:shrink-0">
@@ -235,12 +247,258 @@ function ParkBipSection({
   );
 }
 
+function PitchingSummaryPanel({ line }: { line: PlayerPitchingResponse }) {
+  const hasMlbLine = line.source === "mlb";
+  const mix = line.pitchMix;
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-xl border border-border bg-surface px-3 py-3 sm:px-4">
+        <p className="text-[10px] font-medium uppercase tracking-wide text-muted">
+          Season pitching
+          {line.throwHand ? ` · ${line.throwHand}` : ""}
+        </p>
+        {hasMlbLine ? (
+          <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-6 sm:gap-3">
+            {[
+              {
+                label: "W-L",
+                value: `${fmtStat(line.wins)}-${fmtStat(line.losses)}`,
+              },
+              { label: "ERA", value: fmtStat(line.era) },
+              { label: "IP", value: fmtStat(line.inningsPitched) },
+              { label: "SO", value: fmtStat(line.strikeOuts) },
+              { label: "BB", value: fmtStat(line.baseOnBalls) },
+              { label: "HR", value: fmtStat(line.homeRuns) },
+              { label: "WHIP", value: fmtStat(line.whip) },
+              { label: "H", value: fmtStat(line.hits) },
+              { label: "G", value: fmtStat(line.gamesPlayed) },
+              { label: "GS", value: fmtStat(line.gamesStarted) },
+            ].map((stat) => (
+              <div key={stat.label} className="min-w-0">
+                <p className="text-[10px] uppercase tracking-wide text-subtle">{stat.label}</p>
+                <p className="font-mono text-sm text-foreground">{stat.value}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-2 text-[12px] text-muted">
+            No official MLB pitching line for this season yet.
+          </p>
+        )}
+      </div>
+
+      {mix.pitches.length > 0 ? (
+        <div className="rounded-xl border border-border bg-surface px-3 py-3 sm:px-4">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted">
+            Pitch mix · {mix.totalPitches} pitches
+          </p>
+          <ul className="mt-3 space-y-2">
+            {mix.pitches.map((pitch) => (
+              <li key={pitch.code}>
+                <div className="mb-1 flex items-baseline justify-between gap-2 text-[12px]">
+                  <span className="text-foreground">{pitch.label}</span>
+                  <span className="font-mono text-[11px] text-muted">
+                    {(pitch.pct * 100).toFixed(1)}% · {pitch.count}
+                    {pitch.avgVelocity != null
+                      ? ` · ${pitch.avgVelocity.toFixed(1)} mph`
+                      : ""}
+                  </span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-panel">
+                  <div
+                    className="h-full rounded-full bg-foreground/70"
+                    style={{ width: `${Math.max(pitch.pct * 100, 1.5)}%` }}
+                  />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function BipExplorer({
+  data,
+  bipLabel,
+  bipFamily,
+  setBipFamily,
+  hitTypeFilter,
+  setHitTypeFilter,
+  parkFilter,
+  setParkFilter,
+  selectedHitKey,
+  onSelectHit,
+}: {
+  data: PlayerBipDetail;
+  bipLabel: string;
+  bipFamily: BipFamilyFilter;
+  setBipFamily: (value: BipFamilyFilter) => void;
+  hitTypeFilter: HitType | "all";
+  setHitTypeFilter: (value: HitType | "all") => void;
+  parkFilter: number | "all";
+  setParkFilter: (value: number | "all") => void;
+  selectedHitKey: string | null;
+  onSelectHit: (hit: SprayChartHit & { hitKey?: string }) => void;
+}) {
+  const parks = useMemo(() => {
+    if (parkFilter === "all") return data.parks;
+    return data.parks.filter((p) => p.venueId === parkFilter);
+  }, [data.parks, parkFilter]);
+
+  return (
+    <>
+      <div className="rounded-xl border border-border bg-surface px-3 py-3">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end sm:gap-3">
+          <label className="flex min-w-0 flex-col gap-1 text-[10px] text-muted">
+            Result
+            <select
+              value={bipFamily}
+              onChange={(e) => {
+                setBipFamily(e.target.value as BipFamilyFilter);
+              }}
+              className="h-9 w-full rounded-md border border-border bg-panel px-2 text-[12px] text-foreground sm:h-8 sm:w-auto"
+            >
+              {BIP_FAMILY_FILTER_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {(bipFamily === "hit" || bipFamily === "all") && (
+            <label className="flex min-w-0 flex-col gap-1 text-[10px] text-muted">
+              Hit type
+              <select
+                value={hitTypeFilter}
+                onChange={(e) => {
+                  setHitTypeFilter(e.target.value as HitType | "all");
+                }}
+                className="h-9 w-full rounded-md border border-border bg-panel px-2 text-[12px] text-foreground sm:h-8 sm:w-auto"
+              >
+                <option value="all">All hits</option>
+                {HIT_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {HIT_TYPE_LABELS[type]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <label className="col-span-2 flex min-w-0 flex-col gap-1 text-[10px] text-muted sm:col-span-1">
+            Park
+            <select
+              value={parkFilter === "all" ? "all" : String(parkFilter)}
+              onChange={(e) => {
+                const v = e.target.value;
+                setParkFilter(v === "all" ? "all" : Number.parseInt(v, 10));
+              }}
+              className="h-9 w-full rounded-md border border-border bg-panel px-2 text-[12px] text-foreground sm:h-8 sm:max-w-[220px]"
+            >
+              <option value="all">All parks</option>
+              {data.parks.map((park) => (
+                <option key={park.venueId} value={park.venueId}>
+                  {park.venueName} ({park.stats.total})
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <p className="mt-2.5 text-[11px] leading-relaxed text-subtle sm:mt-3">
+          {bipLabel}: Avg EV {fmtNum(data.stats.avgExitVelo)} mph · Hardest{" "}
+          {fmtNum(data.stats.maxExitVelo, 0)} mph · Longest{" "}
+          {fmtNum(data.stats.maxDistance, 0, " ft")}
+        </p>
+      </div>
+
+      <div className="space-y-3 sm:space-y-4">
+        {parks.map((park) => (
+          <ParkBipSection
+            key={park.venueId}
+            park={park}
+            bipFamily={bipFamily}
+            hitTypeFilter={hitTypeFilter}
+            selectedHitKey={selectedHitKey}
+            onSelectHit={onSelectHit}
+          />
+        ))}
+        {parks.every((park) => {
+          const chartSource = park.chartHits?.length ? park.chartHits : park.hits;
+          let hits: SprayPreviewHit[] = filterBipByFamily(chartSource, bipFamily);
+          if (bipFamily === "hit" || bipFamily === "all") {
+            hits = filterBipByHitType(hits, hitTypeFilter);
+          }
+          return hits.length === 0;
+        }) ? (
+          <p className="py-8 text-center text-sm text-muted">
+            No balls in play match these filters.
+          </p>
+        ) : null}
+      </div>
+    </>
+  );
+}
+
 interface PlayerDetailViewProps {
   playerId: number;
 }
 
 export function PlayerDetailView({ playerId }: PlayerDetailViewProps) {
-  const { data, isLoading, error, fetchHitDetail } = usePlayerBip(playerId, CURRENT_SEASON);
+  const batting = usePlayerBip(playerId, CURRENT_SEASON);
+  const pitchingBip = usePlayerPitchBip(playerId, CURRENT_SEASON);
+  const pitchingLine = usePlayerPitchingLine(playerId, CURRENT_SEASON);
+
+  const hasHitting = Boolean(batting.data && batting.data.bipCount > 0);
+  const hasPitchingBip = Boolean(pitchingBip.data && pitchingBip.data.bipCount > 0);
+  const hasPitchingLine =
+    pitchingLine.data?.source === "mlb" ||
+    (pitchingLine.data?.nerdPitchesThrown ?? 0) > 0 ||
+    (pitchingLine.data?.pitchMix.totalPitches ?? 0) > 0;
+  const hasPitching = hasPitchingBip || hasPitchingLine;
+
+  const [mode, setMode] = useState<ProfileMode>("hitting");
+  const [modeReady, setModeReady] = useState(false);
+
+  useEffect(() => {
+    if (modeReady) return;
+    if (batting.isLoading || pitchingBip.isLoading || pitchingLine.isLoading) return;
+    if (hasHitting && hasPitching) {
+      setMode("hitting");
+    } else if (hasPitching) {
+      setMode("pitching");
+    } else {
+      setMode("hitting");
+    }
+    setModeReady(true);
+  }, [
+    batting.isLoading,
+    hasHitting,
+    hasPitching,
+    modeReady,
+    pitchingBip.isLoading,
+    pitchingLine.isLoading,
+  ]);
+
+  const activeData = mode === "pitching" ? pitchingBip.data : batting.data;
+  const activeFetchHitDetail =
+    mode === "pitching" ? pitchingBip.fetchHitDetail : batting.fetchHitDetail;
+  const isLoading =
+    batting.isLoading || pitchingBip.isLoading || pitchingLine.isLoading || !modeReady;
+  const error = mode === "pitching" ? pitchingBip.error || pitchingLine.error : batting.error;
+
+  const displayName =
+    activeData?.name ||
+    pitchingLine.data?.name ||
+    batting.data?.name ||
+    pitchingBip.data?.name ||
+    `Player ${playerId}`;
+  const displayTeamId =
+    activeData?.teamId ?? batting.data?.teamId ?? pitchingBip.data?.teamId ?? null;
+  const displayTeamAbbrev =
+    activeData?.teamAbbrev ?? batting.data?.teamAbbrev ?? pitchingBip.data?.teamAbbrev ?? null;
+
   const [bipFamily, setBipFamily] = useState<BipFamilyFilter>("hit");
   const [hitTypeFilter, setHitTypeFilter] = useState<HitType | "all">("all");
   const [parkFilter, setParkFilter] = useState<number | "all">("all");
@@ -251,16 +509,17 @@ export function PlayerDetailView({ playerId }: PlayerDetailViewProps) {
   const [detailVenueId, setDetailVenueId] = useState<number | null>(null);
   const detailRequestRef = useRef(0);
 
-  const parks = useMemo(() => {
-    if (!data) return [];
-    if (parkFilter === "all") return data.parks;
-    return data.parks.filter((p) => p.venueId === parkFilter);
-  }, [data, parkFilter]);
+  useEffect(() => {
+    setBipFamily("hit");
+    setHitTypeFilter("all");
+    setParkFilter("all");
+    setSelectedHitKey(null);
+  }, [mode]);
 
   const openHitDetail = useCallback(
     async (hitKey: string) => {
       const requestId = ++detailRequestRef.current;
-      const hit = await fetchHitDetail(hitKey);
+      const hit = await activeFetchHitDetail(hitKey);
       if (requestId !== detailRequestRef.current || !hit?.detail) return;
 
       const withExisting =
@@ -278,11 +537,11 @@ export function PlayerDetailView({ playerId }: PlayerDetailViewProps) {
       setDetailGamePk(hit.gamePk ?? null);
       setDetailGameDate(hit.gameDate ?? null);
       setDetailVenueId(
-        data?.parks.find((p) => p.hits.some((h) => h.hitKey === hitKey))?.venueId ?? null,
+        activeData?.parks.find((p) => p.hits.some((h) => h.hitKey === hitKey))?.venueId ?? null,
       );
       setDetailPlay(enriched);
     },
-    [data?.parks, fetchHitDetail],
+    [activeData?.parks, activeFetchHitDetail],
   );
 
   const handleSelectHit = useCallback(
@@ -293,6 +552,8 @@ export function PlayerDetailView({ playerId }: PlayerDetailViewProps) {
     },
     [openHitDetail],
   );
+
+  const showTwoWayTabs = hasHitting && hasPitching;
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
@@ -308,29 +569,60 @@ export function PlayerDetailView({ playerId }: PlayerDetailViewProps) {
             ← All players
           </Link>
 
-          {isLoading || !data ? (
+          {isLoading && !activeData && !pitchingLine.data ? (
             <div className="mt-3">
               <Skeleton className="h-7 w-48" />
               <Skeleton className="mt-2 h-4 w-56" />
             </div>
           ) : (
             <div className="mt-3 flex items-start gap-2.5 sm:items-center sm:gap-3">
-              {data.teamId ? <TeamLogo teamId={data.teamId} size={40} className="sm:hidden" /> : null}
-              {data.teamId ? (
-                <TeamLogo teamId={data.teamId} size={44} className="hidden sm:block" />
+              {displayTeamId ? (
+                <TeamLogo teamId={displayTeamId} size={40} className="sm:hidden" />
+              ) : null}
+              {displayTeamId ? (
+                <TeamLogo teamId={displayTeamId} size={44} className="hidden sm:block" />
               ) : null}
               <div className="min-w-0">
                 <h1 className="truncate text-lg font-medium text-foreground sm:text-xl">
-                  {data.name}
+                  {displayName}
                 </h1>
                 <p className="mt-0.5 text-[12px] text-muted sm:mt-1 sm:text-sm">
-                  {data.teamAbbrev ?? "—"} · {CURRENT_SEASON} · {data.bipCount} BIP ·{" "}
-                  {data.parks.length} parks
+                  {displayTeamAbbrev ?? "—"} · {CURRENT_SEASON}
+                  {mode === "pitching"
+                    ? ` · ${pitchingBip.data?.bipCount ?? 0} BIP allowed · ${
+                        pitchingBip.data?.parks.length ?? 0
+                      } parks`
+                    : ` · ${batting.data?.bipCount ?? 0} BIP · ${batting.data?.parks.length ?? 0} parks`}
                 </p>
               </div>
             </div>
           )}
         </div>
+
+        {showTwoWayTabs ? (
+          <div className="flex gap-1 rounded-lg border border-border bg-surface p-1">
+            {(
+              [
+                { id: "hitting" as const, label: "Hitting" },
+                { id: "pitching" as const, label: "Pitching" },
+              ] as const
+            ).map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setMode(tab.id)}
+                className={cn(
+                  "flex-1 rounded-md px-3 py-2 text-[12px] font-medium transition-colors",
+                  mode === tab.id
+                    ? "bg-panel text-foreground"
+                    : "text-muted hover:text-foreground",
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         {error ? (
           <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-400 sm:px-4">
@@ -343,102 +635,70 @@ export function PlayerDetailView({ playerId }: PlayerDetailViewProps) {
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-64 w-full" />
           </div>
-        ) : data ? (
+        ) : mode === "pitching" ? (
           <>
-            <div className="rounded-xl border border-border bg-surface px-3 py-3">
-              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end sm:gap-3">
-                <label className="flex min-w-0 flex-col gap-1 text-[10px] text-muted">
-                  Result
-                  <select
-                    value={bipFamily}
-                    onChange={(e) => {
-                      setBipFamily(e.target.value as BipFamilyFilter);
-                      setSelectedHitKey(null);
-                    }}
-                    className="h-9 w-full rounded-md border border-border bg-panel px-2 text-[12px] text-foreground sm:h-8 sm:w-auto"
-                  >
-                    {BIP_FAMILY_FILTER_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {(bipFamily === "hit" || bipFamily === "all") && (
-                  <label className="flex min-w-0 flex-col gap-1 text-[10px] text-muted">
-                    Hit type
-                    <select
-                      value={hitTypeFilter}
-                      onChange={(e) => {
-                        setHitTypeFilter(e.target.value as HitType | "all");
-                        setSelectedHitKey(null);
-                      }}
-                      className="h-9 w-full rounded-md border border-border bg-panel px-2 text-[12px] text-foreground sm:h-8 sm:w-auto"
-                    >
-                      <option value="all">All hits</option>
-                      {HIT_TYPES.map((type) => (
-                        <option key={type} value={type}>
-                          {HIT_TYPE_LABELS[type]}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-                <label className="col-span-2 flex min-w-0 flex-col gap-1 text-[10px] text-muted sm:col-span-1">
-                  Park
-                  <select
-                    value={parkFilter === "all" ? "all" : String(parkFilter)}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setParkFilter(v === "all" ? "all" : Number.parseInt(v, 10));
-                      setSelectedHitKey(null);
-                    }}
-                    className="h-9 w-full rounded-md border border-border bg-panel px-2 text-[12px] text-foreground sm:h-8 sm:max-w-[220px]"
-                  >
-                    <option value="all">All parks</option>
-                    {data.parks.map((park) => (
-                      <option key={park.venueId} value={park.venueId}>
-                        {park.venueName} ({park.stats.total})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <p className="mt-2.5 text-[11px] leading-relaxed text-subtle sm:mt-3">
-                Avg EV {fmtNum(data.stats.avgExitVelo)} mph · Hardest{" "}
-                {fmtNum(data.stats.maxExitVelo, 0)} mph · Longest{" "}
-                {fmtNum(data.stats.maxDistance, 0, " ft")}
+            {pitchingLine.data ? <PitchingSummaryPanel line={pitchingLine.data} /> : null}
+            {pitchingBip.data ? (
+              <BipExplorer
+                data={pitchingBip.data}
+                bipLabel="BIP allowed"
+                bipFamily={bipFamily}
+                setBipFamily={(v) => {
+                  setBipFamily(v);
+                  setSelectedHitKey(null);
+                }}
+                hitTypeFilter={hitTypeFilter}
+                setHitTypeFilter={(v) => {
+                  setHitTypeFilter(v);
+                  setSelectedHitKey(null);
+                }}
+                parkFilter={parkFilter}
+                setParkFilter={(v) => {
+                  setParkFilter(v);
+                  setSelectedHitKey(null);
+                }}
+                selectedHitKey={selectedHitKey}
+                onSelectHit={handleSelectHit}
+              />
+            ) : (
+              <p className="py-6 text-center text-sm text-muted">
+                No balls in play allowed indexed for this pitcher yet.
               </p>
-            </div>
-
-            <div className="space-y-3 sm:space-y-4">
-              {parks.map((park) => (
-                <ParkBipSection
-                  key={park.venueId}
-                  park={park}
-                  bipFamily={bipFamily}
-                  hitTypeFilter={hitTypeFilter}
-                  selectedHitKey={selectedHitKey}
-                  onSelectHit={handleSelectHit}
-                />
-              ))}
-              {parks.every((park) => {
-                const chartSource = park.chartHits?.length ? park.chartHits : park.hits;
-                let hits: SprayPreviewHit[] = filterBipByFamily(chartSource, bipFamily);
-                if (bipFamily === "hit" || bipFamily === "all") {
-                  hits = filterBipByHitType(hits, hitTypeFilter);
-                }
-                return hits.length === 0;
-              }) ? (
-                <p className="py-8 text-center text-sm text-muted">
-                  No balls in play match these filters.
-                </p>
-              ) : null}
-            </div>
-
+            )}
             <PlayerNerdContributionPanel playerId={playerId} season={CURRENT_SEASON} />
           </>
-        ) : null}
+        ) : batting.data ? (
+          <>
+            <BipExplorer
+              data={batting.data}
+              bipLabel="BIP"
+              bipFamily={bipFamily}
+              setBipFamily={(v) => {
+                setBipFamily(v);
+                setSelectedHitKey(null);
+              }}
+              hitTypeFilter={hitTypeFilter}
+              setHitTypeFilter={(v) => {
+                setHitTypeFilter(v);
+                setSelectedHitKey(null);
+              }}
+              parkFilter={parkFilter}
+              setParkFilter={(v) => {
+                setParkFilter(v);
+                setSelectedHitKey(null);
+              }}
+              selectedHitKey={selectedHitKey}
+              onSelectHit={handleSelectHit}
+            />
+            <PlayerNerdContributionPanel playerId={playerId} season={CURRENT_SEASON} />
+          </>
+        ) : hasPitching ? (
+          <p className="py-6 text-center text-sm text-muted">
+            No batting BIP for this player — switch to pitching if available.
+          </p>
+        ) : (
+          <p className="py-6 text-center text-sm text-muted">Player profile not found.</p>
+        )}
       </div>
 
       <PlayDetailDialog

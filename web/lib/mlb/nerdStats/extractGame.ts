@@ -55,6 +55,7 @@ import { teamPassesSplitFilter, type NerdStatSplitFilter } from "@/lib/mlb/nerdS
 import type {
   GameNerdSourceRow,
   NotableNerdEvent,
+  PlayerNerdCounters,
   SeasonNerdCounters,
   SeasonPlayerNerdCounters,
   TeamNerdCounters,
@@ -626,6 +627,7 @@ export function extractNerdCountersFromGame(
     const defenseId = fieldingTeamId(play, row.away_team_id, row.home_team_id);
     let offense = teamCounters(counters, offenseId, row, split);
     let defense = teamCounters(counters, defenseId, row, split);
+    let mirroredPitcher: PlayerNerdCounters | null = null;
 
     if (playerOut && split === "all") {
       if (play.batterId) {
@@ -642,14 +644,14 @@ export function extractNerdCountersFromGame(
       const pitcherId = play.detail.pitcherId;
       if (pitcherId) {
         const team = getTeamById(defenseId);
-        const pitcher = ensurePlayerCounters(
+        mirroredPitcher = ensurePlayerCounters(
           playerOut,
           pitcherId,
           play.detail.pitcherName || "Pitcher",
           defenseId,
           team?.abbrev,
         );
-        defense = mirrorNumericIncrements(defense, pitcher);
+        defense = mirrorNumericIncrements(defense, mirroredPitcher);
       }
     }
 
@@ -703,6 +705,9 @@ export function extractNerdCountersFromGame(
       for (const pitch of play.detail.pitches) {
         recordPitchCounters(offense, defense, pitch);
         recordPitchTypeThrown(defense, pitch);
+        if (mirroredPitcher) {
+          recordPitchTypeThrown(mirroredPitcher, pitch);
+        }
         if (halfTracker) halfTracker.pitches += 1;
 
         if (isMeatball(pitch)) {

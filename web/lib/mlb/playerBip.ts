@@ -1,6 +1,8 @@
 import type { GameHitStats } from "@/lib/mlb/gameHits";
 import type { SprayPreviewHit, VenueHit } from "@/lib/mlb/ballparkHits";
 
+export type PlayerProfileRole = "batter" | "pitcher";
+
 export interface PlayerBipIndexEntry {
   playerId: number;
   name: string;
@@ -10,6 +12,8 @@ export interface PlayerBipIndexEntry {
   bipCount: number;
   hitCount: number;
   venueCount: number;
+  /** Present on merged search results (batter and/or pitcher indexes). */
+  roles?: PlayerProfileRole[];
 }
 
 export interface PlayerBipIndex {
@@ -39,4 +43,25 @@ export interface PlayerBipDetail {
   parks: PlayerVenueBip[];
   generatedAt: string;
   source?: "file" | "empty";
+}
+
+/** Season pitching line from MLB Stats API (official counting stats). */
+export interface PlayerPitchingSeasonLine {
+  playerId: number;
+  season: number;
+  name: string | null;
+  throwHand: string | null;
+  wins: number | null;
+  losses: number | null;
+  era: string | null;
+  inningsPitched: string | null;
+  strikeOuts: number | null;
+  baseOnBalls: number | null;
+  homeRuns: number | null;
+  whip: string | null;
+  hits: number | null;
+  earnedRuns: number | null;
+  gamesPlayed: number | null;
+  gamesStarted: number | null;
+  source: "mlb" | "empty";
 }

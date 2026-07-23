@@ -30,6 +30,8 @@ function makeHit(
   return {
     batterId: 1,
     batterName: "Test",
+    pitcherId: 2,
+    pitcherName: "Pitcher",
     event: "Single",
     bipKind: "hit",
     inning: 1,

@@ -15,6 +15,7 @@ import { resolveBallparkVenueId } from "../lib/mlb/ballparkPaths";
 import { writeFullBallparkHitsStore } from "../lib/mlb/ballparkHitsStore";
 import { loadGameSourceRow } from "../lib/mlb/nerdStats/gameSourceCache";
 import { rebuildPlayerBipStore } from "../lib/mlb/playerBipStore";
+import { rebuildPlayerPitchBipStore } from "../lib/mlb/playerPitchBipStore";
 
 const WEB_ROOT = dirname(fileURLToPath(import.meta.url));
 
@@ -87,9 +88,13 @@ function main() {
   process.stdout.write("\n");
   writeFullBallparkHitsStore(season, gameRows);
   const playerBip = rebuildPlayerBipStore(season);
+  const playerPitchBip = rebuildPlayerPitchBipStore(season);
 
   console.log(
     `Wrote ballpark-hits + player-bip for ${gameRows.length} games (${hitCount} BIP, ${playerBip.playerCount} players).`,
+  );
+  console.log(
+    `Rebuilt pitcher BIP index: ${playerPitchBip.playerCount} pitchers, ${playerPitchBip.bipCount} BIP allowed`,
   );
 }
 

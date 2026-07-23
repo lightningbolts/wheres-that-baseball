@@ -47,6 +47,8 @@ function normalizeHit(hit: VenueHit): VenueHit {
   return slimHit({
     ...hit,
     batterId: hit.batterId ?? hit.detail?.batterId ?? 0,
+    pitcherId: hit.pitcherId ?? hit.detail?.pitcherId ?? null,
+    pitcherName: hit.pitcherName || hit.detail?.pitcherName || "",
     bipKind,
   });
 }

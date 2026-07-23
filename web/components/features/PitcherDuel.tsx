@@ -1,8 +1,9 @@
 "use client";
 
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 
-import { mlbPlayerHeadshotUrl, mlbPlayerPageUrl } from "@/lib/mlb/cardPitchers";
+import { mlbPlayerHeadshotUrl } from "@/lib/mlb/cardPitchers";
 import { cn } from "@/lib/utils";
 import type { CardPitcher } from "@/types/mlb";
 
@@ -23,6 +24,8 @@ function PitcherSide({
   align: "left" | "right";
   label: string;
 }) {
+  const router = useRouter();
+
   if (!pitcher) {
     return (
       <div
@@ -46,13 +49,13 @@ function PitcherSide({
     >
       <button
         type="button"
-        title={`${pitcher.name} on MLB.com`}
-        aria-label={`View ${pitcher.name} on MLB.com`}
+        title={`View ${pitcher.name} profile`}
+        aria-label={`View ${pitcher.name} profile`}
         onClick={(event) => {
           // LiveGameCard wraps the slate in a Link — avoid nested <a> and navigate separately.
           event.preventDefault();
           event.stopPropagation();
-          window.open(mlbPlayerPageUrl(pitcher.playerId), "_blank", "noopener,noreferrer");
+          router.push(`/players/${pitcher.playerId}`);
         }}
         className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full bg-overlay ring-1 ring-border/80 transition hover:ring-2 hover:ring-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground"
       >

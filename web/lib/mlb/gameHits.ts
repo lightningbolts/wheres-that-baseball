@@ -59,6 +59,8 @@ export interface GameHit {
   atBatIndex: number;
   batterId: number;
   batterName: string;
+  pitcherId: number | null;
+  pitcherName: string;
   event: string;
   bipKind: BipKind;
   inning: number;
@@ -144,6 +146,8 @@ export function extractGameHits(plays: PlayByPlayEntry[]): GameHit[] {
       atBatIndex: play.atBatIndex,
       batterId: play.batterId ?? play.detail.batterId ?? 0,
       batterName: play.batterName,
+      pitcherId: play.detail.pitcherId ?? null,
+      pitcherName: play.detail.pitcherName ?? "",
       event: play.event,
       bipKind,
       inning: play.inning,
