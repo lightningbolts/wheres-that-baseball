@@ -56,10 +56,16 @@ import type {
   GameNerdSourceRow,
   NotableNerdEvent,
   SeasonNerdCounters,
+  SeasonPlayerNerdCounters,
   TeamNerdCounters,
 } from "@/lib/mlb/nerdStats/types";
 import type { GameBoxScore } from "@/types/mlb-boxscore";
 import type { PlayByPlayEntry } from "@/types/mlb-live";
+import {
+  ensurePlayerCounters,
+  mirrorNumericIncrements,
+} from "@/lib/mlb/nerdStats/playerMirror";
+import { getTeamById } from "@/lib/mlb/teams";
 
 function teamCounters(
   counters: SeasonNerdCounters,
@@ -514,6 +520,7 @@ function finalizeGameTeamState(
 export function extractNerdCountersFromGame(
   row: GameNerdSourceRow,
   split: NerdStatSplitFilter = "all",
+  playerOut?: SeasonPlayerNerdCounters,
 ): SeasonNerdCounters {
   const counters = createEmptySeasonCounters();
   const away = teamCounters(counters, row.away_team_id, row, split);
@@ -617,8 +624,35 @@ export function extractNerdCountersFromGame(
   for (const play of plays) {
     const offenseId = battingTeamId(play, row.away_team_id, row.home_team_id);
     const defenseId = fieldingTeamId(play, row.away_team_id, row.home_team_id);
-    const offense = teamCounters(counters, offenseId, row, split);
-    const defense = teamCounters(counters, defenseId, row, split);
+    let offense = teamCounters(counters, offenseId, row, split);
+    let defense = teamCounters(counters, defenseId, row, split);
+
+    if (playerOut && split === "all") {
+      if (play.batterId) {
+        const team = getTeamById(offenseId);
+        const batter = ensurePlayerCounters(
+          playerOut,
+          play.batterId,
+          play.batterName,
+          offenseId,
+          team?.abbrev,
+        );
+        offense = mirrorNumericIncrements(offense, batter);
+      }
+      const pitcherId = play.detail.pitcherId;
+      if (pitcherId) {
+        const team = getTeamById(defenseId);
+        const pitcher = ensurePlayerCounters(
+          playerOut,
+          pitcherId,
+          play.detail.pitcherName || "Pitcher",
+          defenseId,
+          team?.abbrev,
+        );
+        defense = mirrorNumericIncrements(defense, pitcher);
+      }
+    }
+
     const offenseGame = offenseId === row.away_team_id ? awayGame : homeGame;
     const defenseGame = defenseId === row.away_team_id ? awayGame : homeGame;
 

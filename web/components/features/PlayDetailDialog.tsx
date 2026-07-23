@@ -1,12 +1,14 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { Dialog } from "@/components/ui/Dialog";
 import { PitchSequence } from "@/components/features/PitchSequence";
 import { PlayVideoPlayer } from "@/components/features/PlayVideoPlayer";
 import { SprayChart } from "@/components/features/SprayChart";
+import { notableGameHref } from "@/lib/mlb/nerdStats/notableEvents";
 import { formatPlayWinProbabilityLine } from "@/lib/mlb/wpa";
 import type { HitData, PlayDetail, PlayPitch } from "@/types/mlb-live";
 
@@ -89,6 +91,8 @@ interface PlayDetailDialogProps {
   venueId?: number | null;
   /** Enables MLB Content video resolve during live games (before Savant). */
   gamePk?: number | null;
+  /** Optional game date for Season History back-navigation context. */
+  gameDate?: string | null;
   onClose: () => void;
 }
 
@@ -258,13 +262,29 @@ function AtBatResultSection({
   );
 }
 
-export function PlayDetailDialog({ play, venueId, gamePk, onClose }: PlayDetailDialogProps) {
+export function PlayDetailDialog({
+  play,
+  venueId,
+  gamePk,
+  gameDate,
+  onClose,
+}: PlayDetailDialogProps) {
   const hit = play?.hit ?? null;
   const finalPitch = play ? getFinalPitch(play.pitches) : null;
   const winProbabilityLine = play ? formatPlayWinProbabilityLine(play) : null;
   const title = play
     ? `${play.batterName} — ${play.event} (${play.batterHits}-${play.batterAtBats})`
     : "Play details";
+
+  const gameHref =
+    gamePk != null && play
+      ? (() => {
+          const href = notableGameHref(gamePk, play.atBatIndex);
+          if (!gameDate) return href;
+          const sep = href.includes("?") ? "&" : "?";
+          return `${href}${sep}date=${encodeURIComponent(gameDate)}&view=date`;
+        })()
+      : null;
 
   return (
     <Dialog
@@ -293,6 +313,17 @@ export function PlayDetailDialog({ play, venueId, gamePk, onClose }: PlayDetailD
           <p className="text-[13px] leading-relaxed text-secondary md:text-[14px]">
             {play.description}
           </p>
+
+          {gameHref ? (
+            <p>
+              <Link
+                href={gameHref}
+                className="text-[12px] font-medium text-secondary underline-offset-2 hover:underline"
+              >
+                View in game →
+              </Link>
+            </p>
+          ) : null}
 
           {(play.playId || play.pitches.some((p) => p.playId)) && (
             <PlayVideoPlayer

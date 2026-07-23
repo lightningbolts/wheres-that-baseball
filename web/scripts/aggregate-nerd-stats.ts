@@ -51,6 +51,7 @@ import {
   loadPerGameNerdCaches,
   mergePerGameCaches,
   mergePerGameCachesForWindow,
+  mergePerGamePlayerCaches,
   type PerGameNerdCacheEntry,
   writePerGameNerdCache,
 } from "../lib/mlb/nerdStats/gameCache";
@@ -59,7 +60,12 @@ import {
   loadGameSourceRow,
   writeGameSourceRow,
 } from "../lib/mlb/nerdStats/gameSourceCache";
-import type { GameNerdSourceRow, SeasonNerdCounters } from "../lib/mlb/nerdStats/types";
+import { writePlayerNerdStore } from "../lib/mlb/nerdStats/playerNerdStore";
+import type {
+  GameNerdSourceRow,
+  SeasonNerdCounters,
+  SeasonPlayerNerdCounters,
+} from "../lib/mlb/nerdStats/types";
 import {
   appendGameNerdStatsToStore,
   listMissingStatIds,
@@ -168,7 +174,8 @@ async function extractAndCacheGame(
   game: GameNerdSourceRow,
   skipSavant: boolean,
 ): Promise<PerGameNerdCacheEntry> {
-  const combined = extractNerdCountersFromGame(game, "all");
+  const players: SeasonPlayerNerdCounters = {};
+  const combined = extractNerdCountersFromGame(game, "all", players);
   const home = extractNerdCountersFromGame(game, "home");
   const away = extractNerdCountersFromGame(game, "away");
 
@@ -184,6 +191,7 @@ async function extractAndCacheGame(
     combined,
     home,
     away,
+    players,
     extractedAt: new Date().toISOString(),
   };
   writePerGameNerdCache(season, entry);
@@ -270,6 +278,7 @@ function writeSeasonAndSplitStores(
   countersByScope: Record<"combined" | NerdStatSplitId, SeasonNerdCounters>,
   processedGamePks: number[],
   options: WriteNerdStatsStoreOptions,
+  playerCounters?: SeasonPlayerNerdCounters,
 ): { writtenStatIds: string[] } {
   const { writtenStatIds } = writeNerdStatsStore(
     season,
@@ -283,6 +292,14 @@ function writeSeasonAndSplitStores(
   };
   writeSplitNerdStatsStore(season, "home", countersByScope.home, processedGamePks, splitOptions);
   writeSplitNerdStatsStore(season, "away", countersByScope.away, processedGamePks, splitOptions);
+
+  if (playerCounters) {
+    writePlayerNerdStore(season, playerCounters, countersByScope.combined);
+    console.log(
+      `Wrote player nerd cards for ${Object.keys(playerCounters).length} players`,
+    );
+  }
+
   return { writtenStatIds };
 }
 
@@ -491,6 +508,7 @@ async function backfillCountersFromManifest(
     countersByScope,
     manifest.processedGamePks,
     options.storeOptions,
+    mergePerGamePlayerCaches(allCaches),
   );
 
   console.log(`Updated counters.json and summary.json`);
@@ -960,7 +978,13 @@ async function main() {
     fullStore: true,
     teamCards: true,
   });
-  writeSeasonAndSplitStores(season, countersByScope, processed, fullRebuildStoreOptions);
+  writeSeasonAndSplitStores(
+    season,
+    countersByScope,
+    processed,
+    fullRebuildStoreOptions,
+    mergePerGamePlayerCaches(loadPerGameNerdCaches(season, processed).cached),
+  );
   console.log(`Wrote nerd stats for ${processed.length} games to data/nerd-stats/${season}/`);
   const allCaches = loadPerGameNerdCaches(season, processed).cached;
   await buildRollingWindowStores(season, allCaches, fullRebuildStoreOptions);

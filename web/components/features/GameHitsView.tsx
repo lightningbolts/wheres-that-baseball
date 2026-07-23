@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { PlayDetailDialog } from "@/components/features/PlayDetailDialog";
@@ -8,14 +9,20 @@ import { PlayVideoIcon, playShowsVideoIcon } from "@/components/features/PlayVid
 import { GameHitsSprayChart } from "@/components/features/GameHitsSprayChart";
 import { Skeleton } from "@/components/ui/Skeleton";
 import {
+  BIP_FAMILY_FILTER_OPTIONS,
+  bipEventLabel,
   computeGameHitStats,
   extractGameHits,
+  filterBipByFamily,
+  filterBipByHitType,
   HIT_TYPE_COLORS,
   HIT_TYPE_LABELS,
+  type BipFamilyFilter,
   type GameHit,
   type HitType,
   type SprayChartHit,
 } from "@/lib/mlb/gameHits";
+import { notableGameHref } from "@/lib/mlb/nerdStats/notableEvents";
 import { cn, formatInningHalf } from "@/lib/utils";
 import type { PlayByPlayEntry } from "@/types/mlb-live";
 
@@ -91,7 +98,7 @@ function HitRow({
             aria-hidden
           />
           <span className="shrink-0 font-mono text-[11px] text-muted">
-            {HIT_TYPE_LABELS[gameHit.event]}
+            {bipEventLabel(gameHit.event)}
           </span>
           <span className="truncate text-[13px] font-medium text-foreground">
             {gameHit.batterName}
@@ -134,11 +141,13 @@ function SelectedHitBanner({
   inning,
   halfInning,
   launchSpeed,
+  gamePk,
+  atBatIndex,
   onOpenDetail,
   onClear,
 }: {
   batterName: string;
-  event: HitType;
+  event: string;
   awayAbbrev: string;
   homeAbbrev: string;
   awayScore: number;
@@ -146,16 +155,21 @@ function SelectedHitBanner({
   inning: number;
   halfInning: string;
   launchSpeed?: number;
+  gamePk?: number | null;
+  atBatIndex?: number;
   onOpenDetail: () => void;
   onClear: () => void;
 }) {
+  const gameHref =
+    gamePk != null && atBatIndex != null ? notableGameHref(gamePk, atBatIndex) : null;
+
   return (
     <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface px-3 py-2.5">
       <div className="min-w-0">
         <p className="text-[13px] font-medium text-foreground">
           {batterName}
           <span className="ml-2 font-mono text-[11px] font-normal text-muted">
-            {HIT_TYPE_LABELS[event]}
+            {bipEventLabel(event)}
           </span>
         </p>
         <p className="mt-0.5 text-[11px] text-muted">
@@ -178,6 +192,14 @@ function SelectedHitBanner({
         >
           Play details
         </button>
+        {gameHref ? (
+          <Link
+            href={gameHref}
+            className="text-[11px] font-medium text-secondary underline-offset-2 hover:underline"
+          >
+            View in game
+          </Link>
+        ) : null}
         <button
           type="button"
           onClick={onClear}
@@ -284,15 +306,24 @@ export function GameHitsView({
   isLoading = false,
   className,
 }: GameHitsViewProps) {
-  const hits = useMemo(() => extractGameHits(plays), [plays]);
-  const stats = useMemo(() => computeGameHitStats(hits), [hits]);
+  const allHits = useMemo(() => extractGameHits(plays), [plays]);
+  const [bipFamily, setBipFamily] = useState<BipFamilyFilter>("hit");
+  const [hitTypeFilter, setHitTypeFilter] = useState<HitType | "all">("all");
+  const hits = useMemo(() => {
+    let filtered = filterBipByFamily(allHits, bipFamily);
+    if (bipFamily === "hit" || bipFamily === "all") {
+      filtered = filterBipByHitType(filtered, hitTypeFilter);
+    }
+    return filtered;
+  }, [allHits, bipFamily, hitTypeFilter]);
+  const stats = useMemo(() => computeGameHitStats(allHits), [allHits]);
   const [selectedAtBatIndex, setSelectedAtBatIndex] = useState<number | null>(null);
   const [detailPlay, setDetailPlay] = useState<GameHit["detail"] | null>(null);
   const detailOpenLockRef = useRef(false);
 
   const selectedHit =
     selectedAtBatIndex != null
-      ? hits.find((hit) => hit.atBatIndex === selectedAtBatIndex) ?? null
+      ? allHits.find((hit) => hit.atBatIndex === selectedAtBatIndex) ?? null
       : null;
 
   const handleSelectHit = useCallback((gameHit: SprayChartHit) => {
@@ -334,47 +365,86 @@ export function GameHitsView({
           className,
         )}
       >
-        {hits.length === 0 ? (
+        {allHits.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center px-6 py-12 text-center">
-            <p className="text-sm text-subtle">No tracked hits yet.</p>
+            <p className="text-sm text-subtle">No tracked balls in play yet.</p>
             <p className="mt-1 text-xs text-muted">
-              Hits will appear as the game progresses
+              Spray data will appear as the game progresses
               {venueName ? ` · ${venueName}` : ""}
             </p>
           </div>
         ) : (
           <div className="flex flex-col gap-4 p-3 sm:p-4">
             <div className="shrink-0 rounded-xl border border-border bg-surface px-3 py-3 sm:px-4">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                <p className="text-xs text-muted">
-                  {stats.total} hit{stats.total === 1 ? "" : "s"} with tracking data
-                  {venueName ? ` · ${venueName}` : ""}
+              <div className="flex flex-wrap items-end gap-3">
+                <label className="flex flex-col gap-1 text-[10px] text-muted">
+                  Result
+                  <select
+                    value={bipFamily}
+                    onChange={(e) => {
+                      setBipFamily(e.target.value as BipFamilyFilter);
+                      setSelectedAtBatIndex(null);
+                    }}
+                    className="h-8 rounded-md border border-border bg-panel px-2 text-[12px] text-foreground"
+                  >
+                    {BIP_FAMILY_FILTER_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {(bipFamily === "hit" || bipFamily === "all") && (
+                  <label className="flex flex-col gap-1 text-[10px] text-muted">
+                    Hit type
+                    <select
+                      value={hitTypeFilter}
+                      onChange={(e) => {
+                        setHitTypeFilter(e.target.value as HitType | "all");
+                        setSelectedAtBatIndex(null);
+                      }}
+                      className="h-8 rounded-md border border-border bg-panel px-2 text-[12px] text-foreground"
+                    >
+                      <option value="all">All hits</option>
+                      {HIT_TYPES.map((type) => (
+                        <option key={type} value={type}>
+                          {HIT_TYPE_LABELS[type]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                <p className="pb-1.5 text-[11px] text-subtle">
+                  {stats.total} BIP
+                  {venueName ? ` · ${venueName}` : ""} · showing{" "}
+                  <span className="font-mono tabular-nums">{hits.length}</span>
                 </p>
-                <div className="flex flex-wrap gap-x-3 gap-y-1.5 sm:justify-end">
-                  {HIT_TYPES.map((type) => {
-                    const count =
-                      type === "Single"
-                        ? stats.singles
-                        : type === "Double"
-                          ? stats.doubles
-                          : type === "Triple"
-                            ? stats.triples
-                            : stats.homeRuns;
+              </div>
 
-                    return (
-                      <div key={type} className="flex items-center gap-1.5 text-[11px] text-muted">
-                        <span
-                          className="h-2.5 w-2.5 rounded-full"
-                          style={{ backgroundColor: HIT_TYPE_COLORS[type] }}
-                          aria-hidden
-                        />
-                        <span className="font-mono tabular-nums">
-                          {HIT_TYPE_LABELS[type]} {count}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
+              <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5">
+                {HIT_TYPES.map((type) => {
+                  const count =
+                    type === "Single"
+                      ? stats.singles
+                      : type === "Double"
+                        ? stats.doubles
+                        : type === "Triple"
+                          ? stats.triples
+                          : stats.homeRuns;
+
+                  return (
+                    <div key={type} className="flex items-center gap-1.5 text-[11px] text-muted">
+                      <span
+                        className="h-2.5 w-2.5 rounded-full"
+                        style={{ backgroundColor: HIT_TYPE_COLORS[type] }}
+                        aria-hidden
+                      />
+                      <span className="font-mono tabular-nums">
+                        {HIT_TYPE_LABELS[type]} {count}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
 
               <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
@@ -420,6 +490,8 @@ export function GameHitsView({
                           inning={selectedHit.inning}
                           halfInning={selectedHit.halfInning}
                           launchSpeed={selectedHit.hit.launchSpeed}
+                          gamePk={gamePk}
+                          atBatIndex={selectedHit.atBatIndex}
                           onOpenDetail={() => openHitDetail(selectedHit.detail)}
                           onClear={() => setSelectedAtBatIndex(null)}
                         />
@@ -432,7 +504,7 @@ export function GameHitsView({
                 <aside className="flex max-h-[min(50vh,28rem)] flex-col overflow-hidden border-t border-border bg-surface lg:absolute lg:inset-y-0 lg:right-0 lg:max-h-none lg:w-[min(320px,34%)] lg:border-l lg:border-t-0">
                   <div className="shrink-0 border-b border-border px-3 py-2">
                     <h3 className="text-xs font-medium text-muted">
-                      Hits{" "}
+                      Balls in play{" "}
                       <span className="font-mono tabular-nums text-subtle">({hits.length})</span>
                     </h3>
                   </div>

@@ -20,8 +20,10 @@ export type SprayPreviewHit = Pick<
   GameHit,
   | "atBatIndex"
   | "event"
+  | "bipKind"
   | "hit"
   | "color"
+  | "batterId"
   | "batterName"
   | "inning"
   | "halfInning"
@@ -29,6 +31,7 @@ export type SprayPreviewHit = Pick<
   | "homeScore"
 > & {
   hitKey: string;
+  gamePk?: number;
   gameDate?: string;
   awayAbbrev?: string;
   homeAbbrev?: string;

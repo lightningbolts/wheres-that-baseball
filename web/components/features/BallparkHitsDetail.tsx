@@ -12,12 +12,18 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { useBallparkHitsDetail } from "@/hooks/useBallparkHits";
 import { useRestoreScrollWhenReady } from "@/hooks/useRestoreScrollWhenReady";
 import {
+  BIP_FAMILY_FILTER_OPTIONS,
+  bipEventLabel,
+  filterBipByFamily,
+  filterBipByHitType,
   HIT_TYPE_COLORS,
   HIT_TYPE_LABELS,
+  type BipFamilyFilter,
   type HitType,
   type SprayChartHit,
 } from "@/lib/mlb/gameHits";
 import type { SprayPreviewHit, VenueHit } from "@/lib/mlb/ballparkHits";
+import { notableGameHref } from "@/lib/mlb/nerdStats/notableEvents";
 import { enrichPlayDetailWithPlayId } from "@/lib/mlb/playVideo";
 import { cn, formatInningHalf } from "@/lib/utils";
 import type { PlayDetail } from "@/types/mlb-live";
@@ -80,7 +86,7 @@ function HitRow({
             aria-hidden
           />
           <span className="shrink-0 font-mono text-[11px] text-muted">
-            {HIT_TYPE_LABELS[venueHit.event]}
+            {bipEventLabel(venueHit.event)}
           </span>
           <span className="truncate text-[13px] font-medium text-foreground">
             {venueHit.batterName}
@@ -115,12 +121,14 @@ function SelectedHitBanner({
   inning,
   halfInning,
   launchSpeed,
+  gamePk,
+  atBatIndex,
   onOpenDetail,
   onClear,
 }: {
   hitKey: string;
   batterName: string;
-  event: HitType;
+  event: HitType | string;
   awayAbbrev?: string;
   homeAbbrev?: string;
   awayScore: number;
@@ -129,16 +137,29 @@ function SelectedHitBanner({
   inning: number;
   halfInning: string;
   launchSpeed?: number;
+  gamePk?: number;
+  atBatIndex?: number;
   onOpenDetail: (hitKey: string) => void;
   onClear: () => void;
 }) {
+  const eventLabel = bipEventLabel(event);
+  const gameHref =
+    gamePk != null && atBatIndex != null
+      ? (() => {
+          const href = notableGameHref(gamePk, atBatIndex);
+          if (!gameDate) return href;
+          const sep = href.includes("?") ? "&" : "?";
+          return `${href}${sep}date=${encodeURIComponent(gameDate)}&view=date`;
+        })()
+      : null;
+
   return (
     <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface px-3 py-2.5">
       <div className="min-w-0">
         <p className="text-[13px] font-medium text-foreground">
           {batterName}
           <span className="ml-2 font-mono text-[11px] font-normal text-muted">
-            {HIT_TYPE_LABELS[event]}
+            {eventLabel}
           </span>
         </p>
         <p className="mt-0.5 text-[11px] text-muted">
@@ -164,6 +185,14 @@ function SelectedHitBanner({
         >
           Play details
         </button>
+        {gameHref ? (
+          <Link
+            href={gameHref}
+            className="text-[11px] font-medium text-secondary underline-offset-2 hover:underline"
+          >
+            View in game
+          </Link>
+        ) : null}
         <button
           type="button"
           onClick={onClear}
@@ -274,6 +303,9 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
   const [selectedHitKey, setSelectedHitKey] = useState<string | null>(null);
   const [detailPlay, setDetailPlay] = useState<PlayDetail | null>(null);
   const [detailGamePk, setDetailGamePk] = useState<number | null>(null);
+  const [detailGameDate, setDetailGameDate] = useState<string | null>(null);
+  const [bipFamily, setBipFamily] = useState<BipFamilyFilter>("hit");
+  const [hitTypeFilter, setHitTypeFilter] = useState<HitType | "all">("all");
   const detailRequestRef = useRef(0);
   const ignoreOpenUntilRef = useRef(0);
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -295,9 +327,22 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
 
   const chartHits = useMemo(() => {
     if (!data) return [];
-    if (data.chartHits?.length) return data.chartHits;
-    return data.hits;
-  }, [data]);
+    const source = data.chartHits?.length ? data.chartHits : data.hits;
+    let filtered = filterBipByFamily(source, bipFamily);
+    if (bipFamily === "hit" || bipFamily === "all") {
+      filtered = filterBipByHitType(filtered, hitTypeFilter);
+    }
+    return filtered;
+  }, [bipFamily, data, hitTypeFilter]);
+
+  const listHits = useMemo(() => {
+    if (!data) return [];
+    let filtered = filterBipByFamily(data.hits, bipFamily);
+    if (bipFamily === "hit" || bipFamily === "all") {
+      filtered = filterBipByHitType(filtered, hitTypeFilter);
+    }
+    return filtered;
+  }, [bipFamily, data, hitTypeFilter]);
 
   const selectedHitMeta = useMemo(() => {
     if (!selectedHitKey || !data) return null;
@@ -317,6 +362,7 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
     ignoreOpenUntilRef.current = Date.now() + 450;
     setDetailPlay(null);
     setDetailGamePk(null);
+    setDetailGameDate(null);
   }, []);
 
   const openHitDetail = useCallback(
@@ -341,6 +387,7 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
       if (requestId !== detailRequestRef.current) return;
 
       setDetailGamePk(hit.gamePk ?? null);
+      setDetailGameDate(hit.gameDate ?? null);
       setDetailPlay(enriched);
     },
     [fetchHitDetail],
@@ -411,7 +458,53 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
         ) : data && data.stats.total > 0 ? (
           <>
             <div className="shrink-0 rounded-xl border border-border bg-surface px-3 py-3 sm:px-4">
-              <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+              <div className="flex flex-wrap items-end gap-3">
+                <label className="flex flex-col gap-1 text-[10px] text-muted">
+                  Result
+                  <select
+                    value={bipFamily}
+                    onChange={(e) => {
+                      setBipFamily(e.target.value as BipFamilyFilter);
+                      setSelectedHitKey(null);
+                    }}
+                    className="h-8 rounded-md border border-border bg-panel px-2 text-[12px] text-foreground"
+                  >
+                    {BIP_FAMILY_FILTER_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {(bipFamily === "hit" || bipFamily === "all") && (
+                  <label className="flex flex-col gap-1 text-[10px] text-muted">
+                    Hit type
+                    <select
+                      value={hitTypeFilter}
+                      onChange={(e) => {
+                        setHitTypeFilter(e.target.value as HitType | "all");
+                        setSelectedHitKey(null);
+                      }}
+                      className="h-8 rounded-md border border-border bg-panel px-2 text-[12px] text-foreground"
+                    >
+                      <option value="all">All hits</option>
+                      {HIT_TYPES.map((type) => (
+                        <option key={type} value={type}>
+                          {HIT_TYPE_LABELS[type]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                <p className="pb-1.5 text-[11px] text-subtle">
+                  Showing{" "}
+                  <span className="font-mono tabular-nums text-muted">{listHits.length}</span>
+                  {" / "}
+                  <span className="font-mono tabular-nums text-muted">{data.stats.total}</span>
+                </p>
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5">
                 {HIT_TYPES.map((type) => {
                   const count =
                     type === "Single"
@@ -490,6 +583,10 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
                           inning={selectedHitMeta.inning}
                           halfInning={selectedHitMeta.halfInning}
                           launchSpeed={selectedHitMeta.hit.launchSpeed}
+                          gamePk={
+                            "gamePk" in selectedHitMeta ? selectedHitMeta.gamePk : undefined
+                          }
+                          atBatIndex={selectedHitMeta.atBatIndex}
                           onOpenDetail={(hitKey) => void openHitDetail(hitKey)}
                           onClear={() => setSelectedHitKey(null)}
                         />
@@ -502,10 +599,10 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
                 <aside className="flex max-h-[min(50vh,28rem)] flex-col overflow-hidden border-t border-border bg-surface lg:absolute lg:inset-y-0 lg:right-0 lg:max-h-none lg:w-[min(320px,34%)] lg:border-l lg:border-t-0">
                   <div className="shrink-0 border-b border-border px-3 py-2">
                     <h3 className="text-xs font-medium text-muted">
-                      All hits{" "}
+                      Balls in play{" "}
                       <span className="font-mono tabular-nums text-subtle">
-                        ({data.hits.length}
-                        {(data.hitsTotal ?? data.stats.total) > data.hits.length
+                        ({listHits.length}
+                        {(data.hitsTotal ?? data.stats.total) > listHits.length
                           ? ` of ${data.hitsTotal ?? data.stats.total}`
                           : ""}
                         )
@@ -516,7 +613,7 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
                     ref={hitsScrollRef}
                     className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain"
                   >
-                    {data.hits.map((venueHit) => (
+                    {listHits.map((venueHit) => (
                       <HitRow
                         key={venueHit.hitKey}
                         venueHit={venueHit}
@@ -564,6 +661,7 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
         play={detailPlay}
         venueId={data?.park.venueId}
         gamePk={detailGamePk}
+        gameDate={detailGameDate}
         onClose={closeHitDetail}
       />
     </div>

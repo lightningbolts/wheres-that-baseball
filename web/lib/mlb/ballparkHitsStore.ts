@@ -15,6 +15,7 @@ import type {
   BallparkHitsDetail,
   VenueHit,
 } from "@/lib/mlb/ballparkHits";
+import { rebuildPlayerBipStore } from "@/lib/mlb/playerBipStore";
 
 export interface BallparkHitsManifest {
   season: number;
@@ -249,6 +250,7 @@ export function writeFullBallparkHitsStore(
   }
 
   saveBallparkHitsBundle(season, manifest, summary, venueDetails);
+  rebuildPlayerBipStore(season);
 }
 
 export function getEmptyBallparkHitsSummary(season: number): BallparkHitsAggregate {

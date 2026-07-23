@@ -244,6 +244,82 @@ export interface TeamNerdCounters {
 
 export type SeasonNerdCounters = Record<string, TeamNerdCounters>;
 
+/** Per-player nerd counters keyed by player ID string. */
+export type SeasonPlayerNerdCounters = Record<string, PlayerNerdCounters>;
+
+export interface PlayerNerdCounters extends TeamNerdCounters {
+  playerId: number;
+  name: string;
+  /** Primary team (most counted increments). */
+  teamId: number;
+  teamAbbrev: string;
+}
+
+/** Team/game outcomes that are not attributable to a single player. */
+export const TEAM_ONLY_NERD_STAT_IDS = new Set([
+  "win-pct",
+  "wins",
+  "losses",
+  "run-differential",
+  "runs-scored",
+  "runs-allowed",
+  "one-run-games",
+  "one-run-win-pct",
+  "extra-inning-games",
+  "extra-inning-win-pct",
+  "blowout-losses",
+  "blowout-wins",
+  "shutout-games",
+  "ten-plus-run-games",
+  "two-or-fewer-run-games",
+  "comeback-wins",
+  "walkoff-wins",
+  "walkoff-losses",
+  "games-played",
+]);
+
+export interface PlayerNerdStatContribution {
+  statId: string;
+  title: string;
+  subtitle: string;
+  category: NerdStatCategory;
+  unit: string;
+  sort: "asc" | "desc";
+  playerValue: number | null;
+  teamValue: number | null;
+  playerDisplay: string;
+  teamDisplay: string;
+  /** Player count / team count when both are positive count-like values. */
+  shareOfTeam: number | null;
+  playerActions: number | null;
+  teamActions: number | null;
+}
+
+export interface PlayerNerdCard {
+  season: number;
+  playerId: number;
+  name: string;
+  teamId: number;
+  teamAbbrev: string;
+  generatedAt: string;
+  contributions: PlayerNerdStatContribution[];
+}
+
+export interface PlayerNerdIndexEntry {
+  playerId: number;
+  name: string;
+  teamId: number;
+  teamAbbrev: string;
+  plateAppearances: number;
+  pitchesThrown: number;
+}
+
+export interface PlayerNerdIndex {
+  season: number;
+  generatedAt: string;
+  players: PlayerNerdIndexEntry[];
+}
+
 export interface NerdStatLeader {
   teamId: number;
   abbrev: string;

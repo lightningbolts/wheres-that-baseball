@@ -15,6 +15,8 @@ import { NERD_STAT_DEFINITIONS } from "@/lib/mlb/nerdStats/definitions";
 import { extractNerdCountersFromGame } from "@/lib/mlb/nerdStats/extractGame";
 import { writePerGameNerdCache } from "@/lib/mlb/nerdStats/gameCache";
 import { writeGameSourceRow } from "@/lib/mlb/nerdStats/gameSourceCache";
+import { mergeAndWritePlayerNerdStore } from "@/lib/mlb/nerdStats/playerNerdStore";
+import type { SeasonPlayerNerdCounters } from "@/lib/mlb/nerdStats/types";
 import { enrichCountersWithSavantBatSpeed } from "@/lib/mlb/nerdStats/savantBatSpeed";
 import type {
   GameNerdSourceRow,
@@ -413,7 +415,8 @@ export async function appendGameNerdStatsToStore(
   const homeCounters = loadSplitCounters(season, "home");
   const awayCounters = loadSplitCounters(season, "away");
 
-  const gameCounters = extractNerdCountersFromGame(row, "all");
+  const playerDelta: SeasonPlayerNerdCounters = {};
+  const gameCounters = extractNerdCountersFromGame(row, "all", playerDelta);
   const gameHomeCounters = extractNerdCountersFromGame(row, "home");
   const gameAwayCounters = extractNerdCountersFromGame(row, "away");
 
@@ -431,6 +434,7 @@ export async function appendGameNerdStatsToStore(
     combined: gameCounters,
     home: gameHomeCounters,
     away: gameAwayCounters,
+    players: playerDelta,
     extractedAt: new Date().toISOString(),
   });
   writeGameSourceRow(season, row);
@@ -445,6 +449,12 @@ export async function appendGameNerdStatsToStore(
   writeSplitNerdStatsStore(season, "away", awayCounters, manifest.processedGamePks, {
     skipTeamCards: true,
   });
+
+  try {
+    mergeAndWritePlayerNerdStore(season, playerDelta, counters);
+  } catch (err) {
+    console.warn(`player nerd store ${row.game_pk} failed:`, err);
+  }
 }
 
 export function getEmptyNerdStatsSummary(season: number): NerdStatsSummary {

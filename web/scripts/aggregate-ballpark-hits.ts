@@ -276,6 +276,11 @@ async function main() {
     console.log(
       `Updated ballpark hits with ${pending.length} game(s) (${hitCount} hits) in data/ballpark-hits/${season}/`,
     );
+    const { rebuildPlayerBipStore } = await import("../lib/mlb/playerBipStore");
+    const playerBip = rebuildPlayerBipStore(season);
+    console.log(
+      `Rebuilt player BIP index: ${playerBip.playerCount} players, ${playerBip.bipCount} BIP`,
+    );
     return;
   }
 

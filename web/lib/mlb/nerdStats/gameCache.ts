@@ -2,8 +2,9 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { join } from "node:path";
 
 import { createEmptySeasonCounters, mergeSeasonCounters } from "@/lib/mlb/nerdStats/counters";
+import { mergePlayerSeasonCounters } from "@/lib/mlb/nerdStats/playerMirror";
 import type { NerdStatSplitId } from "@/lib/mlb/nerdStats/splits";
-import type { SeasonNerdCounters } from "@/lib/mlb/nerdStats/types";
+import type { SeasonNerdCounters, SeasonPlayerNerdCounters } from "@/lib/mlb/nerdStats/types";
 import { gameDateInNerdWindow, type NerdStatWindowId } from "@/lib/mlb/nerdStats/windows";
 
 export interface PerGameNerdCacheEntry {
@@ -12,6 +13,8 @@ export interface PerGameNerdCacheEntry {
   combined: SeasonNerdCounters;
   home: SeasonNerdCounters;
   away: SeasonNerdCounters;
+  /** Player counters for this game (season-scope / split=all). */
+  players?: SeasonPlayerNerdCounters;
   extractedAt: string;
 }
 
@@ -76,6 +79,16 @@ export function mergePerGameCaches(
     mergeSeasonCounters(counters, slice);
   }
   return counters;
+}
+
+export function mergePerGamePlayerCaches(
+  entries: PerGameNerdCacheEntry[],
+): SeasonPlayerNerdCounters {
+  const players: SeasonPlayerNerdCounters = {};
+  for (const entry of entries) {
+    if (entry.players) mergePlayerSeasonCounters(players, entry.players);
+  }
+  return players;
 }
 
 export function mergePerGameCachesForWindow(
