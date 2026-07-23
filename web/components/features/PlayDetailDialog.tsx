@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Dialog } from "@/components/ui/Dialog";
 import { PitchSequence } from "@/components/features/PitchSequence";
@@ -34,53 +34,37 @@ function LazyBallTrajectory3D({
   venueId?: number | null;
   className?: string;
 }) {
-  const rootRef = useRef<HTMLDivElement>(null);
-  const [shouldRender, setShouldRender] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
-    setShouldRender(false);
-    const node = rootRef.current;
-    if (!node) return;
-
-    let idleId: number | undefined;
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-
-    const startRender = () => {
-      setShouldRender(true);
-    };
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry?.isIntersecting) return;
-        observer.disconnect();
-        // Let the dialog + video paint before spinning up a second WebGL context.
-        if (typeof requestIdleCallback !== "undefined") {
-          idleId = requestIdleCallback(startRender, { timeout: 400 });
-        } else {
-          timeoutId = setTimeout(startRender, 150);
-        }
-      },
-      { rootMargin: "80px", threshold: 0.01 },
-    );
-
-    observer.observe(node);
-    return () => {
-      observer.disconnect();
-      if (idleId != null && typeof cancelIdleCallback !== "undefined") {
-        cancelIdleCallback(idleId);
-      }
-      if (timeoutId != null) clearTimeout(timeoutId);
-    };
+    // Reset when the selected play changes so we don't keep a stale WebGL scene.
+    setExpanded(false);
   }, [hit]);
 
   return (
-    <div ref={rootRef} className={className}>
-      {shouldRender ? (
+    <div className={className}>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="text-[10px] font-medium uppercase tracking-wide text-muted">
+          3D trajectory
+        </p>
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="rounded-md border border-border px-2 py-1 text-[11px] text-secondary hover:bg-hover"
+        >
+          {expanded ? "Hide 3D" : "Show 3D"}
+        </button>
+      </div>
+      {expanded ? (
         <BallTrajectory3D hit={hit} venueId={venueId} />
       ) : (
-        <div className="flex h-[220px] items-center justify-center rounded border border-border bg-field-chart-canvas text-xs text-subtle sm:h-[280px]">
-          Scroll to load trajectory…
-        </div>
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="flex h-[220px] w-full items-center justify-center rounded border border-border bg-field-chart-canvas text-center text-[11px] text-subtle hover:bg-hover sm:h-[280px]"
+        >
+          Tap to load 3D trajectory.
+        </button>
       )}
     </div>
   );

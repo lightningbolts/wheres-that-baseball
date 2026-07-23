@@ -73,28 +73,10 @@ function LazyParkTrajectory3D({
   selectedHitKey: string | null;
   onSelectHit: (hit: SprayChartHit & { hitKey?: string }) => void;
 }) {
-  const rootRef = useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = useState(false);
-  const [inView, setInView] = useState(false);
-
-  useEffect(() => {
-    const node = rootRef.current;
-    if (!node) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry?.isIntersecting) {
-          setInView(true);
-          observer.disconnect();
-        }
-      },
-      { rootMargin: "120px" },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
 
   return (
-    <div ref={rootRef} className="border-t border-border bg-panel p-3 sm:p-4 lg:border-l lg:border-t-0">
+    <div className="border-t border-border bg-panel p-3 sm:p-4 lg:border-l lg:border-t-0">
       <div className="mb-2 flex items-center justify-between gap-2">
         <p className="text-[10px] font-medium uppercase tracking-wide text-muted">
           3D trajectories
@@ -102,45 +84,30 @@ function LazyParkTrajectory3D({
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="rounded-md border border-border px-2 py-1 text-[11px] text-secondary hover:bg-hover lg:hidden"
+          className="rounded-md border border-border px-2 py-1 text-[11px] text-secondary hover:bg-hover"
         >
           {expanded ? "Hide 3D" : "Show 3D"}
         </button>
       </div>
 
-      <div className="hidden lg:block">
-        {inView ? (
-          <GameHitsTrajectory3D
-            hits={hits}
-            venueId={venueId}
-            getHitKey={getHitKey}
-            selectedHitKey={selectedHitKey}
-            onSelectHit={onSelectHit}
-            className="mx-auto w-full max-w-3xl"
-          />
-        ) : (
-          <div className="flex h-[220px] items-center justify-center rounded border border-border bg-field-chart-canvas text-xs text-subtle">
-            Scroll to load 3D…
-          </div>
-        )}
-      </div>
-
-      <div className="lg:hidden">
-        {expanded ? (
-          <GameHitsTrajectory3D
-            hits={hits}
-            venueId={venueId}
-            getHitKey={getHitKey}
-            selectedHitKey={selectedHitKey}
-            onSelectHit={onSelectHit}
-            className="mx-auto w-full"
-          />
-        ) : (
-          <p className="rounded border border-border bg-field-chart-canvas px-3 py-6 text-center text-[11px] text-subtle">
-            Tap Show 3D to load trajectories for this park.
-          </p>
-        )}
-      </div>
+      {expanded ? (
+        <GameHitsTrajectory3D
+          hits={hits}
+          venueId={venueId}
+          getHitKey={getHitKey}
+          selectedHitKey={selectedHitKey}
+          onSelectHit={onSelectHit}
+          className="mx-auto w-full max-w-3xl"
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="flex h-[200px] w-full items-center justify-center rounded border border-border bg-field-chart-canvas text-center text-[11px] text-subtle hover:bg-hover sm:h-[220px]"
+        >
+          Tap to load 3D trajectories for this park.
+        </button>
+      )}
     </div>
   );
 }
@@ -266,6 +233,9 @@ function PitchingSummaryPanel({ line }: { line: PlayerPitchingResponse }) {
                 value: `${fmtStat(line.wins)}-${fmtStat(line.losses)}`,
               },
               { label: "ERA", value: fmtStat(line.era) },
+              { label: "FIP", value: fmtStat(line.fip) },
+              { label: "xERA", value: fmtStat(line.xEra) },
+              { label: "xFIP", value: fmtStat(line.xFip) },
               { label: "IP", value: fmtStat(line.inningsPitched) },
               { label: "SO", value: fmtStat(line.strikeOuts) },
               { label: "BB", value: fmtStat(line.baseOnBalls) },

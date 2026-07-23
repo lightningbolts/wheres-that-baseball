@@ -54,6 +54,12 @@ export interface PlayerPitchingSeasonLine {
   wins: number | null;
   losses: number | null;
   era: string | null;
+  /** Fielding Independent Pitching (MLB sabermetrics). */
+  fip: string | null;
+  /** Expected ERA from Baseball Savant. */
+  xEra: string | null;
+  /** Expected FIP (MLB sabermetrics). */
+  xFip: string | null;
   inningsPitched: string | null;
   strikeOuts: number | null;
   baseOnBalls: number | null;

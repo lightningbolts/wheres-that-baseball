@@ -20,6 +20,15 @@ export interface PlayerPitchMix {
   pitches: PlayerPitchMixEntry[];
 }
 
+const SAVANT_XERA_TTL_MS = 30 * 60 * 1000;
+
+type SavantXeraCache = {
+  fetchedAt: number;
+  byPlayerId: Map<number, string>;
+};
+
+const savantXeraBySeason = new Map<number, SavantXeraCache>();
+
 export function buildPitchMixFromThrown(
   pitchTypesThrown: Record<string, PitchTypeAccumulator> | null | undefined,
 ): PlayerPitchMix {
@@ -70,6 +79,91 @@ export function buildPitchMixFromThrown(
   return { totalPitches: total, pitches: entries };
 }
 
+function formatRateStat(value: number | string | null | undefined): string | null {
+  if (value == null || value === "") return null;
+  const num = typeof value === "number" ? value : Number.parseFloat(String(value));
+  if (!Number.isFinite(num)) return null;
+  return num.toFixed(2);
+}
+
+/** Parse Baseball Savant expected-stats CSV into playerId → xERA. */
+export function parseSavantExpectedPitcherCsv(csv: string): Map<number, string> {
+  const byPlayerId = new Map<number, string>();
+  const lines = csv.trim().split(/\r?\n/);
+  if (lines.length < 2) return byPlayerId;
+
+  const header = lines[0]!;
+  const cols = splitCsvLine(header).map((c) => c.replace(/^"|"$/g, "").toLowerCase());
+  const idIdx = cols.findIndex((c) => c === "player_id" || c === "player id");
+  const xeraIdx = cols.findIndex((c) => c === "xera");
+  if (idIdx < 0 || xeraIdx < 0) return byPlayerId;
+
+  for (const line of lines.slice(1)) {
+    if (!line.trim()) continue;
+    const cells = splitCsvLine(line).map((c) => c.replace(/^"|"$/g, ""));
+    const playerId = Number.parseInt(cells[idIdx] ?? "", 10);
+    const xEra = formatRateStat(cells[xeraIdx]);
+    if (!Number.isFinite(playerId) || playerId <= 0 || !xEra) continue;
+    byPlayerId.set(playerId, xEra);
+  }
+  return byPlayerId;
+}
+
+function splitCsvLine(line: string): string[] {
+  const cells: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i]!;
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+    if (ch === "," && !inQuotes) {
+      cells.push(current);
+      current = "";
+      continue;
+    }
+    current += ch;
+  }
+  cells.push(current);
+  return cells;
+}
+
+async function loadSavantXeraMap(season: number): Promise<Map<number, string>> {
+  const cached = savantXeraBySeason.get(season);
+  if (cached && Date.now() - cached.fetchedAt < SAVANT_XERA_TTL_MS) {
+    return cached.byPlayerId;
+  }
+
+  const url = new URL("https://baseballsavant.mlb.com/leaderboard/expected_statistics");
+  url.searchParams.set("type", "pitcher");
+  url.searchParams.set("year", String(season));
+  url.searchParams.set("position", "");
+  url.searchParams.set("team", "");
+  url.searchParams.set("min", "1");
+  url.searchParams.set("csv", "true");
+
+  try {
+    const response = await fetch(url.toString(), {
+      cache: "no-store",
+      headers: { Accept: "text/csv" },
+    });
+    if (!response.ok) return cached?.byPlayerId ?? new Map();
+    const csv = await response.text();
+    const byPlayerId = parseSavantExpectedPitcherCsv(csv);
+    savantXeraBySeason.set(season, { fetchedAt: Date.now(), byPlayerId });
+    return byPlayerId;
+  } catch {
+    return cached?.byPlayerId ?? new Map();
+  }
+}
+
 export async function fetchPlayerPitchingSeasonLine(
   playerId: number,
   season: number,
@@ -82,6 +176,9 @@ export async function fetchPlayerPitchingSeasonLine(
     wins: null,
     losses: null,
     era: null,
+    fip: null,
+    xEra: null,
+    xFip: null,
     inningsPitched: null,
     strikeOuts: null,
     baseOnBalls: null,
@@ -97,10 +194,16 @@ export async function fetchPlayerPitchingSeasonLine(
   if (!Number.isFinite(playerId) || playerId <= 0) return empty;
 
   const url = new URL(`${MLB_SCHEDULE_BASE}/people/${playerId}`);
-  url.searchParams.set("hydrate", `stats(group=pitching,type=season,season=${season})`);
+  url.searchParams.set(
+    "hydrate",
+    `stats(group=[pitching],type=[season,sabermetrics],season=${season})`,
+  );
 
   try {
-    const response = await fetch(url.toString(), { cache: "no-store" });
+    const [response, xEraMap] = await Promise.all([
+      fetch(url.toString(), { cache: "no-store" }),
+      loadSavantXeraMap(season),
+    ]);
     if (!response.ok) return empty;
 
     const data = (await response.json()) as {
@@ -109,6 +212,7 @@ export async function fetchPlayerPitchingSeasonLine(
         fullName?: string;
         pitchHand?: { code?: string };
         stats?: Array<{
+          type?: { displayName?: string };
           splits?: Array<{
             season?: string;
             stat?: {
@@ -124,6 +228,8 @@ export async function fetchPlayerPitchingSeasonLine(
               earnedRuns?: number;
               gamesPlayed?: number;
               gamesStarted?: number;
+              fip?: number;
+              xfip?: number;
             };
           }>;
         }>;
@@ -133,11 +239,43 @@ export async function fetchPlayerPitchingSeasonLine(
     const person = data.people?.[0];
     if (!person) return empty;
 
-    const splits = person.stats?.[0]?.splits ?? [];
-    const seasonSplit =
-      splits.find((s) => s.season === String(season)) ?? splits[0];
-    const stat = seasonSplit?.stat;
-    if (!stat) {
+    const seasonBlock = person.stats?.find((s) => s.type?.displayName === "season");
+    const saberBlock = person.stats?.find((s) => s.type?.displayName === "sabermetrics");
+
+    const pickSplit = (
+      block:
+        | {
+            splits?: Array<{
+              season?: string;
+              stat?: {
+                wins?: number;
+                losses?: number;
+                era?: string;
+                inningsPitched?: string;
+                strikeOuts?: number;
+                baseOnBalls?: number;
+                homeRuns?: number;
+                whip?: string;
+                hits?: number;
+                earnedRuns?: number;
+                gamesPlayed?: number;
+                gamesStarted?: number;
+                fip?: number;
+                xfip?: number;
+              };
+            }>;
+          }
+        | undefined,
+    ) => {
+      const splits = block?.splits ?? [];
+      return splits.find((s) => s.season === String(season)) ?? splits[0];
+    };
+
+    const seasonStat = pickSplit(seasonBlock)?.stat;
+    const saberStat = pickSplit(saberBlock)?.stat;
+    const xEra = xEraMap.get(playerId) ?? null;
+
+    if (!seasonStat && !saberStat && !xEra) {
       return {
         ...empty,
         name: person.fullName ?? null,
@@ -151,19 +289,22 @@ export async function fetchPlayerPitchingSeasonLine(
       season,
       name: person.fullName ?? null,
       throwHand: formatPitchHand(person.pitchHand?.code),
-      wins: stat.wins ?? null,
-      losses: stat.losses ?? null,
-      era: stat.era ?? null,
-      inningsPitched: stat.inningsPitched ?? null,
-      strikeOuts: stat.strikeOuts ?? null,
-      baseOnBalls: stat.baseOnBalls ?? null,
-      homeRuns: stat.homeRuns ?? null,
-      whip: stat.whip ?? null,
-      hits: stat.hits ?? null,
-      earnedRuns: stat.earnedRuns ?? null,
-      gamesPlayed: stat.gamesPlayed ?? null,
-      gamesStarted: stat.gamesStarted ?? null,
-      source: "mlb",
+      wins: seasonStat?.wins ?? null,
+      losses: seasonStat?.losses ?? null,
+      era: seasonStat?.era ?? null,
+      fip: formatRateStat(saberStat?.fip),
+      xEra,
+      xFip: formatRateStat(saberStat?.xfip),
+      inningsPitched: seasonStat?.inningsPitched ?? null,
+      strikeOuts: seasonStat?.strikeOuts ?? null,
+      baseOnBalls: seasonStat?.baseOnBalls ?? null,
+      homeRuns: seasonStat?.homeRuns ?? null,
+      whip: seasonStat?.whip ?? null,
+      hits: seasonStat?.hits ?? null,
+      earnedRuns: seasonStat?.earnedRuns ?? null,
+      gamesPlayed: seasonStat?.gamesPlayed ?? null,
+      gamesStarted: seasonStat?.gamesStarted ?? null,
+      source: seasonStat || saberStat ? "mlb" : "empty",
     };
   } catch {
     return empty;

@@ -254,95 +254,51 @@ function LazyTrajectorySection({
   onSelectHit?: (hit: SprayChartHit) => void;
   className?: string;
 }) {
-  const sectionRef = useRef<HTMLElement>(null);
-  const [inView, setInView] = useState(false);
-  const [mobileExpanded, setMobileExpanded] = useState(false);
-
-  useEffect(() => {
-    const node = sectionRef.current;
-    if (!node) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry?.isIntersecting) {
-          setInView(true);
-          observer.disconnect();
-        }
-      },
-      { rootMargin: "200px" },
-    );
-
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
+  const [expanded, setExpanded] = useState(false);
 
   return (
-    <section ref={sectionRef} className="border-t border-border bg-panel p-3 sm:p-4">
+    <section className="border-t border-border bg-panel p-3 sm:p-4">
       <div className="mb-3 flex items-center justify-between gap-2">
         <p className="text-[10px] font-medium uppercase tracking-wide text-muted">
           3D trajectories
         </p>
         <button
           type="button"
-          onClick={() => setMobileExpanded((v) => !v)}
-          className="rounded-md border border-border px-2 py-1 text-[11px] text-secondary hover:bg-hover lg:hidden"
+          onClick={() => setExpanded((v) => !v)}
+          className="rounded-md border border-border px-2 py-1 text-[11px] text-secondary hover:bg-hover"
         >
-          {mobileExpanded ? "Hide 3D" : "Show 3D"}
+          {expanded ? "Hide 3D" : "Show 3D"}
         </button>
       </div>
 
-      {/* Desktop: load when near viewport. Mobile: only after explicit expand. */}
-      <div className="hidden lg:block">
-        {inView ? (
-          <>
-            <GameHitsTrajectory3D
-              hits={hits}
-              venueId={venueId}
-              getHitKey={getHitKey}
-              selectedHitKey={selectedHitKey}
-              onSelectHit={onSelectHit}
-              className={className}
-            />
-            <div className="mt-3">
-              {selectedHitBanner ?? <HitBannerPlaceholder />}
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="flex h-[240px] items-center justify-center rounded border border-border bg-field-chart-canvas text-xs text-subtle sm:h-[300px] xl:h-[360px]">
-              Scroll to load 3D view…
-            </div>
-            <div className="mt-3" aria-hidden>
-              <HitBannerPlaceholder />
-            </div>
-          </>
-        )}
-      </div>
-
-      <div className="lg:hidden">
-        {mobileExpanded ? (
-          <>
-            <GameHitsTrajectory3D
-              hits={hits}
-              venueId={venueId}
-              getHitKey={getHitKey}
-              selectedHitKey={selectedHitKey}
-              onSelectHit={onSelectHit}
-              className={className}
-            />
-            <div className="mt-3">
-              {selectedHitBanner ?? <HitBannerPlaceholder />}
-            </div>
-          </>
-        ) : (
-          <>
-            <p className="rounded border border-border bg-field-chart-canvas px-3 py-6 text-center text-[11px] text-subtle">
-              Tap Show 3D to load trajectories for this park.
-            </p>
-            <div className="mt-3">{selectedHitBanner ?? <HitBannerPlaceholder />}</div>
-          </>
-        )}
-      </div>
+      {expanded ? (
+        <>
+          <GameHitsTrajectory3D
+            hits={hits}
+            venueId={venueId}
+            getHitKey={getHitKey}
+            selectedHitKey={selectedHitKey}
+            onSelectHit={onSelectHit}
+            className={className}
+          />
+          <div className="mt-3">
+            {selectedHitBanner ?? <HitBannerPlaceholder />}
+          </div>
+        </>
+      ) : (
+        <>
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            className="flex h-[240px] w-full items-center justify-center rounded border border-border bg-field-chart-canvas text-center text-[11px] text-subtle hover:bg-hover sm:h-[300px] xl:h-[360px]"
+          >
+            Tap to load 3D trajectories for this park.
+          </button>
+          <div className="mt-3" aria-hidden>
+            <HitBannerPlaceholder />
+          </div>
+        </>
+      )}
     </section>
   );
 }

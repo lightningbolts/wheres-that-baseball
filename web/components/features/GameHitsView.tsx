@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import { PlayDetailDialog } from "@/components/features/PlayDetailDialog";
 import { PlayVideoIcon } from "@/components/features/PlayVideoPlayer";
@@ -239,33 +239,23 @@ function LazyTrajectorySection({
   onSelectHit?: (hit: SprayChartHit) => void;
   className?: string;
 }) {
-  const sectionRef = useRef<HTMLElement>(null);
-  const [shouldRender, setShouldRender] = useState(false);
-
-  useEffect(() => {
-    const node = sectionRef.current;
-    if (!node) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry?.isIntersecting) {
-          setShouldRender(true);
-          observer.disconnect();
-        }
-      },
-      { rootMargin: "200px" },
-    );
-
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
+  const [expanded, setExpanded] = useState(false);
 
   return (
-    <section ref={sectionRef} className="border-t border-border bg-panel p-3 sm:p-4">
-      <p className="mb-3 text-[10px] font-medium uppercase tracking-wide text-muted">
-        3D trajectories
-      </p>
-      {shouldRender ? (
+    <section className="border-t border-border bg-panel p-3 sm:p-4">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <p className="text-[10px] font-medium uppercase tracking-wide text-muted">
+          3D trajectories
+        </p>
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="rounded-md border border-border px-2 py-1 text-[11px] text-secondary hover:bg-hover"
+        >
+          {expanded ? "Hide 3D" : "Show 3D"}
+        </button>
+      </div>
+      {expanded ? (
         <>
           <GameHitsTrajectory3D
             hits={hits}
@@ -280,9 +270,13 @@ function LazyTrajectorySection({
         </>
       ) : (
         <>
-          <div className="flex h-[240px] items-center justify-center rounded border border-border bg-field-chart-canvas text-xs text-subtle sm:h-[300px] lg:h-[360px]">
-            Scroll to load 3D view…
-          </div>
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            className="flex h-[240px] w-full items-center justify-center rounded border border-border bg-field-chart-canvas text-center text-[11px] text-subtle hover:bg-hover sm:h-[300px] lg:h-[360px]"
+          >
+            Tap to load 3D trajectories.
+          </button>
           <div className="mt-3" aria-hidden>
             <HitBannerPlaceholder />
           </div>
