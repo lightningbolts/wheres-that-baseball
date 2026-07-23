@@ -751,8 +751,8 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
                         className="w-full rounded-md border border-border bg-panel px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-hover disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {isLoadingMore
-                          ? "Loading more hits…"
-                          : `Load more (${data.hits.length} of ${data.hitsTotal ?? data.stats.total})`}
+                          ? `Loading more ${resultUnit}…`
+                          : `Load more (${listHits.length.toLocaleString()} of ${matchingTotal.toLocaleString()} ${resultUnit})`}
                       </button>
                     </div>
                   ) : null}
