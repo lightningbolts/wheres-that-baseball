@@ -19,7 +19,7 @@ nerd-stats / ballpark-hits GitHub Action.
 ## Mitigations in this repo
 
 1. **Slim on-disk lists** — venue and player hit rows omit `detail`; play detail is loaded on demand from archived `games.game_state` via `hitKey`.
-2. **Hit-only index previews** — `summary.json` keeps a capped recent `previewHits` window per park (`PREVIEW_HITS_PER_PARK`), filtered to official hits (not every BIP) so cards show hit dots by default without shipping full season sprays.
+2. **Dense, slim index previews** — `summary.json` stores hit-only spray dots per park (coords + color, no pitch telemetry), capped at `PREVIEW_HITS_PER_PARK`, so cards look full-season dense without shipping 50MB of BIP detail.
 3. **Split tracing** — `/api/ballparks/hits` only includes `ballpark-hits`; `/api/players/**` only includes `player-bip` ([`web/next.config.mjs`](../web/next.config.mjs)).
 4. **Keep player BIP in sync** — live game archive and aggregate appends also update `player-bip`, not only ballpark venues. Daily Action looks back **7 days** so missed runs catch up.
 5. **Slim player API payloads** — `/api/players/*/bip` omits duplicated `chartHits` (clients use `hits` for spray charts).

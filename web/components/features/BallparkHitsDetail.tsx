@@ -18,7 +18,11 @@ import {
   filterBipByHitType,
   HIT_TYPE_COLORS,
   HIT_TYPE_LABELS,
+  BIP_KIND_COLORS,
+  BIP_KIND_LABELS,
   officialHitCount,
+  bipFamilyCount,
+  bipFamilyUnitLabel,
   type BipFamilyFilter,
   type HitType,
   type SprayChartHit,
@@ -398,6 +402,11 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
   const hitCount = data ? officialHitCount(data.stats) : 0;
   // Season-wide matching count for the active filters (chartHits is unpaginated).
   const matchingTotal = chartHits.length;
+  const familyTotal = data ? bipFamilyCount(data.stats, bipFamily) : 0;
+  const resultUnit =
+    bipFamily === "hit" && hitTypeFilter !== "all"
+      ? "matching"
+      : bipFamilyUnitLabel(bipFamily);
 
   const selectedHitMeta = useMemo(() => {
     if (!selectedHitKey || !data) return null;
@@ -562,50 +571,70 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
                   <span className="font-mono tabular-nums text-muted">
                     {matchingTotal.toLocaleString()}
                   </span>
-                  {bipFamily === "hit" && hitTypeFilter === "all" ? null : (
+                  {matchingTotal !== familyTotal ? (
                     <>
                       {" / "}
                       <span className="font-mono tabular-nums text-muted">
-                        {(bipFamily === "all" ? data.stats.total : hitCount).toLocaleString()}
+                        {familyTotal.toLocaleString()}
                       </span>
                     </>
-                  )}
-                  <span className="ml-1">
-                    {bipFamily === "hit"
-                      ? hitTypeFilter === "all"
-                        ? "hits"
-                        : "matching"
-                      : bipFamily === "all"
-                        ? "BIP"
-                        : "matching"}
-                  </span>
+                  ) : null}
+                  <span className="ml-1">{resultUnit}</span>
                 </p>
               </div>
 
               <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5">
-                {HIT_TYPES.map((type) => {
-                  const count =
-                    type === "Single"
-                      ? data.stats.singles
-                      : type === "Double"
-                        ? data.stats.doubles
-                        : type === "Triple"
-                          ? data.stats.triples
-                          : data.stats.homeRuns;
+                {bipFamily === "hit" || bipFamily === "all" ? (
+                  HIT_TYPES.map((type) => {
+                    const count =
+                      type === "Single"
+                        ? data.stats.singles
+                        : type === "Double"
+                          ? data.stats.doubles
+                          : type === "Triple"
+                            ? data.stats.triples
+                            : data.stats.homeRuns;
 
-                  return (
-                    <div key={type} className="flex items-center gap-1.5 text-[11px] text-muted">
+                    return (
+                      <div key={type} className="flex items-center gap-1.5 text-[11px] text-muted">
+                        <span
+                          className="h-2.5 w-2.5 rounded-full"
+                          style={{ backgroundColor: HIT_TYPE_COLORS[type] }}
+                          aria-hidden
+                        />
+                        <span className="font-mono tabular-nums">
+                          {HIT_TYPE_LABELS[type]} {count}
+                        </span>
+                      </div>
+                    );
+                  })
+                ) : (
+                  (
+                    [
+                      ["out", data.stats.outs],
+                      ["sac", data.stats.sac],
+                      ["error", data.stats.errors],
+                      ["other", data.stats.other],
+                    ] as const
+                  ).map(([kind, count]) => (
+                    <div
+                      key={kind}
+                      className={cn(
+                        "flex items-center gap-1.5 text-[11px]",
+                        bipFamily === kind ? "text-foreground" : "text-muted",
+                      )}
+                    >
                       <span
                         className="h-2.5 w-2.5 rounded-full"
-                        style={{ backgroundColor: HIT_TYPE_COLORS[type] }}
+                        style={{ backgroundColor: BIP_KIND_COLORS[kind] }}
                         aria-hidden
                       />
                       <span className="font-mono tabular-nums">
-                        {HIT_TYPE_LABELS[type]} {count}
+                        {BIP_KIND_LABELS[kind]} {count.toLocaleString()}
                       </span>
                     </div>
-                  );
-                })}
+                  ))
+                )}
               </div>
 
               <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
@@ -648,7 +677,7 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
                           batterId={
                             "batterId" in selectedHitMeta ? selectedHitMeta.batterId : undefined
                           }
-                          batterName={selectedHitMeta.batterName}
+                          batterName={selectedHitMeta.batterName ?? "Batter"}
                           event={selectedHitMeta.event}
                           awayAbbrev={
                             "awayAbbrev" in selectedHitMeta ? selectedHitMeta.awayAbbrev : undefined
@@ -656,13 +685,13 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
                           homeAbbrev={
                             "homeAbbrev" in selectedHitMeta ? selectedHitMeta.homeAbbrev : undefined
                           }
-                          awayScore={selectedHitMeta.awayScore}
-                          homeScore={selectedHitMeta.homeScore}
+                          awayScore={selectedHitMeta.awayScore ?? 0}
+                          homeScore={selectedHitMeta.homeScore ?? 0}
                           gameDate={
                             "gameDate" in selectedHitMeta ? selectedHitMeta.gameDate : undefined
                           }
-                          inning={selectedHitMeta.inning}
-                          halfInning={selectedHitMeta.halfInning}
+                          inning={selectedHitMeta.inning ?? 0}
+                          halfInning={selectedHitMeta.halfInning ?? ""}
                           launchSpeed={selectedHitMeta.hit.launchSpeed}
                           gamePk={
                             "gamePk" in selectedHitMeta ? selectedHitMeta.gamePk : undefined
@@ -680,12 +709,10 @@ export function BallparkHitsDetail({ venueId }: BallparkHitsDetailProps) {
                 <aside className="flex max-h-[min(50vh,28rem)] flex-col overflow-hidden border-t border-border bg-surface lg:absolute lg:inset-y-0 lg:right-0 lg:max-h-none lg:w-[min(320px,34%)] lg:border-l lg:border-t-0">
                   <div className="shrink-0 border-b border-border px-3 py-2">
                     <h3 className="text-xs font-medium text-muted">
-                      {bipFamily === "hit"
-                        ? "Hits"
-                        : bipFamily === "all"
-                          ? "Balls in play"
-                          : BIP_FAMILY_FILTER_OPTIONS.find((o) => o.value === bipFamily)?.label ??
-                            "Results"}{" "}
+                      {bipFamily === "all"
+                        ? "Balls in play"
+                        : BIP_FAMILY_FILTER_OPTIONS.find((o) => o.value === bipFamily)?.label ??
+                          "Results"}{" "}
                       <span className="font-mono tabular-nums text-subtle">
                         ({listHits.length.toLocaleString()}
                         {matchingTotal > listHits.length

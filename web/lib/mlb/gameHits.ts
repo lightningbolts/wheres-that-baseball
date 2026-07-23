@@ -229,3 +229,42 @@ export function computeGameHitStats(
 export function officialHitCount(stats: Pick<GameHitStats, "singles" | "doubles" | "triples" | "homeRuns">): number {
   return stats.singles + stats.doubles + stats.triples + stats.homeRuns;
 }
+
+/** Count for the active Result filter — never confuse BIP total with hits/outs/etc. */
+export function bipFamilyCount(stats: GameHitStats, family: BipFamilyFilter): number {
+  switch (family) {
+    case "all":
+      return stats.total;
+    case "hit":
+      return officialHitCount(stats);
+    case "out":
+      return stats.outs;
+    case "sac":
+      return stats.sac;
+    case "error":
+      return stats.errors;
+    case "other":
+      return stats.other;
+    default:
+      return stats.total;
+  }
+}
+
+export function bipFamilyUnitLabel(family: BipFamilyFilter): string {
+  switch (family) {
+    case "all":
+      return "BIP";
+    case "hit":
+      return "hits";
+    case "out":
+      return "outs";
+    case "sac":
+      return "sac";
+    case "error":
+      return "errors";
+    case "other":
+      return "other";
+    default:
+      return "results";
+  }
+}

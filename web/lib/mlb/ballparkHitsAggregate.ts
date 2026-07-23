@@ -4,6 +4,7 @@ import {
   computeGameHitStats,
   extractGameHits,
   classifyBipKind,
+  officialHitCount,
 } from "@/lib/mlb/gameHits";
 import type {
   BallparkHitsAggregate,
@@ -15,8 +16,11 @@ import type {
 import { parseLiveFeed } from "@/lib/mlb/liveFeed";
 import type { MLBLiveFeedResponse } from "@/types/mlb-live";
 
-/** Cap spray previews on the ballparks index to keep summary.json mobile-friendly. */
-export const PREVIEW_HITS_PER_PARK = 80;
+/**
+ * Safety cap for index spray previews. Previews are hit-only and strip pitch
+ * metrics so a full-season card stays dense without a 50MB summary.json.
+ */
+export const PREVIEW_HITS_PER_PARK = 2000;
 
 function slimVenueHit(hit: VenueHit): VenueHit {
   const { detail: _detail, ...rest } = hit;
@@ -52,23 +56,23 @@ function toVenueHit(
 }
 
 function toSprayPreview(hit: VenueHit): SprayPreviewHit {
+  // Index cards only need spray geometry + color — omit play metadata entirely.
   return {
     atBatIndex: hit.atBatIndex,
     event: hit.event,
     bipKind: hit.bipKind,
-    hit: hit.hit,
+    hit: {
+      launchSpeed: 0,
+      launchAngle: 0,
+      totalDistance: hit.hit.totalDistance,
+      trajectory: "",
+      hardness: "",
+      location: "",
+      coordX: hit.hit.coordX,
+      coordY: hit.hit.coordY,
+    },
     color: hit.color,
     hitKey: hit.hitKey,
-    batterId: hit.batterId,
-    batterName: hit.batterName,
-    inning: hit.inning,
-    halfInning: hit.halfInning,
-    awayScore: hit.awayScore,
-    homeScore: hit.homeScore,
-    gamePk: hit.gamePk,
-    gameDate: hit.gameDate,
-    awayAbbrev: hit.awayAbbrev,
-    homeAbbrev: hit.homeAbbrev,
   };
 }
 
@@ -109,7 +113,18 @@ export function selectPreviewHits(hits: VenueHit[], limit = PREVIEW_HITS_PER_PAR
   const sorted = [...source].sort(
     (a, b) => b.gameDate.localeCompare(a.gameDate) || b.atBatIndex - a.atBatIndex,
   );
-  return sorted.slice(0, limit).map(toSprayPreview);
+
+  if (sorted.length <= limit) {
+    return sorted.map(toSprayPreview);
+  }
+
+  // Stratify when capped so the spray covers the whole season, not only latest games.
+  const picked: VenueHit[] = [];
+  const step = sorted.length / limit;
+  for (let i = 0; i < limit; i += 1) {
+    picked.push(sorted[Math.min(sorted.length - 1, Math.floor(i * step))]!);
+  }
+  return picked.map(toSprayPreview);
 }
 
 export function buildBallparkHitsAggregate(
@@ -137,8 +152,7 @@ export function buildBallparkHitsAggregate(
   parks.sort((a, b) => a.venueName.localeCompare(b.venueName));
 
   const indexedHitCount = parks.reduce(
-    (sum, park) =>
-      sum + park.stats.singles + park.stats.doubles + park.stats.triples + park.stats.homeRuns,
+    (sum, park) => sum + officialHitCount(park.stats),
     0,
   );
 
@@ -148,10 +162,7 @@ export function buildBallparkHitsAggregate(
     generatedAt: new Date().toISOString(),
     indexedHitCount,
     indexedGameCount: options?.indexedGameCount ?? 0,
-    ballparksWithHits: parks.filter(
-      (park) =>
-        park.stats.singles + park.stats.doubles + park.stats.triples + park.stats.homeRuns > 0,
-    ).length,
+    ballparksWithHits: parks.filter((park) => officialHitCount(park.stats) > 0).length,
     backfillPending: options?.backfillPending ?? false,
   };
 }

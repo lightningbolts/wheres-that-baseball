@@ -164,7 +164,12 @@ export function GameHitsSprayChart({
                 homeY={home.y}
                 x={x}
                 y={y}
-                color={SPRAY_HIT_COLOR_VAR[gameHit.event as HitType]}
+                color={
+                  SPRAY_HIT_COLOR_VAR[gameHit.event as HitType] ??
+                  ("color" in gameHit && typeof gameHit.color === "string"
+                    ? gameHit.color
+                    : "var(--spray-hit-single)")
+                }
                 selected={isSelected}
                 showLines={showLines}
                 ballRadius={ballRadius}
