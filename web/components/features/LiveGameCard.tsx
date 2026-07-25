@@ -212,7 +212,7 @@ export function LiveGameCard({ game }: LiveGameCardProps) {
       </div>
 
       {(isLive || isFinal) && (
-        <div className={cn(CARD_PANEL, "mt-2 p-4 md:hidden")}>
+        <div className={cn(CARD_PANEL, "mt-2 p-4 xl:hidden")}>
           {boxScore ? (
             <CompactLineScore boxScore={boxScore} className="w-full" />
           ) : (
@@ -226,7 +226,7 @@ export function LiveGameCard({ game }: LiveGameCardProps) {
       <div
         className={cn(
           "pointer-events-none absolute inset-x-0 top-full z-20 mt-1 rounded-lg border border-border-strong bg-panel p-4 shadow-xl transition-opacity duration-150",
-          "hidden md:block",
+          "hidden xl:block",
           hovered ? "opacity-100" : "opacity-0",
         )}
         aria-hidden={!hovered}

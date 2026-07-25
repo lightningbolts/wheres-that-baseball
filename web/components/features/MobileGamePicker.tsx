@@ -24,7 +24,7 @@ export function MobileGamePicker({
   if (!selected) return null;
 
   return (
-    <div className={cn("border-b border-border bg-surface p-2 lg:hidden", className)}>
+    <div className={cn("border-b border-border bg-surface p-2 xl:hidden", className)}>
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}

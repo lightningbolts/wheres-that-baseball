@@ -347,7 +347,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
       />
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        <div className="hidden w-[300px] shrink-0 border-r border-border md:flex lg:w-[320px]">
+        <div className="hidden w-[300px] shrink-0 border-r border-border xl:flex lg:w-[320px]">
           <PlayByPlay
             plays={gameState?.plays ?? []}
             awayAbbrev={gameState?.awayAbbrev ?? "AWY"}
@@ -364,16 +364,16 @@ function DashboardContent({ game }: { game: SlateGame }) {
 
         <main
           ref={mobileScrollRef}
-          className="flex min-h-0 min-w-0 flex-1 flex-col max-md:overflow-y-auto max-md:overscroll-y-contain md:overflow-hidden"
+          className="flex min-h-0 min-w-0 flex-1 flex-col max-xl:overflow-y-auto max-xl:overscroll-y-contain xl:overflow-hidden"
         >
           {showSkeleton ? (
             <DashboardSkeleton />
           ) : (
-            <div className="flex min-h-0 flex-1 flex-col gap-px overflow-hidden bg-border max-md:overflow-visible max-md:flex-none">
+            <div className="flex min-h-0 flex-1 flex-col gap-px overflow-hidden bg-border max-xl:overflow-visible max-xl:flex-none">
               <Panel
                 title={gameOver ? "Final" : showBreakUI ? "Due up" : "Current at-bat"}
                 flushMobile
-                className="order-1 min-h-0 flex-1 overflow-hidden md:order-none md:min-h-[320px] max-md:min-h-0"
+                className="order-1 min-h-0 flex-1 overflow-hidden xl:order-none xl:min-h-[320px] max-xl:min-h-0"
               >
                   {gameOver && gameState ? (
                     <div className="flex flex-1 flex-col items-center justify-center gap-3 py-8 text-center">
@@ -409,7 +409,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
                         rispStats={rispStats}
                         isRispLoading={isRispLoading}
                         showRisp={runnersInScoringPosition}
-                        className="md:hidden"
+                        className="xl:hidden"
                       />
                       <AtBatMatchup
                         variant="context"
@@ -424,7 +424,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
                         rispStats={rispStats}
                         isRispLoading={isRispLoading}
                         showRisp={runnersInScoringPosition}
-                        className="hidden md:block"
+                        className="hidden xl:block"
                       />
                     </>
                   )}
@@ -467,7 +467,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
                     <p className="text-sm text-subtle">Loading due up…</p>
                   ) : (
                     <>
-                      <div className="shrink-0 px-3 pb-3 pt-2.5 md:hidden">
+                      <div className="shrink-0 px-3 pb-3 pt-2.5 xl:hidden">
                         <PitchSequence
                           key={`zone-mobile-${zoneBatterId ?? "none"}`}
                           pitches={atBatViewState?.atBatPitches ?? []}
@@ -484,7 +484,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
                           className="h-[clamp(16rem,48dvh,28rem)] w-full"
                         />
                       </div>
-                      <div className="hidden min-h-0 flex-1 md:flex">
+                      <div className="hidden min-h-0 flex-1 xl:flex">
                         <PitchSequence
                           key={`zone-desktop-${zoneBatterId ?? "none"}`}
                           pitches={atBatViewState?.atBatPitches ?? []}
@@ -508,7 +508,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
                   )}
                 </Panel>
 
-                <div className="order-2 flex min-h-0 flex-1 flex-col md:hidden max-md:flex-none">
+                <div className="order-2 flex min-h-0 flex-1 flex-col xl:hidden max-xl:flex-none">
                   <PlayByPlay
                     key={selectedGamePk}
                     monitorKey={selectedGamePk}
@@ -588,15 +588,15 @@ function Panel({
   return (
     <section
       className={cn(
-        "flex min-w-0 flex-col overflow-hidden bg-panel md:min-h-[220px] lg:min-h-0",
-        flushMobile ? "min-h-0 p-0 md:min-h-[280px] md:px-3 md:pb-3 md:pt-3" : "min-h-[280px] p-3",
+        "flex min-w-0 flex-col overflow-hidden bg-panel xl:min-h-0",
+        flushMobile ? "min-h-0 p-0 xl:min-h-[280px] xl:px-3 xl:pb-3 xl:pt-3" : "min-h-[280px] p-3",
         className,
       )}
     >
       <h3
         className={cn(
           "shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted",
-          flushMobile ? "hidden md:mb-2 md:block" : "mb-2",
+          flushMobile ? "hidden xl:mb-2 xl:block" : "mb-2",
         )}
       >
         {title}

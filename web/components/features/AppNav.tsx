@@ -125,8 +125,8 @@ export function AppNav({ compact = false }: { compact?: boolean }) {
       )}
     >
       <div className={cn("mx-auto w-full max-w-6xl", compact || isGamePage ? "px-2 sm:px-4" : "px-4")}>
-        {/* Desktop: title + tabs left, actions right */}
-        <div className="hidden items-center justify-between gap-4 sm:flex">
+        {/* Desktop chrome from xl up — iPad landscape (~1024–1194) stays on compact layout */}
+        <div className="hidden items-center justify-between gap-4 xl:flex">
           <div className="flex min-w-0 items-center gap-4 lg:gap-6">
             <Link
               href="/"
@@ -145,8 +145,8 @@ export function AppNav({ compact = false }: { compact?: boolean }) {
           </div>
         </div>
 
-        {/* Mobile: title + actions, then scrollable tabs */}
-        <div className={cn("flex flex-col sm:hidden", isGamePage ? "gap-1" : "gap-2")}>
+        {/* Compact: title + actions, then scrollable tabs (phones + tablets) */}
+        <div className={cn("flex flex-col xl:hidden", isGamePage ? "gap-1" : "gap-2")}>
           <div className="flex items-center justify-between gap-2">
             <Link
               href="/"

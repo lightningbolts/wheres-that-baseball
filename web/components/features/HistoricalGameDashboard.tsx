@@ -73,9 +73,9 @@ function Panel({
   return (
     <section
       className={cn(
-        "flex min-w-0 flex-col overflow-hidden bg-panel md:min-h-[220px] lg:min-h-0",
+        "flex min-w-0 flex-col overflow-hidden bg-panel xl:min-h-0",
         flushMobile
-          ? "min-h-0 p-0 max-md:min-h-0 md:min-h-[280px] md:px-3 md:pb-3 md:pt-3"
+          ? "min-h-0 p-0 max-xl:min-h-0 xl:min-h-[280px] xl:px-3 xl:pb-3 xl:pt-3"
           : "min-h-[280px] p-3",
         className,
       )}
@@ -83,7 +83,7 @@ function Panel({
       <h3
         className={cn(
           "shrink-0 text-xs font-medium text-muted",
-          flushMobile ? "hidden md:mb-2 md:block" : "mb-2",
+          flushMobile ? "hidden xl:mb-2 xl:block" : "mb-2",
         )}
       >
         {title}
@@ -586,7 +586,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
           />
 
           <div className="flex min-h-0 flex-1 overflow-hidden">
-            <div className="hidden w-[300px] shrink-0 border-r border-border md:flex lg:w-[320px]">
+            <div className="hidden w-[300px] shrink-0 border-r border-border xl:flex lg:w-[320px]">
               <PlayByPlay
                 plays={plays}
                 awayAbbrev={gameState.awayAbbrev}
@@ -604,17 +604,17 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
 
             <main
               ref={mobileScrollRef}
-              className="flex min-h-0 min-w-0 flex-1 flex-col max-md:overflow-y-auto max-md:overscroll-y-contain md:overflow-hidden"
+              className="flex min-h-0 min-w-0 flex-1 flex-col max-xl:overflow-y-auto max-xl:overscroll-y-contain xl:overflow-hidden"
             >
-              <div className="flex min-h-0 flex-1 flex-col gap-px overflow-hidden bg-border max-md:flex-none max-md:overflow-visible">
+              <div className="flex min-h-0 flex-1 flex-col gap-px overflow-hidden bg-border max-xl:flex-none max-xl:overflow-visible">
                 <Panel
                   title={panelTitle}
                   flushMobile
-                  className="order-1 min-h-0 flex-1 overflow-hidden max-md:min-h-0 md:order-none md:min-h-[380px]"
+                  className="order-1 min-h-0 flex-1 overflow-hidden max-xl:min-h-0 xl:order-none xl:min-h-[380px]"
                 >
                   {displayState ? (
                     <>
-                      <div className="hidden md:block">
+                      <div className="hidden xl:block">
                         <BatterVsPitcherRecord
                           batterName={displayState.batterName}
                           pitcherName={displayState.pitcherName}
@@ -629,7 +629,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
                           />
                         )}
                       </div>
-                      <div className="shrink-0 px-3 pb-3 pt-2.5 md:hidden">
+                      <div className="shrink-0 px-3 pb-3 pt-2.5 xl:hidden">
                         <PitchSequence
                           key={`zone-mobile-${zoneBatterId ?? selectedAtBatIndex ?? "none"}`}
                           pitches={displayState.atBatPitches}
@@ -644,7 +644,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
                           className="h-[clamp(16rem,42dvh,26rem)] w-full"
                         />
                       </div>
-                      <div className="hidden min-h-0 flex-1 md:flex">
+                      <div className="hidden min-h-0 flex-1 xl:flex">
                         <PitchSequence
                           key={`zone-desktop-${zoneBatterId ?? selectedAtBatIndex ?? "none"}`}
                           pitches={displayState.atBatPitches}
@@ -668,7 +668,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
                   )}
                 </Panel>
 
-                <div className="order-2 flex min-h-0 flex-1 flex-col max-md:flex-none md:hidden">
+                <div className="order-2 flex min-h-0 flex-1 flex-col max-xl:flex-none xl:hidden">
                   <PlayByPlay
                     plays={plays}
                     awayAbbrev={gameState.awayAbbrev}
