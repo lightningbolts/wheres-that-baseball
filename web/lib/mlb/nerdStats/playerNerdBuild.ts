@@ -27,7 +27,7 @@ const SHARE_ACTIONS: Record<string, ShareActions> = {
   "hit-by-pitch": "hbp",
   "golden-sombrero": "goldenSombreros",
   "multi-hr-games-allowed": "multiHrGamesAllowed",
-  "immaculate-inning-victim": "immaculateInningVictims",
+  "almost-immaculate-inning-victim": "almostImmaculateInningVictims",
   "post-lead-runs-allowed": "leadTakeNextInningRunsAllowed",
   "pickoffs-suffered": "pickoffs",
   "caught-stealing": "caughtStealing",

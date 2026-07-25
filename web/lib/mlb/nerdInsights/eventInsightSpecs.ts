@@ -439,7 +439,7 @@ export const EVENT_INSIGHT_SPECS: EventInsightSpec[] = [
     message: defaultMessage,
   }),
   atBatEnd({
-    statId: "immaculate-inning-victim",
+    statId: "almost-immaculate-inning-victim",
     team: "offense",
     polarity: "cursed",
     eventEquals: ["Strikeout"],

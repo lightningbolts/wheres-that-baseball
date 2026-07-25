@@ -157,7 +157,7 @@ export interface TeamNerdCounters {
   backToBackToBackHrGames: number;
   goldenSombreros: number;
   multiHrGamesAllowed: number;
-  immaculateInningVictims: number;
+  almostImmaculateInningVictims: number;
   zeroWalkGames: number;
   wallScraperHomeRuns: number;
   leftOnBase: number;

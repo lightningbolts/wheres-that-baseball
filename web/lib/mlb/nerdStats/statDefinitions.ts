@@ -317,13 +317,13 @@ export const NERD_STAT_DEFINITIONS: NerdStatDefinition[] = [
     formatValue: formatCount,
   },
   {
-    id: "immaculate-inning-victim",
-    title: "Immaculate Inning Victims",
-    subtitle: "Half-innings where all three outs were strikeouts.",
+    id: "almost-immaculate-inning-victim",
+    title: "Almost Immaculate Inning Victims",
+    subtitle: "Half-innings where all three outs were strikeouts (not necessarily nine pitches).",
     category: "misfortune",
     sort: "desc",
     unit: "innings",
-    compute: (c) => c.immaculateInningVictims,
+    compute: (c) => c.almostImmaculateInningVictims,
     formatValue: formatCount,
   },
   {

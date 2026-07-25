@@ -1220,12 +1220,14 @@ export function extractNerdCountersFromGame(
   for (const { offenseId, count, pitcherName, lastAtBatIndex } of halfInningStrikeouts.values()) {
     if (count >= 3) {
       const victim = teamCounters(counters, offenseId, row, split);
-      victim.immaculateInningVictims += 1;
+      victim.almostImmaculateInningVictims += 1;
       pushNotable(victim, {
-        statId: "immaculate-inning-victim",
+        statId: "almost-immaculate-inning-victim",
         gamePk: row.game_pk,
         gameDate: row.game_date,
-        label: pitcherName ? `${pitcherName} immaculate inning` : "Immaculate inning victim",
+        label: pitcherName
+          ? `${pitcherName} almost immaculate inning`
+          : "Almost immaculate inning victim",
         detail: "Three strikeouts in one half-inning",
         atBatIndex: lastAtBatIndex,
       });

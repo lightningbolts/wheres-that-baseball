@@ -125,7 +125,7 @@ export function createEmptyTeamCounters(): TeamNerdCounters {
     backToBackToBackHrGames: 0,
     goldenSombreros: 0,
     multiHrGamesAllowed: 0,
-    immaculateInningVictims: 0,
+    almostImmaculateInningVictims: 0,
     zeroWalkGames: 0,
     wallScraperHomeRuns: 0,
     leftOnBase: 0,
@@ -364,7 +364,7 @@ export function mergeTeamCounters(target: TeamNerdCounters, source: TeamNerdCoun
   target.backToBackToBackHrGames += source.backToBackToBackHrGames;
   target.goldenSombreros += source.goldenSombreros;
   target.multiHrGamesAllowed += source.multiHrGamesAllowed;
-  target.immaculateInningVictims += source.immaculateInningVictims;
+  target.almostImmaculateInningVictims += source.almostImmaculateInningVictims;
   target.zeroWalkGames += source.zeroWalkGames;
   target.wallScraperHomeRuns += source.wallScraperHomeRuns;
   target.leftOnBase += source.leftOnBase;

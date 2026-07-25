@@ -113,7 +113,7 @@ function makePlayer(
     backToBackToBackHrGames: 0,
     goldenSombreros: 0,
     multiHrGamesAllowed: 0,
-    immaculateInningVictims: 0,
+    almostImmaculateInningVictims: 0,
     zeroWalkGames: 0,
     wallScraperHomeRuns: 0,
     leftOnBase: 0,
