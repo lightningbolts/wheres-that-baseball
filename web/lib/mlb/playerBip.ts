@@ -71,3 +71,32 @@ export interface PlayerPitchingSeasonLine {
   gamesStarted: number | null;
   source: "mlb" | "empty";
 }
+
+/** Season hitting line from MLB Stats API + Savant expected wOBA. */
+export interface PlayerHittingSeasonLine {
+  playerId: number;
+  season: number;
+  name: string | null;
+  batSide: string | null;
+  avg: string | null;
+  obp: string | null;
+  slg: string | null;
+  ops: string | null;
+  /** Weighted on-base average (MLB sabermetrics). */
+  woba: string | null;
+  /** Expected wOBA from Baseball Savant. */
+  xwoba: string | null;
+  /** Weighted runs created plus (MLB sabermetrics). */
+  wrcPlus: number | null;
+  war: string | null;
+  hits: number | null;
+  homeRuns: number | null;
+  rbi: number | null;
+  baseOnBalls: number | null;
+  strikeOuts: number | null;
+  stolenBases: number | null;
+  plateAppearances: number | null;
+  atBats: number | null;
+  babip: string | null;
+  source: "mlb" | "empty";
+}

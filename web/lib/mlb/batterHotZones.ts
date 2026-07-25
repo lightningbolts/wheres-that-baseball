@@ -13,7 +13,22 @@ const HOT_COLD_ZONE_FALLBACK_PARAMS = [
   "strikeouts",
 ] as const;
 
-const STRIKE_ZONE_IDS = ["01", "02", "03", "04", "05", "06", "07", "08", "09"] as const;
+/** Inner 3×3 (01–09) plus Gameday border/edge regions (11–14). Zone 10 is unused. */
+const HOT_ZONE_IDS = [
+  "01",
+  "02",
+  "03",
+  "04",
+  "05",
+  "06",
+  "07",
+  "08",
+  "09",
+  "11",
+  "12",
+  "13",
+  "14",
+] as const;
 
 interface HotColdZoneRaw {
   zone?: string;
@@ -126,7 +141,7 @@ function combineObpSlgZones(
 ): BatterHotZoneCell[] {
   const cells: BatterHotZoneCell[] = [];
 
-  for (const zoneId of STRIKE_ZONE_IDS) {
+  for (const zoneId of HOT_ZONE_IDS) {
     const obp = obpZones.get(zoneId);
     const slg = slgZones.get(zoneId);
     const obpRate = parseRate(obp?.value);
@@ -147,7 +162,7 @@ function combineObpSlgZones(
 function cellsFromDirectOps(opsZones: Map<string, HotColdZoneRaw>): BatterHotZoneCell[] {
   const cells: BatterHotZoneCell[] = [];
 
-  for (const zoneId of STRIKE_ZONE_IDS) {
+  for (const zoneId of HOT_ZONE_IDS) {
     const raw = opsZones.get(zoneId);
     const opsRate = parseRate(raw?.value);
     if (opsRate == null) continue;
@@ -195,7 +210,7 @@ export async function fetchBatterHotZones(
   season: number,
 ): Promise<BatterHotZoneCell[] | null> {
   return cachedStatsFetch(
-    [`hotZones`, "ops-all-splits-v6", String(batterId), String(season)],
+    [`hotZones`, "ops-all-splits-v7-border", String(batterId), String(season)],
     async () => {
       const seasons = [season, new Date().getFullYear(), season - 1, season + 1].filter(
         (value, index, array) => value >= 2008 && array.indexOf(value) === index,

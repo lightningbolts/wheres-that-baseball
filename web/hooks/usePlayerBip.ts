@@ -7,15 +7,18 @@ import type { PlayerBipDetail, PlayerBipIndexEntry } from "@/lib/mlb/playerBip";
 import type { PlayerNerdCard } from "@/lib/mlb/nerdStats/types";
 import {
   getCachedPlayerBip,
+  getCachedPlayerHitting,
   getCachedPlayerNerd,
   getCachedPlayerPitchBip,
   getCachedPlayerPitching,
   getCachedPlayerSearch,
   setCachedPlayerBip,
+  setCachedPlayerHitting,
   setCachedPlayerNerd,
   setCachedPlayerPitchBip,
   setCachedPlayerPitching,
   setCachedPlayerSearch,
+  type PlayerHittingResponse,
   type PlayerPitchingResponse,
 } from "@/lib/mlb/playerCache";
 
@@ -220,6 +223,59 @@ export function usePlayerPitchingLine(playerId: number | null, season = CURRENT_
       } catch (err) {
         if (requestId !== requestIdRef.current) return;
         setError(err instanceof Error ? err.message : "Failed to load pitching line");
+        if (!fromCache) setData(null);
+      } finally {
+        if (requestId === requestIdRef.current) setIsLoading(false);
+      }
+    })();
+  }, [playerId, season]);
+
+  return { data, isLoading, error };
+}
+
+export function usePlayerHittingLine(playerId: number | null, season = CURRENT_SEASON) {
+  const cached = playerId != null ? getCachedPlayerHitting(season, playerId) : null;
+  const [data, setData] = useState<PlayerHittingResponse | null>(cached);
+  const [isLoading, setIsLoading] = useState(!cached && playerId != null);
+  const [error, setError] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
+
+  useEffect(() => {
+    if (playerId == null) {
+      setData(null);
+      setIsLoading(false);
+      return;
+    }
+
+    const requestId = ++requestIdRef.current;
+    const fromCache = getCachedPlayerHitting(season, playerId);
+    if (fromCache) {
+      setData(fromCache);
+      setIsLoading(false);
+    } else {
+      setIsLoading(true);
+    }
+    setError(null);
+
+    void (async () => {
+      try {
+        const params = new URLSearchParams({ season: String(season) });
+        const response = await fetch(`/api/players/${playerId}/hitting?${params.toString()}`, {
+          cache: "no-store",
+        });
+        const body = (await response.json()) as PlayerHittingResponse | { error?: string };
+        if (!response.ok) {
+          throw new Error(
+            "error" in body && body.error ? body.error : "Failed to load hitting line",
+          );
+        }
+        if (requestId !== requestIdRef.current) return;
+        const line = body as PlayerHittingResponse;
+        setCachedPlayerHitting(season, playerId, line);
+        setData(line);
+      } catch (err) {
+        if (requestId !== requestIdRef.current) return;
+        setError(err instanceof Error ? err.message : "Failed to load hitting line");
         if (!fromCache) setData(null);
       } finally {
         if (requestId === requestIdRef.current) setIsLoading(false);

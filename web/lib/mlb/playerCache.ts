@@ -1,11 +1,15 @@
 import type { PlayerBipDetail, PlayerBipIndexEntry } from "@/lib/mlb/playerBip";
 import type { PlayerNerdCard } from "@/lib/mlb/nerdStats/types";
 import type { PlayerPitchMix } from "@/lib/mlb/playerPitching";
-import type { PlayerPitchingSeasonLine } from "@/lib/mlb/playerBip";
+import type {
+  PlayerHittingSeasonLine,
+  PlayerPitchingSeasonLine,
+} from "@/lib/mlb/playerBip";
 
 const bipCache = new Map<string, PlayerBipDetail>();
 const pitchBipCache = new Map<string, PlayerBipDetail>();
 const pitchingCache = new Map<string, PlayerPitchingResponse>();
+const hittingCache = new Map<string, PlayerHittingSeasonLine>();
 const nerdCache = new Map<string, PlayerNerdCard>();
 const searchCache = new Map<string, PlayerBipIndexEntry[]>();
 
@@ -16,6 +20,8 @@ export interface PlayerPitchingResponse extends PlayerPitchingSeasonLine {
   nerdHitsAllowed: number;
   nerdBallsInPlayAllowed: number;
 }
+
+export type PlayerHittingResponse = PlayerHittingSeasonLine;
 
 function bipKey(season: number, playerId: number): string {
   return `${season}:${playerId}`;
@@ -65,6 +71,21 @@ export function setCachedPlayerPitching(
   data: PlayerPitchingResponse,
 ): void {
   pitchingCache.set(bipKey(season, playerId), data);
+}
+
+export function getCachedPlayerHitting(
+  season: number,
+  playerId: number,
+): PlayerHittingSeasonLine | null {
+  return hittingCache.get(bipKey(season, playerId)) ?? null;
+}
+
+export function setCachedPlayerHitting(
+  season: number,
+  playerId: number,
+  data: PlayerHittingSeasonLine,
+): void {
+  hittingCache.set(bipKey(season, playerId), data);
 }
 
 export function getCachedPlayerNerd(season: number, playerId: number): PlayerNerdCard | null {

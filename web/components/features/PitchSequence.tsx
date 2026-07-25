@@ -13,6 +13,7 @@ import {
   absPlateLocation,
   homePlatePath,
   pitchResultColor,
+  strikeZoneBorderCell,
   strikeZoneCellRect,
   toSvgPercent,
   zoneRectPercent,
@@ -214,6 +215,34 @@ function ZoneHeatCells({
 
   return (
     <>
+      {(["11", "12", "13", "14"] as const).map((zoneId) => {
+        const cell = byId.get(zoneId);
+        const border = strikeZoneBorderCell(zone, zoneId);
+        if (!cell || !border) return null;
+
+        const fontSize = border.padSize * 0.42;
+        const label = zoneHeatLabelStyle(cell.color, cell.temp);
+
+        return (
+          <g key={zoneId}>
+            <path d={border.path} fill={cell.color} />
+            <text
+              x={border.labelX}
+              y={border.labelY}
+              textAnchor="middle"
+              dominantBaseline="central"
+              fontSize={fontSize}
+              fill={label.fill}
+              fontWeight="600"
+              stroke={label.stroke}
+              strokeWidth={label.strokeWidth}
+              paintOrder="stroke"
+            >
+              {cell.value}
+            </text>
+          </g>
+        );
+      })}
       {Array.from({ length: 9 }, (_, index) => {
         const zoneId = String(index + 1).padStart(2, "0");
         const cell = byId.get(zoneId);

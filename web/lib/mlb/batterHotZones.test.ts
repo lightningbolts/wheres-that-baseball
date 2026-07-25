@@ -165,4 +165,40 @@ describe("fetchBatterHotZones", () => {
     expect(await fetchBatterHotZones(123456, 2025)).toBeNull();
     fetchSpy.mockRestore();
   });
+
+  it("includes Gameday border zones 11–14 with OPS and colors", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        stats: [
+          {
+            splits: [
+              {
+                stat: {
+                  name: "onBasePlusSlugging",
+                  zones: [
+                    { zone: "05", color: "red", temp: "hot", value: "1.343" },
+                    { zone: "11", color: "rgba(234, 147, 153, .55)", temp: "warm", value: ".789" },
+                    { zone: "12", color: "blue", temp: "cold", value: ".548" },
+                    { zone: "13", color: "blue", temp: "cold", value: ".526" },
+                    { zone: "14", color: "rgba(255, 255, 255, 0.55)", temp: "lukewarm", value: ".731" },
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    } as Response);
+
+    const cells = await fetchBatterHotZones(660271, 2025);
+    expect(cells).toEqual([
+      { zoneId: "05", color: "red", temp: "hot", value: "1.343" },
+      { zoneId: "11", color: "rgba(234, 147, 153, .55)", temp: "warm", value: ".789" },
+      { zoneId: "12", color: "blue", temp: "cold", value: ".548" },
+      { zoneId: "13", color: "blue", temp: "cold", value: ".526" },
+      { zoneId: "14", color: "rgba(255, 255, 255, 0.55)", temp: "lukewarm", value: ".731" },
+    ]);
+    fetchSpy.mockRestore();
+  });
 });

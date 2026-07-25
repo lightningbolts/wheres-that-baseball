@@ -206,6 +206,156 @@ export function strikeZoneCellRect(
   };
 }
 
+/** Outer pad for Gameday border zones 11–14 (~45% of zone size). */
+export const BORDER_ZONE_PAD_FRAC = 0.45;
+
+export interface StrikeZoneBorderCell {
+  /** L-shaped path covering only the out-of-zone ring for this quadrant. */
+  path: string;
+  /** Label anchor in the outer corner pad. */
+  labelX: number;
+  labelY: number;
+  /** Approximate pad size for font scaling. */
+  padSize: number;
+}
+
+/**
+ * Gameday-style out-of-zone border cells (catcher's view):
+ * 11 high-left, 12 high-right, 13 low-left, 14 low-right.
+ * Returns an L-shaped path outside the ABS zone so it does not cover 01–09.
+ */
+export function strikeZoneBorderCell(
+  zone: SvgRectPercent,
+  zoneId: string,
+): StrikeZoneBorderCell | null {
+  const num = Number.parseInt(zoneId, 10);
+  if (num < 11 || num > 14) return null;
+
+  const padX = zone.width * BORDER_ZONE_PAD_FRAC;
+  const padY = zone.height * BORDER_ZONE_PAD_FRAC;
+  const midX = zone.x + zone.width / 2;
+  const midY = zone.y + zone.height / 2;
+  const left = zone.x;
+  const right = zone.x + zone.width;
+  const top = zone.y;
+  const bottom = zone.y + zone.height;
+  const padSize = Math.min(padX, padY);
+
+  if (num === 11) {
+    const path = [
+      `M${left - padX} ${top - padY}`,
+      `L${midX} ${top - padY}`,
+      `L${midX} ${top}`,
+      `L${left} ${top}`,
+      `L${left} ${midY}`,
+      `L${left - padX} ${midY}`,
+      "Z",
+    ].join(" ");
+    return {
+      path,
+      labelX: left - padX / 2,
+      labelY: top - padY / 2,
+      padSize,
+    };
+  }
+  if (num === 12) {
+    const path = [
+      `M${midX} ${top - padY}`,
+      `L${right + padX} ${top - padY}`,
+      `L${right + padX} ${midY}`,
+      `L${right} ${midY}`,
+      `L${right} ${top}`,
+      `L${midX} ${top}`,
+      "Z",
+    ].join(" ");
+    return {
+      path,
+      labelX: right + padX / 2,
+      labelY: top - padY / 2,
+      padSize,
+    };
+  }
+  if (num === 13) {
+    const path = [
+      `M${left - padX} ${midY}`,
+      `L${left} ${midY}`,
+      `L${left} ${bottom}`,
+      `L${midX} ${bottom}`,
+      `L${midX} ${bottom + padY}`,
+      `L${left - padX} ${bottom + padY}`,
+      "Z",
+    ].join(" ");
+    return {
+      path,
+      labelX: left - padX / 2,
+      labelY: bottom + padY / 2,
+      padSize,
+    };
+  }
+  const path = [
+    `M${right} ${midY}`,
+    `L${right + padX} ${midY}`,
+    `L${right + padX} ${bottom + padY}`,
+    `L${midX} ${bottom + padY}`,
+    `L${midX} ${bottom}`,
+    `L${right} ${bottom}`,
+    "Z",
+  ].join(" ");
+  return {
+    path,
+    labelX: right + padX / 2,
+    labelY: bottom + padY / 2,
+    padSize,
+  };
+}
+
+/** Bounding rect for border zones 11–14 (may overlap the inner half; prefer strikeZoneBorderCell for drawing). */
+export function strikeZoneBorderCellRect(
+  zone: SvgRectPercent,
+  zoneId: string,
+): SvgRectPercent | null {
+  const num = Number.parseInt(zoneId, 10);
+  if (num < 11 || num > 14) return null;
+
+  const padX = zone.width * BORDER_ZONE_PAD_FRAC;
+  const padY = zone.height * BORDER_ZONE_PAD_FRAC;
+  const midX = zone.x + zone.width / 2;
+  const midY = zone.y + zone.height / 2;
+  const left = num === 11 || num === 13;
+  const high = num === 11 || num === 12;
+
+  if (left && high) {
+    return {
+      x: zone.x - padX,
+      y: zone.y - padY,
+      width: zone.width / 2 + padX,
+      height: zone.height / 2 + padY,
+    };
+  }
+  if (!left && high) {
+    return {
+      x: midX,
+      y: zone.y - padY,
+      width: zone.width / 2 + padX,
+      height: zone.height / 2 + padY,
+    };
+  }
+  if (left && !high) {
+    return {
+      x: zone.x - padX,
+      y: midY,
+      width: zone.width / 2 + padX,
+      height: zone.height / 2 + padY,
+    };
+  }
+  return {
+    x: midX,
+    y: midY,
+    width: zone.width / 2 + padX,
+    height: zone.height / 2 + padY,
+  };
+}
+
 /** Home plate at ground level (pZ=0), zone width, Gameday-style catcher view. */
 export function homePlatePath(
   zone: { x: number; y: number; width: number; height: number },

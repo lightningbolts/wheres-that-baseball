@@ -12,6 +12,7 @@ import { TeamLogo } from "@/components/ui/TeamLogo";
 import { Skeleton } from "@/components/ui/Skeleton";
 import {
   usePlayerBip,
+  usePlayerHittingLine,
   usePlayerPitchBip,
   usePlayerPitchingLine,
 } from "@/hooks/usePlayerBip";
@@ -27,7 +28,7 @@ import {
   type SprayChartHit,
 } from "@/lib/mlb/gameHits";
 import type { PlayerBipDetail, PlayerVenueBip } from "@/lib/mlb/playerBip";
-import type { PlayerPitchingResponse } from "@/lib/mlb/playerCache";
+import type { PlayerHittingResponse, PlayerPitchingResponse } from "@/lib/mlb/playerCache";
 import { enrichPlayDetailWithPlayId } from "@/lib/mlb/playVideo";
 import { cn, formatInningHalf } from "@/lib/utils";
 import type { PlayDetail } from "@/types/mlb-live";
@@ -290,6 +291,47 @@ function PitchingSummaryPanel({ line }: { line: PlayerPitchingResponse }) {
   );
 }
 
+function HittingSummaryPanel({ line }: { line: PlayerHittingResponse }) {
+  const hasMlbLine = line.source === "mlb";
+
+  return (
+    <div className="rounded-xl border border-border bg-surface px-3 py-3 sm:px-4">
+      <p className="text-[10px] font-medium uppercase tracking-wide text-muted">
+        Season hitting
+        {line.batSide ? ` · ${line.batSide}` : ""}
+      </p>
+      {hasMlbLine ? (
+        <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-6 sm:gap-3">
+          {[
+            { label: "AVG", value: fmtStat(line.avg) },
+            { label: "OBP", value: fmtStat(line.obp) },
+            { label: "SLG", value: fmtStat(line.slg) },
+            { label: "OPS", value: fmtStat(line.ops) },
+            { label: "wOBA", value: fmtStat(line.woba) },
+            { label: "xwOBA", value: fmtStat(line.xwoba) },
+            { label: "wRC+", value: fmtStat(line.wrcPlus) },
+            { label: "HR", value: fmtStat(line.homeRuns) },
+            { label: "RBI", value: fmtStat(line.rbi) },
+            { label: "BB", value: fmtStat(line.baseOnBalls) },
+            { label: "SO", value: fmtStat(line.strikeOuts) },
+            { label: "SB", value: fmtStat(line.stolenBases) },
+            { label: "PA", value: fmtStat(line.plateAppearances) },
+          ].map((stat) => (
+            <div key={stat.label} className="min-w-0">
+              <p className="text-[10px] uppercase tracking-wide text-subtle">{stat.label}</p>
+              <p className="font-mono text-sm text-foreground">{stat.value}</p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-2 text-[12px] text-muted">
+          No official MLB hitting line for this season yet.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function BipExplorer({
   data,
   bipLabel,
@@ -417,10 +459,13 @@ interface PlayerDetailViewProps {
 
 export function PlayerDetailView({ playerId }: PlayerDetailViewProps) {
   const batting = usePlayerBip(playerId, CURRENT_SEASON);
+  const hittingLine = usePlayerHittingLine(playerId, CURRENT_SEASON);
   const pitchingBip = usePlayerPitchBip(playerId, CURRENT_SEASON);
   const pitchingLine = usePlayerPitchingLine(playerId, CURRENT_SEASON);
 
-  const hasHitting = Boolean(batting.data && batting.data.bipCount > 0);
+  const hasHittingBip = Boolean(batting.data && batting.data.bipCount > 0);
+  const hasHittingLine = hittingLine.data?.source === "mlb";
+  const hasHitting = hasHittingBip || hasHittingLine;
   const hasPitchingBip = Boolean(pitchingBip.data && pitchingBip.data.bipCount > 0);
   const hasPitchingLine =
     pitchingLine.data?.source === "mlb" ||
@@ -433,7 +478,14 @@ export function PlayerDetailView({ playerId }: PlayerDetailViewProps) {
 
   useEffect(() => {
     if (modeReady) return;
-    if (batting.isLoading || pitchingBip.isLoading || pitchingLine.isLoading) return;
+    if (
+      batting.isLoading ||
+      hittingLine.isLoading ||
+      pitchingBip.isLoading ||
+      pitchingLine.isLoading
+    ) {
+      return;
+    }
     if (hasHitting && hasPitching) {
       setMode("hitting");
     } else if (hasPitching) {
@@ -446,6 +498,7 @@ export function PlayerDetailView({ playerId }: PlayerDetailViewProps) {
     batting.isLoading,
     hasHitting,
     hasPitching,
+    hittingLine.isLoading,
     modeReady,
     pitchingBip.isLoading,
     pitchingLine.isLoading,
@@ -455,11 +508,19 @@ export function PlayerDetailView({ playerId }: PlayerDetailViewProps) {
   const activeFetchHitDetail =
     mode === "pitching" ? pitchingBip.fetchHitDetail : batting.fetchHitDetail;
   const isLoading =
-    batting.isLoading || pitchingBip.isLoading || pitchingLine.isLoading || !modeReady;
-  const error = mode === "pitching" ? pitchingBip.error || pitchingLine.error : batting.error;
+    batting.isLoading ||
+    hittingLine.isLoading ||
+    pitchingBip.isLoading ||
+    pitchingLine.isLoading ||
+    !modeReady;
+  const error =
+    mode === "pitching"
+      ? pitchingBip.error || pitchingLine.error
+      : batting.error || hittingLine.error;
 
   const displayName =
     activeData?.name ||
+    hittingLine.data?.name ||
     pitchingLine.data?.name ||
     batting.data?.name ||
     pitchingBip.data?.name ||
@@ -539,7 +600,7 @@ export function PlayerDetailView({ playerId }: PlayerDetailViewProps) {
             ← All players
           </Link>
 
-          {isLoading && !activeData && !pitchingLine.data ? (
+          {isLoading && !activeData && !pitchingLine.data && !hittingLine.data ? (
             <div className="mt-3">
               <Skeleton className="h-7 w-48" />
               <Skeleton className="mt-2 h-4 w-56" />
@@ -637,29 +698,36 @@ export function PlayerDetailView({ playerId }: PlayerDetailViewProps) {
             )}
             <PlayerNerdContributionPanel playerId={playerId} season={CURRENT_SEASON} />
           </>
-        ) : batting.data ? (
+        ) : hasHitting ? (
           <>
-            <BipExplorer
-              data={batting.data}
-              bipLabel="BIP"
-              bipFamily={bipFamily}
-              setBipFamily={(v) => {
-                setBipFamily(v);
-                setSelectedHitKey(null);
-              }}
-              hitTypeFilter={hitTypeFilter}
-              setHitTypeFilter={(v) => {
-                setHitTypeFilter(v);
-                setSelectedHitKey(null);
-              }}
-              parkFilter={parkFilter}
-              setParkFilter={(v) => {
-                setParkFilter(v);
-                setSelectedHitKey(null);
-              }}
-              selectedHitKey={selectedHitKey}
-              onSelectHit={handleSelectHit}
-            />
+            {hittingLine.data ? <HittingSummaryPanel line={hittingLine.data} /> : null}
+            {batting.data ? (
+              <BipExplorer
+                data={batting.data}
+                bipLabel="BIP"
+                bipFamily={bipFamily}
+                setBipFamily={(v) => {
+                  setBipFamily(v);
+                  setSelectedHitKey(null);
+                }}
+                hitTypeFilter={hitTypeFilter}
+                setHitTypeFilter={(v) => {
+                  setHitTypeFilter(v);
+                  setSelectedHitKey(null);
+                }}
+                parkFilter={parkFilter}
+                setParkFilter={(v) => {
+                  setParkFilter(v);
+                  setSelectedHitKey(null);
+                }}
+                selectedHitKey={selectedHitKey}
+                onSelectHit={handleSelectHit}
+              />
+            ) : (
+              <p className="py-6 text-center text-sm text-muted">
+                No balls in play indexed for this batter yet.
+              </p>
+            )}
             <PlayerNerdContributionPanel playerId={playerId} season={CURRENT_SEASON} />
           </>
         ) : hasPitching ? (

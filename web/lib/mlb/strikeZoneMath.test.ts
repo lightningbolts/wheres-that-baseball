@@ -10,6 +10,8 @@ import {
   isAbsStrikeForPitch,
   pitchCoordsAtY,
   sceneZoneToSvgPercent,
+  strikeZoneBorderCell,
+  strikeZoneBorderCellRect,
   strikeZoneCellRect,
   zoneRectPercent,
 } from "@/lib/mlb/strikeZoneMath";
@@ -34,6 +36,72 @@ describe("strikeZoneCellRect", () => {
 
   it("returns null for out-of-zone ids", () => {
     expect(strikeZoneCellRect(zone, "11")).toBeNull();
+  });
+});
+
+describe("strikeZoneBorderCellRect", () => {
+  const zone = zoneRectPercent(3.5, 1.5);
+
+  it("places border zones outside the ABS rect in catcher-view quadrants", () => {
+    const z11 = strikeZoneBorderCellRect(zone, "11");
+    const z12 = strikeZoneBorderCellRect(zone, "12");
+    const z13 = strikeZoneBorderCellRect(zone, "13");
+    const z14 = strikeZoneBorderCellRect(zone, "14");
+
+    expect(z11).not.toBeNull();
+    expect(z12).not.toBeNull();
+    expect(z13).not.toBeNull();
+    expect(z14).not.toBeNull();
+
+    // High-left starts above and left of the zone
+    expect(z11!.x).toBeLessThan(zone.x);
+    expect(z11!.y).toBeLessThan(zone.y);
+    expect(z11!.x + z11!.width).toBeCloseTo(zone.x + zone.width / 2, 5);
+
+    // High-right starts at midline and extends past the right edge
+    expect(z12!.x).toBeCloseTo(zone.x + zone.width / 2, 5);
+    expect(z12!.y).toBeLessThan(zone.y);
+    expect(z12!.x + z12!.width).toBeGreaterThan(zone.x + zone.width);
+
+    // Low-left starts at vertical midline and extends below
+    expect(z13!.x).toBeLessThan(zone.x);
+    expect(z13!.y).toBeCloseTo(zone.y + zone.height / 2, 5);
+    expect(z13!.y + z13!.height).toBeGreaterThan(zone.y + zone.height);
+
+    // Low-right is the bottom-right quadrant
+    expect(z14!.x).toBeCloseTo(zone.x + zone.width / 2, 5);
+    expect(z14!.y).toBeCloseTo(zone.y + zone.height / 2, 5);
+    expect(z14!.x + z14!.width).toBeGreaterThan(zone.x + zone.width);
+    expect(z14!.y + z14!.height).toBeGreaterThan(zone.y + zone.height);
+  });
+
+  it("returns null for non-border zone ids", () => {
+    expect(strikeZoneBorderCellRect(zone, "05")).toBeNull();
+    expect(strikeZoneBorderCellRect(zone, "10")).toBeNull();
+  });
+});
+
+describe("strikeZoneBorderCell", () => {
+  const zone = zoneRectPercent(3.5, 1.5);
+
+  it("anchors labels in the outer corner pad for each border zone", () => {
+    const z11 = strikeZoneBorderCell(zone, "11");
+    const z12 = strikeZoneBorderCell(zone, "12");
+    const z13 = strikeZoneBorderCell(zone, "13");
+    const z14 = strikeZoneBorderCell(zone, "14");
+
+    expect(z11!.labelX).toBeLessThan(zone.x);
+    expect(z11!.labelY).toBeLessThan(zone.y);
+    expect(z11!.path).toContain("M");
+
+    expect(z12!.labelX).toBeGreaterThan(zone.x + zone.width);
+    expect(z12!.labelY).toBeLessThan(zone.y);
+
+    expect(z13!.labelX).toBeLessThan(zone.x);
+    expect(z13!.labelY).toBeGreaterThan(zone.y + zone.height);
+
+    expect(z14!.labelX).toBeGreaterThan(zone.x + zone.width);
+    expect(z14!.labelY).toBeGreaterThan(zone.y + zone.height);
   });
 });
 
