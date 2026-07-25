@@ -422,7 +422,9 @@ function StrikeZoneChart({
       viewBox="0 0 100 100"
       className={cn(
         "border border-border bg-zone-chart-bg",
-        fill ? "h-full min-h-0 w-full touch-none" : cn("shrink-0", styles.chart),
+        // touch-pan-y (not touch-none): allow parent dialog/feed scroll when the
+        // gesture starts on the zone — touch-none made mobile dialog scrolling feel stuck.
+        fill ? "h-full min-h-0 w-full touch-pan-y" : cn("shrink-0", styles.chart),
         className,
       )}
       aria-hidden

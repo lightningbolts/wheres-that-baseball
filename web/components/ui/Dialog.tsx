@@ -104,7 +104,8 @@ export function Dialog({ open, onClose, title, children, className }: DialogProp
       className={cn(
         // display is controlled by globals.css (dialog[open] / :not([open])) so a closed
         // dialog never leaks into the page when we keep it mounted.
-        "w-[min(100%,560px)] max-w-[calc(100%-2rem)] max-h-[90vh] flex-col border border-border-strong bg-panel p-0 text-foreground shadow-2xl backdrop:bg-black/60",
+        // overflow-hidden keeps scrolling on the body pane (not the <dialog> itself).
+        "w-[min(100%,560px)] max-w-[calc(100%-2rem)] max-h-[90vh] flex-col overflow-hidden border border-border-strong bg-panel p-0 text-foreground shadow-2xl backdrop:bg-black/60",
         "max-md:fixed max-md:inset-0 max-md:m-0 max-md:h-dvh max-md:max-h-none max-md:w-full max-md:max-w-none max-md:rounded-none max-md:border-0",
         "max-md:pt-[env(safe-area-inset-top)] max-md:pb-[env(safe-area-inset-bottom)]",
         className,
@@ -126,7 +127,7 @@ export function Dialog({ open, onClose, title, children, className }: DialogProp
           ✕
         </button>
       </div>
-      <div className="relative z-0 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain p-3 max-md:p-2.5">
+      <div className="relative z-0 min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-y-contain p-3 max-md:p-2.5">
         {children}
       </div>
     </dialog>
