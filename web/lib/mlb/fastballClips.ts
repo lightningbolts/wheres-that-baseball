@@ -11,7 +11,23 @@ const BROWSER_HEADERS: HeadersInit = {
   Referer: "https://www.mlb.com/",
 };
 
-export type FastballFeed = "home" | "away";
+/**
+ * CDN feed folders under fastball-clips.mlb.com/{gamePk}/{feed}/.
+ * Regional / MLB.TV games publish `home` + `away`; national-only
+ * telecasts (FOX, ESPN, etc.) publish `network` instead.
+ */
+export type FastballFeed = "home" | "away" | "network";
+
+/** Probe order: regional feeds first, then national. */
+export const FASTBALL_FEED_ORDER: readonly FastballFeed[] = [
+  "home",
+  "away",
+  "network",
+];
+
+export function isFastballFeed(value: string | null | undefined): value is FastballFeed {
+  return value === "home" || value === "away" || value === "network";
+}
 
 export interface FastballResolvedClip {
   playId: string;
@@ -46,10 +62,14 @@ export function proxiedFastballClipUrl(
 /** Rewrite a direct fastball-clips URL to our same-origin stream proxy. */
 export function toPlayableClipUrl(url: string): string {
   const match = url.match(
-    /fastball-clips\.mlb\.com\/(\d+)\/(home|away)\/([0-9a-f-]{36})\.mp4/i,
+    /fastball-clips\.mlb\.com\/(\d+)\/(home|away|network)\/([0-9a-f-]{36})\.mp4/i,
   );
   if (!match) return url;
-  return proxiedFastballClipUrl(Number(match[1]), match[3], match[2].toLowerCase() as FastballFeed);
+  return proxiedFastballClipUrl(
+    Number(match[1]),
+    match[3],
+    match[2].toLowerCase() as FastballFeed,
+  );
 }
 
 /** Cheap existence check — Range GET for the ISO BMFF `ftyp` header. */
@@ -90,7 +110,8 @@ export async function probeFastballClipUrl(
 
 /**
  * Gameday-style clips: MLB publishes progressive MP4s at a stable path almost
- * immediately after the pitch/PA. Prefer HOME, then AWAY.
+ * immediately after the pitch/PA. Prefer HOME, then AWAY, then NETWORK
+ * (national-broadcast games often only publish the latter).
  */
 export async function resolveFastballClip(
   gamePk: number,
@@ -101,7 +122,7 @@ export async function resolveFastballClip(
 
   const ids = playIds.filter(isValidPlayId);
   for (const playId of ids) {
-    for (const feed of ["home", "away"] as const) {
+    for (const feed of FASTBALL_FEED_ORDER) {
       const url = fastballClipUrl(gamePk, playId, feed);
       if (await probeFastballClipUrl(url, signal)) {
         return {
@@ -186,6 +207,7 @@ export async function resolveFilmroomClipByPlayId(
     const ordered = [
       ...feeds.filter((feed) => (feed.type ?? "").toUpperCase() === "HOME"),
       ...feeds.filter((feed) => (feed.type ?? "").toUpperCase() === "AWAY"),
+      ...feeds.filter((feed) => (feed.type ?? "").toUpperCase() === "NETWORK"),
       ...feeds,
     ];
 
@@ -194,8 +216,13 @@ export async function resolveFilmroomClipByPlayId(
         const clipUrl = pb.url?.trim();
         if (!clipUrl) continue;
         if (pb.name === "mp4Avc" || clipUrl.endsWith(".mp4")) {
+          const feedType = (feed.type ?? "").toUpperCase();
           const feedName: FastballFeed =
-            (feed.type ?? "").toUpperCase() === "AWAY" ? "away" : "home";
+            feedType === "AWAY"
+              ? "away"
+              : feedType === "NETWORK"
+                ? "network"
+                : "home";
           const gamePkMatch = clipUrl.match(/fastball-clips\.mlb\.com\/(\d+)\//);
           const gamePk = gamePkMatch ? Number(gamePkMatch[1]) : 0;
           return {

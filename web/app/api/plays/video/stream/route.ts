@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 
-import { fastballClipUrl, type FastballFeed } from "@/lib/mlb/fastballClips";
+import {
+  fastballClipUrl,
+  isFastballFeed,
+  type FastballFeed,
+} from "@/lib/mlb/fastballClips";
 import { isValidPlayId } from "@/lib/mlb/playVideo";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +20,8 @@ const UPSTREAM_HEADERS: HeadersInit = {
 };
 
 function parseFeed(raw: string | null): FastballFeed {
-  return raw === "away" ? "away" : "home";
+  const normalized = raw?.trim().toLowerCase() ?? "";
+  return isFastballFeed(normalized) ? normalized : "home";
 }
 
 /**

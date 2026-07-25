@@ -18,6 +18,11 @@ describe("fastballClips", () => {
     ).toBe(
       "https://fastball-clips.mlb.com/823437/away/75805409-bc48-3e9b-b0f3-defce8a6ef92.mp4",
     );
+    expect(
+      fastballClipUrl(823600, "bf45d21a-3031-31e2-ad36-03e9e42cce3a", "network"),
+    ).toBe(
+      "https://fastball-clips.mlb.com/823600/network/bf45d21a-3031-31e2-ad36-03e9e42cce3a.mp4",
+    );
   });
 
   it("proxies Fastball CDN URLs for browser playback", () => {
@@ -32,6 +37,13 @@ describe("fastballClips", () => {
       ),
     ).toBe(
       "/api/plays/video/stream?gamePk=823437&playId=75805409-bc48-3e9b-b0f3-defce8a6ef92&feed=away",
+    );
+    expect(
+      toPlayableClipUrl(
+        "https://fastball-clips.mlb.com/823600/network/bf45d21a-3031-31e2-ad36-03e9e42cce3a.mp4",
+      ),
+    ).toBe(
+      "/api/plays/video/stream?gamePk=823600&playId=bf45d21a-3031-31e2-ad36-03e9e42cce3a&feed=network",
     );
     expect(toPlayableClipUrl("https://sporty-clips.mlb.com/foo.mp4")).toBe(
       "https://sporty-clips.mlb.com/foo.mp4",
