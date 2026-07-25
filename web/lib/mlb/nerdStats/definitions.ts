@@ -52,6 +52,7 @@ export function withNerdStatSplit<T>(split: NerdStatSplitFilter, fn: () => T): T
 
 export {
   getNerdStatDefinition,
+  resolveNerdStatId,
   NERD_STAT_DEFINITIONS,
   type NerdStatDefinition,
 } from "@/lib/mlb/nerdStats/statDefinitions";

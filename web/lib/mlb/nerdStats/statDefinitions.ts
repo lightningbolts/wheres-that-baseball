@@ -2206,6 +2206,16 @@ export const NERD_STAT_DEFINITIONS: NerdStatDefinition[] = [
   ...PITCH_TYPE_NERD_STAT_DEFINITIONS,
 ];
 
+/** Old public stat ids that still appear in links or committed data. */
+const NERD_STAT_ID_ALIASES: Record<string, string> = {
+  "immaculate-inning-victim": "almost-immaculate-inning-victim",
+};
+
+export function resolveNerdStatId(statId: string): string {
+  return NERD_STAT_ID_ALIASES[statId] ?? statId;
+}
+
 export function getNerdStatDefinition(statId: string): NerdStatDefinition | undefined {
-  return NERD_STAT_DEFINITIONS.find((stat) => stat.id === statId);
+  const resolved = resolveNerdStatId(statId);
+  return NERD_STAT_DEFINITIONS.find((stat) => stat.id === resolved);
 }

@@ -218,15 +218,16 @@ export function createEmptySeasonCounters(): SeasonNerdCounters {
 
 /** Backfill counters saved before new fields were added to TeamNerdCounters. */
 export function normalizeTeamCounters(partial: Partial<TeamNerdCounters>): TeamNerdCounters {
+  const migrated = migrateLegacyTeamCounterFields(partial);
   const empty = createEmptyTeamCounters();
   const merged = {
     ...empty,
-    ...partial,
-    notableEvents: partial.notableEvents ?? empty.notableEvents,
+    ...migrated,
+    notableEvents: migrated.notableEvents ?? empty.notableEvents,
     pitchTypesThrown: { ...empty.pitchTypesThrown },
   };
-  if (partial.pitchTypesThrown) {
-    mergePitchTypesThrown(merged.pitchTypesThrown, partial.pitchTypesThrown);
+  if (migrated.pitchTypesThrown) {
+    mergePitchTypesThrown(merged.pitchTypesThrown, migrated.pitchTypesThrown);
   }
 
   for (const key of Object.keys(empty) as Array<keyof TeamNerdCounters>) {
@@ -240,6 +241,35 @@ export function normalizeTeamCounters(partial: Partial<TeamNerdCounters>): TeamN
   }
 
   return merged;
+}
+
+/** Maps renamed counter fields / notable stat ids from older aggregates. */
+function migrateLegacyTeamCounterFields(
+  partial: Partial<TeamNerdCounters>,
+): Partial<TeamNerdCounters> {
+  const legacy = partial as Partial<TeamNerdCounters> & {
+    immaculateInningVictims?: number;
+  };
+  const next: Partial<TeamNerdCounters> = { ...partial };
+
+  if (legacy.immaculateInningVictims != null && next.almostImmaculateInningVictims == null) {
+    next.almostImmaculateInningVictims = legacy.immaculateInningVictims;
+  }
+
+  if (partial.notableEvents) {
+    next.notableEvents = partial.notableEvents.map((event) => {
+      if (event.statId !== "immaculate-inning-victim") return event;
+      return {
+        ...event,
+        statId: "almost-immaculate-inning-victim",
+        label: event.label.replace(/\b[Ii]mmaculate inning\b/g, (match) =>
+          match.startsWith("I") ? "Almost immaculate inning" : "almost immaculate inning",
+        ),
+      };
+    });
+  }
+
+  return next;
 }
 
 export function normalizeSeasonCounters(partial: SeasonNerdCounters): SeasonNerdCounters {

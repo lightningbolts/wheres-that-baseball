@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { join } from "node:path";
 
 import type { NerdStatHistory } from "@/lib/mlb/nerdStats/history";
+import { resolveNerdStatId } from "@/lib/mlb/nerdStats/statDefinitions";
 
 function historyDir(season: number): string {
   return join(process.cwd(), "data", "nerd-stats", String(season), "history");
@@ -30,7 +31,7 @@ export function writeNerdStatHistories(
 }
 
 export function loadNerdStatHistory(season: number, statId: string): NerdStatHistory | null {
-  const path = historyPath(season, statId);
+  const path = historyPath(season, resolveNerdStatId(statId));
   if (!existsSync(path)) return null;
   return JSON.parse(readFileSync(path, "utf8")) as NerdStatHistory;
 }

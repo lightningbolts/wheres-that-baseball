@@ -2,8 +2,10 @@ import {
   buildFullStatLeaderboard,
   buildStatLeaderboard,
   collectNotableEventsForStat,
+  getNerdStatDefinition,
   NERD_STAT_DEFINITIONS,
   pickStatOfTheDay,
+  resolveNerdStatId,
   withNerdStatSplit,
   withNerdStatWindow,
 } from "@/lib/mlb/nerdStats/definitions";
@@ -54,7 +56,8 @@ export function buildNerdStatDetail(
   window: NerdStatWindowId = "season",
   split: NerdStatSplitFilter = "all",
 ): NerdStatDetail | null {
-  const definition = NERD_STAT_DEFINITIONS.find((stat) => stat.id === statId);
+  const resolvedId = resolveNerdStatId(statId);
+  const definition = getNerdStatDefinition(resolvedId);
   if (!definition) return null;
 
   const stat = withNerdStatWindow(window, () =>
@@ -65,7 +68,7 @@ export function buildNerdStatDetail(
     season,
     stat,
     allTeams: stat.leaders,
-    notableEvents: collectNotableEventsForStat(counters, statId),
+    notableEvents: collectNotableEventsForStat(counters, resolvedId),
     generatedAt: new Date().toISOString(),
   };
 }

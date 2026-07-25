@@ -3,17 +3,18 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 
 import { NerdStatDetailView } from "@/components/features/NerdStatDetailView";
-import { getNerdStatDefinition } from "@/lib/mlb/nerdStats/definitions";
+import { getNerdStatDefinition, resolveNerdStatId } from "@/lib/mlb/nerdStats/definitions";
 import { loadNerdStatDetail } from "@/lib/mlb/nerdStats/store";
 import { getSiteUrl, SITE_NAME } from "@/lib/site";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 interface NerdStatPageProps {
   params: Promise<{ statId: string }>;
 }
 
 export async function generateMetadata({ params }: NerdStatPageProps): Promise<Metadata> {
-  const { statId } = await params;
+  const { statId: rawStatId } = await params;
+  const statId = resolveNerdStatId(rawStatId);
   const definition = getNerdStatDefinition(statId);
   if (!definition) return {};
 
@@ -45,7 +46,9 @@ export async function generateMetadata({ params }: NerdStatPageProps): Promise<M
 }
 
 export default async function NerdStatPage({ params }: NerdStatPageProps) {
-  const { statId } = await params;
+  const { statId: rawStatId } = await params;
+  const statId = resolveNerdStatId(rawStatId);
+  if (statId !== rawStatId) redirect(`/nerd/${statId}`);
   if (!getNerdStatDefinition(statId)) notFound();
   return (
     <Suspense fallback={null}>
