@@ -15,9 +15,11 @@ import {
   pitchResultColor,
   strikeZoneBorderCell,
   strikeZoneCellRect,
+  strikeZoneHeatFrame,
   toSvgPercent,
   zoneRectPercent,
 } from "@/lib/mlb/strikeZoneMath";
+import type { SvgRectPercent } from "@/lib/mlb/strikeZoneMath";
 import { zoneHeatLabelStyle } from "@/lib/mlb/zoneHeatColors";
 
 interface PitchSequenceProps {
@@ -206,21 +208,26 @@ function pitchChartKey(pitch: PlayPitch): string {
 
 function ZoneHeatCells({
   zone,
+  szTop,
+  szBottom,
   cells,
 }: {
-  zone: ReturnType<typeof zoneRectPercent>;
+  zone: SvgRectPercent;
+  szTop: number;
+  szBottom: number;
   cells: BatterHotZoneCell[];
 }) {
   const byId = new Map(cells.map((cell) => [cell.zoneId.padStart(2, "0"), cell]));
+  const frame = strikeZoneHeatFrame(zone, szTop, szBottom);
 
   return (
     <>
+      {/* Ball-wide edge ring only (zones 11–14) — never fills the ABS interior. */}
       {(["11", "12", "13", "14"] as const).map((zoneId) => {
         const cell = byId.get(zoneId);
-        const border = strikeZoneBorderCell(zone, zoneId);
+        const border = strikeZoneBorderCell(zone, zoneId, frame);
         if (!cell || !border) return null;
 
-        const fontSize = border.padSize * 0.42;
         const label = zoneHeatLabelStyle(cell.color, cell.temp);
 
         return (
@@ -231,12 +238,13 @@ function ZoneHeatCells({
               y={border.labelY}
               textAnchor="middle"
               dominantBaseline="central"
-              fontSize={fontSize}
+              fontSize={border.fontSize}
               fill={label.fill}
               fontWeight="600"
               stroke={label.stroke}
-              strokeWidth={label.strokeWidth}
+              strokeWidth={Math.min(label.strokeWidth, 0.22)}
               paintOrder="stroke"
+              style={{ fontVariantNumeric: "tabular-nums" }}
             >
               {cell.value}
             </text>
@@ -330,7 +338,7 @@ function ZoneGridLines({ zone }: { zone: ReturnType<typeof zoneRectPercent> }) {
         height={zone.height}
         fill="none"
         stroke="var(--zone-chart-grid)"
-        strokeWidth="1"
+        strokeWidth="0.4"
       />
     </>
   );
@@ -375,7 +383,9 @@ function EmptyStrikeZone({
           height={zone.height}
           fill="var(--zone-chart-zone-fill)"
         />
-        {batterZones?.length ? <ZoneHeatCells zone={zone} cells={batterZones} /> : null}
+        {batterZones?.length ? (
+          <ZoneHeatCells zone={zone} szTop={szTop} szBottom={szBottom} cells={batterZones} />
+        ) : null}
         <ZoneGridLines zone={zone} />
     </svg>
   );
@@ -431,7 +441,9 @@ function StrikeZoneChart({
         height={zone.height}
         fill={batterZones?.length ? "transparent" : "var(--zone-chart-zone-fill)"}
       />
-      {batterZones?.length ? <ZoneHeatCells zone={zone} cells={batterZones} /> : null}
+      {batterZones?.length ? (
+        <ZoneHeatCells zone={zone} szTop={szTop} szBottom={szBottom} cells={batterZones} />
+      ) : null}
       <ZoneGridLines zone={zone} />
       {plotted.map((pitch) => {
         // ABS judges at the plate midpoint; Statcast pX/pZ are at the front.

@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   ABS_PLANE_Y_FT,
+  BALL_DIAMETER_FT,
   BALL_RADIUS_FT,
   PLATE_FRONT_Y_FT,
   PLATE_HALF_WIDTH_FT,
+  VIEW_WIDTH_FT,
+  ZONE_WIDTH_FT,
   absPlateLocation,
   isAbsStrike,
   isAbsStrikeForPitch,
@@ -13,6 +16,7 @@ import {
   strikeZoneBorderCell,
   strikeZoneBorderCellRect,
   strikeZoneCellRect,
+  strikeZoneHeatFrame,
   zoneRectPercent,
 } from "@/lib/mlb/strikeZoneMath";
 import type { SvgRectPercent } from "@/lib/mlb/strikeZoneMath";
@@ -39,69 +43,87 @@ describe("strikeZoneCellRect", () => {
   });
 });
 
+describe("strikeZoneHeatFrame", () => {
+  it("keeps the ABS rectangle proportions with a one-ball-wide border", () => {
+    const zone = zoneRectPercent(3.5, 1.5);
+    const frame = strikeZoneHeatFrame(zone, 3.5, 1.5);
+
+    // Still taller than wide (ABS rectangle), not a square
+    expect(frame.height).toBeGreaterThan(frame.width);
+
+    const padX = zone.x - frame.x;
+    const padY = zone.y - frame.y;
+    const expectedPadX = (BALL_DIAMETER_FT / VIEW_WIDTH_FT) * 100;
+
+    expect(padX).toBeCloseTo(expectedPadX, 5);
+    expect(padY).toBeGreaterThan(0);
+    // Border is much thinner than an inner cell (~zone/3)
+    expect(padX).toBeLessThan(zone.width / 3);
+    expect(padX / zone.width).toBeCloseTo(BALL_DIAMETER_FT / ZONE_WIDTH_FT, 5);
+  });
+});
+
 describe("strikeZoneBorderCellRect", () => {
-  const zone = zoneRectPercent(3.5, 1.5);
+  it("places border zone bounds outside the ABS zone corners", () => {
+    const zone = zoneRectPercent(3.5, 1.5);
+    const frame = strikeZoneHeatFrame(zone, 3.5, 1.5);
+    const z11 = strikeZoneBorderCellRect(zone, "11", frame);
+    const z14 = strikeZoneBorderCellRect(zone, "14", frame);
 
-  it("places border zones outside the ABS rect in catcher-view quadrants", () => {
-    const z11 = strikeZoneBorderCellRect(zone, "11");
-    const z12 = strikeZoneBorderCellRect(zone, "12");
-    const z13 = strikeZoneBorderCellRect(zone, "13");
-    const z14 = strikeZoneBorderCellRect(zone, "14");
-
-    expect(z11).not.toBeNull();
-    expect(z12).not.toBeNull();
-    expect(z13).not.toBeNull();
-    expect(z14).not.toBeNull();
-
-    // High-left starts above and left of the zone
-    expect(z11!.x).toBeLessThan(zone.x);
-    expect(z11!.y).toBeLessThan(zone.y);
+    expect(z11!.x).toBeCloseTo(frame.x, 5);
+    expect(z11!.y).toBeCloseTo(frame.y, 5);
     expect(z11!.x + z11!.width).toBeCloseTo(zone.x + zone.width / 2, 5);
-
-    // High-right starts at midline and extends past the right edge
-    expect(z12!.x).toBeCloseTo(zone.x + zone.width / 2, 5);
-    expect(z12!.y).toBeLessThan(zone.y);
-    expect(z12!.x + z12!.width).toBeGreaterThan(zone.x + zone.width);
-
-    // Low-left starts at vertical midline and extends below
-    expect(z13!.x).toBeLessThan(zone.x);
-    expect(z13!.y).toBeCloseTo(zone.y + zone.height / 2, 5);
-    expect(z13!.y + z13!.height).toBeGreaterThan(zone.y + zone.height);
-
-    // Low-right is the bottom-right quadrant
-    expect(z14!.x).toBeCloseTo(zone.x + zone.width / 2, 5);
-    expect(z14!.y).toBeCloseTo(zone.y + zone.height / 2, 5);
-    expect(z14!.x + z14!.width).toBeGreaterThan(zone.x + zone.width);
-    expect(z14!.y + z14!.height).toBeGreaterThan(zone.y + zone.height);
+    expect(z14!.x + z14!.width).toBeCloseTo(frame.x + frame.width, 5);
+    expect(z14!.y + z14!.height).toBeCloseTo(frame.y + frame.height, 5);
   });
 
   it("returns null for non-border zone ids", () => {
-    expect(strikeZoneBorderCellRect(zone, "05")).toBeNull();
-    expect(strikeZoneBorderCellRect(zone, "10")).toBeNull();
+    const zone = zoneRectPercent(3.5, 1.5);
+    const frame = strikeZoneHeatFrame(zone, 3.5, 1.5);
+    expect(strikeZoneBorderCellRect(zone, "05", frame)).toBeNull();
   });
 });
 
 describe("strikeZoneBorderCell", () => {
-  const zone = zoneRectPercent(3.5, 1.5);
+  it("draws an L-shaped path that stays outside the ABS zone", () => {
+    const zone = zoneRectPercent(3.5, 1.5);
+    const frame = strikeZoneHeatFrame(zone, 3.5, 1.5);
+    const z11 = strikeZoneBorderCell(zone, "11", frame);
 
-  it("anchors labels in the outer corner pad for each border zone", () => {
-    const z11 = strikeZoneBorderCell(zone, "11");
-    const z12 = strikeZoneBorderCell(zone, "12");
-    const z13 = strikeZoneBorderCell(zone, "13");
-    const z14 = strikeZoneBorderCell(zone, "14");
-
-    expect(z11!.labelX).toBeLessThan(zone.x);
-    expect(z11!.labelY).toBeLessThan(zone.y);
     expect(z11!.path).toContain("M");
+    expect(z11!.path).toContain("Z");
+    // Path visits the outer frame corner and the zone corner — not the zone center.
+    expect(z11!.path).toContain(`${frame.x}`);
+    expect(z11!.path).toContain(`${zone.x}`);
+  });
 
-    expect(z12!.labelX).toBeGreaterThan(zone.x + zone.width);
+  it("anchors labels in the wide top/bottom edge strips", () => {
+    const zone = zoneRectPercent(3.5, 1.5);
+    const frame = strikeZoneHeatFrame(zone, 3.5, 1.5);
+    const z11 = strikeZoneBorderCell(zone, "11", frame);
+    const z12 = strikeZoneBorderCell(zone, "12", frame);
+    const z13 = strikeZoneBorderCell(zone, "13", frame);
+    const z14 = strikeZoneBorderCell(zone, "14", frame);
+    const midX = zone.x + zone.width / 2;
+
+    // Top/bottom strips — horizontally centered in each half, vertically in the pad
+    expect(z11!.labelX).toBeGreaterThan(frame.x);
+    expect(z11!.labelX).toBeLessThan(midX);
+    expect(z11!.labelY).toBeLessThan(zone.y);
+
+    expect(z12!.labelX).toBeGreaterThan(midX);
+    expect(z12!.labelX).toBeLessThan(frame.x + frame.width);
     expect(z12!.labelY).toBeLessThan(zone.y);
 
-    expect(z13!.labelX).toBeLessThan(zone.x);
+    expect(z13!.labelX).toBeLessThan(midX);
     expect(z13!.labelY).toBeGreaterThan(zone.y + zone.height);
 
-    expect(z14!.labelX).toBeGreaterThan(zone.x + zone.width);
+    expect(z14!.labelX).toBeGreaterThan(midX);
     expect(z14!.labelY).toBeGreaterThan(zone.y + zone.height);
+
+    // Large enough to use the strip — not stuck at the tiny corner-pad size
+    expect(z11!.fontSize).toBeGreaterThan(2.4);
+    expect(z11!.fontSize).toBeLessThan((Math.min(zone.width, zone.height) / 3) * 0.34);
   });
 });
 

@@ -206,151 +206,140 @@ export function strikeZoneCellRect(
   };
 }
 
-/** Outer pad for Gameday border zones 11–14 (~45% of zone size). */
-export const BORDER_ZONE_PAD_FRAC = 0.45;
+/** Regulation baseball diameter — Gameday edge/border ring is one ball wide. */
+export const BALL_DIAMETER_FT = BALL_RADIUS_FT * 2;
 
 export interface StrikeZoneBorderCell {
-  /** L-shaped path covering only the out-of-zone ring for this quadrant. */
+  /** L-shaped path covering only the ball-wide ring outside the ABS zone. */
   path: string;
-  /** Label anchor in the outer corner pad. */
+  /** Label anchor centered in the outer corner of the ring. */
   labelX: number;
   labelY: number;
-  /** Approximate pad size for font scaling. */
-  padSize: number;
+  /** Font size for the edge OPS label. */
+  fontSize: number;
+}
+
+/**
+ * Outer heat frame: ABS zone expanded by one baseball diameter on each side.
+ * Keeps the natural taller-than-wide zone rectangle (not a square).
+ */
+export function strikeZoneHeatFrame(
+  zone: SvgRectPercent,
+  szTop: number,
+  szBottom: number,
+): SvgRectPercent {
+  const zSpan = Math.max(szTop - szBottom, 0.1);
+  const padX = (BALL_DIAMETER_FT / VIEW_WIDTH_FT) * 100;
+  const padY = (BALL_DIAMETER_FT / (zSpan + 2 * PADDING_FT)) * ZONE_BAND_PCT;
+
+  return {
+    x: zone.x - padX,
+    y: zone.y - padY,
+    width: zone.width + 2 * padX,
+    height: zone.height + 2 * padY,
+  };
 }
 
 /**
  * Gameday-style out-of-zone border cells (catcher's view):
- * 11 high-left, 12 high-right, 13 low-left, 14 low-right.
- * Returns an L-shaped path outside the ABS zone so it does not cover 01–09.
+ * ball-wide edge ring only — 11 high-left, 12 high-right, 13 low-left, 14 low-right.
+ * Paths never cover the inner ABS zone.
  */
 export function strikeZoneBorderCell(
   zone: SvgRectPercent,
   zoneId: string,
+  frame: SvgRectPercent,
 ): StrikeZoneBorderCell | null {
   const num = Number.parseInt(zoneId, 10);
   if (num < 11 || num > 14) return null;
 
-  const padX = zone.width * BORDER_ZONE_PAD_FRAC;
-  const padY = zone.height * BORDER_ZONE_PAD_FRAC;
   const midX = zone.x + zone.width / 2;
   const midY = zone.y + zone.height / 2;
-  const left = zone.x;
-  const right = zone.x + zone.width;
-  const top = zone.y;
-  const bottom = zone.y + zone.height;
-  const padSize = Math.min(padX, padY);
+  const padX = zone.x - frame.x;
+  const padY = zone.y - frame.y;
+  const left = frame.x;
+  const right = frame.x + frame.width;
+  const top = frame.y;
+  const bottom = frame.y + frame.height;
+  const zLeft = zone.x;
+  const zRight = zone.x + zone.width;
+  const zTop = zone.y;
+  const zBottom = zone.y + zone.height;
 
+  let path: string;
   if (num === 11) {
-    const path = [
-      `M${left - padX} ${top - padY}`,
-      `L${midX} ${top - padY}`,
+    // High-left L: top strip (left half) + left strip (upper half)
+    path = [
+      `M${left} ${top}`,
       `L${midX} ${top}`,
-      `L${left} ${top}`,
+      `L${midX} ${zTop}`,
+      `L${zLeft} ${zTop}`,
+      `L${zLeft} ${midY}`,
       `L${left} ${midY}`,
-      `L${left - padX} ${midY}`,
       "Z",
     ].join(" ");
-    return {
-      path,
-      labelX: left - padX / 2,
-      labelY: top - padY / 2,
-      padSize,
-    };
-  }
-  if (num === 12) {
-    const path = [
-      `M${midX} ${top - padY}`,
-      `L${right + padX} ${top - padY}`,
-      `L${right + padX} ${midY}`,
-      `L${right} ${midY}`,
+  } else if (num === 12) {
+    path = [
+      `M${midX} ${top}`,
       `L${right} ${top}`,
-      `L${midX} ${top}`,
+      `L${right} ${midY}`,
+      `L${zRight} ${midY}`,
+      `L${zRight} ${zTop}`,
+      `L${midX} ${zTop}`,
       "Z",
     ].join(" ");
-    return {
-      path,
-      labelX: right + padX / 2,
-      labelY: top - padY / 2,
-      padSize,
-    };
-  }
-  if (num === 13) {
-    const path = [
-      `M${left - padX} ${midY}`,
-      `L${left} ${midY}`,
-      `L${left} ${bottom}`,
+  } else if (num === 13) {
+    path = [
+      `M${left} ${midY}`,
+      `L${zLeft} ${midY}`,
+      `L${zLeft} ${zBottom}`,
+      `L${midX} ${zBottom}`,
       `L${midX} ${bottom}`,
-      `L${midX} ${bottom + padY}`,
-      `L${left - padX} ${bottom + padY}`,
+      `L${left} ${bottom}`,
       "Z",
     ].join(" ");
-    return {
-      path,
-      labelX: left - padX / 2,
-      labelY: bottom + padY / 2,
-      padSize,
-    };
+  } else {
+    path = [
+      `M${zRight} ${midY}`,
+      `L${right} ${midY}`,
+      `L${right} ${bottom}`,
+      `L${midX} ${bottom}`,
+      `L${midX} ${zBottom}`,
+      `L${zRight} ${zBottom}`,
+      "Z",
+    ].join(" ");
   }
-  const path = [
-    `M${right} ${midY}`,
-    `L${right + padX} ${midY}`,
-    `L${right + padX} ${bottom + padY}`,
-    `L${midX} ${bottom + padY}`,
-    `L${midX} ${bottom}`,
-    `L${right} ${bottom}`,
-    "Z",
-  ].join(" ");
-  return {
-    path,
-    labelX: right + padX / 2,
-    labelY: bottom + padY / 2,
-    padSize,
-  };
+
+  // Place labels in the wide top/bottom edge strips (not the tiny corner pad),
+  // so OPS can use the available horizontal space in each half of the ring.
+  const labelX = (num === 11 || num === 13 ? left + midX : midX + right) / 2;
+  const labelY = num === 11 || num === 12 ? top + padY * 0.5 : bottom - padY * 0.5;
+  const stripWidth = midX - left; // ≈ half frame width for each top/bottom half
+  const innerCellFont = (Math.min(zone.width, zone.height) / 3) * 0.34;
+  const maxByWidth = (stripWidth * 0.85) / 2.6;
+  const maxByHeight = Math.abs(padY) * 0.82;
+  const fontSize = Math.min(maxByWidth, maxByHeight, innerCellFont * 0.92);
+
+  return { path, labelX, labelY, fontSize: Math.max(fontSize, 2.4) };
 }
 
-/** Bounding rect for border zones 11–14 (may overlap the inner half; prefer strikeZoneBorderCell for drawing). */
+/** Axis-aligned bounds of a border cell's outer corner (for tests / hit-testing). */
 export function strikeZoneBorderCellRect(
   zone: SvgRectPercent,
   zoneId: string,
+  frame: SvgRectPercent,
 ): SvgRectPercent | null {
   const num = Number.parseInt(zoneId, 10);
   if (num < 11 || num > 14) return null;
 
-  const padX = zone.width * BORDER_ZONE_PAD_FRAC;
-  const padY = zone.height * BORDER_ZONE_PAD_FRAC;
-  const midX = zone.x + zone.width / 2;
-  const midY = zone.y + zone.height / 2;
+  const padX = zone.x - frame.x;
+  const padY = zone.y - frame.y;
   const left = num === 11 || num === 13;
   const high = num === 11 || num === 12;
 
-  if (left && high) {
-    return {
-      x: zone.x - padX,
-      y: zone.y - padY,
-      width: zone.width / 2 + padX,
-      height: zone.height / 2 + padY,
-    };
-  }
-  if (!left && high) {
-    return {
-      x: midX,
-      y: zone.y - padY,
-      width: zone.width / 2 + padX,
-      height: zone.height / 2 + padY,
-    };
-  }
-  if (left && !high) {
-    return {
-      x: zone.x - padX,
-      y: midY,
-      width: zone.width / 2 + padX,
-      height: zone.height / 2 + padY,
-    };
-  }
   return {
-    x: midX,
-    y: midY,
+    x: left ? frame.x : zone.x + zone.width / 2,
+    y: high ? frame.y : zone.y + zone.height / 2,
     width: zone.width / 2 + padX,
     height: zone.height / 2 + padY,
   };
