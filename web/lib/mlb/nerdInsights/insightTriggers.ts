@@ -1,7 +1,7 @@
 import { isHalfInningBreak } from "@/lib/mlb/lineup";
 import { isPlayByPlayAtBat } from "@/lib/mlb/liveFeed";
 import { normalizeHalfInning } from "@/lib/mlb/nerdInsights/situational";
-import type { InsightTrigger } from "@/lib/mlb/nerdInsights/types";
+import type { InsightTrigger, NerdInsight } from "@/lib/mlb/nerdInsights/types";
 import type { LiveGameState, PlayByPlayEntry } from "@/types/mlb-live";
 
 function atBats(state: LiveGameState): PlayByPlayEntry[] {
@@ -148,11 +148,30 @@ export function collectBootstrapFeedTriggers(gameState: LiveGameState): InsightT
   return missedPlayTriggers(empty, gameState);
 }
 
-/** Only completed plays and inning/half boundaries belong in the play-by-play log. */
-export function shouldPersistInsightInFeed(trigger: InsightTrigger): boolean {
-  return (
+/**
+ * Completed plays and inning/half boundaries always belong in the play-by-play log.
+ * At-bat-start team situational callouts stay live-only, but player highlights and
+ * walk-off window callouts are durable enough to keep on the at-bat row.
+ */
+export function shouldPersistInsightInFeed(
+  trigger: InsightTrigger,
+  insight?: Pick<NerdInsight, "playerId" | "statId"> | null,
+): boolean {
+  if (
     trigger.type === "at-bat-end" ||
     trigger.type === "half-break" ||
     trigger.type === "inning-change"
+  ) {
+    return true;
+  }
+
+  if (trigger.type !== "at-bat-start" || insight == null) return false;
+
+  if (insight.playerId != null) return true;
+
+  return (
+    insight.statId === "walk-off-wins" ||
+    insight.statId === "walk-off-losses" ||
+    insight.statId === "walkoff-bloop-singles"
   );
 }

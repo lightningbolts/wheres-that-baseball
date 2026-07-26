@@ -137,13 +137,31 @@ describe("collectInsightTriggers", () => {
     expect(atBatEnds[0]?.atBatIndex).toBe(2);
   });
 
-  it("only persists completed plays and inning boundaries to the feed", () => {
+  it("only persists completed plays, boundaries, and durable at-bat-start insights", () => {
     expect(shouldPersistInsightInFeed({ type: "at-bat-end", atBatIndex: 1, event: "Single" })).toBe(
       true,
     );
     expect(shouldPersistInsightInFeed({ type: "half-break", halfKey: "2-top" })).toBe(true);
     expect(shouldPersistInsightInFeed({ type: "inning-change", inning: 3 })).toBe(true);
     expect(shouldPersistInsightInFeed({ type: "at-bat-start", atBatIndex: 2 })).toBe(false);
+    expect(
+      shouldPersistInsightInFeed(
+        { type: "at-bat-start", atBatIndex: 2 },
+        { playerId: 501, statId: "barrel-rate" },
+      ),
+    ).toBe(true);
+    expect(
+      shouldPersistInsightInFeed(
+        { type: "at-bat-start", atBatIndex: 2 },
+        { statId: "walk-off-losses" },
+      ),
+    ).toBe(true);
+    expect(
+      shouldPersistInsightInFeed(
+        { type: "at-bat-start", atBatIndex: 2 },
+        { statId: "risp-batting" },
+      ),
+    ).toBe(false);
     expect(
       shouldPersistInsightInFeed({ type: "pitch-thrown", atBatIndex: 2, pitchNumber: 6 }),
     ).toBe(false);

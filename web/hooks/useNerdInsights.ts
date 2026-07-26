@@ -151,7 +151,7 @@ function insightsFromTriggers(
 
     shownIds.add(insight.id);
 
-    if (shouldPersistInsightInFeed(trigger)) {
+    if (shouldPersistInsightInFeed(trigger, insight)) {
       feedInsights.push(insight);
     }
 
@@ -343,7 +343,7 @@ export function useNerdInsights(
               statOccurrenceRef.current,
             );
             shownIdsRef.current.add(insight.id);
-            if (shouldPersistInsightInFeed(trigger)) {
+            if (shouldPersistInsightInFeed(trigger, insight)) {
               setFeedInsights((current) => [...current, insight]);
             }
             if (showOverlay && !toastedIdsRef.current.has(insight.id)) {
