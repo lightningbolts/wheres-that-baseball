@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { LiveInsightContext } from "@/lib/mlb/nerdInsights/types";
 import {
   isImmaculateInningComplete,
+  isWalkOffWindow,
   normalizeHalfInning,
   offenseDefenseFromHalfInning,
   parseHalfKey,
@@ -36,6 +37,8 @@ function ctx(overrides: Partial<LiveInsightContext> = {}): LiveInsightContext {
     onThird: false,
     batterName: "Batter",
     pitcherName: "Pitcher",
+    batterId: 1,
+    pitcherId: 2,
     pitchCount: 0,
     foulsThisAb: 0,
     isHalfInningBreak: false,
@@ -119,5 +122,55 @@ describe("situational helpers", () => {
     );
 
     expect(complete).toBe(true);
+  });
+
+  it("only treats bottom-9+ close games as walk-off windows", () => {
+    expect(
+      isWalkOffWindow(
+        ctx({
+          trigger: { type: "at-bat-start", atBatIndex: 1 },
+          inning: 9,
+          inningHalf: "top",
+          isCloseGame: true,
+          leadingTeamId: null,
+        }),
+      ),
+    ).toBe(false);
+
+    expect(
+      isWalkOffWindow(
+        ctx({
+          trigger: { type: "half-break", halfKey: "9-top" },
+          inning: 9,
+          inningHalf: "top",
+          isCloseGame: true,
+          leadingTeamId: null,
+        }),
+      ),
+    ).toBe(true);
+
+    expect(
+      isWalkOffWindow(
+        ctx({
+          trigger: { type: "at-bat-start", atBatIndex: 1 },
+          inning: 9,
+          inningHalf: "bottom",
+          isCloseGame: true,
+          leadingTeamId: null,
+        }),
+      ),
+    ).toBe(true);
+
+    expect(
+      isWalkOffWindow(
+        ctx({
+          trigger: { type: "at-bat-start", atBatIndex: 1 },
+          inning: 9,
+          inningHalf: "bottom",
+          isCloseGame: true,
+          leadingTeamId: 200,
+        }),
+      ),
+    ).toBe(false);
   });
 });

@@ -15,6 +15,8 @@ export interface NerdInsight {
   title: string;
   message: string;
   teamId?: number;
+  /** When set, insight is about an individual player rather than a team rate. */
+  playerId?: number;
   statId?: string;
   durationMs?: number;
   anchor: InsightAnchor;
@@ -36,7 +38,8 @@ export function anchorFromTrigger(trigger: InsightTrigger): InsightAnchor {
   }
 }
 
-export function statThemeKey(statId: string, teamId: number): string {
+export function statThemeKey(statId: string, teamId: number, playerId?: number): string {
+  if (playerId != null) return `${statId}:player:${playerId}`;
   return `${statId}:${teamId}`;
 }
 
@@ -52,6 +55,24 @@ export interface TeamNerdProfile {
   teamId: number;
   abbrev: string;
   stats: Map<string, TeamNerdStatEntry>;
+}
+
+export interface PlayerNerdHighlight {
+  statId: string;
+  title: string;
+  playerDisplay: string;
+  teamRank: number;
+  teamRankedCount: number;
+  shareOfTeam: number | null;
+  playerActions: number | null;
+}
+
+export interface PlayerNerdProfile {
+  playerId: number;
+  name: string;
+  teamId: number;
+  teamAbbrev: string;
+  highlights: PlayerNerdHighlight[];
 }
 
 export type InsightTrigger =
@@ -99,6 +120,8 @@ export interface LiveInsightContext {
   onThird: boolean;
   batterName: string;
   pitcherName: string;
+  batterId: number | null;
+  pitcherId: number | null;
   pitchCount: number;
   foulsThisAb: number;
   isHalfInningBreak: boolean;

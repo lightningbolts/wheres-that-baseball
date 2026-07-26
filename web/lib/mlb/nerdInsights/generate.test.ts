@@ -53,6 +53,8 @@ function baseContext(overrides: Partial<LiveInsightContext> = {}): LiveInsightCo
     onThird: false,
     batterName: "Test Batter",
     pitcherName: "Test Pitcher",
+    batterId: 501,
+    pitcherId: 601,
     pitchCount: 0,
     foulsThisAb: 0,
     isHalfInningBreak: false,
@@ -524,6 +526,159 @@ describe("generateNerdInsight", () => {
     expect(insight?.statId).toBe("quick-half-innings-seen");
     expect(insight?.teamId).toBe(146);
     expect(insight?.title).toContain("MIA");
+  });
+
+  it("does not fire walk-off victim insights for the home team in the top of the 9th", () => {
+    const home = profile(200, "TEX", {
+      "walk-off-losses": {
+        rank: 28,
+        displayValue: "2",
+        value: 2,
+        title: "Walk-off Wound Collectors",
+      },
+    });
+
+    const insight = generateNerdInsight(
+      baseContext({
+        trigger: { type: "inning-change", inning: 9 },
+        inning: 9,
+        inningHalf: "Top",
+        isLateInning: true,
+        isCloseGame: true,
+        awayRuns: 3,
+        homeRuns: 3,
+        runMargin: 0,
+        trailingTeamId: null,
+        leadingTeamId: null,
+        offenseTeamId: 100,
+        defenseTeamId: 200,
+        offenseAbbrev: "AWY",
+        defenseAbbrev: "TEX",
+        homeAbbrev: "TEX",
+      }),
+      profile(100, "AWY", {}),
+      home,
+    );
+
+    expect(insight?.statId).not.toBe("walk-off-losses");
+  });
+
+  it("fires walk-off victim insights for the away team when the bottom-9 window opens", () => {
+    const away = profile(100, "SEA", {
+      "walk-off-losses": {
+        rank: 28,
+        displayValue: "2",
+        value: 2,
+        title: "Walk-off Wound Collectors",
+      },
+    });
+
+    const insight = generateNerdInsight(
+      baseContext({
+        trigger: { type: "half-break", halfKey: "9-top" },
+        inning: 9,
+        inningHalf: "top",
+        isLateInning: true,
+        isCloseGame: true,
+        awayRuns: 3,
+        homeRuns: 3,
+        runMargin: 0,
+        trailingTeamId: null,
+        leadingTeamId: null,
+        offenseTeamId: 100,
+        defenseTeamId: 200,
+        offenseAbbrev: "SEA",
+        defenseAbbrev: "TEX",
+        awayAbbrev: "SEA",
+        homeAbbrev: "TEX",
+        runnersInScoringPosition: false,
+        onSecond: false,
+      }),
+      away,
+      profile(200, "TEX", {}),
+    );
+
+    expect(insight?.statId).toBe("walk-off-losses");
+    expect(insight?.teamId).toBe(100);
+    expect(insight?.title).toContain("SEA");
+    expect(insight?.title).not.toContain("TEX");
+  });
+
+  it("fires home walk-off weather in the bottom of the 9th", () => {
+    const home = profile(200, "TEX", {
+      "walk-off-wins": {
+        rank: 2,
+        displayValue: "8",
+        value: 8,
+        title: "Walk-off Winners",
+      },
+    });
+
+    const insight = generateNerdInsight(
+      baseContext({
+        trigger: { type: "at-bat-start", atBatIndex: 70 },
+        inning: 9,
+        inningHalf: "bottom",
+        isLateInning: true,
+        isCloseGame: true,
+        awayRuns: 4,
+        homeRuns: 4,
+        runMargin: 0,
+        trailingTeamId: null,
+        leadingTeamId: null,
+        offenseTeamId: 200,
+        defenseTeamId: 100,
+        offenseAbbrev: "TEX",
+        defenseAbbrev: "SEA",
+        awayAbbrev: "SEA",
+        homeAbbrev: "TEX",
+        runnersInScoringPosition: false,
+        onSecond: false,
+      }),
+      profile(100, "SEA", {}),
+      home,
+    );
+
+    expect(insight?.statId).toBe("walk-off-wins");
+    expect(insight?.teamId).toBe(200);
+  });
+
+  it("fires batter nerd insights from player rankings", () => {
+    const batter = {
+      playerId: 501,
+      name: "Cole Young",
+      teamId: 100,
+      teamAbbrev: "SEA",
+      highlights: [
+        {
+          statId: "barrel-rate",
+          title: "Barrel Rate",
+          playerDisplay: "12.4%",
+          teamRank: 1,
+          teamRankedCount: 12,
+          shareOfTeam: 0.22,
+          playerActions: 18,
+        },
+      ],
+    };
+
+    const insight = generateNerdInsight(
+      baseContext({
+        trigger: { type: "at-bat-start", atBatIndex: 12 },
+        batterName: "Cole Young",
+        batterId: 501,
+        runnersInScoringPosition: false,
+        onSecond: false,
+      }),
+      profile(100, "AWY", {}),
+      profile(200, "HOM", {}),
+      { batter, pitcher: null },
+    );
+
+    expect(insight?.playerId).toBe(501);
+    expect(insight?.statId).toBe("barrel-rate");
+    expect(insight?.title).toContain("Cole Young");
+    expect(insight?.message).toContain("#1/12");
   });
 });
 

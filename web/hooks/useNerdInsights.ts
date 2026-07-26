@@ -7,17 +7,25 @@ import {
   loadNerdInsightsFeed,
   saveNerdInsightsFeed,
 } from "@/lib/mlb/nerdInsights/feedStorage";
-import { buildMiniInsight, generateNerdInsight } from "@/lib/mlb/nerdInsights/generate";
+import { buildMiniInsight, generateNerdInsight, generatePlayerNerdInsight } from "@/lib/mlb/nerdInsights/generate";
 import {
   collectBootstrapFeedTriggers,
   collectInsightTriggers,
   shouldPersistInsightInFeed,
 } from "@/lib/mlb/nerdInsights/insightTriggers";
-import { profileFromTeamCard } from "@/lib/mlb/nerdInsights/profile";
-import type { InsightTrigger, NerdInsight } from "@/lib/mlb/nerdInsights/types";
+import { profileFromPlayerCard, profileFromTeamCard } from "@/lib/mlb/nerdInsights/profile";
+import type {
+  InsightTrigger,
+  NerdInsight,
+  PlayerNerdProfile,
+} from "@/lib/mlb/nerdInsights/types";
 import { statThemeKey } from "@/lib/mlb/nerdInsights/types";
 import { getTeamByAbbrev } from "@/lib/mlb/teams";
-import type { TeamNerdCard } from "@/lib/mlb/nerdStats/types";
+import type { PlayerNerdCard, TeamNerdCard } from "@/lib/mlb/nerdStats/types";
+import {
+  getCachedPlayerNerd,
+  setCachedPlayerNerd,
+} from "@/lib/mlb/playerCache";
 import type { LiveGameState } from "@/types/mlb-live";
 
 const TOAST_DURATION_MS = 7_000;
@@ -30,6 +38,27 @@ async function fetchTeamNerdCard(teamId: number, season: number): Promise<TeamNe
     );
     if (!response.ok) return null;
     return (await response.json()) as TeamNerdCard;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchPlayerNerdProfile(
+  playerId: number,
+  season: number,
+): Promise<PlayerNerdProfile | null> {
+  const cached = getCachedPlayerNerd(season, playerId);
+  if (cached) return profileFromPlayerCard(cached);
+
+  try {
+    const response = await fetch(
+      `/api/players/${playerId}/nerd?${new URLSearchParams({ season: String(season) })}`,
+      { cache: "no-store" },
+    );
+    if (!response.ok) return null;
+    const card = (await response.json()) as PlayerNerdCard;
+    setCachedPlayerNerd(season, playerId, card);
+    return profileFromPlayerCard(card);
   } catch {
     return null;
   }
@@ -52,8 +81,8 @@ function createInsight(
   let insight: NerdInsight = base;
   let showOverlay = base.variant === "full";
 
-  if (base.statId != null && base.teamId != null) {
-    const themeKey = statThemeKey(base.statId, base.teamId);
+  if (base.statId != null && (base.playerId != null || base.teamId != null)) {
+    const themeKey = statThemeKey(base.statId, base.teamId ?? 0, base.playerId);
     const priorCount = statOccurrence.get(themeKey) ?? 0;
 
     if (shownStatIds.has(themeKey)) {
@@ -79,8 +108,8 @@ function restoreDedupState(insights: NerdInsight[]) {
   for (const insight of insights) {
     shownIds.add(insight.id);
     toastedIds.add(insight.id);
-    if (insight.statId != null && insight.teamId != null) {
-      const themeKey = statThemeKey(insight.statId, insight.teamId);
+    if (insight.statId != null && (insight.playerId != null || insight.teamId != null)) {
+      const themeKey = statThemeKey(insight.statId, insight.teamId ?? 0, insight.playerId);
       shownStatIds.add(themeKey);
       statOccurrence.set(themeKey, (statOccurrence.get(themeKey) ?? 0) + 1);
     }
@@ -94,6 +123,7 @@ function insightsFromTriggers(
   triggers: InsightTrigger[],
   away: NonNullable<ReturnType<typeof profileFromTeamCard>>,
   home: NonNullable<ReturnType<typeof profileFromTeamCard>>,
+  players: { batter: PlayerNerdProfile | null; pitcher: PlayerNerdProfile | null },
   shownIds: Set<string>,
   shownStatIds: Set<string>,
   statOccurrence: Map<string, number>,
@@ -107,7 +137,7 @@ function insightsFromTriggers(
     const ctx = buildLiveInsightContext(gameState, trigger);
     if (!ctx) continue;
 
-    const base = generateNerdInsight(ctx, away, home);
+    const base = generateNerdInsight(ctx, away, home, players);
     if (!base || shownIds.has(base.id)) continue;
 
     const { insight, showOverlay } = createInsight(
@@ -156,7 +186,9 @@ export function useNerdInsights(
   const [profiles, setProfiles] = useState<{
     away: ReturnType<typeof profileFromTeamCard> | null;
     home: ReturnType<typeof profileFromTeamCard> | null;
-  }>({ away: null, home: null });
+    batter: PlayerNerdProfile | null;
+    pitcher: PlayerNerdProfile | null;
+  }>({ away: null, home: null, batter: null, pitcher: null });
   const prevStateRef = useRef<LiveGameState | null>(null);
   const shownIdsRef = useRef<Set<string>>(new Set());
   const shownStatIdsRef = useRef<Set<string>>(new Set());
@@ -164,6 +196,7 @@ export function useNerdInsights(
   const statOccurrenceRef = useRef<Map<string, number>>(new Map());
   const bootstrappedRef = useRef(false);
   const persistReadyRef = useRef(false);
+  const playerFetchKeyRef = useRef<string>("");
 
   useEffect(() => {
     const stored = gamePk != null ? loadNerdInsightsFeed(gamePk) : [];
@@ -176,8 +209,9 @@ export function useNerdInsights(
     prevStateRef.current = null;
     bootstrappedRef.current = stored.length > 0;
     persistReadyRef.current = false;
+    playerFetchKeyRef.current = "";
 
-    setProfiles({ away: null, home: null });
+    setProfiles({ away: null, home: null, batter: null, pitcher: null });
     setFeedInsights(stored);
     setOverlayToasts([]);
     setLiveInsight(null);
@@ -206,10 +240,40 @@ export function useNerdInsights(
         fetchTeamNerdCard(home.id, season),
       ]);
       if (cancelled) return;
-      setProfiles({
+      setProfiles((current) => ({
+        ...current,
         away: awayCard ? profileFromTeamCard(awayCard) : null,
         home: homeCard ? profileFromTeamCard(homeCard) : null,
-      });
+      }));
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled, gameOver, gameState, season]);
+
+  useEffect(() => {
+    if (!enabled || !gameState || gameOver) return;
+
+    const batterId = gameState.batterId;
+    const pitcherId = gameState.pitcherId;
+    const fetchKey = `${season}:${batterId ?? "x"}:${pitcherId ?? "x"}`;
+    if (fetchKey === playerFetchKeyRef.current) return;
+    playerFetchKeyRef.current = fetchKey;
+
+    let cancelled = false;
+
+    void (async () => {
+      const [batter, pitcher] = await Promise.all([
+        batterId != null ? fetchPlayerNerdProfile(batterId, season) : Promise.resolve(null),
+        pitcherId != null ? fetchPlayerNerdProfile(pitcherId, season) : Promise.resolve(null),
+      ]);
+      if (cancelled) return;
+      setProfiles((current) => ({
+        ...current,
+        batter,
+        pitcher,
+      }));
     })();
 
     return () => {
@@ -220,8 +284,10 @@ export function useNerdInsights(
   useEffect(() => {
     if (!enabled || !gameState) return;
 
-    const { away, home } = profiles;
+    const { away, home, batter, pitcher } = profiles;
     if (!away || !home) return;
+
+    const players = { batter, pitcher };
 
     // First pass after profiles load: rebuild feed from plays if storage was empty.
     if (!bootstrappedRef.current) {
@@ -231,6 +297,7 @@ export function useNerdInsights(
         triggers,
         away,
         home,
+        players,
         shownIdsRef.current,
         shownStatIdsRef.current,
         statOccurrenceRef.current,
@@ -255,6 +322,41 @@ export function useNerdInsights(
 
     const triggers = collectInsightTriggers(prev, gameState);
     if (triggers.length === 0) {
+      // Player cards may arrive after the at-bat-start trigger — retry for current AB.
+      if (
+        (batter != null || pitcher != null) &&
+        gameState.batterId != null &&
+        (batter?.playerId === gameState.batterId || pitcher?.playerId === gameState.pitcherId)
+      ) {
+        const atBatIndex = gameState.plays.filter((play) => play.isAtBat).length;
+        const trigger: InsightTrigger = { type: "at-bat-start", atBatIndex };
+        const ctx = buildLiveInsightContext(gameState, trigger);
+        if (ctx) {
+          const base = generatePlayerNerdInsight(ctx, players);
+          if (base != null && !shownIdsRef.current.has(base.id)) {
+            const { insight, showOverlay } = createInsight(
+              base,
+              ctx,
+              away,
+              home,
+              shownStatIdsRef.current,
+              statOccurrenceRef.current,
+            );
+            shownIdsRef.current.add(insight.id);
+            if (shouldPersistInsightInFeed(trigger)) {
+              setFeedInsights((current) => [...current, insight]);
+            }
+            if (showOverlay && !toastedIdsRef.current.has(insight.id)) {
+              toastedIdsRef.current.add(insight.id);
+              setOverlayToasts((current) => [
+                ...current,
+                { ...insight, durationMs: insight.durationMs ?? TOAST_DURATION_MS },
+              ]);
+            }
+            setLiveInsight(insight);
+          }
+        }
+      }
       prevStateRef.current = gameState;
       return;
     }
@@ -265,6 +367,7 @@ export function useNerdInsights(
         triggers,
         away,
         home,
+        players,
         shownIdsRef.current,
         shownStatIdsRef.current,
         statOccurrenceRef.current,

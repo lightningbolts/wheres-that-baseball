@@ -1,15 +1,20 @@
 import { buildEventInsightRules } from "@/lib/mlb/nerdInsights/buildEventInsightRules";
-import { isEstablishedGameShape } from "@/lib/mlb/nerdInsights/situational";
+import { isEstablishedGameShape, isWalkOffWindow } from "@/lib/mlb/nerdInsights/situational";
 import type {
   LiveInsightContext,
   NerdInsight,
+  PlayerNerdProfile,
   TeamNerdProfile,
 } from "@/lib/mlb/nerdInsights/types";
 import { anchorFromTrigger } from "@/lib/mlb/nerdInsights/types";
 import {
+  formatSharePct,
   getTeamStat,
   isCursedInsightRank,
   isEliteRank,
+  isNotableInsightRank,
+  PLAYER_BATTER_INSIGHT_STAT_IDS,
+  PLAYER_PITCHER_INSIGHT_STAT_IDS,
   rankLabel,
 } from "@/lib/mlb/nerdInsights/profile";
 
@@ -17,6 +22,7 @@ type Rule = (
   ctx: LiveInsightContext,
   away: TeamNerdProfile | null,
   home: TeamNerdProfile | null,
+  players?: { batter: PlayerNerdProfile | null; pitcher: PlayerNerdProfile | null },
 ) => NerdInsight | null;
 
 function fullInsight(
@@ -85,6 +91,43 @@ function pickBetterRunsScoredTeam(
   if (awayStat) return { teamId: ctx.awayTeamId, stat: awayStat, abbrev: ctx.awayAbbrev };
   if (homeStat) return { teamId: ctx.homeTeamId, stat: homeStat, abbrev: ctx.homeAbbrev };
   return null;
+}
+
+function playerInsightFromProfile(
+  ctx: LiveInsightContext,
+  profile: PlayerNerdProfile,
+  role: "batter" | "pitcher",
+): NerdInsight | null {
+  const allowed =
+    role === "batter" ? PLAYER_BATTER_INSIGHT_STAT_IDS : PLAYER_PITCHER_INSIGHT_STAT_IDS;
+  const highlight = profile.highlights.find((entry) => allowed.has(entry.statId));
+  if (!highlight) return null;
+
+  const name = role === "batter" ? ctx.batterName || profile.name : ctx.pitcherName || profile.name;
+  const share =
+    highlight.shareOfTeam != null && highlight.shareOfTeam >= 0.3
+      ? formatSharePct(highlight.shareOfTeam)
+      : null;
+  const triggerKey =
+    ctx.trigger.type === "at-bat-end" || ctx.trigger.type === "at-bat-start"
+      ? String(ctx.trigger.atBatIndex)
+      : "live";
+
+  return fullInsight(ctx, {
+    id: `${ctx.gamePk}-player-${role}-${highlight.statId}-${profile.playerId}-${triggerKey}`,
+    eyebrow: role === "batter" ? "Batter nerd" : "Pitcher nerd",
+    title:
+      highlight.teamRank === 1
+        ? `${name} leads ${profile.teamAbbrev} in ${highlight.title.toLowerCase()}`
+        : `${name} carries ${profile.teamAbbrev}'s ${highlight.title.toLowerCase()}`,
+    message:
+      share != null
+        ? `${name} owns ${share} of ${profile.teamAbbrev}'s ${highlight.title.toLowerCase()} (${highlight.playerDisplay}) — #${highlight.teamRank}/${highlight.teamRankedCount} on the club.`
+        : `${name} ranks #${highlight.teamRank}/${highlight.teamRankedCount} on ${profile.teamAbbrev} in ${highlight.title.toLowerCase()} (${highlight.playerDisplay}).`,
+    teamId: profile.teamId,
+    playerId: profile.playerId,
+    statId: highlight.statId,
+  });
 }
 
 const rules: Rule[] = [
@@ -512,22 +555,67 @@ const rules: Rule[] = [
   },
 
   // —— Inning / game situation ——
+  // Walk-offs only belong to the home team in the bottom of the 9th/extras.
   (ctx, away, home) => {
-    if (ctx.trigger.type !== "inning-change" || !ctx.isLateInning || !ctx.isCloseGame) return null;
-    const trailingId = ctx.trailingTeamId;
-    if (trailingId == null) return null;
-    const trailing = profileForTeam({ away, home }, trailingId);
-    const walkoffs = getTeamStat(trailing, "walk-off-wins");
+    if (
+      (ctx.trigger.type !== "half-break" && ctx.trigger.type !== "at-bat-start") ||
+      !isWalkOffWindow(ctx)
+    ) {
+      return null;
+    }
+    const homeProfile = profileForTeam({ away, home }, ctx.homeTeamId);
+    const walkoffs = getTeamStat(homeProfile, "walk-off-wins");
     if (!isEliteRank(walkoffs, 6)) return null;
 
-    const abbrev = trailingId === ctx.awayTeamId ? ctx.awayAbbrev : ctx.homeAbbrev;
     return fullInsight(ctx, {
-      id: `${ctx.gamePk}-walkoff-inn-${ctx.inning}`,
-      eyebrow: "Late & close",
-      title: "Walk-off weather",
-      message: `${abbrev} have ${walkoffs.displayValue} walk-off wins (${rankLabel(walkoffs.rank)} in MLB). One swing could end it.`,
-      teamId: trailingId,
+      id: `${ctx.gamePk}-walkoff-wins-${ctx.inning}`,
+      eyebrow: "Walk-off weather",
+      title: `${ctx.homeAbbrev} walk-off watch`,
+      message: `${ctx.homeAbbrev} have ${walkoffs.displayValue} walk-off wins (${rankLabel(walkoffs.rank)} in MLB). One swing could end it.`,
+      teamId: ctx.homeTeamId,
       statId: "walk-off-wins",
+    });
+  },
+
+  (ctx, away, home) => {
+    if (
+      (ctx.trigger.type !== "half-break" && ctx.trigger.type !== "at-bat-start") ||
+      !isWalkOffWindow(ctx)
+    ) {
+      return null;
+    }
+    const awayProfile = profileForTeam({ away, home }, ctx.awayTeamId);
+    const losses = getTeamStat(awayProfile, "walk-off-losses");
+    if (!isCursedInsightRank(losses, 8)) return null;
+
+    return fullInsight(ctx, {
+      id: `${ctx.gamePk}-walkoff-losses-${ctx.inning}`,
+      eyebrow: "Walk-off threat",
+      title: `${ctx.awayAbbrev} walk-off victims`,
+      message: `${ctx.awayAbbrev} rank #${losses.rank} in walk-off wound collectors (${losses.displayValue}).`,
+      teamId: ctx.awayTeamId,
+      statId: "walk-off-losses",
+    });
+  },
+
+  (ctx, away, home) => {
+    if (
+      (ctx.trigger.type !== "half-break" && ctx.trigger.type !== "at-bat-start") ||
+      !isWalkOffWindow(ctx)
+    ) {
+      return null;
+    }
+    const homeProfile = profileForTeam({ away, home }, ctx.homeTeamId);
+    const bloops = getTeamStat(homeProfile, "walkoff-bloop-singles");
+    if (!isNotableInsightRank(bloops, 8, 8)) return null;
+
+    return fullInsight(ctx, {
+      id: `${ctx.gamePk}-walkoff-bloops-${ctx.inning}`,
+      eyebrow: "Walk-off weather",
+      title: "Chaos ending possible",
+      message: `${ctx.homeAbbrev} rank #${bloops.rank} in walk-off bloop singles (${bloops.displayValue}).`,
+      teamId: ctx.homeTeamId,
+      statId: "walkoff-bloop-singles",
     });
   },
 
@@ -672,6 +760,22 @@ const rules: Rule[] = [
       statId: "pitches-thrown-per-half",
     });
   },
+
+  // —— Individual player highlights (at-bat start only; keep event specs for results) ——
+  (ctx, _away, _home, players) => {
+    if (ctx.trigger.type !== "at-bat-start") return null;
+    const batter = players?.batter;
+    if (!batter || (ctx.batterId != null && batter.playerId !== ctx.batterId)) return null;
+    return playerInsightFromProfile(ctx, batter, "batter");
+  },
+
+  (ctx, _away, _home, players) => {
+    if (ctx.trigger.type !== "at-bat-start") return null;
+    const pitcher = players?.pitcher;
+    if (!pitcher || (ctx.pitcherId != null && pitcher.playerId !== ctx.pitcherId)) return null;
+    return playerInsightFromProfile(ctx, pitcher, "pitcher");
+  },
+
   ...buildEventInsightRules(),
 ];
 
@@ -679,11 +783,33 @@ export function generateNerdInsight(
   ctx: LiveInsightContext,
   awayProfile: TeamNerdProfile | null,
   homeProfile: TeamNerdProfile | null,
+  players?: { batter: PlayerNerdProfile | null; pitcher: PlayerNerdProfile | null },
 ): NerdInsight | null {
   for (const rule of rules) {
-    const insight = rule(ctx, awayProfile, homeProfile);
+    const insight = rule(ctx, awayProfile, homeProfile, players);
     if (insight) return insight;
   }
+  return null;
+}
+
+/** Player-only insight for late fetches after the at-bat-start trigger already fired. */
+export function generatePlayerNerdInsight(
+  ctx: LiveInsightContext,
+  players: { batter: PlayerNerdProfile | null; pitcher: PlayerNerdProfile | null },
+): NerdInsight | null {
+  if (ctx.trigger.type !== "at-bat-start") return null;
+
+  const batter = players.batter;
+  if (batter && (ctx.batterId == null || batter.playerId === ctx.batterId)) {
+    const insight = playerInsightFromProfile(ctx, batter, "batter");
+    if (insight) return insight;
+  }
+
+  const pitcher = players.pitcher;
+  if (pitcher && (ctx.pitcherId == null || pitcher.playerId === ctx.pitcherId)) {
+    return playerInsightFromProfile(ctx, pitcher, "pitcher");
+  }
+
   return null;
 }
 

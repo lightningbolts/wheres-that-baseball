@@ -83,6 +83,8 @@ export const HAND_CRAFTED_INSIGHT_STAT_IDS = new Set([
   "walks-per-game",
   "double-plays-hit-into",
   "walk-off-wins",
+  "walk-off-losses",
+  "walkoff-bloop-singles",
   "one-run-games",
   "extra-inning-win-pct",
   "blowout-wins",
@@ -868,24 +870,8 @@ export const EVENT_INSIGHT_SPECS: EventInsightSpec[] = [
     title: (ctx, abbrev) => `${abbrev} extras heartbreak`,
     message: defaultMessage,
   }),
-  inningChange({
-    statId: "walk-off-losses",
-    team: "defense",
-    polarity: "cursed",
-    match: (ctx) => ctx.isLateInning && ctx.isCloseGame && ctx.trailingTeamId != null,
-    eyebrow: "Walk-off threat",
-    title: (ctx, abbrev) => `${abbrev} walk-off victims`,
-    message: defaultMessage,
-  }),
-  inningChange({
-    statId: "walkoff-bloop-singles",
-    team: "offense",
-    polarity: "either",
-    match: (ctx) => ctx.isLateInning && ctx.isCloseGame,
-    eyebrow: "Walk-off weather",
-    title: () => "Chaos ending possible",
-    message: defaultMessage,
-  }),
+  // walk-off-losses / walkoff-bloop-singles / walk-off-wins are hand-crafted in
+  // generate.ts so they only fire in a real bottom-9+ walk-off window.
   inningChange({
     statId: "misfortune-index",
     team: "offense",

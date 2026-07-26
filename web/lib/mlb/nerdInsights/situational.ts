@@ -10,6 +10,32 @@ export function normalizeHalfInning(halfInning: string): string {
   return normalized;
 }
 
+export function isTopHalf(halfInning: string): boolean {
+  return normalizeHalfInning(halfInning) === "top";
+}
+
+export function isBottomHalf(halfInning: string): boolean {
+  return normalizeHalfInning(halfInning) === "bottom";
+}
+
+/**
+ * Walk-offs only end the game in the bottom of the 9th or extras when the home
+ * team can take the lead. Home teams cannot be walked off — only visitors can.
+ *
+ * On half-break after a top half, the bottom walk-off window is about to open.
+ */
+export function isWalkOffWindow(ctx: LiveInsightContext): boolean {
+  if (ctx.inning < 9 || !ctx.isCloseGame) return false;
+  // If home already leads after the top, the game is over before a bottom half.
+  if (ctx.leadingTeamId === ctx.homeTeamId) return false;
+
+  if (ctx.trigger.type === "half-break") {
+    return isTopHalf(ctx.inningHalf);
+  }
+
+  return isBottomHalf(ctx.inningHalf);
+}
+
 export function offenseDefenseFromHalfInning(
   halfInning: string,
   awayTeamId: number,
@@ -61,6 +87,8 @@ export function situationFromCompletedPlay(
   | "defenseAbbrev"
   | "batterName"
   | "pitcherName"
+  | "batterId"
+  | "pitcherId"
   | "inning"
   | "inningHalf"
   | "outs"
@@ -97,6 +125,8 @@ export function situationFromCompletedPlay(
     defenseAbbrev: defenseTeamId === awayTeamId ? awayAbbrev : homeAbbrev,
     batterName: play.batterName,
     pitcherName: play.detail.pitcherName,
+    batterId: play.batterId ?? null,
+    pitcherId: play.detail.pitcherId ?? null,
     inning: play.inning,
     inningHalf: play.halfInning,
     outs: before.outs,

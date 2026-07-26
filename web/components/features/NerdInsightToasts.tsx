@@ -45,11 +45,13 @@ function InsightToastCard({
           <p className="mt-1 text-xs leading-relaxed text-muted">{toast.message}</p>
           {toast.statId && (
             <Link
-              href={`/nerd/${toast.statId}`}
+              href={
+                toast.playerId != null ? `/players/${toast.playerId}` : `/nerd/${toast.statId}`
+              }
               className="mt-2 inline-block text-[11px] text-secondary hover:underline"
               onClick={() => onDismiss(toast.id)}
             >
-              See nerd standings →
+              {toast.playerId != null ? "See player card →" : "See nerd standings →"}
             </Link>
           )}
         </div>

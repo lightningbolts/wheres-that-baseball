@@ -51,10 +51,14 @@ export function PlayInsightInline({ insight, className }: PlayInsightInlineProps
           <p className="mt-0.5 text-[11px] leading-relaxed text-muted">{insight.message}</p>
           {insight.statId && (
             <Link
-              href={`/nerd/${insight.statId}`}
+              href={
+                insight.playerId != null
+                  ? `/players/${insight.playerId}`
+                  : `/nerd/${insight.statId}`
+              }
               className="mt-1 inline-block text-[10px] text-secondary hover:underline"
             >
-              See nerd standings →
+              {insight.playerId != null ? "See player card →" : "See nerd standings →"}
             </Link>
           )}
         </div>

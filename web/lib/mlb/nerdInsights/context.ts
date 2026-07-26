@@ -186,6 +186,8 @@ export function buildLiveInsightContext(
     onThird: playSituation?.onThird ?? gameState.onThird,
     batterName: playSituation?.batterName ?? gameState.batterName,
     pitcherName: playSituation?.pitcherName ?? gameState.pitcherName,
+    batterId: playSituation?.batterId ?? gameState.batterId,
+    pitcherId: playSituation?.pitcherId ?? gameState.pitcherId,
     pitchCount: playSituation?.pitchCount ?? gameState.atBatPitches.length,
     foulsThisAb:
       playSituation?.foulsThisAb ?? foulsInAtBat(gameState.atBatPitches),
