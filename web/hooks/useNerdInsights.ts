@@ -9,6 +9,11 @@ import {
 } from "@/lib/mlb/nerdInsights/feedStorage";
 import { buildMiniInsight, generateNerdInsight, generatePlayerNerdInsight } from "@/lib/mlb/nerdInsights/generate";
 import {
+  dedupeFeedInsights,
+  markInsightSeen,
+  restoreDedupState,
+} from "@/lib/mlb/nerdInsights/insightDedup";
+import {
   collectBootstrapFeedTriggers,
   collectInsightTriggers,
   shouldPersistInsightInFeed,
@@ -99,25 +104,6 @@ function createInsight(
   return { insight, showOverlay };
 }
 
-function restoreDedupState(insights: NerdInsight[]) {
-  const shownIds = new Set<string>();
-  const shownStatIds = new Set<string>();
-  const toastedIds = new Set<string>();
-  const statOccurrence = new Map<string, number>();
-
-  for (const insight of insights) {
-    shownIds.add(insight.id);
-    toastedIds.add(insight.id);
-    if (insight.statId != null && (insight.playerId != null || insight.teamId != null)) {
-      const themeKey = statThemeKey(insight.statId, insight.teamId ?? 0, insight.playerId);
-      shownStatIds.add(themeKey);
-      statOccurrence.set(themeKey, (statOccurrence.get(themeKey) ?? 0) + 1);
-    }
-  }
-
-  return { shownIds, shownStatIds, toastedIds, statOccurrence };
-}
-
 function insightsFromTriggers(
   gameState: LiveGameState,
   triggers: InsightTrigger[],
@@ -149,7 +135,7 @@ function insightsFromTriggers(
       statOccurrence,
     );
 
-    shownIds.add(insight.id);
+    markInsightSeen(shownIds, base.id, insight.id);
 
     if (shouldPersistInsightInFeed(trigger, insight)) {
       feedInsights.push(insight);
@@ -200,19 +186,20 @@ export function useNerdInsights(
 
   useEffect(() => {
     const stored = gamePk != null ? loadNerdInsightsFeed(gamePk) : [];
-    const restored = restoreDedupState(stored);
+    const cleaned = dedupeFeedInsights(stored);
+    const restored = restoreDedupState(cleaned);
 
     shownIdsRef.current = restored.shownIds;
     shownStatIdsRef.current = restored.shownStatIds;
     toastedIdsRef.current = restored.toastedIds;
     statOccurrenceRef.current = restored.statOccurrence;
     prevStateRef.current = null;
-    bootstrappedRef.current = stored.length > 0;
+    bootstrappedRef.current = cleaned.length > 0;
     persistReadyRef.current = false;
     playerFetchKeyRef.current = "";
 
     setProfiles({ away: null, home: null, batter: null, pitcher: null });
-    setFeedInsights(stored);
+    setFeedInsights(cleaned);
     setOverlayToasts([]);
     setLiveInsight(null);
 
@@ -342,7 +329,7 @@ export function useNerdInsights(
               shownStatIdsRef.current,
               statOccurrenceRef.current,
             );
-            shownIdsRef.current.add(insight.id);
+            markInsightSeen(shownIdsRef.current, base.id, insight.id);
             if (shouldPersistInsightInFeed(trigger, insight)) {
               setFeedInsights((current) => [...current, insight]);
             }
