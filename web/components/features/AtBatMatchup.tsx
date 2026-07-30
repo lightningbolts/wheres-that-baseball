@@ -34,9 +34,9 @@ interface AtBatMatchupProps {
   isRispLoading?: boolean;
   showRisp?: boolean;
   /**
-   * panel — mobile: players + history/RISP
-   * scorebug — desktop scorebug row: players only
-   * context — desktop below scorebug: history/RISP cards (narrow layout)
+   * panel — phone only: players + history/RISP
+   * scorebug — tablet/desktop scorebug row: players only
+   * context — below scorebug on tablet/desktop: history/RISP cards
    */
   variant?: "panel" | "scorebug" | "context";
   className?: string;
@@ -238,7 +238,8 @@ export function AtBatMatchup({
     return (
       <div
         className={cn(
-          "shrink-0 border-b border-border/60 bg-overlay/30 py-2",
+          // Panel is flush below xl; keep inset on tablet, defer to Panel padding at xl.
+          "shrink-0 border-b border-border/60 bg-overlay/30 px-3 py-2 xl:px-0",
           className,
         )}
       >
@@ -257,7 +258,7 @@ export function AtBatMatchup({
   return (
     <div
       className={cn(
-        "shrink-0 border-b border-border/60 bg-overlay/40 px-3 py-2.5 md:px-0",
+        "shrink-0 border-b border-border/60 bg-overlay/40 px-3 py-2.5",
         className,
       )}
     >

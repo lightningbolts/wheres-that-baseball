@@ -409,7 +409,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
                         rispStats={rispStats}
                         isRispLoading={isRispLoading}
                         showRisp={runnersInScoringPosition}
-                        className="xl:hidden"
+                        className="md:hidden"
                       />
                       <AtBatMatchup
                         variant="context"
@@ -424,7 +424,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
                         rispStats={rispStats}
                         isRispLoading={isRispLoading}
                         showRisp={runnersInScoringPosition}
-                        className="hidden xl:block"
+                        className="hidden md:block"
                       />
                     </>
                   )}
