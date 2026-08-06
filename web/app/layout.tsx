@@ -61,7 +61,7 @@ export default function RootLayout({
           </Suspense>
           {children}
         </ThemeProvider>
-        <Analytics />
+        {process.env.VERCEL ? <Analytics /> : null}
       </body>
     </html>
   );

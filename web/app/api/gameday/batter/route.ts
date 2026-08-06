@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { withNetlifyQueryVary } from "@/lib/apiCacheHeaders";
 import { GAMEDAY_FETCH_HEADERS } from "@/lib/mlb/gamedayAssets";
 import { gamedayBatterCdnUrl, type GamedayBatterHand } from "@/lib/mlb/gamedayBatter";
 
@@ -7,6 +8,13 @@ export const dynamic = "force-dynamic";
 
 const imageCache = new Map<string, { bytes: Uint8Array; expiresAt: number }>();
 const CACHE_MS = 60 * 60 * 1000;
+const IMAGE_HEADERS = withNetlifyQueryVary(
+  {
+    "Content-Type": "image/png",
+    "Cache-Control": "public, max-age=3600",
+  },
+  ["code", "hand"],
+);
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -20,12 +28,7 @@ export async function GET(request: Request) {
   const cacheKey = `${hand}:${code}`;
   const cached = imageCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
-    return new NextResponse(Buffer.from(cached.bytes), {
-      headers: {
-        "Content-Type": "image/png",
-        "Cache-Control": "public, max-age=3600",
-      },
-    });
+    return new NextResponse(Buffer.from(cached.bytes), { headers: IMAGE_HEADERS });
   }
 
   const cdnUrl = gamedayBatterCdnUrl(code, hand as GamedayBatterHand);
@@ -38,10 +41,5 @@ export async function GET(request: Request) {
   const bytes = new Uint8Array(await response.arrayBuffer());
   imageCache.set(cacheKey, { bytes, expiresAt: Date.now() + CACHE_MS });
 
-  return new NextResponse(Buffer.from(bytes), {
-    headers: {
-      "Content-Type": "image/png",
-      "Cache-Control": "public, max-age=3600",
-    },
-  });
+  return new NextResponse(Buffer.from(bytes), { headers: IMAGE_HEADERS });
 }

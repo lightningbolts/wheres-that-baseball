@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { publicApiCacheHeaders } from "@/lib/apiCacheHeaders";
 import { getNerdStatDefinition } from "@/lib/mlb/nerdStats/definitions";
 import {
   buildDailySocialPostCopy,
@@ -11,6 +12,8 @@ import { loadNerdStatDetail } from "@/lib/mlb/nerdStats/store";
 import { getSiteUrl } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
+
+const DAILY_CACHE_VARY = ["season", "date"] as const;
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -58,6 +61,6 @@ export async function GET(request: Request) {
         hookTemplate: "Actually, {team} is #{rank} in {stat}.",
       },
     },
-    { headers: { "Cache-Control": "public, max-age=300" } },
+    { headers: publicApiCacheHeaders(300, [...DAILY_CACHE_VARY]) },
   );
 }

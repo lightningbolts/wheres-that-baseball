@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { publicApiCacheHeaders } from "@/lib/apiCacheHeaders";
 import { searchPlayerBipIndex } from "@/lib/mlb/playerBipStore";
 import {
   mergePlayerSearchIndexes,
@@ -7,6 +8,8 @@ import {
 } from "@/lib/mlb/playerPitchBipStore";
 
 export const dynamic = "force-dynamic";
+
+const SEARCH_CACHE_VARY = ["q", "season", "limit"] as const;
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -29,6 +32,6 @@ export async function GET(request: Request) {
 
   return NextResponse.json(
     { season, players },
-    { headers: { "Cache-Control": "public, max-age=60" } },
+    { headers: publicApiCacheHeaders(60, [...SEARCH_CACHE_VARY]) },
   );
 }

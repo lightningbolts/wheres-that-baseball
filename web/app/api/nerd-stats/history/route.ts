@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 
+import { publicApiCacheHeaders } from "@/lib/apiCacheHeaders";
 import { getNerdStatDefinition } from "@/lib/mlb/nerdStats/definitions";
 import { loadNerdStatHistory } from "@/lib/mlb/nerdStats/historyStore";
 
 export const dynamic = "force-dynamic";
+
+const HISTORY_CACHE_VARY = ["season", "statId"] as const;
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -28,12 +31,12 @@ export async function GET(request: Request) {
     if (!history) {
       return NextResponse.json(
         { available: false, error: "History not found" },
-        { status: 404, headers: { "Cache-Control": "public, max-age=120" } },
+        { status: 404, headers: publicApiCacheHeaders(120, [...HISTORY_CACHE_VARY]) },
       );
     }
 
     return NextResponse.json(history, {
-      headers: { "Cache-Control": "public, max-age=120" },
+      headers: publicApiCacheHeaders(120, [...HISTORY_CACHE_VARY]),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load nerd stat history";

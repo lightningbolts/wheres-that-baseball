@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { publicApiCacheHeaders } from "@/lib/apiCacheHeaders";
 import type { BallparkHitsAggregate, BallparkHitsDetail } from "@/lib/mlb/ballparkHits";
 import { paginateBallparkDetail } from "@/lib/mlb/ballparkHitsApi";
 import {
@@ -13,6 +14,16 @@ import { enrichVenueHitDetail } from "@/lib/mlb/hitDetailFromArchive";
 export const dynamic = "force-dynamic";
 
 const DEFAULT_PAGE_SIZE = 50;
+const HITS_CACHE_VARY = [
+  "season",
+  "venueId",
+  "hitKey",
+  "hitsOnly",
+  "limit",
+  "offset",
+  "includeDetail",
+  "includeChartHits",
+] as const;
 
 function loadSummary(season: number): BallparkHitsAggregate {
   const summary = loadBallparkHitsSummary(season);
@@ -72,7 +83,7 @@ export async function GET(request: Request) {
       const enriched = await enrichVenueHitDetail(hit);
       return NextResponse.json(
         { hit: enriched },
-        { headers: { "Cache-Control": "public, max-age=300" } },
+        { headers: publicApiCacheHeaders(300, [...HITS_CACHE_VARY]) },
       );
     }
 
@@ -98,18 +109,18 @@ export async function GET(request: Request) {
             hitsTotal: result.hitsTotal,
             hasMore: result.hasMore,
           },
-          { headers: { "Cache-Control": "public, max-age=120" } },
+          { headers: publicApiCacheHeaders(120, [...HITS_CACHE_VARY]) },
         );
       }
 
       return NextResponse.json(result, {
-        headers: { "Cache-Control": "public, max-age=120" },
+        headers: publicApiCacheHeaders(120, [...HITS_CACHE_VARY]),
       });
     }
 
     const result = loadSummary(season);
     return NextResponse.json(result, {
-      headers: { "Cache-Control": "public, max-age=120" },
+      headers: publicApiCacheHeaders(120, [...HITS_CACHE_VARY]),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load ballpark hits";

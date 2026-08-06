@@ -1,11 +1,19 @@
 import { NextResponse } from "next/server";
 
+import { withNetlifyQueryVary } from "@/lib/apiCacheHeaders";
 import { GAMEDAY_FETCH_HEADERS, gamedayInfieldCdnUrl } from "@/lib/mlb/gamedayAssets";
 
 export const dynamic = "force-dynamic";
 
 const imageCache = new Map<string, { bytes: Uint8Array; expiresAt: number }>();
 const CACHE_MS = 60 * 60 * 1000;
+const IMAGE_HEADERS = withNetlifyQueryVary(
+  {
+    "Content-Type": "image/jpeg",
+    "Cache-Control": "public, max-age=3600",
+  },
+  ["venueId"],
+);
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -13,12 +21,7 @@ export async function GET(request: Request) {
 
   const cached = imageCache.get(venueId);
   if (cached && cached.expiresAt > Date.now()) {
-    return new NextResponse(Buffer.from(cached.bytes), {
-      headers: {
-        "Content-Type": "image/jpeg",
-        "Cache-Control": "public, max-age=3600",
-      },
-    });
+    return new NextResponse(Buffer.from(cached.bytes), { headers: IMAGE_HEADERS });
   }
 
   const venueNum = venueId === "default" ? null : Number(venueId);
@@ -37,10 +40,5 @@ export async function GET(request: Request) {
   const bytes = new Uint8Array(await response.arrayBuffer());
   imageCache.set(venueId, { bytes, expiresAt: Date.now() + CACHE_MS });
 
-  return new NextResponse(Buffer.from(bytes), {
-    headers: {
-      "Content-Type": "image/jpeg",
-      "Cache-Control": "public, max-age=3600",
-    },
-  });
+  return new NextResponse(Buffer.from(bytes), { headers: IMAGE_HEADERS });
 }

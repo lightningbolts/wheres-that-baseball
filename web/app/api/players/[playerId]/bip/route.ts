@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 
+import { publicApiCacheHeaders } from "@/lib/apiCacheHeaders";
 import { classifyBipKind, computeGameHitStats } from "@/lib/mlb/gameHits";
 import { enrichVenueHitDetail } from "@/lib/mlb/hitDetailFromArchive";
 import type { PlayerBipDetail } from "@/lib/mlb/playerBip";
 import { loadPlayerBipDetail } from "@/lib/mlb/playerBipStore";
 
 export const dynamic = "force-dynamic";
+
+const BIP_CACHE_VARY = ["season", "hitKey", "venueId", "includeDetail"] as const;
 
 type RouteContext = { params: Promise<{ playerId: string }> };
 
@@ -39,7 +42,7 @@ export async function GET(request: Request, context: RouteContext) {
         const enriched = await enrichVenueHitDetail(hit);
         return NextResponse.json(
           { hit: enriched },
-          { headers: { "Cache-Control": "public, max-age=300" } },
+          { headers: publicApiCacheHeaders(300, [...BIP_CACHE_VARY]) },
         );
       }
     }
@@ -79,6 +82,6 @@ export async function GET(request: Request, context: RouteContext) {
   };
 
   return NextResponse.json(payload, {
-    headers: { "Cache-Control": "public, max-age=120" },
+    headers: publicApiCacheHeaders(120, [...BIP_CACHE_VARY]),
   });
 }

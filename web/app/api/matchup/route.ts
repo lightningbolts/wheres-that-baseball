@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { withNetlifyQueryVary } from "@/lib/apiCacheHeaders";
 import { fetchBatterVsPitcherRecord } from "@/lib/mlb/matchupStats";
 
 export const dynamic = "force-dynamic";
@@ -22,9 +23,10 @@ export async function GET(request: Request) {
     return NextResponse.json(
       { record },
       {
-        headers: {
-          "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=600",
-        },
+        headers: withNetlifyQueryVary(
+          { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=600" },
+          ["batterId", "pitcherId"],
+        ),
       },
     );
   } catch (error) {

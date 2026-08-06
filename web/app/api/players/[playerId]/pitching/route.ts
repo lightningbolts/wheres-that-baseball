@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { publicApiCacheHeaders } from "@/lib/apiCacheHeaders";
 import { loadSeasonPlayerCounters } from "@/lib/mlb/nerdStats/playerNerdStore";
 import {
   buildPitchMixFromThrown,
@@ -37,6 +38,6 @@ export async function GET(request: Request, context: RouteContext) {
       nerdHitsAllowed: playerCounters?.hitsAllowed ?? 0,
       nerdBallsInPlayAllowed: playerCounters?.ballsInPlayAllowed ?? 0,
     },
-    { headers: { "Cache-Control": "public, max-age=300" } },
+    { headers: publicApiCacheHeaders(300, ["season"]) },
   );
 }

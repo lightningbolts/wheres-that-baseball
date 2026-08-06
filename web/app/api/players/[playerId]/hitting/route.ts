@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { publicApiCacheHeaders } from "@/lib/apiCacheHeaders";
 import { fetchPlayerHittingSeasonLine } from "@/lib/mlb/playerHitting";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +24,6 @@ export async function GET(request: Request, context: RouteContext) {
   const line = await fetchPlayerHittingSeasonLine(playerId, season);
 
   return NextResponse.json(line, {
-    headers: { "Cache-Control": "public, max-age=300" },
+    headers: publicApiCacheHeaders(300, ["season"]),
   });
 }

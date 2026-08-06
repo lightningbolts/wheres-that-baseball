@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { publicApiCacheHeaders } from "@/lib/apiCacheHeaders";
 import type { NerdStatDetail, NerdStatsSummary, TeamNerdCard } from "@/lib/mlb/nerdStats/types";
 import {
   getEmptyNerdStatsSummary,
@@ -12,6 +13,8 @@ import {
 import { getNerdStatDefinition } from "@/lib/mlb/nerdStats/definitions";
 
 export const dynamic = "force-dynamic";
+
+const NERD_CACHE_VARY = ["season", "statId", "teamId", "window", "split"] as const;
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -66,7 +69,7 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json(result, {
-      headers: { "Cache-Control": "public, max-age=120" },
+      headers: publicApiCacheHeaders(120, [...NERD_CACHE_VARY]),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load nerd stats";

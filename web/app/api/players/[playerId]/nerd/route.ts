@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { publicApiCacheHeaders } from "@/lib/apiCacheHeaders";
 import { buildPlayerNerdCard } from "@/lib/mlb/nerdStats/playerNerdBuild";
 import {
   loadPlayerNerdCardFile,
@@ -39,14 +40,14 @@ export async function GET(request: Request, context: RouteContext) {
     );
     const card = buildPlayerNerdCard(season, player, team, teammates);
     return NextResponse.json(card, {
-      headers: { "Cache-Control": "public, max-age=60" },
+      headers: publicApiCacheHeaders(60, ["season"]),
     });
   }
 
   const cached = loadPlayerNerdCardFile(season, playerId);
   if (cached) {
     return NextResponse.json(cached, {
-      headers: { "Cache-Control": "public, max-age=120" },
+      headers: publicApiCacheHeaders(120, ["season"]),
     });
   }
 
