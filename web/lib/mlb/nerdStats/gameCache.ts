@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { listJsonBasenames, readDataJson } from "@/lib/dataFile";
 import { createEmptySeasonCounters, mergeSeasonCounters } from "@/lib/mlb/nerdStats/counters";
 import { mergePlayerSeasonCounters } from "@/lib/mlb/nerdStats/playerMirror";
 import type { NerdStatSplitId } from "@/lib/mlb/nerdStats/splits";
@@ -38,17 +39,12 @@ export function loadPerGameNerdCache(
   season: number,
   gamePk: number,
 ): PerGameNerdCacheEntry | null {
-  const path = gameCachePath(season, gamePk);
-  if (!existsSync(path)) return null;
-  return JSON.parse(readFileSync(path, "utf8")) as PerGameNerdCacheEntry;
+  return readDataJson<PerGameNerdCacheEntry>(gameCachePath(season, gamePk));
 }
 
 export function listCachedGamePks(season: number): number[] {
-  const dir = gamesDir(season);
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir)
-    .filter((name) => name.endsWith(".json"))
-    .map((name) => Number.parseInt(name.replace(/\.json$/, ""), 10))
+  return listJsonBasenames(gamesDir(season))
+    .map((name) => Number.parseInt(name, 10))
     .filter((gamePk) => Number.isFinite(gamePk));
 }
 

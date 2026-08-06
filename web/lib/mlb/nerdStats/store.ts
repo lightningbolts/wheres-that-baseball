@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
+import { listJsonBasenames, readDataJson } from "@/lib/dataFile";
 import {
   buildAllTeamNerdCards,
   buildNerdStatDetail,
@@ -107,8 +108,7 @@ function ensureSeasonDir(season: number): void {
 }
 
 function readJson<T>(path: string): T | null {
-  if (!existsSync(path)) return null;
-  return JSON.parse(readFileSync(path, "utf8")) as T;
+  return readDataJson<T>(path);
 }
 
 function writeJson(path: string, data: unknown): void {
@@ -462,11 +462,7 @@ export function getEmptyNerdStatsSummary(season: number): NerdStatsSummary {
 }
 
 export function listStoredStatIds(season: number): string[] {
-  const statsDir = join(seasonDir(season), "stats");
-  if (!existsSync(statsDir)) return [];
-  return readdirSync(statsDir)
-    .filter((file) => file.endsWith(".json"))
-    .map((file) => file.replace(".json", ""));
+  return listJsonBasenames(join(seasonDir(season), "stats"));
 }
 
 /** Re-emit window summary + stat files from existing window counters (no game re-fetch). */

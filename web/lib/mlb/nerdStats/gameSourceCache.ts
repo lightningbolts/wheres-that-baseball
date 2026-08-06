@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { dataFileExists, readDataJson } from "@/lib/dataFile";
 import type { GameNerdSourceRow } from "@/lib/mlb/nerdStats/types";
 
 /** Local-only game_state archive for zero-egress counter backfills (not committed). */
@@ -19,11 +20,9 @@ export function writeGameSourceRow(season: number, row: GameNerdSourceRow): void
 }
 
 export function loadGameSourceRow(season: number, gamePk: number): GameNerdSourceRow | null {
-  const path = sourcePath(season, gamePk);
-  if (!existsSync(path)) return null;
-  return JSON.parse(readFileSync(path, "utf8")) as GameNerdSourceRow;
+  return readDataJson<GameNerdSourceRow>(sourcePath(season, gamePk));
 }
 
 export function hasGameSourceRow(season: number, gamePk: number): boolean {
-  return existsSync(sourcePath(season, gamePk));
+  return dataFileExists(sourcePath(season, gamePk));
 }

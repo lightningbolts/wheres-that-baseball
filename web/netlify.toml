@@ -1,11 +1,19 @@
 [build]
-  command = "npm run build"
+  command = "node scripts/gzip-data-for-netlify.mjs && npm run build"
   publish = ".next"
 
 [build.environment]
   NODE_VERSION = "24"
   # NEXT_PUBLIC_* values are intentionally embedded in the client bundle.
   SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"
+
+# Keep the single Next.js server handler under AWS Lambda's 250MB unzipped limit.
+# Season JSON is gzipped in the build command; exclude rebuild caches if present.
+[functions]
+  included_files = [
+    "!data/nerd-stats/**/games/**",
+    "!data/nerd-stats-local/**"
+  ]
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"

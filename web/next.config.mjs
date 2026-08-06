@@ -1,7 +1,7 @@
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const gameCacheExcludes = ["./data/nerd-stats/**/games/**"];
+const gameCacheExcludes = ["./data/nerd-stats/**/games/**", "./data/nerd-stats-local/**"];
 
 const heavyDataExcludes = [
   ...gameCacheExcludes,
@@ -13,8 +13,11 @@ const heavyDataExcludes = [
 
 const nerdStatsIncludes = [
   "./data/nerd-stats/**/summary.json",
+  "./data/nerd-stats/**/summary.json.gz",
   "./data/nerd-stats/**/manifest.json",
+  "./data/nerd-stats/**/manifest.json.gz",
   "./data/nerd-stats/**/counters.json",
+  "./data/nerd-stats/**/counters.json.gz",
   "./data/nerd-stats/**/stats/**",
   "./data/nerd-stats/**/teams/**",
   "./data/nerd-stats/**/windows/**",
@@ -68,12 +71,16 @@ const nextConfig = {
       "./data/player-bip/**",
       "./data/player-pitch-bip/**",
       "./data/nerd-stats/**/player-counters.json",
+      "./data/nerd-stats/**/player-counters.json.gz",
       "./data/nerd-stats/**/players-index.json",
+      "./data/nerd-stats/**/players-index.json.gz",
       "./data/nerd-stats/**/players/**",
       "./data/nerd-stats/**/counters.json",
+      "./data/nerd-stats/**/counters.json.gz",
     ],
     "/nerd/**": [
       "./data/nerd-stats/**/summary.json",
+      "./data/nerd-stats/**/summary.json.gz",
       "./data/nerd-stats/**/stats/**",
       "./data/nerd-stats/**/teams/**",
     ],

@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
+import { dataFileExists, listJsonBasenames, readDataJson } from "@/lib/dataFile";
 import { ballparkIndex, resolveBallparkVenueId } from "@/lib/mlb/ballparkPaths";
 import {
   buildBallparkHitsAggregate,
@@ -44,8 +45,7 @@ function ensureSeasonDir(season: number): void {
 }
 
 function readJson<T>(path: string): T | null {
-  if (!existsSync(path)) return null;
-  return JSON.parse(readFileSync(path, "utf8")) as T;
+  return readDataJson<T>(path);
 }
 
 function writeJson(path: string, data: unknown): void {
@@ -89,7 +89,7 @@ export function loadBallparkHitsDetail(season: number, venueId: number): Ballpar
 }
 
 export function hasBallparkHitsData(season: number): boolean {
-  return existsSync(summaryPath(season));
+  return dataFileExists(summaryPath(season));
 }
 
 function loadAllVenueHits(season: number): Map<number, VenueHit[]> {
@@ -100,10 +100,9 @@ function loadAllVenueHits(season: number): Map<number, VenueHit[]> {
     return hitsByVenue;
   }
 
-  for (const file of readdirSync(venueDir)) {
-    if (!file.endsWith(".json")) continue;
-    const venueId = Number.parseInt(file.replace(".json", ""), 10);
-    const detail = readJson<BallparkHitsDetail>(join(venueDir, file));
+  for (const base of listJsonBasenames(venueDir)) {
+    const venueId = Number.parseInt(base, 10);
+    const detail = readJson<BallparkHitsDetail>(join(venueDir, `${base}.json`));
     if (detail?.hits?.length) {
       hitsByVenue.set(venueId, detail.hits);
     }

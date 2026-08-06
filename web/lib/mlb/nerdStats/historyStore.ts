@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { listJsonBasenames, readDataJson } from "@/lib/dataFile";
 import type { NerdStatHistory } from "@/lib/mlb/nerdStats/history";
 import { resolveNerdStatId } from "@/lib/mlb/nerdStats/statDefinitions";
 
@@ -31,17 +32,11 @@ export function writeNerdStatHistories(
 }
 
 export function loadNerdStatHistory(season: number, statId: string): NerdStatHistory | null {
-  const path = historyPath(season, resolveNerdStatId(statId));
-  if (!existsSync(path)) return null;
-  return JSON.parse(readFileSync(path, "utf8")) as NerdStatHistory;
+  return readDataJson<NerdStatHistory>(historyPath(season, resolveNerdStatId(statId)));
 }
 
 export function listStoredHistoryStatIds(season: number): string[] {
-  const dir = historyDir(season);
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir)
-    .filter((file) => file.endsWith(".json"))
-    .map((file) => file.replace(/\.json$/, ""));
+  return listJsonBasenames(historyDir(season));
 }
 
 /** Longest date axis among stored history files for a season (0 when none). */

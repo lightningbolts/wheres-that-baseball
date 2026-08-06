@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
+import { listJsonBasenames, readDataJson } from "@/lib/dataFile";
 import { stripHitDetail } from "@/lib/mlb/ballparkHitsApi";
 import { ballparkIndex } from "@/lib/mlb/ballparkPaths";
 import type { BallparkHitsDetail, VenueHit } from "@/lib/mlb/ballparkHits";
@@ -30,8 +31,7 @@ function ballparkVenueDir(season: number): string {
 }
 
 function readJson<T>(path: string): T | null {
-  if (!existsSync(path)) return null;
-  return JSON.parse(readFileSync(path, "utf8")) as T;
+  return readDataJson<T>(path);
 }
 
 function writeJson(path: string, data: unknown): void {
@@ -343,11 +343,10 @@ export function rebuildPlayerPitchBipStore(season: number): {
   >();
 
   if (existsSync(venueDir)) {
-    for (const file of readdirSync(venueDir)) {
-      if (!file.endsWith(".json")) continue;
-      const venueId = Number.parseInt(file.replace(".json", ""), 10);
+    for (const base of listJsonBasenames(venueDir)) {
+      const venueId = Number.parseInt(base, 10);
       if (!Number.isFinite(venueId)) continue;
-      const detail = readJson<BallparkHitsDetail>(join(venueDir, file));
+      const detail = readJson<BallparkHitsDetail>(join(venueDir, `${base}.json`));
       if (!detail?.hits?.length) continue;
 
       for (const raw of detail.hits) {

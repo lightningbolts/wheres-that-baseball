@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
+import { listJsonBasenames, readDataJson } from "@/lib/dataFile";
 import { buildPlayerNerdCard } from "@/lib/mlb/nerdStats/playerNerdBuild";
 import { mergePlayerSeasonCounters } from "@/lib/mlb/nerdStats/playerMirror";
 import type {
@@ -33,8 +34,7 @@ function countersPath(season: number): string {
 }
 
 function readJson<T>(path: string): T | null {
-  if (!existsSync(path)) return null;
-  return JSON.parse(readFileSync(path, "utf8")) as T;
+  return readDataJson<T>(path);
 }
 
 function writeJson(path: string, data: unknown): void {
@@ -124,10 +124,7 @@ export function mergeAndWritePlayerNerdStore(
 
 /** List player IDs that have a stored card. */
 export function listStoredPlayerNerdIds(season: number): number[] {
-  const dir = playersDir(season);
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir)
-    .filter((f) => f.endsWith(".json"))
-    .map((f) => Number.parseInt(f.replace(".json", ""), 10))
+  return listJsonBasenames(playersDir(season))
+    .map((name) => Number.parseInt(name, 10))
     .filter((id) => Number.isFinite(id));
 }
