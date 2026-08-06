@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 
 import {
+  proxiedFastballClipUrl,
   resolveFastballClip,
   resolveFilmroomClipByPlayId,
+  type FastballFeed,
 } from "@/lib/mlb/fastballClips";
 import { resolveHighlightByPlayIds } from "@/lib/mlb/gameHighlights";
 import {
@@ -44,6 +46,25 @@ function cacheKey(playIds: string[], gamePk: number | null): string {
   return gamePk != null ? `${idKey}|${gamePk}` : idKey;
 }
 
+function fromFastballClip(clip: {
+  playId: string;
+  gamePk: number;
+  feed: FastballFeed;
+  availableFeeds: FastballFeed[];
+  url: string;
+  title: string | null;
+}): ResolvedPlayVideo {
+  return {
+    playId: clip.playId,
+    url: clip.url,
+    title: clip.title,
+    savantUrl: savantSportyVideosUrl(clip.playId),
+    gamePk: clip.gamePk,
+    feed: clip.feed,
+    availableFeeds: clip.availableFeeds,
+  };
+}
+
 async function resolveWithFallbacks(
   playIds: string[],
   gamePk: number | null,
@@ -51,41 +72,37 @@ async function resolveWithFallbacks(
   const primary = playIds[0];
   if (!primary) return null;
 
+  // Fastball / Film Room: exact primary play GUID for this game only.
+  // Candidate pitch GUIDs are Content-only — using them here can latch onto
+  // an earlier pitch clip that does not match the finished play.
+  const exactPlayIds = [primary];
+
   // 1) Fastball CDN — same path Gameday uses; usually live within seconds.
   if (gamePk != null) {
     try {
-      const fastball = await resolveFastballClip(gamePk, playIds);
-      if (fastball) {
-        return {
-          playId: fastball.playId,
-          url: fastball.url,
-          title: fastball.title,
-          savantUrl: savantSportyVideosUrl(fastball.playId),
-        };
-      }
+      const fastball = await resolveFastballClip(gamePk, exactPlayIds);
+      if (fastball) return fromFastballClip(fastball);
     } catch {
       // continue
     }
   }
 
   // 2) Film Room GraphQL by PlayId (works even when CDN probe is cold).
-  for (const playId of playIds) {
-    try {
-      const filmroom = await resolveFilmroomClipByPlayId(playId);
-      if (filmroom) {
-        return {
-          playId: filmroom.playId,
-          url: filmroom.url,
-          title: filmroom.title,
-          savantUrl: savantSportyVideosUrl(filmroom.playId),
-        };
+  try {
+    const filmroom = await resolveFilmroomClipByPlayId(primary, undefined, gamePk);
+    if (filmroom) {
+      if (gamePk != null && filmroom.gamePk > 0 && filmroom.gamePk !== gamePk) {
+        // Reject clips that belong to a different game.
+      } else {
+        return fromFastballClip(filmroom);
       }
-    } catch {
-      // try next
     }
+  } catch {
+    // continue
   }
 
   // 3) StatsAPI curated Content highlights (broadcast packages).
+  // Candidates help here — Content often keys the in-play pitch GUID.
   if (gamePk != null) {
     try {
       const clip = await resolveHighlightByPlayIds(gamePk, playIds);
@@ -95,6 +112,9 @@ async function resolveWithFallbacks(
           url: clip.url,
           title: clip.title,
           savantUrl: savantSportyVideosUrl(primary),
+          gamePk,
+          feed: null,
+          availableFeeds: [],
         };
       }
     } catch {
@@ -103,13 +123,19 @@ async function resolveWithFallbacks(
   }
 
   // 4) Baseball Savant sporty-videos (often next-day for full archive coverage).
-  for (const playId of playIds) {
-    try {
-      const resolved = await resolvePlayVideo(playId);
-      if (resolved) return resolved;
-    } catch {
-      // try next
+  // Stick to the terminal play GUID so we don't pull a different pitch's clip.
+  try {
+    const resolved = await resolvePlayVideo(primary);
+    if (resolved) {
+      return {
+        ...resolved,
+        gamePk,
+        feed: null,
+        availableFeeds: [],
+      };
     }
+  } catch {
+    // miss
   }
 
   return null;
@@ -122,6 +148,9 @@ export async function GET(request: Request) {
   const gamePkNum = gamePkRaw != null && gamePkRaw !== "" ? Number(gamePkRaw) : null;
   const gamePk =
     gamePkNum != null && Number.isFinite(gamePkNum) && gamePkNum > 0 ? gamePkNum : null;
+  const feedRaw = url.searchParams.get("feed")?.trim().toLowerCase() ?? "";
+  const preferredFeed: FastballFeed | null =
+    feedRaw === "home" || feedRaw === "away" || feedRaw === "network" ? feedRaw : null;
 
   if (playIds.length === 0) {
     return NextResponse.json({ error: "Invalid playId" }, { status: 400 });
@@ -129,31 +158,46 @@ export async function GET(request: Request) {
 
   const key = cacheKey(playIds, gamePk);
   const cached = cache.get(key);
+  let resolved: ResolvedPlayVideo | null = null;
+
   if (cached && cached.expiresAt > Date.now()) {
-    if (!cached.value) {
-      return NextResponse.json({ error: "Video not found" }, { status: 404 });
+    resolved = cached.value;
+  } else {
+    try {
+      resolved = await resolveWithFallbacks(playIds, gamePk);
+      cache.set(key, {
+        value: resolved,
+        expiresAt: Date.now() + (resolved ? CACHE_TTL_MS : NEGATIVE_TTL_MS),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Resolve failed";
+      return NextResponse.json({ error: message }, { status: 502 });
     }
-    return NextResponse.json(cached.value, {
-      headers: { "Cache-Control": "public, max-age=60" },
-    });
   }
 
-  try {
-    const resolved = await resolveWithFallbacks(playIds, gamePk);
-    cache.set(key, {
-      value: resolved,
-      expiresAt: Date.now() + (resolved ? CACHE_TTL_MS : NEGATIVE_TTL_MS),
-    });
-
-    if (!resolved) {
-      return NextResponse.json({ error: "Video not found" }, { status: 404 });
-    }
-
-    return NextResponse.json(resolved, {
-      headers: { "Cache-Control": "public, max-age=300" },
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Resolve failed";
-    return NextResponse.json({ error: message }, { status: 502 });
+  if (!resolved) {
+    return NextResponse.json({ error: "Video not found" }, { status: 404 });
   }
+
+  // Honor an explicit feed choice when that angle was discovered for this play.
+  if (
+    preferredFeed &&
+    resolved.gamePk != null &&
+    resolved.gamePk > 0 &&
+    (resolved.availableFeeds ?? []).includes(preferredFeed)
+  ) {
+    resolved = {
+      ...resolved,
+      feed: preferredFeed,
+      url: proxiedFastballClipUrl(resolved.gamePk, resolved.playId, preferredFeed),
+    };
+  }
+
+  return NextResponse.json(resolved, {
+    headers: {
+      "Cache-Control": cached && cached.expiresAt > Date.now()
+        ? "public, max-age=60"
+        : "public, max-age=300",
+    },
+  });
 }

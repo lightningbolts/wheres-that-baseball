@@ -1206,6 +1206,8 @@ export const PlayByPlay = memo(function PlayByPlay({
         play={selectedPlay}
         venueId={venueId}
         gamePk={gamePk}
+        awayAbbrev={awayAbbrev}
+        homeAbbrev={homeAbbrev}
         onClose={() => setSelectedPlay(null)}
       />
     </>

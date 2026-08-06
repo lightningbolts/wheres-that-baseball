@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from "react";
 
-import { toPlayableClipUrl } from "@/lib/mlb/fastballClips";
+import { toPlayableClipUrl, type FastballFeed } from "@/lib/mlb/fastballClips";
 import type { ResolvedPlayVideo } from "@/lib/mlb/playVideo";
 import { isValidPlayId, savantSportyVideosUrl } from "@/lib/mlb/playVideo";
-import { getCachedHighlightForPlayId } from "@/hooks/useGameHighlights";
 
 type Status = "idle" | "loading" | "ready" | "unavailable" | "error";
 
@@ -17,12 +16,14 @@ interface UsePlayVideoResult {
 }
 
 interface UsePlayVideoOptions {
-  /** When set, resolve via MLB Content first (works during live games). */
+  /** When set, resolve via MLB Content / Fastball for this game. */
   gamePk?: number | null;
   /** Extra pitch GUIDs from the same PA (Content often keys the in-play pitch). */
   candidatePlayIds?: string[] | null;
   /** Skip network resolve when the gallery already has a direct MP4. */
   preset?: Pick<ResolvedPlayVideo, "url" | "title"> | null;
+  /** Preferred Fastball broadcast angle when multiple feeds exist. */
+  feed?: FastballFeed | null;
 }
 
 const sharedCache = new Map<string, ResolvedPlayVideo | null>();
@@ -36,6 +37,24 @@ function cacheKey(
   const extras = candidates.filter((id) => id !== playId).join(",");
   const base = gamePk != null && gamePk > 0 ? `${playId}|${gamePk}` : playId;
   return extras ? `${base}|${extras}` : base;
+}
+
+function withPreferredFeed(
+  video: ResolvedPlayVideo,
+  feed: FastballFeed | null | undefined,
+): ResolvedPlayVideo {
+  if (!feed || !(video.availableFeeds ?? []).includes(feed)) return video;
+  if (video.gamePk == null || video.gamePk <= 0) return video;
+  if (video.feed === feed) return video;
+  return {
+    ...video,
+    feed,
+    url: `/api/plays/video/stream?${new URLSearchParams({
+      gamePk: String(video.gamePk),
+      playId: video.playId,
+      feed,
+    }).toString()}`,
+  };
 }
 
 async function fetchResolved(
@@ -85,6 +104,8 @@ function fromPreset(
     url: toPlayableClipUrl(preset.url),
     title: preset.title ?? null,
     savantUrl: savantSportyVideosUrl(playId),
+    feed: null,
+    availableFeeds: [],
   };
 }
 
@@ -100,6 +121,7 @@ export function usePlayVideo(
   const validId = playId && isValidPlayId(playId) ? playId : null;
   const gamePk = options.gamePk;
   const preset = options.preset;
+  const preferredFeed = options.feed ?? null;
   const candidatePlayIds = options.candidatePlayIds ?? null;
   const candidateKey = (candidatePlayIds ?? []).filter(isValidPlayId).join(",");
   const key = validId ? cacheKey(validId, gamePk, candidatePlayIds ?? []) : null;
@@ -112,7 +134,7 @@ export function usePlayVideo(
     }
     return "loading";
   });
-  const [video, setVideo] = useState<ResolvedPlayVideo | null>(() => {
+  const [baseVideo, setBaseVideo] = useState<ResolvedPlayVideo | null>(() => {
     if (!validId) return null;
     if (preset?.url) return fromPreset(validId, preset);
     if (key && sharedCache.has(key)) return sharedCache.get(key) ?? null;
@@ -123,7 +145,7 @@ export function usePlayVideo(
   useEffect(() => {
     if (!validId || !enabled) {
       setStatus("idle");
-      setVideo(null);
+      setBaseVideo(null);
       setError(null);
       return;
     }
@@ -131,35 +153,16 @@ export function usePlayVideo(
     if (preset?.url) {
       const resolved = fromPreset(validId, preset);
       sharedCache.set(cacheKey(validId, gamePk, candidatePlayIds ?? []), resolved);
-      setVideo(resolved);
+      setBaseVideo(resolved);
       setStatus("ready");
       setError(null);
       return;
     }
 
-    if (gamePk != null && gamePk > 0) {
-      const idsToCheck = [validId, ...(candidatePlayIds ?? [])];
-      for (const id of idsToCheck) {
-        if (!isValidPlayId(id)) continue;
-        const cachedClip = getCachedHighlightForPlayId(gamePk, id);
-        if (cachedClip?.url) {
-          const resolved = fromPreset(validId, {
-            url: cachedClip.url,
-            title: cachedClip.title,
-          });
-          sharedCache.set(cacheKey(validId, gamePk, candidatePlayIds ?? []), resolved);
-          setVideo(resolved);
-          setStatus("ready");
-          setError(null);
-          return;
-        }
-      }
-    }
-
     const resolveKey = cacheKey(validId, gamePk, candidatePlayIds ?? []);
     if (sharedCache.has(resolveKey)) {
       const cached = sharedCache.get(resolveKey) ?? null;
-      setVideo(cached);
+      setBaseVideo(cached);
       setStatus(cached ? "ready" : "unavailable");
       setError(null);
       return;
@@ -176,7 +179,7 @@ export function usePlayVideo(
         if (cancelled || settled || !resolved) return;
         settled = true;
         sharedCache.set(cacheKey(validId, gamePk, candidatePlayIds ?? []), resolved);
-        setVideo(resolved);
+        setBaseVideo(resolved);
         setStatus("ready");
         setError(null);
         window.clearInterval(retryId);
@@ -190,12 +193,12 @@ export function usePlayVideo(
           settled = true;
           window.clearInterval(retryId);
         }
-        setVideo(resolved);
+        setBaseVideo(resolved);
         setStatus(resolved ? "ready" : "unavailable");
       })
       .catch((err: unknown) => {
         if (cancelled || settled) return;
-        setVideo(null);
+        setBaseVideo(null);
         setStatus("error");
         setError(err instanceof Error ? err.message : "Failed to load video");
       });
@@ -210,6 +213,8 @@ export function usePlayVideo(
       window.clearTimeout(stopId);
     };
   }, [validId, enabled, gamePk, preset?.url, preset?.title, candidateKey]);
+
+  const video = baseVideo ? withPreferredFeed(baseVideo, preferredFeed) : null;
 
   return {
     status,

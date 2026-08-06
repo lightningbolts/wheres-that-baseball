@@ -523,6 +523,8 @@ export function GameHitsView({
         play={detailPlay}
         venueId={venueId}
         gamePk={gamePk}
+        awayAbbrev={awayAbbrev}
+        homeAbbrev={homeAbbrev}
         onClose={closeHitDetail}
       />
     </>

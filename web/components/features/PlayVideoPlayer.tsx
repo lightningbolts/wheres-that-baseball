@@ -3,7 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 
 import { usePlayVideo } from "@/hooks/usePlayVideo";
-import { toPlayableClipUrl } from "@/lib/mlb/fastballClips";
+import {
+  hasRegionalFeedChoice,
+  toPlayableClipUrl,
+  type FastballFeed,
+} from "@/lib/mlb/fastballClips";
 import { playHasVideo } from "@/lib/mlb/playVideo";
 import { cn } from "@/lib/utils";
 import type { PlayByPlayEntry } from "@/types/mlb-live";
@@ -24,6 +28,10 @@ interface PlayVideoPlayerProps {
   size?: "compact" | "full";
   /** Show title under the video (detail dialog). Gallery hides it. */
   showTitle?: boolean;
+  /** Away team abbrev for the regional feed picker. */
+  awayAbbrev?: string | null;
+  /** Home team abbrev for the regional feed picker. */
+  homeAbbrev?: string | null;
   className?: string;
 }
 
@@ -91,6 +99,62 @@ function VideoLoadingSpinner({ className }: { className?: string }) {
   );
 }
 
+function FeedToggle({
+  feed,
+  availableFeeds,
+  awayAbbrev,
+  homeAbbrev,
+  onChange,
+}: {
+  feed: FastballFeed | null | undefined;
+  availableFeeds: FastballFeed[];
+  awayAbbrev?: string | null;
+  homeAbbrev?: string | null;
+  onChange: (feed: FastballFeed) => void;
+}) {
+  if (!hasRegionalFeedChoice(availableFeeds)) return null;
+
+  const options: Array<{ feed: FastballFeed; label: string }> = (
+    [
+      { feed: "away" as const, label: (awayAbbrev?.trim() || "Away").toUpperCase() },
+      { feed: "home" as const, label: (homeAbbrev?.trim() || "Home").toUpperCase() },
+    ] as const
+  ).filter((option) => availableFeeds.includes(option.feed));
+
+  if (options.length < 2) return null;
+
+  return (
+    <div
+      className="flex items-center gap-1 border-b border-border/40 bg-field-chart-canvas px-2 py-1.5"
+      role="group"
+      aria-label="Broadcast feed"
+    >
+      <span className="mr-1 text-[10px] font-medium uppercase tracking-wide text-subtle">
+        Feed
+      </span>
+      {options.map((option) => {
+        const selected = (feed ?? "home") === option.feed;
+        return (
+          <button
+            key={option.feed}
+            type="button"
+            onClick={() => onChange(option.feed)}
+            aria-pressed={selected}
+            className={cn(
+              "rounded px-2 py-0.5 font-mono text-[11px] tabular-nums transition-colors",
+              selected
+                ? "bg-foreground text-background"
+                : "bg-overlay text-muted hover:bg-hover hover:text-foreground",
+            )}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function PlayVideoPlayer({
   playId,
   candidatePlayIds = null,
@@ -101,15 +165,19 @@ export function PlayVideoPlayer({
   autoLoad = false,
   size = "full",
   showTitle = true,
+  awayAbbrev = null,
+  homeAbbrev = null,
   className,
 }: PlayVideoPlayerProps) {
   const [opened, setOpened] = useState(autoLoad);
+  const [selectedFeed, setSelectedFeed] = useState<FastballFeed | null>(null);
   const hasDirectUrl = Boolean(videoUrl);
   // Direct gallery URLs skip network resolve; only hit the API when we need Savant/Content lookup.
   const shouldResolve = Boolean(playId) && !hasDirectUrl && (opened || autoLoad);
   const { status, video, savantUrl, error } = usePlayVideo(playId, shouldResolve, {
     gamePk,
     candidatePlayIds,
+    feed: selectedFeed,
   });
 
   const resolvedVideo = hasDirectUrl && videoUrl
@@ -119,6 +187,9 @@ export function PlayVideoPlayer({
         url: toPlayableClipUrl(videoUrl),
         title: videoTitle ?? null,
         savantUrl: null as string | null,
+        feed: null as FastballFeed | null,
+        availableFeeds: [] as FastballFeed[],
+        gamePk: null as number | null,
       }
     : video
       ? { ...video, url: toPlayableClipUrl(video.url) }
@@ -138,8 +209,19 @@ export function PlayVideoPlayer({
   }, [autoLoad, playId, videoUrl]);
 
   useEffect(() => {
+    setSelectedFeed(null);
+  }, [playId, gamePk]);
+
+  useEffect(() => {
     setFrameReady(false);
   }, [resolvedVideo?.url]);
+
+  useEffect(() => {
+    if (!video?.feed) return;
+    if (selectedFeed == null) {
+      setSelectedFeed(video.feed);
+    }
+  }, [video?.feed, selectedFeed]);
 
   if (!playId && !videoUrl) return null;
 
@@ -152,6 +234,7 @@ export function PlayVideoPlayer({
   const showVideo = !showIdlePrompt && resolvedStatus === "ready" && resolvedVideo;
   const showUnavailable = !showIdlePrompt && !showResolving && !showVideo;
   const showLoadingOverlay = showResolving || (showVideo && !frameReady);
+  const availableFeeds = resolvedVideo?.availableFeeds ?? [];
 
   return (
     <div
@@ -212,45 +295,56 @@ export function PlayVideoPlayer({
           )}
         </div>
       ) : (
-        <div className="relative bg-field-chart-canvas">
+        <div className="bg-field-chart-canvas">
           {showVideo ? (
-            <video
-              key={resolvedVideo.url}
-              controls
-              playsInline
-              // Only one clip loads after the user taps — metadata is enough for a poster frame.
-              preload="metadata"
-              poster={posterUrl ?? undefined}
-              className={cn("bg-black object-contain", frameClass)}
-              src={resolvedVideo.url}
-              onLoadedData={() => setFrameReady(true)}
-              onLoadedMetadata={() => setFrameReady(true)}
-              onCanPlay={() => setFrameReady(true)}
-              onError={() => setFrameReady(true)}
-            >
-              <track kind="captions" />
-            </video>
+            <FeedToggle
+              feed={selectedFeed ?? resolvedVideo.feed}
+              availableFeeds={availableFeeds}
+              awayAbbrev={awayAbbrev}
+              homeAbbrev={homeAbbrev}
+              onChange={setSelectedFeed}
+            />
           ) : null}
-          {showLoadingOverlay ? (
-            <div
-              className={cn(
-                "flex items-center justify-center bg-field-chart-canvas",
-                showVideo ? "absolute inset-0 z-10" : frameClass,
-              )}
-              aria-busy
-              aria-live="polite"
-            >
-              {posterUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={posterUrl}
-                  alt=""
-                  className="absolute inset-0 size-full object-cover opacity-40"
-                />
-              ) : null}
-              <VideoLoadingSpinner className="relative z-[1]" />
-            </div>
-          ) : null}
+          <div className="relative">
+            {showVideo ? (
+              <video
+                key={resolvedVideo.url}
+                controls
+                playsInline
+                // Only one clip loads after the user taps — metadata is enough for a poster frame.
+                preload="metadata"
+                poster={posterUrl ?? undefined}
+                className={cn("bg-black object-contain", frameClass)}
+                src={resolvedVideo.url}
+                onLoadedData={() => setFrameReady(true)}
+                onLoadedMetadata={() => setFrameReady(true)}
+                onCanPlay={() => setFrameReady(true)}
+                onError={() => setFrameReady(true)}
+              >
+                <track kind="captions" />
+              </video>
+            ) : null}
+            {showLoadingOverlay ? (
+              <div
+                className={cn(
+                  "flex items-center justify-center bg-field-chart-canvas",
+                  showVideo ? "absolute inset-0 z-10" : frameClass,
+                )}
+                aria-busy
+                aria-live="polite"
+              >
+                {posterUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={posterUrl}
+                    alt=""
+                    className="absolute inset-0 size-full object-cover opacity-40"
+                  />
+                ) : null}
+                <VideoLoadingSpinner className="relative z-[1]" />
+              </div>
+            ) : null}
+          </div>
           {showVideo && showTitle && (resolvedVideo.title || videoTitle) && frameReady ? (
             <p className="border-t border-border/40 bg-field-chart-canvas px-2.5 py-1.5 text-[11px] leading-snug text-subtle">
               {resolvedVideo.title || videoTitle}

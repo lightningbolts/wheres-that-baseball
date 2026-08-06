@@ -77,6 +77,10 @@ interface PlayDetailDialogProps {
   gamePk?: number | null;
   /** Optional game date for Season History back-navigation context. */
   gameDate?: string | null;
+  /** Away team abbrev for regional broadcast feed picker. */
+  awayAbbrev?: string | null;
+  /** Home team abbrev for regional broadcast feed picker. */
+  homeAbbrev?: string | null;
   onClose: () => void;
 }
 
@@ -251,6 +255,8 @@ export function PlayDetailDialog({
   venueId,
   gamePk,
   gameDate,
+  awayAbbrev,
+  homeAbbrev,
   onClose,
 }: PlayDetailDialogProps) {
   const hit = play?.hit ?? null;
@@ -330,6 +336,8 @@ export function PlayDetailDialog({
                 ...play.pitches.map((p) => p.playId).filter((id): id is string => Boolean(id)),
               ]}
               gamePk={gamePk}
+              awayAbbrev={awayAbbrev}
+              homeAbbrev={homeAbbrev}
               autoLoad
               size="compact"
               showTitle

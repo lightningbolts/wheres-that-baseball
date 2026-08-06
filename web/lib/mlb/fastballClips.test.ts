@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   fastballClipUrl,
+  hasRegionalFeedChoice,
+  preferFastballFeed,
   proxiedFastballClipUrl,
   toPlayableClipUrl,
 } from "@/lib/mlb/fastballClips";
@@ -48,5 +50,20 @@ describe("fastballClips", () => {
     expect(toPlayableClipUrl("https://sporty-clips.mlb.com/foo.mp4")).toBe(
       "https://sporty-clips.mlb.com/foo.mp4",
     );
+  });
+
+  it("prefers regional home feed before away/network", () => {
+    expect(preferFastballFeed(["network", "away", "home"])).toBe("home");
+    expect(preferFastballFeed(["network", "away"])).toBe("away");
+    expect(preferFastballFeed(["network"])).toBe("network");
+    expect(preferFastballFeed([])).toBeNull();
+  });
+
+  it("detects regional home/away choice vs national-only", () => {
+    expect(hasRegionalFeedChoice(["home", "away"])).toBe(true);
+    expect(hasRegionalFeedChoice(["home", "away", "network"])).toBe(true);
+    expect(hasRegionalFeedChoice(["network"])).toBe(false);
+    expect(hasRegionalFeedChoice(["home"])).toBe(false);
+    expect(hasRegionalFeedChoice([])).toBe(false);
   });
 });

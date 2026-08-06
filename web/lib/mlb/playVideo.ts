@@ -30,11 +30,22 @@ export function isValidPlayId(playId: string): boolean {
   );
 }
 
+export type PlayVideoFeed = "home" | "away" | "network";
+
 export interface ResolvedPlayVideo {
   playId: string;
   url: string;
   title: string | null;
   savantUrl: string;
+  /** Game the clip belongs to when known (Fastball / Film Room). */
+  gamePk?: number | null;
+  /** Broadcast angle currently selected for Fastball clips. */
+  feed?: PlayVideoFeed | null;
+  /**
+   * Broadcast angles available for this play. Regional MLB.TV games expose
+   * `home` + `away`; national-only telecasts expose `network` alone.
+   */
+  availableFeeds?: PlayVideoFeed[];
 }
 
 export function extractSportyClipMp4(html: string): string | null {

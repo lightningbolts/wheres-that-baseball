@@ -33,8 +33,24 @@ export interface FastballResolvedClip {
   playId: string;
   gamePk: number;
   feed: FastballFeed;
+  /** All broadcast angles that exist for this play on the CDN / Film Room. */
+  availableFeeds: FastballFeed[];
   url: string;
   title: string | null;
+}
+
+/** Prefer a regional home feed, then away, then national. */
+export function preferFastballFeed(feeds: readonly FastballFeed[]): FastballFeed | null {
+  if (feeds.includes("home")) return "home";
+  if (feeds.includes("away")) return "away";
+  if (feeds.includes("network")) return "network";
+  return null;
+}
+
+/** True when both regional broadcasts exist (show a Home/Away picker). */
+export function hasRegionalFeedChoice(feeds: readonly FastballFeed[] | null | undefined): boolean {
+  if (!feeds?.length) return false;
+  return feeds.includes("home") && feeds.includes("away");
 }
 
 export function fastballClipUrl(
@@ -108,10 +124,30 @@ export async function probeFastballClipUrl(
   }
 }
 
+/** Probe which Fastball CDN feeds exist for a single play GUID. */
+export async function listAvailableFastballFeeds(
+  gamePk: number,
+  playId: string,
+  signal?: AbortSignal,
+): Promise<FastballFeed[]> {
+  if (!Number.isFinite(gamePk) || gamePk <= 0 || !isValidPlayId(playId)) return [];
+
+  const present = await Promise.all(
+    FASTBALL_FEED_ORDER.map(async (feed) => {
+      const ok = await probeFastballClipUrl(fastballClipUrl(gamePk, playId, feed), signal);
+      return ok ? feed : null;
+    }),
+  );
+  return present.filter((feed): feed is FastballFeed => feed != null);
+}
+
 /**
  * Gameday-style clips: MLB publishes progressive MP4s at a stable path almost
  * immediately after the pitch/PA. Prefer HOME, then AWAY, then NETWORK
  * (national-broadcast games often only publish the latter).
+ *
+ * Only the primary playId is tried first so we don't latch onto an earlier
+ * pitch clip from the same PA (or a mismatched candidate GUID).
  */
 export async function resolveFastballClip(
   gamePk: number,
@@ -122,18 +158,17 @@ export async function resolveFastballClip(
 
   const ids = playIds.filter(isValidPlayId);
   for (const playId of ids) {
-    for (const feed of FASTBALL_FEED_ORDER) {
-      const url = fastballClipUrl(gamePk, playId, feed);
-      if (await probeFastballClipUrl(url, signal)) {
-        return {
-          playId,
-          gamePk,
-          feed,
-          url: proxiedFastballClipUrl(gamePk, playId, feed),
-          title: null,
-        };
-      }
-    }
+    const availableFeeds = await listAvailableFastballFeeds(gamePk, playId, signal);
+    const feed = preferFastballFeed(availableFeeds);
+    if (!feed) continue;
+    return {
+      playId,
+      gamePk,
+      feed,
+      availableFeeds,
+      url: proxiedFastballClipUrl(gamePk, playId, feed),
+      title: null,
+    };
   }
   return null;
 }
@@ -148,6 +183,7 @@ const FILMROOM_SEARCH_QUERY = `query Search($query: String!, $page: Int, $limit:
           type
           playbacks { name url }
         }
+        playInfo { gamePk }
       }
     }
     total
@@ -166,16 +202,44 @@ interface FilmroomSearchResponse {
             type?: string;
             playbacks?: Array<{ name?: string; url?: string }>;
           }>;
+          playInfo?: { gamePk?: number | null };
         }>;
       }>;
     };
   };
 }
 
+function feedFromFilmroomType(type: string | null | undefined): FastballFeed | null {
+  const normalized = (type ?? "").toUpperCase();
+  if (normalized === "HOME") return "home";
+  if (normalized === "AWAY") return "away";
+  if (normalized === "NETWORK") return "network";
+  return null;
+}
+
+function mp4FromFilmroomFeed(
+  feed: { type?: string; playbacks?: Array<{ name?: string; url?: string }> },
+): { feed: FastballFeed; url: string; gamePk: number } | null {
+  const feedName = feedFromFilmroomType(feed.type);
+  if (!feedName) return null;
+
+  for (const pb of feed.playbacks ?? []) {
+    const clipUrl = pb.url?.trim();
+    if (!clipUrl) continue;
+    if (!(pb.name === "mp4Avc" || clipUrl.endsWith(".mp4"))) continue;
+    const gamePkMatch = clipUrl.match(/fastball-clips\.mlb\.com\/(\d+)\//);
+    const gamePk = gamePkMatch ? Number(gamePkMatch[1]) : 0;
+    if (!Number.isFinite(gamePk) || gamePk <= 0) continue;
+    return { feed: feedName, url: clipUrl, gamePk };
+  }
+  return null;
+}
+
 /** GraphQL fallback when the deterministic CDN path is not warm yet. */
 export async function resolveFilmroomClipByPlayId(
   playId: string,
   signal?: AbortSignal,
+  expectedGamePk?: number | null,
 ): Promise<FastballResolvedClip | null> {
   if (!isValidPlayId(playId)) return null;
 
@@ -203,41 +267,47 @@ export async function resolveFilmroomClipByPlayId(
     const playback = data.data?.search?.plays?.[0]?.mediaPlayback?.[0];
     if (!playback) return null;
 
-    const feeds = playback.feeds ?? [];
-    const ordered = [
-      ...feeds.filter((feed) => (feed.type ?? "").toUpperCase() === "HOME"),
-      ...feeds.filter((feed) => (feed.type ?? "").toUpperCase() === "AWAY"),
-      ...feeds.filter((feed) => (feed.type ?? "").toUpperCase() === "NETWORK"),
-      ...feeds,
-    ];
+    const playInfoGamePk = playback.playInfo?.gamePk ?? null;
+    if (
+      expectedGamePk != null &&
+      expectedGamePk > 0 &&
+      playInfoGamePk != null &&
+      playInfoGamePk !== expectedGamePk
+    ) {
+      return null;
+    }
 
-    for (const feed of ordered) {
-      for (const pb of feed.playbacks ?? []) {
-        const clipUrl = pb.url?.trim();
-        if (!clipUrl) continue;
-        if (pb.name === "mp4Avc" || clipUrl.endsWith(".mp4")) {
-          const feedType = (feed.type ?? "").toUpperCase();
-          const feedName: FastballFeed =
-            feedType === "AWAY"
-              ? "away"
-              : feedType === "NETWORK"
-                ? "network"
-                : "home";
-          const gamePkMatch = clipUrl.match(/fastball-clips\.mlb\.com\/(\d+)\//);
-          const gamePk = gamePkMatch ? Number(gamePkMatch[1]) : 0;
-          return {
-            playId,
-            gamePk,
-            feed: feedName,
-            url: toPlayableClipUrl(clipUrl),
-            title: playback.title ?? null,
-          };
-        }
+    const byFeed = new Map<FastballFeed, { url: string; gamePk: number }>();
+    for (const feed of playback.feeds ?? []) {
+      const parsed = mp4FromFilmroomFeed(feed);
+      if (!parsed) continue;
+      if (
+        expectedGamePk != null &&
+        expectedGamePk > 0 &&
+        parsed.gamePk !== expectedGamePk
+      ) {
+        continue;
+      }
+      if (!byFeed.has(parsed.feed)) {
+        byFeed.set(parsed.feed, { url: parsed.url, gamePk: parsed.gamePk });
       }
     }
+
+    const availableFeeds = FASTBALL_FEED_ORDER.filter((feed) => byFeed.has(feed));
+    const feed = preferFastballFeed(availableFeeds);
+    if (!feed) return null;
+    const selected = byFeed.get(feed);
+    if (!selected) return null;
+
+    return {
+      playId,
+      gamePk: selected.gamePk,
+      feed,
+      availableFeeds,
+      url: toPlayableClipUrl(selected.url),
+      title: playback.title ?? null,
+    };
   } catch {
     return null;
   }
-
-  return null;
 }
