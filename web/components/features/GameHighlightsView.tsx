@@ -126,6 +126,7 @@ function HighlightCard({
         ) : null}
       </div>
       <PlayVideoPlayer
+        key={card.playId ?? card.key}
         playId={card.playId}
         candidatePlayIds={card.candidatePlayIds}
         gamePk={gamePk}
@@ -335,7 +336,15 @@ export function GameHighlightsView({
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-3 sm:p-4">
         <div className="mx-auto grid max-w-5xl gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {cards.map((card) => (
-            <HighlightCard key={card.key} card={card} gamePk={gamePk} />
+            <HighlightCard
+              key={
+                card.atBatIndex != null
+                  ? `ab-${card.atBatIndex}-${card.playId ?? card.key}`
+                  : card.key
+              }
+              card={card}
+              gamePk={gamePk}
+            />
           ))}
         </div>
       </div>

@@ -67,25 +67,61 @@ export function proxiedFastballClipUrl(
   playId: string,
   feed: FastballFeed = "home",
 ): string {
-  const params = new URLSearchParams({
-    gamePk: String(gamePk),
-    playId,
-    feed,
-  });
-  return `/api/plays/video/stream?${params.toString()}`;
+  // Path-keyed so HTTP caches cannot reuse one play's MP4 for another playId.
+  // (Query-only URLs previously collapsed to the first clip loaded in a session.)
+  return `/api/plays/video/stream/${gamePk}/${feed}/${encodeURIComponent(playId)}`;
 }
 
-/** Rewrite a direct fastball-clips URL to our same-origin stream proxy. */
+/** Rewrite a direct fastball-clips URL — or a legacy query proxy URL — to the path proxy. */
 export function toPlayableClipUrl(url: string): string {
-  const match = url.match(
+  const cdn = url.match(
     /fastball-clips\.mlb\.com\/(\d+)\/(home|away|network)\/([0-9a-f-]{36})\.mp4/i,
   );
-  if (!match) return url;
-  return proxiedFastballClipUrl(
-    Number(match[1]),
-    match[3],
-    match[2].toLowerCase() as FastballFeed,
+  if (cdn) {
+    return proxiedFastballClipUrl(
+      Number(cdn[1]),
+      cdn[3],
+      cdn[2].toLowerCase() as FastballFeed,
+    );
+  }
+
+  const legacy = url.match(
+    /\/api\/plays\/video\/stream\/?\?([^#]*)/i,
   );
+  if (legacy) {
+    const params = new URLSearchParams(legacy[1]);
+    const gamePk = Number(params.get("gamePk"));
+    const playId = params.get("playId")?.trim() ?? "";
+    const feedRaw = params.get("feed")?.trim().toLowerCase() ?? "home";
+    if (
+      Number.isFinite(gamePk) &&
+      gamePk > 0 &&
+      isValidPlayId(playId) &&
+      isFastballFeed(feedRaw)
+    ) {
+      return proxiedFastballClipUrl(gamePk, playId, feedRaw);
+    }
+  }
+
+  return url;
+}
+
+/** Extract playId from a proxied Fastball stream URL (path or legacy query). */
+export function playIdFromPlayableClipUrl(url: string): string | null {
+  const path = url.match(
+    /\/api\/plays\/video\/stream\/\d+\/(?:home|away|network)\/([0-9a-f-]{36})/i,
+  );
+  if (path?.[1] && isValidPlayId(path[1])) return path[1];
+
+  const query = url.match(/[?&]playId=([0-9a-f-]{36})/i);
+  if (query?.[1] && isValidPlayId(query[1])) return query[1];
+
+  const cdn = url.match(
+    /fastball-clips\.mlb\.com\/\d+\/(?:home|away|network)\/([0-9a-f-]{36})\.mp4/i,
+  );
+  if (cdn?.[1] && isValidPlayId(cdn[1])) return cdn[1];
+
+  return null;
 }
 
 /** Cheap existence check — Range GET for the ISO BMFF `ftyp` header. */
@@ -266,6 +302,12 @@ export async function resolveFilmroomClipByPlayId(
     const data = (await response.json()) as FilmroomSearchResponse;
     const playback = data.data?.search?.plays?.[0]?.mediaPlayback?.[0];
     if (!playback) return null;
+
+    // Film Room media id is the pitch/play GUID — reject cross-play hits.
+    const playbackId = playback.id?.trim();
+    if (playbackId && isValidPlayId(playbackId) && playbackId !== playId) {
+      return null;
+    }
 
     const playInfoGamePk = playback.playInfo?.gamePk ?? null;
     if (

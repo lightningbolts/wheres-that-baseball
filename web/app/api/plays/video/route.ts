@@ -102,13 +102,19 @@ async function resolveWithFallbacks(
   }
 
   // 3) StatsAPI curated Content highlights (broadcast packages).
-  // Candidates help here — Content often keys the in-play pitch GUID.
+  // Prefer the terminal GUID; only then try same-PA pitch GUIDs (Content often
+  // keys the in-play pitch). Never accept a clip whose guid is outside this PA.
   if (gamePk != null) {
     try {
-      const clip = await resolveHighlightByPlayIds(gamePk, playIds);
-      if (clip) {
+      const allowed = new Set(playIds);
+      const clip =
+        (await resolveHighlightByPlayIds(gamePk, exactPlayIds)) ??
+        (playIds.length > 1
+          ? await resolveHighlightByPlayIds(gamePk, playIds)
+          : null);
+      if (clip?.playId && allowed.has(clip.playId) && clip.url) {
         return {
-          playId: clip.playId ?? primary,
+          playId: clip.playId,
           url: clip.url,
           title: clip.title,
           savantUrl: savantSportyVideosUrl(primary),
@@ -195,9 +201,9 @@ export async function GET(request: Request) {
 
   return NextResponse.json(resolved, {
     headers: {
-      "Cache-Control": cached && cached.expiresAt > Date.now()
-        ? "public, max-age=60"
-        : "public, max-age=300",
+      // Include playId in the URL already; keep browser cache short and private
+      // so a shared session cannot reuse another at-bat's resolve payload.
+      "Cache-Control": "private, max-age=60",
     },
   });
 }

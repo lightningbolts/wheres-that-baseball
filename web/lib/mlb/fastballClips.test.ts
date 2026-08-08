@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   fastballClipUrl,
   hasRegionalFeedChoice,
+  playIdFromPlayableClipUrl,
   preferFastballFeed,
   proxiedFastballClipUrl,
   toPlayableClipUrl,
@@ -31,21 +32,28 @@ describe("fastballClips", () => {
     expect(
       proxiedFastballClipUrl(823437, "75805409-bc48-3e9b-b0f3-defce8a6ef92", "home"),
     ).toBe(
-      "/api/plays/video/stream?gamePk=823437&playId=75805409-bc48-3e9b-b0f3-defce8a6ef92&feed=home",
+      "/api/plays/video/stream/823437/home/75805409-bc48-3e9b-b0f3-defce8a6ef92",
     );
     expect(
       toPlayableClipUrl(
         "https://fastball-clips.mlb.com/823437/away/75805409-bc48-3e9b-b0f3-defce8a6ef92.mp4",
       ),
     ).toBe(
-      "/api/plays/video/stream?gamePk=823437&playId=75805409-bc48-3e9b-b0f3-defce8a6ef92&feed=away",
+      "/api/plays/video/stream/823437/away/75805409-bc48-3e9b-b0f3-defce8a6ef92",
     );
     expect(
       toPlayableClipUrl(
         "https://fastball-clips.mlb.com/823600/network/bf45d21a-3031-31e2-ad36-03e9e42cce3a.mp4",
       ),
     ).toBe(
-      "/api/plays/video/stream?gamePk=823600&playId=bf45d21a-3031-31e2-ad36-03e9e42cce3a&feed=network",
+      "/api/plays/video/stream/823600/network/bf45d21a-3031-31e2-ad36-03e9e42cce3a",
+    );
+    expect(
+      toPlayableClipUrl(
+        "/api/plays/video/stream?gamePk=823437&playId=75805409-bc48-3e9b-b0f3-defce8a6ef92&feed=away",
+      ),
+    ).toBe(
+      "/api/plays/video/stream/823437/away/75805409-bc48-3e9b-b0f3-defce8a6ef92",
     );
     expect(toPlayableClipUrl("https://sporty-clips.mlb.com/foo.mp4")).toBe(
       "https://sporty-clips.mlb.com/foo.mp4",
@@ -65,5 +73,18 @@ describe("fastballClips", () => {
     expect(hasRegionalFeedChoice(["network"])).toBe(false);
     expect(hasRegionalFeedChoice(["home"])).toBe(false);
     expect(hasRegionalFeedChoice([])).toBe(false);
+  });
+
+  it("extracts playId from path-keyed proxy URLs", () => {
+    expect(
+      playIdFromPlayableClipUrl(
+        "/api/plays/video/stream/823437/home/75805409-bc48-3e9b-b0f3-defce8a6ef92",
+      ),
+    ).toBe("75805409-bc48-3e9b-b0f3-defce8a6ef92");
+    expect(
+      playIdFromPlayableClipUrl(
+        "/api/plays/video/stream?gamePk=1&playId=75805409-bc48-3e9b-b0f3-defce8a6ef92&feed=home",
+      ),
+    ).toBe("75805409-bc48-3e9b-b0f3-defce8a6ef92");
   });
 });

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePlayVideo } from "@/hooks/usePlayVideo";
 import {
   hasRegionalFeedChoice,
+  playIdFromPlayableClipUrl,
   toPlayableClipUrl,
   type FastballFeed,
 } from "@/lib/mlb/fastballClips";
@@ -194,12 +195,22 @@ export function PlayVideoPlayer({
     : video
       ? { ...video, url: toPlayableClipUrl(video.url) }
       : null;
+
+  // Hard guard: never paint a Fastball clip whose URL playId ≠ this card's play.
+  const urlPlayId = resolvedVideo ? playIdFromPlayableClipUrl(resolvedVideo.url) : null;
+  const playIdMismatch =
+    Boolean(playId) &&
+    Boolean(urlPlayId) &&
+    urlPlayId !== playId;
+  const safeVideo = playIdMismatch ? null : resolvedVideo;
   const resolvedStatus =
-    hasDirectUrl
-      ? opened || autoLoad
-        ? ("ready" as const)
-        : ("idle" as const)
-      : status;
+    playIdMismatch
+      ? ("unavailable" as const)
+      : hasDirectUrl
+        ? opened || autoLoad
+          ? ("ready" as const)
+          : ("idle" as const)
+        : status;
 
   const rootRef = useRef<HTMLDivElement>(null);
   const [frameReady, setFrameReady] = useState(false);
@@ -214,7 +225,7 @@ export function PlayVideoPlayer({
 
   useEffect(() => {
     setFrameReady(false);
-  }, [resolvedVideo?.url]);
+  }, [safeVideo?.url]);
 
   useEffect(() => {
     if (!video?.feed) return;
@@ -231,10 +242,10 @@ export function PlayVideoPlayer({
   const showIdlePrompt = !opened && !autoLoad;
   const showResolving =
     !showIdlePrompt && (resolvedStatus === "loading" || resolvedStatus === "idle");
-  const showVideo = !showIdlePrompt && resolvedStatus === "ready" && resolvedVideo;
+  const showVideo = !showIdlePrompt && resolvedStatus === "ready" && safeVideo;
   const showUnavailable = !showIdlePrompt && !showResolving && !showVideo;
   const showLoadingOverlay = showResolving || (showVideo && !frameReady);
-  const availableFeeds = resolvedVideo?.availableFeeds ?? [];
+  const availableFeeds = safeVideo?.availableFeeds ?? [];
 
   return (
     <div
@@ -279,9 +290,11 @@ export function PlayVideoPlayer({
           )}
         >
           <p className="text-xs text-subtle">
-            {resolvedStatus === "error"
-              ? error ?? "Could not load video"
-              : "Clip not ready yet — retrying…"}
+            {playIdMismatch
+              ? "Clip did not match this play"
+              : resolvedStatus === "error"
+                ? error ?? "Could not load video"
+                : "Clip not ready yet — retrying…"}
           </p>
           {savantUrl && playId && (
             <a
@@ -298,7 +311,7 @@ export function PlayVideoPlayer({
         <div className="bg-field-chart-canvas">
           {showVideo ? (
             <FeedToggle
-              feed={selectedFeed ?? resolvedVideo.feed}
+              feed={selectedFeed ?? safeVideo.feed}
               availableFeeds={availableFeeds}
               awayAbbrev={awayAbbrev}
               homeAbbrev={homeAbbrev}
@@ -308,14 +321,14 @@ export function PlayVideoPlayer({
           <div className="relative">
             {showVideo ? (
               <video
-                key={resolvedVideo.url}
+                key={`${playId ?? "direct"}-${safeVideo.url}`}
                 controls
                 playsInline
                 // Only one clip loads after the user taps — metadata is enough for a poster frame.
                 preload="metadata"
                 poster={posterUrl ?? undefined}
                 className={cn("bg-black object-contain", frameClass)}
-                src={resolvedVideo.url}
+                src={safeVideo.url}
                 onLoadedData={() => setFrameReady(true)}
                 onLoadedMetadata={() => setFrameReady(true)}
                 onCanPlay={() => setFrameReady(true)}
@@ -345,9 +358,9 @@ export function PlayVideoPlayer({
               </div>
             ) : null}
           </div>
-          {showVideo && showTitle && (resolvedVideo.title || videoTitle) && frameReady ? (
+          {showVideo && showTitle && (safeVideo.title || videoTitle) && frameReady ? (
             <p className="border-t border-border/40 bg-field-chart-canvas px-2.5 py-1.5 text-[11px] leading-snug text-subtle">
-              {resolvedVideo.title || videoTitle}
+              {safeVideo.title || videoTitle}
             </p>
           ) : null}
         </div>

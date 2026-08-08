@@ -327,13 +327,21 @@ export function PlayDetailDialog({
 
           {(play.playId || play.pitches.some((p) => p.playId)) && (
             <PlayVideoPlayer
+              key={`${gamePk ?? "g"}-${play.atBatIndex}-${
+                play.playId ??
+                [...play.pitches].reverse().find((p) => p.playId)?.playId ??
+                "clip"
+              }`}
               playId={
                 play.playId ??
                 [...play.pitches].reverse().find((p) => p.playId)?.playId
               }
               candidatePlayIds={[
                 ...(play.playId ? [play.playId] : []),
-                ...play.pitches.map((p) => p.playId).filter((id): id is string => Boolean(id)),
+                ...play.pitches
+                  .filter((p) => Boolean(p.playId) && (p.isInPlay || !play.playId))
+                  .map((p) => p.playId)
+                  .filter((id): id is string => Boolean(id)),
               ]}
               gamePk={gamePk}
               awayAbbrev={awayAbbrev}
