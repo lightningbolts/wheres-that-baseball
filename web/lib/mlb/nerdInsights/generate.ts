@@ -103,7 +103,16 @@ function playerInsightFromProfile(
   const highlight = profile.highlights.find((entry) => allowed.has(entry.statId));
   if (!highlight) return null;
 
+  // Team-relative ranks on the season card are vs profile.teamId. After a trade, skip
+  // until the card is rebuilt for the new club so we don't say "leads OLD" in a NEW game.
+  const liveTeamId = role === "batter" ? ctx.offenseTeamId : ctx.defenseTeamId;
+  const liveAbbrev = role === "batter" ? ctx.offenseAbbrev : ctx.defenseAbbrev;
+  if (liveTeamId && profile.teamId !== liveTeamId) {
+    return null;
+  }
+
   const name = role === "batter" ? ctx.batterName || profile.name : ctx.pitcherName || profile.name;
+  const teamAbbrev = liveAbbrev || profile.teamAbbrev;
   const share =
     highlight.shareOfTeam != null && highlight.shareOfTeam >= 0.3
       ? formatSharePct(highlight.shareOfTeam)
@@ -118,13 +127,13 @@ function playerInsightFromProfile(
     eyebrow: role === "batter" ? "Batter nerd" : "Pitcher nerd",
     title:
       highlight.teamRank === 1
-        ? `${name} leads ${profile.teamAbbrev} in ${highlight.title.toLowerCase()}`
-        : `${name} carries ${profile.teamAbbrev}'s ${highlight.title.toLowerCase()}`,
+        ? `${name} leads ${teamAbbrev} in ${highlight.title.toLowerCase()}`
+        : `${name} carries ${teamAbbrev}'s ${highlight.title.toLowerCase()}`,
     message:
       share != null
-        ? `${name} owns ${share} of ${profile.teamAbbrev}'s ${highlight.title.toLowerCase()} (${highlight.playerDisplay}) — #${highlight.teamRank}/${highlight.teamRankedCount} on the club.`
-        : `${name} ranks #${highlight.teamRank}/${highlight.teamRankedCount} on ${profile.teamAbbrev} in ${highlight.title.toLowerCase()} (${highlight.playerDisplay}).`,
-    teamId: profile.teamId,
+        ? `${name} owns ${share} of ${teamAbbrev}'s ${highlight.title.toLowerCase()} (${highlight.playerDisplay}) — #${highlight.teamRank}/${highlight.teamRankedCount} on the club.`
+        : `${name} ranks #${highlight.teamRank}/${highlight.teamRankedCount} on ${teamAbbrev} in ${highlight.title.toLowerCase()} (${highlight.playerDisplay}).`,
+    teamId: liveTeamId || profile.teamId,
     playerId: profile.playerId,
     statId: highlight.statId,
   });

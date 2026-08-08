@@ -124,4 +124,40 @@ describe("appendHitsToPlayerBipStore", () => {
     expect(second.hitsAdded).toBe(0);
     expect(loadPlayerBipDetail(2026, 545361)?.bipCount).toBe(1);
   });
+
+  it("uses the most recent club after a mid-season trade, not the modal pre-deadline team", () => {
+    const venueId = 3;
+    const earlyHits = Array.from({ length: 5 }, (_, i) =>
+      makeHit({
+        hitKey: `900010-${i}`,
+        batterId: 545361,
+        batterName: "Trade Batter",
+        atBatIndex: i + 1,
+        gamePk: 900010,
+        gameDate: "2026-06-01",
+        halfInning: "top",
+        awayAbbrev: "SEA",
+        homeAbbrev: "BOS",
+      }),
+    );
+    const postTrade = makeHit({
+      hitKey: "900020-1",
+      batterId: 545361,
+      batterName: "Trade Batter",
+      atBatIndex: 1,
+      gamePk: 900020,
+      gameDate: "2026-08-01",
+      halfInning: "top",
+      awayAbbrev: "NYY",
+      homeAbbrev: "BOS",
+    });
+
+    appendHitsToPlayerBipStore(2026, venueId, earlyHits);
+    appendHitsToPlayerBipStore(2026, venueId, [postTrade]);
+
+    const detail = loadPlayerBipDetail(2026, 545361);
+    expect(detail?.bipCount).toBe(6);
+    expect(detail?.teamAbbrev).toBe("NYY");
+    expect(detail?.teamId).toBe(147);
+  });
 });

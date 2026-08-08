@@ -775,3 +775,63 @@ describe("buildInsightMaps", () => {
     expect(halfInsights.get("5-Top")).toHaveLength(1);
   });
 });
+
+describe("generateNerdInsight traded players", () => {
+  const batterHighlight = {
+    playerId: 501,
+    name: "Trade Batter",
+    teamId: 136,
+    teamAbbrev: "SEA",
+    highlights: [
+      {
+        statId: "barrel-rate",
+        title: "Barrel Rate",
+        playerDisplay: "18.2%",
+        teamRank: 1,
+        teamRankedCount: 12,
+        shareOfTeam: 0.4,
+        playerActions: 40,
+      },
+    ],
+  };
+
+  it("skips batter callouts when the season card still has the old club", () => {
+    const insight = generateNerdInsight(
+      baseContext({
+        offenseTeamId: 147,
+        offenseAbbrev: "NYY",
+        awayTeamId: 147,
+        awayAbbrev: "NYY",
+        batterId: 501,
+        runnersInScoringPosition: false,
+        onSecond: false,
+      }),
+      null,
+      null,
+      { batter: batterHighlight, pitcher: null },
+    );
+
+    expect(insight).toBeNull();
+  });
+
+  it("uses the live club abbrev when the season card matches the current team", () => {
+    const insight = generateNerdInsight(
+      baseContext({
+        offenseTeamId: 136,
+        offenseAbbrev: "SEA",
+        awayTeamId: 136,
+        awayAbbrev: "SEA",
+        batterId: 501,
+        runnersInScoringPosition: false,
+        onSecond: false,
+      }),
+      null,
+      null,
+      { batter: batterHighlight, pitcher: null },
+    );
+
+    expect(insight?.statId).toBe("barrel-rate");
+    expect(insight?.title).toContain("SEA");
+    expect(insight?.teamId).toBe(136);
+  });
+});

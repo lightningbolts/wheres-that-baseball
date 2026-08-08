@@ -6,7 +6,7 @@ export type PlayerProfileRole = "batter" | "pitcher";
 export interface PlayerBipIndexEntry {
   playerId: number;
   name: string;
-  /** Most recent / modal team abbrev seen on BIP. */
+  /** Most recent team abbrev seen on BIP (post-trade club, not modal season volume). */
   teamAbbrev: string | null;
   teamId: number | null;
   bipCount: number;

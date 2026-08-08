@@ -12,6 +12,7 @@ import type {
   PlayerBipIndexEntry,
   PlayerVenueBip,
 } from "@/lib/mlb/playerBip";
+import { getTeamByAbbrev } from "@/lib/mlb/teams";
 
 function seasonDir(season: number): string {
   return join(process.cwd(), "data", "player-bip", String(season));
@@ -53,13 +54,37 @@ function normalizeHit(hit: VenueHit): VenueHit {
   });
 }
 
-function inferTeamAbbrev(hit: VenueHit, venueId: number): string | null {
-  const park = ballparkIndex.parks[String(venueId)];
-  if (!park) return hit.homeAbbrev ?? hit.awayAbbrev ?? null;
-  // Prefer the park's home team when the hit was at that park for that club.
-  if (hit.homeAbbrev === park.teamAbbrev) return park.teamAbbrev;
-  if (hit.awayAbbrev === park.teamAbbrev) return hit.awayAbbrev;
-  return hit.homeAbbrev ?? hit.awayAbbrev ?? park.teamAbbrev;
+/** Batting club for a BIP (offense). */
+function battingTeamAbbrev(hit: VenueHit): string | null {
+  if (hit.halfInning === "top") return hit.awayAbbrev || null;
+  if (hit.halfInning === "bottom") return hit.homeAbbrev || null;
+  return hit.awayAbbrev || hit.homeAbbrev || null;
+}
+
+function hitRecencyCmp(a: VenueHit, b: VenueHit): number {
+  return a.gameDate.localeCompare(b.gameDate) || a.atBatIndex - b.atBatIndex || a.gamePk - b.gamePk;
+}
+
+/**
+ * Current club = team from the most recent BIP (not modal season volume).
+ * Modal counts kept traded players on their pre-deadline team.
+ */
+function pickMostRecentTeam(
+  hits: VenueHit[],
+  teamForHit: (hit: VenueHit) => string | null = battingTeamAbbrev,
+): { teamAbbrev: string | null; teamId: number | null } {
+  if (hits.length === 0) return { teamAbbrev: null, teamId: null };
+
+  let latest = hits[0]!;
+  for (let i = 1; i < hits.length; i += 1) {
+    const hit = hits[i]!;
+    if (hitRecencyCmp(hit, latest) > 0) latest = hit;
+  }
+
+  const teamAbbrev = teamForHit(latest);
+  if (!teamAbbrev) return { teamAbbrev: null, teamId: null };
+  const team = getTeamByAbbrev(teamAbbrev);
+  return { teamAbbrev: team?.abbrev ?? teamAbbrev, teamId: team?.id ?? null };
 }
 
 function mergeHitsByKey(existing: VenueHit[], incoming: VenueHit[]): VenueHit[] {
@@ -73,42 +98,11 @@ function mergeHitsByKey(existing: VenueHit[], incoming: VenueHit[]): VenueHit[] 
   return [...byKey.values()];
 }
 
-function pickModalTeam(
-  teamCounts: Map<string, number>,
-  teamIdCounts: Map<number, number>,
-): { teamAbbrev: string | null; teamId: number | null } {
-  let topTeamAbbrev: string | null = null;
-  let topTeamCount = 0;
-  for (const [abbrev, count] of teamCounts) {
-    if (count > topTeamCount) {
-      topTeamCount = count;
-      topTeamAbbrev = abbrev;
-    }
-  }
-
-  let topTeamId: number | null = null;
-  let topTeamIdCount = 0;
-  for (const [teamId, count] of teamIdCounts) {
-    if (count > topTeamIdCount) {
-      topTeamIdCount = count;
-      topTeamId = teamId;
-    }
-  }
-  if (topTeamId == null && topTeamAbbrev) {
-    const match = Object.values(ballparkIndex.parks).find((p) => p.teamAbbrev === topTeamAbbrev);
-    topTeamId = match?.teamId ?? null;
-  }
-
-  return { teamAbbrev: topTeamAbbrev, teamId: topTeamId };
-}
-
 function buildPlayerDetailFromVenues(
   season: number,
   playerId: number,
   name: string,
   byVenue: Map<number, VenueHit[]>,
-  teamCounts: Map<string, number>,
-  teamIdCounts: Map<number, number>,
   generatedAt: string,
 ): PlayerBipDetail {
   const parks: PlayerVenueBip[] = [];
@@ -133,7 +127,7 @@ function buildPlayerDetailFromVenues(
   }
 
   parks.sort((a, b) => b.stats.total - a.stats.total || a.venueName.localeCompare(b.venueName));
-  const { teamAbbrev, teamId } = pickModalTeam(teamCounts, teamIdCounts);
+  const { teamAbbrev, teamId } = pickMostRecentTeam(allHits);
 
   return {
     season,
@@ -147,32 +141,6 @@ function buildPlayerDetailFromVenues(
     generatedAt,
     source: "file",
   };
-}
-
-function recountTeamsFromParks(parks: PlayerVenueBip[]): {
-  teamCounts: Map<string, number>;
-  teamIdCounts: Map<number, number>;
-} {
-  const teamCounts = new Map<string, number>();
-  const teamIdCounts = new Map<number, number>();
-
-  for (const park of parks) {
-    for (const hit of park.hits) {
-      const teamAbbrev = inferTeamAbbrev(hit, park.venueId);
-      if (teamAbbrev) {
-        teamCounts.set(teamAbbrev, (teamCounts.get(teamAbbrev) ?? 0) + 1);
-      }
-      const parkMeta = ballparkIndex.parks[String(park.venueId)];
-      if (parkMeta) {
-        const battingAbbrev = hit.halfInning === "top" ? hit.awayAbbrev : hit.homeAbbrev;
-        if (battingAbbrev === parkMeta.teamAbbrev) {
-          teamIdCounts.set(parkMeta.teamId, (teamIdCounts.get(parkMeta.teamId) ?? 0) + 1);
-        }
-      }
-    }
-  }
-
-  return { teamCounts, teamIdCounts };
 }
 
 function upsertIndexEntry(season: number, entry: PlayerBipIndexEntry, generatedAt: string): void {
@@ -284,24 +252,11 @@ export function appendHitsToPlayerBipStore(
       existing?.name ||
       `Player ${playerId}`;
 
-    // Rebuild team tallies from the full merged set (simple + correct for modal team).
-    const parksForCount: PlayerVenueBip[] = [...byVenue.entries()].map(([vid, venueHits]) => ({
-      venueId: vid,
-      venueName: "",
-      teamAbbrev: "",
-      stats: computeGameHitStats(venueHits),
-      hits: venueHits,
-      chartHits: [],
-    }));
-    const { teamCounts, teamIdCounts } = recountTeamsFromParks(parksForCount);
-
     const detail = buildPlayerDetailFromVenues(
       season,
       playerId,
       name,
       byVenue,
-      teamCounts,
-      teamIdCounts,
       generatedAt,
     );
     writeJson(playerPath(season, playerId), detail);
@@ -336,8 +291,6 @@ export function rebuildPlayerBipStore(season: number): { playerCount: number; bi
     number,
     {
       name: string;
-      teamCounts: Map<string, number>;
-      teamIdCounts: Map<number, number>;
       byVenue: Map<number, VenueHit[]>;
     }
   >();
@@ -357,25 +310,11 @@ export function rebuildPlayerBipStore(season: number): { playerCount: number; bi
         if (!bucket) {
           bucket = {
             name: hit.batterName,
-            teamCounts: new Map(),
-            teamIdCounts: new Map(),
             byVenue: new Map(),
           };
           byPlayer.set(hit.batterId, bucket);
         } else if (hit.batterName) {
           bucket.name = hit.batterName;
-        }
-
-        const teamAbbrev = inferTeamAbbrev(hit, venueId);
-        if (teamAbbrev) {
-          bucket.teamCounts.set(teamAbbrev, (bucket.teamCounts.get(teamAbbrev) ?? 0) + 1);
-        }
-        const park = ballparkIndex.parks[String(venueId)];
-        if (park) {
-          const battingAbbrev = hit.halfInning === "top" ? hit.awayAbbrev : hit.homeAbbrev;
-          if (battingAbbrev === park.teamAbbrev) {
-            bucket.teamIdCounts.set(park.teamId, (bucket.teamIdCounts.get(park.teamId) ?? 0) + 1);
-          }
         }
 
         const list = bucket.byVenue.get(venueId) ?? [];
@@ -401,8 +340,6 @@ export function rebuildPlayerBipStore(season: number): { playerCount: number; bi
       playerId,
       bucket.name,
       bucket.byVenue,
-      bucket.teamCounts,
-      bucket.teamIdCounts,
       generatedAt,
     );
     bipCount += detail.bipCount;

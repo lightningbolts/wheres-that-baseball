@@ -67,6 +67,21 @@ export function createEmptyPlayerCounters(
   };
 }
 
+function playerHasPlayingTime(counters: Pick<PlayerNerdCounters, "plateAppearances" | "pitchesThrown">): boolean {
+  return counters.plateAppearances > 0 || counters.pitchesThrown > 0;
+}
+
+/** Keep display team on the club from the latest appearance (trade deadline). */
+function adoptPlayerTeam(
+  target: PlayerNerdCounters,
+  teamId: number,
+  teamAbbrev?: string,
+): void {
+  if (!teamId) return;
+  target.teamId = teamId;
+  target.teamAbbrev = teamAbbrev ?? getTeamById(teamId)?.abbrev ?? target.teamAbbrev;
+}
+
 export function ensurePlayerCounters(
   players: SeasonPlayerNerdCounters,
   playerId: number,
@@ -78,6 +93,8 @@ export function ensurePlayerCounters(
   const existing = players[key];
   if (existing) {
     if (name) existing.name = name;
+    // Mid-season trades: later games in the same extract/merge must win.
+    adoptPlayerTeam(existing, teamId, teamAbbrev);
     return existing;
   }
   const created = createEmptyPlayerCounters(playerId, name, teamId, teamAbbrev);
@@ -85,6 +102,11 @@ export function ensurePlayerCounters(
   return created;
 }
 
+/**
+ * Merge player season counters. Callers that fold per-game caches must merge in
+ * chronological order — each source with playing time updates `teamId`/`teamAbbrev`
+ * so traded players keep their current club, not the first team of the season.
+ */
 export function mergePlayerSeasonCounters(
   target: SeasonPlayerNerdCounters,
   source: SeasonPlayerNerdCounters,
@@ -103,9 +125,10 @@ export function mergePlayerSeasonCounters(
     }
     mergeTeamCounters(existing, src);
     if (src.name) existing.name = src.name;
-    if (src.plateAppearances > existing.plateAppearances) {
-      existing.teamId = src.teamId;
-      existing.teamAbbrev = src.teamAbbrev;
+    // Prefer the team from this slice when it has playing time. (Previously compared
+    // src PA to the already-merged total, which never updated after the first game.)
+    if (playerHasPlayingTime(src)) {
+      adoptPlayerTeam(existing, src.teamId, src.teamAbbrev);
     }
   }
 }

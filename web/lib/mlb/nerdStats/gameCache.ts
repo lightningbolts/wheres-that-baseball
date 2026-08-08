@@ -81,7 +81,11 @@ export function mergePerGamePlayerCaches(
   entries: PerGameNerdCacheEntry[],
 ): SeasonPlayerNerdCounters {
   const players: SeasonPlayerNerdCounters = {};
-  for (const entry of entries) {
+  // Chronological order so mergePlayerSeasonCounters adopts the latest club after trades.
+  const sorted = [...entries].sort(
+    (a, b) => a.gameDate.localeCompare(b.gameDate) || a.gamePk - b.gamePk,
+  );
+  for (const entry of sorted) {
     if (entry.players) mergePlayerSeasonCounters(players, entry.players);
   }
   return players;

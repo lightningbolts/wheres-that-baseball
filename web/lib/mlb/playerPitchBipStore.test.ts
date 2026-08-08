@@ -127,6 +127,47 @@ describe("appendHitsToPlayerPitchBipStore", () => {
     expect(result.playersUpdated).toBe(0);
     expect(loadPlayerPitchBipIndex(2026)).toBeNull();
   });
+
+  it("uses the most recent club after a mid-season trade, not the modal pre-deadline team", () => {
+    const venueId = 3;
+    const earlyHits = Array.from({ length: 5 }, (_, i) =>
+      makeHit({
+        hitKey: `900010-${i}`,
+        batterId: 545361,
+        batterName: "Batter",
+        pitcherId: 543037,
+        pitcherName: "Trade Pitcher",
+        atBatIndex: i + 1,
+        gamePk: 900010,
+        gameDate: "2026-06-01",
+        // Top half → pitching team is home
+        halfInning: "top",
+        awayAbbrev: "NYY",
+        homeAbbrev: "SEA",
+      }),
+    );
+    const postTrade = makeHit({
+      hitKey: "900020-1",
+      batterId: 545361,
+      batterName: "Batter",
+      pitcherId: 543037,
+      pitcherName: "Trade Pitcher",
+      atBatIndex: 1,
+      gamePk: 900020,
+      gameDate: "2026-08-01",
+      halfInning: "top",
+      awayAbbrev: "BOS",
+      homeAbbrev: "NYY",
+    });
+
+    appendHitsToPlayerPitchBipStore(2026, venueId, earlyHits);
+    appendHitsToPlayerPitchBipStore(2026, venueId, [postTrade]);
+
+    const detail = loadPlayerPitchBipDetail(2026, 543037);
+    expect(detail?.bipCount).toBe(6);
+    expect(detail?.teamAbbrev).toBe("NYY");
+    expect(detail?.teamId).toBe(147);
+  });
 });
 
 describe("mergePlayerSearchIndexes", () => {
