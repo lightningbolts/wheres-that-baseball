@@ -144,7 +144,7 @@ async function fetchPitcherSeasonStats(
   url.searchParams.set("personIds", unique.join(","));
   url.searchParams.set("hydrate", "stats(group=pitching,type=season)");
 
-  const response = await fetch(url.toString(), { cache: "no-store" });
+  const response = await fetch(url.toString(), { next: { revalidate: 30 } });
   if (!response.ok) return new Map();
 
   const data = (await response.json()) as {

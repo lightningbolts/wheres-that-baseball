@@ -1,6 +1,8 @@
 import { parseBoxScore } from "@/lib/mlb/boxScore";
 import { wrapGameStateForStorage, type StoredGameState } from "@/lib/games/gameStorage";
 import { buildCardPitchersFromBoxScore } from "@/lib/mlb/cardPitchers";
+import { recordFetchMetric } from "@/lib/mlb/fetchMetrics";
+import { mlbLiveFeedUrl } from "@/lib/mlb/liveFeedEndpoints";
 import {
   computeAbsChallengesRemaining,
   countAbsChallengesUsedFromPlays,
@@ -67,8 +69,6 @@ export interface PlayByPlayParseState {
 }
 
 type PitchEventRaw = NonNullable<AllPlayRaw["playEvents"]>[number];
-
-const MLB_FEED_BASE = "https://statsapi.mlb.com/api/v1.1";
 
 const HIT_EVENTS = new Set(["Single", "Double", "Triple", "Home Run"]);
 
@@ -1957,21 +1957,104 @@ export function liveStateFingerprint(state: LiveGameState): string {
   ].join("|");
 }
 
+interface BrowserFeedCacheEntry {
+  feed: MLBLiveFeedResponse;
+  etag: string | null;
+}
+
+const browserFeedByGame = new Map<number, BrowserFeedCacheEntry>();
+
+/** After MLB CORS/network failure, wait this long before retrying direct fetch. */
+export const MLB_DIRECT_FALLBACK_COOLDOWN_MS = 30_000;
+
+let mlbDirectBlockedUntil = 0;
+
+export function isMlbDirectBlocked(): boolean {
+  return Date.now() < mlbDirectBlockedUntil;
+}
+
+export function resetMlbDirectFallbackForTest(): void {
+  mlbDirectBlockedUntil = 0;
+}
+
+export function resetBrowserLiveFeedCacheForTest(): void {
+  browserFeedByGame.clear();
+  mlbDirectBlockedUntil = 0;
+}
+
+function markMlbDirectBlocked(): void {
+  mlbDirectBlockedUntil = Date.now() + MLB_DIRECT_FALLBACK_COOLDOWN_MS;
+}
+
+function isAbortError(error: unknown, signal?: AbortSignal): boolean {
+  if (signal?.aborted) return true;
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
 /** Browser-side MLB live feed fetch (CORS-enabled, skips the Next.js proxy hop). */
 export async function fetchMLBLiveFeed(
   gamePk: number,
   signal?: AbortSignal,
 ): Promise<MLBLiveFeedResponse> {
-  const response = await fetch(`${MLB_FEED_BASE}/game/${gamePk}/feed/live`, {
+  const headers: HeadersInit = { Accept: "application/json" };
+  const prior = browserFeedByGame.get(gamePk);
+  if (prior?.etag) {
+    headers["If-None-Match"] = prior.etag;
+  }
+
+  const started = performance.now();
+  const response = await fetch(mlbLiveFeedUrl(gamePk), {
     cache: "no-store",
     signal,
+    headers,
   });
+  const latencyMs = performance.now() - started;
+
+  if (response.status === 304) {
+    if (!prior) {
+      throw new Error(`MLB live feed 304 without cache for gamePk=${gamePk}`);
+    }
+    recordFetchMetric({
+      gamePk,
+      source: "browser",
+      latencyMs,
+      payloadBytes: 0,
+      status: 304,
+      notModified: true,
+      at: new Date().toISOString(),
+    });
+    return prior.feed;
+  }
 
   if (!response.ok) {
+    recordFetchMetric({
+      gamePk,
+      source: "browser",
+      latencyMs,
+      payloadBytes: 0,
+      status: response.status,
+      notModified: false,
+      at: new Date().toISOString(),
+    });
     throw new Error(`MLB live feed failed: ${response.status}`);
   }
 
-  return (await response.json()) as MLBLiveFeedResponse;
+  const text = await response.text();
+  const feed = JSON.parse(text) as MLBLiveFeedResponse;
+  browserFeedByGame.set(gamePk, {
+    feed,
+    etag: response.headers.get("etag"),
+  });
+  recordFetchMetric({
+    gamePk,
+    source: "browser",
+    latencyMs,
+    payloadBytes: text.length,
+    status: response.status,
+    notModified: false,
+    at: new Date().toISOString(),
+  });
+  return feed;
 }
 
 export interface LivePlayChunk {
@@ -1986,8 +2069,8 @@ export interface LiveSnapshotWithPlays extends LiveFeedSnapshot {
 }
 
 /**
- * Fetch a compact snapshot + optional incremental play chunk in a single request.
- * Pass `playsFrom` to include new plays since that index (one round-trip).
+ * Fetch a compact snapshot + optional incremental play chunk via the Next.js
+ * proxy. Last-resort CORS fallback only — not the live hot path.
  */
 export async function fetchLiveSnapshotWithPlays(
   gamePk: number,
@@ -2008,12 +2091,32 @@ export async function fetchLiveSnapshotWithPlays(
   return (await response.json()) as LiveSnapshotWithPlays;
 }
 
-/** Small live snapshot for fast pitch polling (served from cached MLB feed). */
+/**
+ * Direct MLB first; Netlify snapshot only after CORS/network failure (cooldown).
+ * Live coordinator and slate cards must use this, not the proxy helpers.
+ */
+export async function fetchLiveSnapshotPreferringMlb(
+  gamePk: number,
+  playsFrom: number | null,
+  signal?: AbortSignal,
+): Promise<LiveSnapshotWithPlays> {
+  if (!isMlbDirectBlocked()) {
+    try {
+      return await fetchDirectSnapshot(gamePk, playsFrom, signal);
+    } catch (error) {
+      if (isAbortError(error, signal)) throw error;
+      markMlbDirectBlocked();
+    }
+  }
+  return fetchLiveSnapshotWithPlays(gamePk, playsFrom, signal);
+}
+
+/** Small live snapshot for slate cards — MLB-direct with proxy fallback. */
 export async function fetchLiveSnapshot(
   gamePk: number,
   signal?: AbortSignal,
 ): Promise<LiveFeedSnapshot> {
-  return fetchLiveSnapshotWithPlays(gamePk, null, signal);
+  return fetchLiveSnapshotPreferringMlb(gamePk, null, signal);
 }
 
 /** Fetch only new raw plays since `from` (incremental play-by-play). */
@@ -2045,6 +2148,7 @@ export async function fetchDirectSnapshot(
 ): Promise<LiveSnapshotWithPlays> {
   const feed = await fetchMLBLiveFeed(gamePk, signal);
   const snapshot = buildLiveFeedSnapshot(gamePk, feed);
+  const boxScore = parseBoxScore(gamePk, feed);
 
   if (playsFrom != null) {
     const allPlays = feed.liveData.plays.allPlays ?? [];
@@ -2052,11 +2156,12 @@ export async function fetchDirectSnapshot(
     const merged = mergeCurrentPlayTail(allPlays, currentPlay, playsFrom);
     return {
       ...snapshot,
+      boxScore,
       plays: { from: playsFrom, total: allPlays.length, plays: merged },
     };
   }
 
-  return snapshot;
+  return { ...snapshot, boxScore };
 }
 
 /** Build a compact snapshot from a full MLB feed. */
@@ -2178,15 +2283,7 @@ export async function fetchClientLiveGameState(
 }
 
 export async function fetchGameFeed(gamePk: number): Promise<GameFeed> {
-  const response = await fetch(`${MLB_FEED_BASE}/game/${gamePk}/feed/live`, {
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error(`MLB live feed failed: ${response.status}`);
-  }
-
-  const feed = (await response.json()) as MLBLiveFeedResponse;
+  const feed = await fetchMLBLiveFeed(gamePk);
   return {
     gameState: parseLiveFeed(gamePk, feed),
     boxScore: parseBoxScore(gamePk, feed),

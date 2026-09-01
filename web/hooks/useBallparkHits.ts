@@ -56,9 +56,7 @@ export function useBallparkHitsSummary(season: number): UseBallparkHitsSummaryRe
 
     try {
       const params = new URLSearchParams({ season: String(season) });
-      const response = await fetch(`/api/ballparks/hits?${params.toString()}`, {
-        cache: "no-store",
-      });
+      const response = await fetch(`/api/ballparks/hits?${params.toString()}`);
       const body = (await response.json()) as BallparkHitsAggregate | { error?: string };
 
       if (!response.ok) {
@@ -112,9 +110,7 @@ export function useBallparkHitsDetail(
         limit: String(pageSizeRef.current),
         offset: "0",
       });
-      const response = await fetch(`/api/ballparks/hits?${params.toString()}`, {
-        cache: "no-store",
-      });
+      const response = await fetch(`/api/ballparks/hits?${params.toString()}`);
       const body = (await response.json()) as BallparkHitsDetail | { error?: string };
 
       if (!response.ok) {
@@ -148,9 +144,7 @@ export function useBallparkHitsDetail(
         limit: String(pageSizeRef.current),
         offset: String(data.hits.length),
       });
-      const response = await fetch(`/api/ballparks/hits?${params.toString()}`, {
-        cache: "no-store",
-      });
+      const response = await fetch(`/api/ballparks/hits?${params.toString()}`);
       const body = (await response.json()) as {
         hits: VenueHit[];
         hitsTotal: number;
@@ -190,9 +184,7 @@ export function useBallparkHitsDetail(
         venueId: String(venueId),
         hitKey,
       });
-      const response = await fetch(`/api/ballparks/hits?${params.toString()}`, {
-        cache: "no-store",
-      });
+      const response = await fetch(`/api/ballparks/hits?${params.toString()}`);
       const body = (await response.json()) as { hit?: VenueHit; error?: string };
       if (!response.ok || !body.hit) return null;
 

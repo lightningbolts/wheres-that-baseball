@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { fetchLiveSnapshot } from "@/lib/mlb/liveFeed";
-import type { LiveFeedSnapshot } from "@/lib/mlb/liveFeed";
+import { fetchLiveSnapshotPreferringMlb } from "@/lib/mlb/liveFeed";
+import type { LiveSnapshotWithPlays } from "@/lib/mlb/liveFeed";
 import type { CardPitcher } from "@/types/mlb";
+import type { GameBoxScore } from "@/types/mlb-boxscore";
 
-const CARD_POLL_MS = 5_000;
+export const CARD_POLL_MS = 5_000;
 
 export interface GameCardSnapshot {
   balls: number;
@@ -21,9 +22,10 @@ export interface GameCardSnapshot {
   homeRuns: number;
   awayPitcher: CardPitcher | null;
   homePitcher: CardPitcher | null;
+  boxScore: GameBoxScore | null;
 }
 
-function snapshotToCardState(snapshot: LiveFeedSnapshot): GameCardSnapshot {
+function snapshotToCardState(snapshot: LiveSnapshotWithPlays): GameCardSnapshot {
   const play = snapshot.currentPlay;
   const linescore = snapshot.linescore;
   const offense = linescore.offense ?? {};
@@ -45,16 +47,17 @@ function snapshotToCardState(snapshot: LiveFeedSnapshot): GameCardSnapshot {
     homeRuns: linescore.teams?.home?.runs ?? 0,
     awayPitcher: snapshot.awayPitcher,
     homePitcher: snapshot.homePitcher,
+    boxScore: snapshot.boxScore ?? null,
   };
 }
 
-/** Lightweight live snapshot for slate cards — only polls when enabled. */
+/** Lightweight live snapshot for slate cards — MLB-direct, only polls when enabled. */
 export function useGameCardSnapshot(gamePk: number, enabled: boolean) {
   const [state, setState] = useState<GameCardSnapshot | null>(null);
 
   const poll = useCallback(async () => {
     try {
-      const snapshot = await fetchLiveSnapshot(gamePk);
+      const snapshot = await fetchLiveSnapshotPreferringMlb(gamePk, null);
       setState(snapshotToCardState(snapshot));
     } catch {
       // keep stale card state
@@ -68,8 +71,20 @@ export function useGameCardSnapshot(gamePk: number, enabled: boolean) {
     }
 
     void poll();
-    const interval = window.setInterval(() => void poll(), CARD_POLL_MS);
-    return () => window.clearInterval(interval);
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "hidden") return;
+      void poll();
+    }, CARD_POLL_MS);
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void poll();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [enabled, poll]);
 
   return state;

@@ -49,9 +49,7 @@ export function useNerdStatHistory(
         season: String(season),
         statId,
       });
-      const response = await fetch(`/api/nerd-stats/history?${params.toString()}`, {
-        cache: "no-store",
-      });
+      const response = await fetch(`/api/nerd-stats/history?${params.toString()}`);
       const body = (await response.json()) as NerdStatHistory | { error?: string; available?: boolean };
       if (!response.ok) {
         if (response.status === 404) {

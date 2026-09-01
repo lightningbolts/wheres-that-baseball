@@ -60,7 +60,7 @@ async function fetchScheduleJson(
       url.searchParams.set(key, value);
     }
 
-    const response = await fetch(url.toString(), { cache: "no-store" });
+    const response = await fetch(url.toString(), { next: { revalidate: 30 } });
     if (!response.ok) {
       throw new Error(`MLB schedule failed: ${response.status} ${response.statusText}`);
     }

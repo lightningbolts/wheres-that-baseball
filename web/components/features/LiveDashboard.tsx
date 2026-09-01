@@ -41,6 +41,7 @@ import { isHalfInningBreak } from "@/lib/mlb/lineup";
 import { isPlayByPlayAtBat } from "@/lib/mlb/liveFeed";
 import { allPitchesThroughPoint } from "@/lib/mlb/allGamePitches";
 import { cn } from "@/lib/utils";
+import { fetchSlateGames, getBrowserTimeZone } from "@/lib/mlb/schedule";
 import { LIVE_GAME_STATUSES, type SlateGame } from "@/types/mlb";
 
 interface LiveGameDashboardProps {
@@ -646,4 +647,43 @@ export function LiveGameDashboard({ game }: LiveGameDashboardProps) {
       </div>
     </div>
   );
+}
+
+/** Resolves the slate game in the browser so the live page is not force-dynamic. */
+export function LiveGamePageClient({ gamePk }: { gamePk: number }) {
+  const [game, setGame] = useState<SlateGame | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchSlateGames(undefined, getBrowserTimeZone())
+      .then((games) => {
+        if (cancelled) return;
+        setGame(games.find((entry) => entry.gamePk === gamePk) ?? null);
+        setIsLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setGame(null);
+        setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [gamePk]);
+
+  if (isLoading) {
+    return (
+      <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-background text-foreground">
+        <AppNav />
+        <DashboardSkeleton />
+      </div>
+    );
+  }
+
+  if (!game) {
+    return <NoGamesState />;
+  }
+
+  return <LiveGameDashboard game={game} />;
 }

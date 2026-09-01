@@ -1,7 +1,7 @@
 import { fetchSlateGames } from "@/lib/mlb/schedule";
 import { LiveGameSlate } from "@/components/features/LiveGameSlate";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 30;
 
 export default async function HomePage() {
   let games: Awaited<ReturnType<typeof fetchSlateGames>> = [];

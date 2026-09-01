@@ -1,6 +1,11 @@
 import type { AllPlayRaw, MLBLiveFeedResponse } from "@/types/mlb-live";
 
-/** Active at-bat — fast pitch updates. */
+/**
+ * Live pitch polling must go browser → statsapi.mlb.com (or Gameday WS), never
+ * through a Netlify function. Proxying the hot path exhausts free-tier quota
+ * and adds a round trip vs MLB Gameday. Keep POLL_ACTIVE_MS at 100ms to match
+ * or beat Gameday when the websocket is quiet.
+ */
 export const POLL_ACTIVE_MS = 100;
 
 /** Live game between plays / pitching changes. */

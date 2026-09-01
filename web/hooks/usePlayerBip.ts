@@ -52,7 +52,7 @@ export function usePlayerSearch(season = CURRENT_SEASON) {
           limit: "12",
         });
         const response = await fetch(`/api/players/search?${params.toString()}`, {
-          cache: "no-store",
+          cache: "default",
         });
         const body = (await response.json()) as {
           players?: PlayerBipIndexEntry[];
@@ -114,7 +114,7 @@ function usePlayerBipEndpoint(
     try {
       const params = new URLSearchParams({ season: String(season) });
       const response = await fetch(`/api/players/${playerId}/${endpoint}?${params.toString()}`, {
-        cache: "no-store",
+        cache: "default",
       });
       if (response.status === 404) {
         if (requestId !== requestIdRef.current) return;
@@ -154,7 +154,7 @@ function usePlayerBipEndpoint(
         hitKey,
       });
       const response = await fetch(`/api/players/${playerId}/${endpoint}?${params.toString()}`, {
-        cache: "no-store",
+        cache: "default",
       });
       if (!response.ok) return null;
       const body = (await response.json()) as { hit?: VenueHit };
@@ -208,7 +208,7 @@ export function usePlayerPitchingLine(playerId: number | null, season = CURRENT_
       try {
         const params = new URLSearchParams({ season: String(season) });
         const response = await fetch(`/api/players/${playerId}/pitching?${params.toString()}`, {
-          cache: "no-store",
+          cache: "default",
         });
         const body = (await response.json()) as PlayerPitchingResponse | { error?: string };
         if (!response.ok) {
@@ -261,7 +261,7 @@ export function usePlayerHittingLine(playerId: number | null, season = CURRENT_S
       try {
         const params = new URLSearchParams({ season: String(season) });
         const response = await fetch(`/api/players/${playerId}/hitting?${params.toString()}`, {
-          cache: "no-store",
+          cache: "default",
         });
         const body = (await response.json()) as PlayerHittingResponse | { error?: string };
         if (!response.ok) {
@@ -314,7 +314,7 @@ export function usePlayerNerd(playerId: number | null, season = CURRENT_SEASON) 
       try {
         const params = new URLSearchParams({ season: String(season) });
         const response = await fetch(`/api/players/${playerId}/nerd?${params.toString()}`, {
-          cache: "no-store",
+          cache: "default",
         });
         const body = (await response.json()) as PlayerNerdCard | { error?: string };
         if (!response.ok) {

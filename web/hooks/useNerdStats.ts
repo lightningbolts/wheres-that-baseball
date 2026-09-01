@@ -32,7 +32,7 @@ interface UseTeamNerdCardResult {
 }
 
 async function fetchNerdStats<T extends object>(params: URLSearchParams): Promise<T> {
-  const response = await fetch(`/api/nerd-stats?${params.toString()}`, { cache: "no-store" });
+  const response = await fetch(`/api/nerd-stats?${params.toString()}`);
   const body = (await response.json()) as T | { error?: string };
   if (!response.ok) {
     throw new Error("error" in body && body.error ? body.error : "Failed to load nerd stats");

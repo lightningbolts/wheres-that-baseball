@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { mergeAllPlaysForTest } from "@/lib/mlb/liveFeedCoordinator";
 import {
+  MAX_IN_FLIGHT,
   POLL_ACTIVE_MS,
   POLL_BREAK_MS,
   POLL_HIDDEN_MS,
@@ -82,5 +83,16 @@ describe("mergeAllPlaysForTest", () => {
     const second = [{ about: { atBatIndex: 1 } }];
     const merged = mergeAllPlaysForTest(first, 1, second, 2);
     expect(merged).toHaveLength(2);
+  });
+});
+
+describe("Gameday-speed constants", () => {
+  it("keeps active at-bat polling at 100ms with overlapping in-flight fetches", () => {
+    expect(POLL_ACTIVE_MS).toBe(100);
+    expect(MAX_IN_FLIGHT).toBe(2);
+    expect(POLL_IDLE_MS).toBe(500);
+    expect(POLL_BREAK_MS).toBe(800);
+    expect(POLL_HIDDEN_MS).toBe(2_000);
+    expect(POLL_REALTIME_FALLBACK_MS).toBe(3_000);
   });
 });

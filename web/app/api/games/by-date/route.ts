@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
 
+import { withNetlifyQueryVary } from "@/lib/apiCacheHeaders";
 import { scheduleBackgroundSlateSync } from "@/lib/games/backgroundSync";
 import {
   isLiveScheduleDate,
   loadGamesForDate,
 } from "@/lib/games/scheduleSync";
 
-export const dynamic = "force-dynamic";
+const DATE_CACHE_HEADERS = withNetlifyQueryVary(
+  { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=30" },
+  ["date", "tz"],
+);
 
 /** Today's slate — MLB schedule is source of truth for scores/status. */
 export async function GET(request: Request) {
@@ -30,7 +34,7 @@ export async function GET(request: Request) {
 
     void scheduleBackgroundSlateSync(date, games, timeZone);
 
-    return NextResponse.json({ games, source: "mlb" });
+    return NextResponse.json({ games, source: "mlb" }, { headers: DATE_CACHE_HEADERS });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load games";
     return NextResponse.json({ error: message, games: [] }, { status: 502 });

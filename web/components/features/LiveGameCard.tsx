@@ -8,6 +8,7 @@ import { CompactLineScore } from "@/components/features/CompactLineScore";
 import { PitcherDuel } from "@/components/features/PitcherDuel";
 import { TeamLogo } from "@/components/ui/TeamLogo";
 import { useGameCardSnapshot } from "@/hooks/useGameCardSnapshot";
+import { fetchLiveSnapshotPreferringMlb } from "@/lib/mlb/liveFeed";
 import { cn } from "@/lib/utils";
 import { LIVE_GAME_STATUSES, type SlateGame } from "@/types/mlb";
 import type { GameBoxScore } from "@/types/mlb-boxscore";
@@ -77,12 +78,8 @@ export function LiveGameCard({ game }: LiveGameCardProps) {
     if (boxScore || boxLoading) return;
     setBoxLoading(true);
     try {
-      const response = await fetch(`/api/games/${game.gamePk}/boxscore?live=1`, {
-        cache: "no-store",
-      });
-      if (!response.ok) return;
-      const data = (await response.json()) as { boxScore: GameBoxScore };
-      setBoxScore(data.boxScore);
+      const snapshot = await fetchLiveSnapshotPreferringMlb(game.gamePk, null);
+      if (snapshot.boxScore) setBoxScore(snapshot.boxScore);
     } catch {
       // box score panel is optional
     } finally {
@@ -91,10 +88,14 @@ export function LiveGameCard({ game }: LiveGameCardProps) {
   }, [boxScore, boxLoading, game.gamePk]);
 
   useEffect(() => {
-    if (isLive || isFinal) {
+    if (isFinal && !isLive) {
       void fetchBoxScore();
     }
   }, [fetchBoxScore, isFinal, isLive]);
+
+  useEffect(() => {
+    if (liveState?.boxScore) setBoxScore(liveState.boxScore);
+  }, [liveState?.boxScore]);
 
   const handleMouseEnter = () => {
     setHovered(true);

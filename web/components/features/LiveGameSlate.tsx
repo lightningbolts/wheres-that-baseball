@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AppNav } from "@/components/features/AppNav";
 import { LiveGameCard } from "@/components/features/LiveGameCard";
 import { StatOfTheDayBanner } from "@/components/features/StatOfTheDayBanner";
-import { getBrowserTimeZone } from "@/lib/mlb/schedule";
+import { fetchSlateGames, getBrowserTimeZone } from "@/lib/mlb/schedule";
 import type { SlateGame } from "@/types/mlb";
 
 const SLATE_REFRESH_MS = 10_000;
@@ -32,11 +32,8 @@ export function LiveGameSlate({ initialGames, scheduleError }: LiveGameSlateProp
 
   const refreshGames = useCallback(async () => {
     try {
-      const params = new URLSearchParams({ tz: getBrowserTimeZone() });
-      const response = await fetch(`/api/games?${params.toString()}`, { cache: "no-store" });
-      if (!response.ok) return;
-      const data = (await response.json()) as { games: SlateGame[] };
-      setGames(data.games);
+      const next = await fetchSlateGames(undefined, getBrowserTimeZone());
+      setGames(next);
     } catch {
       // keep stale slate
     }
@@ -44,8 +41,20 @@ export function LiveGameSlate({ initialGames, scheduleError }: LiveGameSlateProp
 
   useEffect(() => {
     void refreshGames();
-    const interval = setInterval(() => void refreshGames(), SLATE_REFRESH_MS);
-    return () => clearInterval(interval);
+    const interval = setInterval(() => {
+      if (document.visibilityState === "hidden") return;
+      void refreshGames();
+    }, SLATE_REFRESH_MS);
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void refreshGames();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [refreshGames]);
 
   return (

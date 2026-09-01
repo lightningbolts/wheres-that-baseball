@@ -1,7 +1,5 @@
 import { GameHistoryBrowser } from "@/components/features/GameHistoryBrowser";
 
-export const dynamic = "force-dynamic";
-
 interface GamesPageProps {
   searchParams?: Promise<{
     date?: string;

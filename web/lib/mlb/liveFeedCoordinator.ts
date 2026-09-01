@@ -2,11 +2,13 @@ import { recordFetchMetric } from "@/lib/mlb/fetchMetrics";
 import {
   effectivePollIntervalMs,
   MAX_IN_FLIGHT,
+  POLL_REALTIME_FALLBACK_MS,
 } from "@/lib/mlb/pollIntervals";
 import {
   buildLiveFeedSnapshot,
   createPlayByPlayParseState,
-  fetchLiveSnapshotWithPlays,
+  fetchLiveSnapshotPreferringMlb,
+  isMlbDirectBlocked,
   liveStateFingerprint,
   mergeCurrentPlayTail,
   parseLiveFeedSnapshot,
@@ -162,7 +164,7 @@ function applyFeedToInstance(
     snapshot?: LiveFeedSnapshot;
     boxScore?: GameBoxScore | null;
     catchingUp: boolean;
-    source: "snapshot" | "realtime";
+    source: "snapshot" | "realtime" | "browser";
     latencyMs?: number;
   },
 ): void {
@@ -237,7 +239,7 @@ async function pollOnce(instance: CoordinatorInstance): Promise<void> {
   const started = performance.now();
 
   try {
-    const snapshot = await fetchLiveSnapshotWithPlays(
+    const snapshot = await fetchLiveSnapshotPreferringMlb(
       instance.gamePk,
       instance.state.gameState ? playsFrom : 0,
     );
@@ -253,7 +255,7 @@ async function pollOnce(instance: CoordinatorInstance): Promise<void> {
         snapshot.plays.total,
       );
     } else if (snapshot.allPlaysCount > instance.localAllPlays.length) {
-      const refetch = await fetchLiveSnapshotWithPlays(instance.gamePk, 0);
+      const refetch = await fetchLiveSnapshotPreferringMlb(instance.gamePk, 0);
       if (refetch.plays) {
         allPlays = mergeAllPlays(
           [],
@@ -271,7 +273,7 @@ async function pollOnce(instance: CoordinatorInstance): Promise<void> {
       snapshot,
       boxScore: snapshot.boxScore ?? null,
       catchingUp,
-      source: "snapshot",
+      source: isMlbDirectBlocked() ? "snapshot" : "browser",
       latencyMs: performance.now() - started,
     });
   } catch (err) {
@@ -300,10 +302,13 @@ function scheduleNextPoll(instance: CoordinatorInstance): void {
     hidden,
     instance.realtimeConnected || instance.gamedayWsConnected,
   );
+  const nextDelay = isMlbDirectBlocked()
+    ? Math.max(delay, POLL_REALTIME_FALLBACK_MS)
+    : delay;
 
   instance.pollTimer = setTimeout(() => {
     void runPollCycle(instance);
-  }, delay);
+  }, nextDelay);
 }
 
 async function runPollCycle(instance: CoordinatorInstance): Promise<void> {

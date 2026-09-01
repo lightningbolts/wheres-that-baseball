@@ -39,7 +39,6 @@ async function fetchTeamNerdCard(teamId: number, season: number): Promise<TeamNe
   try {
     const response = await fetch(
       `/api/nerd-stats?${new URLSearchParams({ season: String(season), teamId: String(teamId) })}`,
-      { cache: "no-store" },
     );
     if (!response.ok) return null;
     return (await response.json()) as TeamNerdCard;
@@ -58,7 +57,6 @@ async function fetchPlayerNerdProfile(
   try {
     const response = await fetch(
       `/api/players/${playerId}/nerd?${new URLSearchParams({ season: String(season) })}`,
-      { cache: "no-store" },
     );
     if (!response.ok) return null;
     const card = (await response.json()) as PlayerNerdCard;

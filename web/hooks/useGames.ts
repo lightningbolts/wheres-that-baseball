@@ -83,9 +83,7 @@ export function useGamesByDate(date: string): UseGamesByDateResult {
       const result = isToday
         ? await (async () => {
             const params = new URLSearchParams({ date, tz: timeZone });
-            const response = await fetch(`/api/games/by-date?${params.toString()}`, {
-              cache: "no-store",
-            });
+            const response = await fetch(`/api/games/by-date?${params.toString()}`);
             if (!response.ok) {
               const body = (await response.json().catch(() => ({}))) as { error?: string };
               throw new Error(body.error ?? `Failed to load games (${response.status})`);
@@ -122,10 +120,19 @@ export function useGamesByDate(date: string): UseGamesByDateResult {
     if (!isToday) return;
 
     const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "hidden") return;
       void refetch();
     }, DATE_GAMES_POLL_MS);
 
-    return () => window.clearInterval(intervalId);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void refetch();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [isToday, refetch]);
 
   return { games, isLoading, error, refetch };
