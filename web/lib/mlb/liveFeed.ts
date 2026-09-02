@@ -2,16 +2,8 @@ import { parseBoxScore } from "@/lib/mlb/boxScore";
 import { wrapGameStateForStorage, type StoredGameState } from "@/lib/games/gameStorage";
 import { buildCardPitchersFromBoxScore } from "@/lib/mlb/cardPitchers";
 import { recordFetchMetric } from "@/lib/mlb/fetchMetrics";
-import {
-  applyJsonPatch,
-  parseMlbDiffPatchBody,
-  type JsonPatchOp,
-} from "@/lib/mlb/jsonPatch";
-import {
-  mlbLiveFeedDiffPatchUrl,
-  mlbLiveFeedTimestampsUrl,
-  mlbLiveFeedUrl,
-} from "@/lib/mlb/liveFeedEndpoints";
+import { applyJsonPatch, type JsonPatchOp } from "@/lib/mlb/jsonPatch";
+import { mlbLiveFeedUrl } from "@/lib/mlb/liveFeedEndpoints";
 import {
   computeAbsChallengesRemaining,
   countAbsChallengesUsedFromPlays,
@@ -2099,21 +2091,14 @@ async function fetchJsonUnknown(
   };
 }
 
-async function fetchLatestTimestamp(
-  gamePk: number,
-  signal?: AbortSignal,
-): Promise<string | null> {
-  const { body } = await fetchJsonUnknown(
-    mlbLiveFeedTimestampsUrl(gamePk),
-    gamePk,
-    signal,
-  );
-  if (!Array.isArray(body) || body.length === 0) return null;
-  const last = body[body.length - 1];
-  return typeof last === "string" && last.trim() ? last : null;
-}
-
-async function fetchFullLiveFeedFromMlb(
+/**
+ * Browser-side MLB live feed fetch (CORS-enabled, skips the Next.js proxy hop).
+ *
+ * Always hit `/feed/live` with ETag. `/timestamps` lags metaData.timeStamp, so
+ * gating on it skipped real pitches until a full reload. diffPatch often
+ * returns a full GUMBO anyway — an extra round trip for no win.
+ */
+export async function fetchMLBLiveFeed(
   gamePk: number,
   signal?: AbortSignal,
 ): Promise<MLBLiveFeedResponse> {
@@ -2140,72 +2125,6 @@ async function fetchFullLiveFeedFromMlb(
   const feed = body as MLBLiveFeedResponse;
   cacheBrowserFeed(gamePk, feed, etag);
   return feed;
-}
-
-async function fetchAndApplyDiffPatch(
-  gamePk: number,
-  prior: BrowserFeedCacheEntry,
-  latestStamp: string | null,
-  signal?: AbortSignal,
-): Promise<MLBLiveFeedResponse> {
-  const startTimecode = prior.timeStamp;
-  if (!startTimecode) {
-    return fetchFullLiveFeedFromMlb(gamePk, signal);
-  }
-
-  const { body } = await fetchJsonUnknown(
-    mlbLiveFeedDiffPatchUrl(gamePk, startTimecode),
-    gamePk,
-    signal,
-  );
-  const parsed = parseMlbDiffPatchBody(body);
-
-  if (parsed.kind === "empty") {
-    if (latestStamp) {
-      prior.feed.metaData = { ...prior.feed.metaData, timeStamp: latestStamp };
-      prior.timeStamp = latestStamp;
-    }
-    return prior.feed;
-  }
-
-  if (parsed.kind === "full") {
-    const feed = body as MLBLiveFeedResponse;
-    cacheBrowserFeed(gamePk, feed, prior.etag);
-    return feed;
-  }
-
-  const feed = applyJsonPatch(prior.feed, parsed.ops);
-  if (latestStamp && timeStampFromFeed(feed) == null) {
-    feed.metaData = { ...feed.metaData, timeStamp: latestStamp };
-  }
-  cacheBrowserFeed(gamePk, feed, prior.etag);
-  return feed;
-}
-
-/**
- * Browser-side MLB live feed fetch (CORS-enabled, skips the Next.js proxy hop).
- * First call hydrates the full GUMBO; later calls probe timestamps and apply
- * diffPatch when the stamp moves — so a new pitch is not a 1MB download.
- */
-export async function fetchMLBLiveFeed(
-  gamePk: number,
-  signal?: AbortSignal,
-): Promise<MLBLiveFeedResponse> {
-  const prior = browserFeedByGame.get(gamePk);
-  if (!prior?.feed || !prior.timeStamp) {
-    return fetchFullLiveFeedFromMlb(gamePk, signal);
-  }
-
-  try {
-    const latest = await fetchLatestTimestamp(gamePk, signal);
-    if (latest && latest === prior.timeStamp) {
-      return prior.feed;
-    }
-    return await fetchAndApplyDiffPatch(gamePk, prior, latest, signal);
-  } catch (error) {
-    if (isAbortError(error, signal)) throw error;
-    return fetchFullLiveFeedFromMlb(gamePk, signal);
-  }
 }
 
 export interface LivePlayChunk {

@@ -6,8 +6,8 @@
  * Keepalive: text "Gameday5"
  *
  * Payloads vary (JSON Patch diffs, `{diff:[...]}` wrappers, timecodes, or
- * empty pings). JSON Patch ops are applied locally; pings trigger a lean
- * timestamps/diffPatch refresh — never a full GUMBO download by themselves.
+ * empty pings). Any message triggers an ETag `/feed/live` refresh. Do not
+ * treat `/timestamps` as a change gate — it lags the live document.
  */
 
 import {

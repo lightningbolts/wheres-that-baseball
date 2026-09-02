@@ -71,7 +71,7 @@ describe("adaptivePollIntervalMs", () => {
     expect(adaptivePollIntervalMs(feed, false)).toBe(POLL_IDLE_MS);
   });
 
-  it("keeps 100ms during an active at-bat even when push is connected", () => {
+  it("keeps adaptive intervals even when push is connected", () => {
     const feed = feedStub({
       linescore: { inningState: "Top" },
       plays: playsWithCurrent({
@@ -84,7 +84,7 @@ describe("adaptivePollIntervalMs", () => {
     expect(effectivePollIntervalMs(null, false, true)).toBe(POLL_ACTIVE_MS);
   });
 
-  it("stretches idle/break to the safety-net interval when push is connected", () => {
+  it("does not stretch idle polling when push is connected", () => {
     const idle = feedStub({
       linescore: { inningState: "Top" },
       plays: playsWithCurrent({
@@ -93,7 +93,7 @@ describe("adaptivePollIntervalMs", () => {
         matchup: { batter: { id: 1, fullName: "B" }, pitcher: { id: 2, fullName: "P" } },
       }),
     });
-    expect(effectivePollIntervalMs(idle, false, true)).toBe(POLL_REALTIME_FALLBACK_MS);
+    expect(effectivePollIntervalMs(idle, false, true)).toBe(POLL_IDLE_MS);
     expect(effectivePollIntervalMs(idle, false, false)).toBe(POLL_IDLE_MS);
   });
 

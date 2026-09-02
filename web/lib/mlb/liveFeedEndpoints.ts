@@ -1,10 +1,10 @@
 /**
  * MLB live feed endpoints.
  *
- * GET /api/v1.1/game/{gamePk}/feed/live returns the full GUMBO document (~1MB
- * late in a game). A shallow `fields=` list does not populate nested
- * currentPlay (verified empty), so the browser hot path hydrates once then
- * polls timestamps + diffPatch — never a Netlify function.
+ * The live dashboard hydrates `GET /feed/live` with ETag. Shallow `fields=`
+ * strips nested currentPlay. `/timestamps` lags the live document (gating on
+ * it skipped pitches until reload). Keep those URL helpers for tests / future
+ * use — they are not the hot path.
  */
 
 export const MLB_LIVE_FEED_BASE = "https://statsapi.mlb.com/api/v1.1";

@@ -18,29 +18,25 @@ export const POLL_BREAK_MS = 800;
 export const POLL_HIDDEN_MS = 2_000;
 
 /**
- * Safety-net poll when push is connected *and* we are not in an active at-bat.
- * Never stretch an incomplete PA — that is the 1–2s Reddit gap.
+ * Safety-net floor when MLB CORS is blocked and we must use the Netlify
+ * snapshot route. Never used to stretch browser → MLB polling.
  */
 export const POLL_REALTIME_FALLBACK_MS = 3_000;
 
 export const MAX_IN_FLIGHT = 2;
 
 /**
- * Choose poll gap. Push channels accelerate via immediate fetch; they must not
- * slow active at-bats below POLL_ACTIVE_MS. Idle/break may stretch to the
- * safety-net interval when WS/Realtime is connected. Hidden tabs stay slow.
- * Netlify CORS fallback is floored separately in the coordinator.
+ * Choose poll gap from game state. Push channels trigger an immediate fetch;
+ * they must not stretch the REST loop (WS pings are often empty, and a 3s
+ * idle gap missed the next at-bat). Netlify CORS fallback is floored
+ * separately in the coordinator via POLL_REALTIME_FALLBACK_MS.
  */
 export function effectivePollIntervalMs(
   feed: Pick<MLBLiveFeedResponse, "liveData"> | null,
   hidden: boolean,
-  pushConnected: boolean,
+  _pushConnected: boolean,
 ): number {
-  const adaptive = adaptivePollIntervalMs(feed, hidden);
-  if (hidden) return adaptive;
-  if (adaptive === POLL_ACTIVE_MS) return POLL_ACTIVE_MS;
-  if (pushConnected) return POLL_REALTIME_FALLBACK_MS;
-  return adaptive;
+  return adaptivePollIntervalMs(feed, hidden);
 }
 
 /** Choose poll gap from linescore / current play shape. */
