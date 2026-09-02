@@ -71,9 +71,34 @@ describe("adaptivePollIntervalMs", () => {
     expect(adaptivePollIntervalMs(feed, false)).toBe(POLL_IDLE_MS);
   });
 
-  it("uses realtime fallback interval when push is connected", () => {
-    expect(effectivePollIntervalMs(null, false, true)).toBe(POLL_REALTIME_FALLBACK_MS);
-    expect(effectivePollIntervalMs(null, false, false)).toBe(POLL_ACTIVE_MS);
+  it("keeps 100ms during an active at-bat even when push is connected", () => {
+    const feed = feedStub({
+      linescore: { inningState: "Top" },
+      plays: playsWithCurrent({
+        about: { isComplete: false, inning: 1, halfInning: "top" },
+        matchup: { batter: { id: 1, fullName: "B" }, pitcher: { id: 2, fullName: "P" } },
+      }),
+    });
+
+    expect(effectivePollIntervalMs(feed, false, true)).toBe(POLL_ACTIVE_MS);
+    expect(effectivePollIntervalMs(null, false, true)).toBe(POLL_ACTIVE_MS);
+  });
+
+  it("stretches idle/break to the safety-net interval when push is connected", () => {
+    const idle = feedStub({
+      linescore: { inningState: "Top" },
+      plays: playsWithCurrent({
+        about: { isComplete: true, inning: 1, halfInning: "top" },
+        result: { event: "Single", description: "Single" },
+        matchup: { batter: { id: 1, fullName: "B" }, pitcher: { id: 2, fullName: "P" } },
+      }),
+    });
+    expect(effectivePollIntervalMs(idle, false, true)).toBe(POLL_REALTIME_FALLBACK_MS);
+    expect(effectivePollIntervalMs(idle, false, false)).toBe(POLL_IDLE_MS);
+  });
+
+  it("does not stretch a hidden tab past the hidden interval", () => {
+    expect(effectivePollIntervalMs(null, true, true)).toBe(POLL_HIDDEN_MS);
   });
 });
 

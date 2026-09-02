@@ -378,6 +378,12 @@ export interface AllPlayRaw {
 }
 
 export interface MLBLiveFeedResponse {
+  metaData?: {
+    wait?: number;
+    timeStamp?: string;
+    gameEvents?: string[];
+    logicalEvents?: string[];
+  };
   gameData: {
     status: { abstractGameState: string };
     datetime?: { dayNight?: string; originalDate?: string };

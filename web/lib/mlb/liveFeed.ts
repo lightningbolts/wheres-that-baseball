@@ -2,7 +2,16 @@ import { parseBoxScore } from "@/lib/mlb/boxScore";
 import { wrapGameStateForStorage, type StoredGameState } from "@/lib/games/gameStorage";
 import { buildCardPitchersFromBoxScore } from "@/lib/mlb/cardPitchers";
 import { recordFetchMetric } from "@/lib/mlb/fetchMetrics";
-import { mlbLiveFeedUrl } from "@/lib/mlb/liveFeedEndpoints";
+import {
+  applyJsonPatch,
+  parseMlbDiffPatchBody,
+  type JsonPatchOp,
+} from "@/lib/mlb/jsonPatch";
+import {
+  mlbLiveFeedDiffPatchUrl,
+  mlbLiveFeedTimestampsUrl,
+  mlbLiveFeedUrl,
+} from "@/lib/mlb/liveFeedEndpoints";
 import {
   computeAbsChallengesRemaining,
   countAbsChallengesUsedFromPlays,
@@ -1960,6 +1969,7 @@ export function liveStateFingerprint(state: LiveGameState): string {
 interface BrowserFeedCacheEntry {
   feed: MLBLiveFeedResponse;
   etag: string | null;
+  timeStamp: string | null;
 }
 
 const browserFeedByGame = new Map<number, BrowserFeedCacheEntry>();
@@ -1991,42 +2001,62 @@ function isAbortError(error: unknown, signal?: AbortSignal): boolean {
   return error instanceof DOMException && error.name === "AbortError";
 }
 
-/** Browser-side MLB live feed fetch (CORS-enabled, skips the Next.js proxy hop). */
-export async function fetchMLBLiveFeed(
+function timeStampFromFeed(feed: MLBLiveFeedResponse): string | null {
+  const stamp = feed.metaData?.timeStamp?.trim();
+  return stamp || null;
+}
+
+function cacheBrowserFeed(
+  gamePk: number,
+  feed: MLBLiveFeedResponse,
+  etag: string | null,
+): BrowserFeedCacheEntry {
+  const entry: BrowserFeedCacheEntry = {
+    feed,
+    etag,
+    timeStamp: timeStampFromFeed(feed),
+  };
+  browserFeedByGame.set(gamePk, entry);
+  return entry;
+}
+
+/** In-memory GUMBO for Gameday WS patch apply (browser only). */
+export function peekBrowserLiveFeed(gamePk: number): MLBLiveFeedResponse | null {
+  return browserFeedByGame.get(gamePk)?.feed ?? null;
+}
+
+/**
+ * Apply RFC 6902 ops to the cached live feed. Throws if there is no cache or
+ * the patch cannot be applied — caller should fall back to a REST hydrate.
+ */
+export function applyBrowserLiveFeedPatch(
+  gamePk: number,
+  ops: JsonPatchOp[],
+): MLBLiveFeedResponse {
+  const prior = browserFeedByGame.get(gamePk);
+  if (!prior) {
+    throw new Error(`No cached live feed to patch for gamePk=${gamePk}`);
+  }
+  const feed = applyJsonPatch(prior.feed, ops);
+  cacheBrowserFeed(gamePk, feed, prior.etag);
+  return feed;
+}
+
+async function fetchJsonUnknown(
+  url: string,
   gamePk: number,
   signal?: AbortSignal,
-): Promise<MLBLiveFeedResponse> {
-  const headers: HeadersInit = { Accept: "application/json" };
-  const prior = browserFeedByGame.get(gamePk);
-  if (prior?.etag) {
-    headers["If-None-Match"] = prior.etag;
-  }
-
+  headers?: HeadersInit,
+): Promise<{ status: number; body: unknown; etag: string | null }> {
   const started = performance.now();
-  const response = await fetch(mlbLiveFeedUrl(gamePk), {
+  const response = await fetch(url, {
     cache: "no-store",
     signal,
-    headers,
+    headers: { Accept: "application/json", ...headers },
   });
   const latencyMs = performance.now() - started;
 
-  if (response.status === 304) {
-    if (!prior) {
-      throw new Error(`MLB live feed 304 without cache for gamePk=${gamePk}`);
-    }
-    recordFetchMetric({
-      gamePk,
-      source: "browser",
-      latencyMs,
-      payloadBytes: 0,
-      status: 304,
-      notModified: true,
-      at: new Date().toISOString(),
-    });
-    return prior.feed;
-  }
-
-  if (!response.ok) {
+  if (!response.ok && response.status !== 304) {
     recordFetchMetric({
       gamePk,
       source: "browser",
@@ -2039,12 +2069,20 @@ export async function fetchMLBLiveFeed(
     throw new Error(`MLB live feed failed: ${response.status}`);
   }
 
+  if (response.status === 304) {
+    recordFetchMetric({
+      gamePk,
+      source: "browser",
+      latencyMs,
+      payloadBytes: 0,
+      status: 304,
+      notModified: true,
+      at: new Date().toISOString(),
+    });
+    return { status: 304, body: null, etag: response.headers.get("etag") };
+  }
+
   const text = await response.text();
-  const feed = JSON.parse(text) as MLBLiveFeedResponse;
-  browserFeedByGame.set(gamePk, {
-    feed,
-    etag: response.headers.get("etag"),
-  });
   recordFetchMetric({
     gamePk,
     source: "browser",
@@ -2054,7 +2092,120 @@ export async function fetchMLBLiveFeed(
     notModified: false,
     at: new Date().toISOString(),
   });
+  return {
+    status: response.status,
+    body: text ? (JSON.parse(text) as unknown) : null,
+    etag: response.headers.get("etag"),
+  };
+}
+
+async function fetchLatestTimestamp(
+  gamePk: number,
+  signal?: AbortSignal,
+): Promise<string | null> {
+  const { body } = await fetchJsonUnknown(
+    mlbLiveFeedTimestampsUrl(gamePk),
+    gamePk,
+    signal,
+  );
+  if (!Array.isArray(body) || body.length === 0) return null;
+  const last = body[body.length - 1];
+  return typeof last === "string" && last.trim() ? last : null;
+}
+
+async function fetchFullLiveFeedFromMlb(
+  gamePk: number,
+  signal?: AbortSignal,
+): Promise<MLBLiveFeedResponse> {
+  const prior = browserFeedByGame.get(gamePk);
+  const headers: HeadersInit = {};
+  if (prior?.etag) {
+    headers["If-None-Match"] = prior.etag;
+  }
+
+  const { status, body, etag } = await fetchJsonUnknown(
+    mlbLiveFeedUrl(gamePk),
+    gamePk,
+    signal,
+    headers,
+  );
+
+  if (status === 304) {
+    if (!prior) {
+      throw new Error(`MLB live feed 304 without cache for gamePk=${gamePk}`);
+    }
+    return prior.feed;
+  }
+
+  const feed = body as MLBLiveFeedResponse;
+  cacheBrowserFeed(gamePk, feed, etag);
   return feed;
+}
+
+async function fetchAndApplyDiffPatch(
+  gamePk: number,
+  prior: BrowserFeedCacheEntry,
+  latestStamp: string | null,
+  signal?: AbortSignal,
+): Promise<MLBLiveFeedResponse> {
+  const startTimecode = prior.timeStamp;
+  if (!startTimecode) {
+    return fetchFullLiveFeedFromMlb(gamePk, signal);
+  }
+
+  const { body } = await fetchJsonUnknown(
+    mlbLiveFeedDiffPatchUrl(gamePk, startTimecode),
+    gamePk,
+    signal,
+  );
+  const parsed = parseMlbDiffPatchBody(body);
+
+  if (parsed.kind === "empty") {
+    if (latestStamp) {
+      prior.feed.metaData = { ...prior.feed.metaData, timeStamp: latestStamp };
+      prior.timeStamp = latestStamp;
+    }
+    return prior.feed;
+  }
+
+  if (parsed.kind === "full") {
+    const feed = body as MLBLiveFeedResponse;
+    cacheBrowserFeed(gamePk, feed, prior.etag);
+    return feed;
+  }
+
+  const feed = applyJsonPatch(prior.feed, parsed.ops);
+  if (latestStamp && timeStampFromFeed(feed) == null) {
+    feed.metaData = { ...feed.metaData, timeStamp: latestStamp };
+  }
+  cacheBrowserFeed(gamePk, feed, prior.etag);
+  return feed;
+}
+
+/**
+ * Browser-side MLB live feed fetch (CORS-enabled, skips the Next.js proxy hop).
+ * First call hydrates the full GUMBO; later calls probe timestamps and apply
+ * diffPatch when the stamp moves — so a new pitch is not a 1MB download.
+ */
+export async function fetchMLBLiveFeed(
+  gamePk: number,
+  signal?: AbortSignal,
+): Promise<MLBLiveFeedResponse> {
+  const prior = browserFeedByGame.get(gamePk);
+  if (!prior?.feed || !prior.timeStamp) {
+    return fetchFullLiveFeedFromMlb(gamePk, signal);
+  }
+
+  try {
+    const latest = await fetchLatestTimestamp(gamePk, signal);
+    if (latest && latest === prior.timeStamp) {
+      return prior.feed;
+    }
+    return await fetchAndApplyDiffPatch(gamePk, prior, latest, signal);
+  } catch (error) {
+    if (isAbortError(error, signal)) throw error;
+    return fetchFullLiveFeedFromMlb(gamePk, signal);
+  }
 }
 
 export interface LivePlayChunk {
@@ -2066,6 +2217,8 @@ export interface LivePlayChunk {
 export interface LiveSnapshotWithPlays extends LiveFeedSnapshot {
   boxScore?: GameBoxScore | null;
   plays?: LivePlayChunk;
+  /** Full GUMBO when the browser path has it (patched or hydrated). */
+  feed?: MLBLiveFeedResponse;
 }
 
 /**
@@ -2157,11 +2310,12 @@ export async function fetchDirectSnapshot(
     return {
       ...snapshot,
       boxScore,
+      feed,
       plays: { from: playsFrom, total: allPlays.length, plays: merged },
     };
   }
 
-  return { ...snapshot, boxScore };
+  return { ...snapshot, boxScore, feed };
 }
 
 /** Build a compact snapshot from a full MLB feed. */

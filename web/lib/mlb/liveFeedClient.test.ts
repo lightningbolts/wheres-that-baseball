@@ -1,13 +1,18 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  applyBrowserLiveFeedPatch,
   fetchDirectSnapshot,
   fetchLiveSnapshot,
   fetchLiveSnapshotPreferringMlb,
   fetchMLBLiveFeed,
   resetBrowserLiveFeedCacheForTest,
 } from "@/lib/mlb/liveFeed";
-import { mlbLiveFeedUrl } from "@/lib/mlb/liveFeedEndpoints";
+import {
+  mlbLiveFeedDiffPatchUrl,
+  mlbLiveFeedTimestampsUrl,
+  mlbLiveFeedUrl,
+} from "@/lib/mlb/liveFeedEndpoints";
 import type { MLBLiveFeedResponse } from "@/types/mlb-live";
 
 const GAME_PK = 776123;
@@ -139,5 +144,120 @@ describe("browser MLB live feed", () => {
     const cooldownUrls = fetchMock.mock.calls.map((call) => String(call[0]));
     expect(cooldownUrls.every((url) => url.includes("/api/game/"))).toBe(true);
     expect(cooldownUrls.some((url) => url.includes("statsapi.mlb.com"))).toBe(false);
+  });
+
+  it("probes timestamps after hydrate and skips a full refetch when the stamp is unchanged", async () => {
+    const stamped: MLBLiveFeedResponse = {
+      ...MINIMAL_FEED,
+      metaData: { timeStamp: "20260902_020807" },
+    };
+    const fetchMock = vi.fn(async (url: string) => {
+      const href = String(url);
+      if (href === mlbLiveFeedUrl(GAME_PK)) return jsonResponse(stamped, { etag: '"v1"' });
+      if (href === mlbLiveFeedTimestampsUrl(GAME_PK)) {
+        return jsonResponse(["20260902_020800", "20260902_020807"]);
+      }
+      throw new Error(`unexpected url ${href}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchMLBLiveFeed(GAME_PK);
+    await fetchMLBLiveFeed(GAME_PK);
+
+    const urls = fetchMock.mock.calls.map((call) => String(call[0]));
+    expect(urls).toEqual([mlbLiveFeedUrl(GAME_PK), mlbLiveFeedTimestampsUrl(GAME_PK)]);
+  });
+
+  it("applies diffPatch when the timestamp advances", async () => {
+    const stamped: MLBLiveFeedResponse = {
+      ...MINIMAL_FEED,
+      metaData: { timeStamp: "20260902_020807" },
+    };
+    const fetchMock = vi.fn(async (url: string) => {
+      const href = String(url);
+      if (href === mlbLiveFeedUrl(GAME_PK)) return jsonResponse(stamped);
+      if (href === mlbLiveFeedTimestampsUrl(GAME_PK)) {
+        return jsonResponse(["20260902_020807", "20260902_020822"]);
+      }
+      if (href === mlbLiveFeedDiffPatchUrl(GAME_PK, "20260902_020807")) {
+        return jsonResponse([
+          {
+            diff: [
+              { op: "replace", path: "/metaData/timeStamp", value: "20260902_020822" },
+              { op: "replace", path: "/liveData/plays/currentPlay/count/balls", value: 3 },
+            ],
+          },
+        ]);
+      }
+      throw new Error(`unexpected url ${href}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchMLBLiveFeed(GAME_PK);
+    const second = await fetchMLBLiveFeed(GAME_PK);
+
+    expect(second.metaData?.timeStamp).toBe("20260902_020822");
+    expect(second.liveData.plays.currentPlay.count.balls).toBe(3);
+    expect(stamped.liveData.plays.currentPlay.count.balls).toBe(2);
+  });
+
+  it("falls back to a full feed/live fetch when diffPatch ops cannot be applied", async () => {
+    const stamped: MLBLiveFeedResponse = {
+      ...MINIMAL_FEED,
+      metaData: { timeStamp: "20260902_020807" },
+    };
+    const recovered: MLBLiveFeedResponse = {
+      ...MINIMAL_FEED,
+      metaData: { timeStamp: "20260902_020900" },
+      liveData: {
+        ...MINIMAL_FEED.liveData,
+        plays: {
+          ...MINIMAL_FEED.liveData.plays,
+          currentPlay: {
+            ...MINIMAL_FEED.liveData.plays.currentPlay,
+            result: { description: "Home Run" },
+          },
+        },
+      },
+    };
+
+    const fetchMock = vi.fn(async (url: string) => {
+      const href = String(url);
+      if (href === mlbLiveFeedUrl(GAME_PK)) {
+        const alreadyHydrated = fetchMock.mock.calls.length > 1;
+        return jsonResponse(alreadyHydrated ? recovered : stamped);
+      }
+      if (href === mlbLiveFeedTimestampsUrl(GAME_PK)) {
+        return jsonResponse(["20260902_020900"]);
+      }
+      if (href === mlbLiveFeedDiffPatchUrl(GAME_PK, "20260902_020807")) {
+        return jsonResponse([{ op: "replace", path: "/nope/missing", value: 1 }]);
+      }
+      throw new Error(`unexpected url ${href}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchMLBLiveFeed(GAME_PK);
+    const second = await fetchMLBLiveFeed(GAME_PK);
+
+    expect(second.metaData?.timeStamp).toBe("20260902_020900");
+    expect(second.liveData.plays.currentPlay.result?.description).toBe("Home Run");
+    const urls = fetchMock.mock.calls.map((call) => String(call[0]));
+    expect(urls).toContain(mlbLiveFeedDiffPatchUrl(GAME_PK, "20260902_020807"));
+    expect(urls.filter((url) => url === mlbLiveFeedUrl(GAME_PK))).toHaveLength(2);
+  });
+
+  it("applies websocket ops onto the cached feed", async () => {
+    const stamped: MLBLiveFeedResponse = {
+      ...MINIMAL_FEED,
+      metaData: { timeStamp: "20260902_020807" },
+    };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(stamped)));
+    await fetchMLBLiveFeed(GAME_PK);
+
+    const patched = applyBrowserLiveFeedPatch(GAME_PK, [
+      { op: "add", path: "/liveData/plays/currentPlay/result", value: { description: "Double" } },
+    ]);
+    expect(patched.liveData.plays.currentPlay.result?.description).toBe("Double");
   });
 });

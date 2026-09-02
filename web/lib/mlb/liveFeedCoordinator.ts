@@ -5,6 +5,7 @@ import {
   POLL_REALTIME_FALLBACK_MS,
 } from "@/lib/mlb/pollIntervals";
 import {
+  applyBrowserLiveFeedPatch,
   buildLiveFeedSnapshot,
   createPlayByPlayParseState,
   fetchLiveSnapshotPreferringMlb,
@@ -26,6 +27,7 @@ import {
 } from "@/lib/mlb/liveFeedRealtime";
 import {
   subscribeGamedayWebsocket,
+  type GamedayWsPayload,
   type GamedayWsSubscription,
 } from "@/lib/mlb/gamedayWebsocket";
 import { parseBoxScore } from "@/lib/mlb/boxScore";
@@ -266,7 +268,8 @@ async function pollOnce(instance: CoordinatorInstance): Promise<void> {
       }
     }
 
-    const feed = reconstructFeedFromParts(snapshot, allPlays);
+    const feed =
+      snapshot.feed ?? reconstructFeedFromParts(snapshot, allPlays);
     instance.localAllPlays = allPlays;
 
     applyFeedToInstance(instance, feed, {
@@ -329,8 +332,25 @@ function startGamedayWs(instance: CoordinatorInstance): void {
   if (typeof window === "undefined" || instance.gamedayWsSub) return;
 
   instance.gamedayWsSub = subscribeGamedayWebsocket(instance.gamePk, {
-    onUpdate: () => {
+    onUpdate: (payload: GamedayWsPayload) => {
       if (instance.cancelled) return;
+      if (payload.type === "ops") {
+        try {
+          const feed = applyBrowserLiveFeedPatch(instance.gamePk, payload.ops);
+          const snapshot = buildLiveFeedSnapshot(instance.gamePk, feed);
+          const allPlays = feed.liveData.plays.allPlays ?? [];
+          instance.localAllPlays = allPlays;
+          applyFeedToInstance(instance, feed, {
+            snapshot,
+            boxScore: parseBoxScore(instance.gamePk, feed),
+            catchingUp: false,
+            source: "browser",
+          });
+          return;
+        } catch {
+          /* lean REST refresh below */
+        }
+      }
       void pollOnce(instance);
     },
     onStatus: (status) => {
@@ -338,7 +358,8 @@ function startGamedayWs(instance: CoordinatorInstance): void {
       const connected = status === "connected";
       if (instance.gamedayWsConnected === connected) return;
       instance.gamedayWsConnected = connected;
-      // Treat Gameday WS as a push channel for poll stretching + connection UI.
+      // Push is an accelerator (immediate pollOnce / patch apply), not a reason
+      // to idle the REST loop during an active at-bat.
       const pushConnected = instance.realtimeConnected || connected;
       instance.state = { ...instance.state, realtimeConnected: pushConnected };
       notify(instance);
