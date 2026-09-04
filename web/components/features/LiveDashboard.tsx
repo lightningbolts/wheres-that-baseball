@@ -38,6 +38,7 @@ import { useMlPredictions } from "@/hooks/useMlPredictions";
 import { useOutcomeOdds } from "@/hooks/useOutcomeOdds";
 import { isGameOver } from "@/lib/mlb/gameOver";
 import { isHalfInningBreak } from "@/lib/mlb/lineup";
+import { resolveBatSide } from "@/lib/mlb/boxScoreLookup";
 import { isPlayByPlayAtBat } from "@/lib/mlb/liveFeed";
 import { allPitchesThroughPoint } from "@/lib/mlb/allGamePitches";
 import { cn } from "@/lib/utils";
@@ -134,6 +135,22 @@ function DashboardContent({ game }: { game: SlateGame }) {
     return null;
   }, [atBatViewState?.batterId, gameState?.plays]);
   const { zones: batterHotZones } = useBatterHotZones(zoneBatterId, gameSeason);
+  const batSide = useMemo(
+    () =>
+      resolveBatSide(
+        atBatViewState?.batSide,
+        boxScore,
+        zoneBatterId,
+        atBatViewState?.offenseTeamId ?? gameState?.offenseTeamId,
+      ),
+    [
+      atBatViewState?.batSide,
+      atBatViewState?.offenseTeamId,
+      boxScore,
+      gameState?.offenseTeamId,
+      zoneBatterId,
+    ],
+  );
 
   const gameZonePitches = useMemo(() => {
     if (!gameState) return [];
@@ -481,6 +498,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
                           zoneFirst
                           animateEntrance
                           batterZones={batterHotZones ?? undefined}
+                          batSide={batSide}
                           zoneOverlay={outcomeToastNode}
                           className="h-[clamp(16rem,48dvh,28rem)] w-full"
                         />
@@ -498,6 +516,7 @@ function DashboardContent({ game }: { game: SlateGame }) {
                           scrollToLatest
                           animateEntrance
                           batterZones={batterHotZones ?? undefined}
+                          batSide={batSide}
                           dashboardFooter={outcomeOddsFooter}
                           zoneOverlay={outcomeToastNode}
                           className="min-h-0 flex-1"

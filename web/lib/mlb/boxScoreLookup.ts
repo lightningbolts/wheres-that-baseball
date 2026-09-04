@@ -48,3 +48,25 @@ export function formatPitcherGameLine(line: PitcherBoxLine | null): string | nul
   const era = line.seasonEra && line.seasonEra !== "—" ? line.seasonEra : null;
   return era ? `${ip} IP, ${era} ERA` : `${ip} IP`;
 }
+
+/**
+ * Prefer live matchup stand for the current PA; fall back to box-score batSide.
+ * Returns `L` / `R`, or null when unknown.
+ */
+export function resolveBatSide(
+  liveBatSide: string | null | undefined,
+  boxScore: GameBoxScore | null | undefined,
+  batterId: number | null | undefined,
+  offenseTeamId: number | null | undefined,
+): "L" | "R" | null {
+  const live = liveBatSide?.trim().toUpperCase();
+  if (live === "L" || live === "R") return live;
+
+  const fromBox = findBatterBoxLine(boxScore, batterId, offenseTeamId)?.batSide
+    ?.trim()
+    .toUpperCase();
+  if (fromBox === "L" || fromBox === "R") return fromBox;
+  // Switch hitters without a live stand — Gameday defaults to the RHB box.
+  if (fromBox === "S") return "R";
+  return null;
+}

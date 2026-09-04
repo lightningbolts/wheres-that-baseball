@@ -1878,6 +1878,9 @@ export function parseLiveFeed(
     homeRuns,
     batterId: batter?.id ?? play?.matchup?.batter?.id ?? null,
     batterName: batter?.fullName ?? play?.matchup?.batter?.fullName ?? "—",
+    batSide: isBreak
+      ? null
+      : (play?.matchup?.batter?.batSide?.code?.toUpperCase() ?? null),
     onDeckId: onDeck?.id ?? null,
     onDeckName: onDeck?.fullName ?? "—",
     inHoleId: inHole?.id ?? null,
@@ -1932,6 +1935,7 @@ export function liveStateFingerprint(state: LiveGameState): string {
     state.awayAbsChallengesRemaining,
     state.homeAbsChallengesRemaining,
     state.batterId,
+    state.batSide,
     state.pitcherId,
     state.onFirst,
     state.onSecond,

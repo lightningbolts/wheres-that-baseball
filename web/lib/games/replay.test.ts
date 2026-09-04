@@ -72,6 +72,7 @@ function makeBaseState(plays: PlayByPlayEntry[]): LiveGameState {
     homeRuns: 2,
     batterId: null,
     batterName: "—",
+    batSide: null,
     onDeckId: null,
     onDeckName: "—",
     inHoleId: null,
