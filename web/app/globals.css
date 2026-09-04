@@ -36,6 +36,9 @@
     --zone-chart-grid: #a89878;
     --zone-chart-plate: #8a7a62;
     --zone-chart-zone-fill: rgb(27 67 50 / 0.06);
+    --zone-chart-box: rgb(138 122 98 / 0.45);
+    --zone-chart-box-active: rgb(90 82 72 / 0.72);
+    --zone-chart-box-fill: rgb(138 122 98 / 0.12);
 
     --field-chart-bg: #dce8dc;
     --field-chart-canvas-bg: #e8f0e8;
@@ -106,6 +109,9 @@
     --zone-chart-grid: #4a5c52;
     --zone-chart-plate: #6b7d72;
     --zone-chart-zone-fill: rgb(45 106 79 / 0.12);
+    --zone-chart-box: rgb(138 154 144 / 0.4);
+    --zone-chart-box-active: rgb(232 226 212 / 0.7);
+    --zone-chart-box-fill: rgb(138 154 144 / 0.14);
 
     --field-chart-bg: #1a2e22;
     --field-chart-canvas-bg: #141f18;

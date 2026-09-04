@@ -12,6 +12,7 @@ import {
   isAbsStrike,
   isAbsStrikeForPitch,
   pitchCoordsAtY,
+  plateBandBatterBoxes,
   sceneZoneToSvgPercent,
   strikeZoneBorderCell,
   strikeZoneBorderCellRect,
@@ -212,5 +213,23 @@ describe("ABS midpoint plate location", () => {
       kinematics: null,
     });
     expect(loc).toEqual({ x: 0.5, z: 2.5 });
+  });
+});
+
+describe("plateBandBatterBoxes", () => {
+  it("marks the third-base box active for RHB (catcher's left)", () => {
+    const boxes = plateBandBatterBoxes("R");
+    expect(boxes.activeSide).toBe("rightHanded");
+    expect(boxes.rightHanded.x).toBeLessThan(boxes.leftHanded.x);
+  });
+
+  it("marks the first-base box active for LHB (catcher's right)", () => {
+    const boxes = plateBandBatterBoxes("L");
+    expect(boxes.activeSide).toBe("leftHanded");
+  });
+
+  it("defaults unknown / missing stand to the RHB box", () => {
+    expect(plateBandBatterBoxes(null).activeSide).toBe("rightHanded");
+    expect(plateBandBatterBoxes("S").activeSide).toBe("rightHanded");
   });
 });

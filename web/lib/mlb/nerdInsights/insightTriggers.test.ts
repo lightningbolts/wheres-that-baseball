@@ -72,6 +72,7 @@ function state(
     homeRuns: 0,
     batterId: (last?.batterId ?? 0) + 1,
     batterName: "Next Batter",
+    batSide: null,
     pitcherName: "Pitcher",
     inning: last?.inning ?? 2,
     inningHalf: last?.halfInning ?? "top",

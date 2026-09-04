@@ -66,20 +66,30 @@ function gameState(plays: PlayByPlayEntry[]): LiveGameState {
     homeRuns: 0,
     batterId: 2,
     batterName: "Next Batter",
+    batSide: null,
+    onDeckId: null,
+    onDeckName: "—",
+    inHoleId: null,
+    inHoleName: "—",
+    offenseTeamId: null,
+    battingOrderSlot: null,
+    pitcherId: null,
     pitcherName: "Pitcher",
     inning: 3,
     inningHalf: "Top",
     inningState: "Top",
-    outs: 1,
     balls: 0,
     strikes: 0,
+    outs: 1,
     onFirst: false,
     onSecond: false,
     onThird: false,
-    offenseTeamId: null,
+    awayAbsChallengesRemaining: 2,
+    homeAbsChallengesRemaining: 2,
     atBatPitches: [],
     plays,
-  } as LiveGameState;
+    observedAt: "2026-01-01T00:00:00.000Z",
+  };
 }
 
 describe("buildLiveInsightContext contact", () => {
@@ -175,6 +185,7 @@ describe("buildLiveInsightContext contact", () => {
             strikeZoneBottom: 1.5,
           },
         ],
+        hit: null,
       },
     });
 
@@ -231,6 +242,7 @@ describe("buildLiveInsightContext contact", () => {
             strikeZoneBottom: 1.5,
           },
         ],
+        hit: null,
       },
     });
 

@@ -220,6 +220,8 @@ export interface LiveGameState {
   homeRuns: number;
   batterId: number | null;
   batterName: string;
+  /** Current PA bat side from live matchup (`L` / `R` / `S`). */
+  batSide: string | null;
   onDeckId: number | null;
   onDeckName: string;
   inHoleId: number | null;
@@ -352,8 +354,16 @@ export interface AllPlayRaw {
     isComplete?: boolean;
   };
   matchup?: {
-    batter?: { id?: number; fullName?: string };
-    pitcher?: { id?: number; fullName?: string };
+    batter?: {
+      id?: number;
+      fullName?: string;
+      batSide?: { code?: string; description?: string };
+    };
+    pitcher?: {
+      id?: number;
+      fullName?: string;
+      pitchHand?: { code?: string; description?: string };
+    };
   };
   playEvents?: PitchEventRaw[];
   reviewDetails?: {
@@ -437,8 +447,16 @@ export interface MLBLiveFeedResponse {
       allPlays?: AllPlayRaw[];
       currentPlay: {
         matchup: {
-          batter: { id?: number; fullName: string };
-          pitcher: { id?: number; fullName: string };
+          batter: {
+            id?: number;
+            fullName: string;
+            batSide?: { code?: string; description?: string };
+          };
+          pitcher: {
+            id?: number;
+            fullName: string;
+            pitchHand?: { code?: string; description?: string };
+          };
         };
         count: { balls: number; strikes: number; outs: number };
         about: { inning?: number; halfInning?: string };

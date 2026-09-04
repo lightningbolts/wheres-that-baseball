@@ -12,6 +12,7 @@ export type StrikeZoneMode = "atBat" | "game";
 import {
   absPlateLocation,
   homePlatePath,
+  plateBandBatterBoxes,
   pitchResultColor,
   strikeZoneBorderCell,
   strikeZoneCellRect,
@@ -19,7 +20,7 @@ import {
   toSvgPercent,
   zoneRectPercent,
 } from "@/lib/mlb/strikeZoneMath";
-import type { SvgRectPercent } from "@/lib/mlb/strikeZoneMath";
+import type { BatterBoxRects, SvgRectPercent } from "@/lib/mlb/strikeZoneMath";
 import { zoneHeatLabelStyle } from "@/lib/mlb/zoneHeatColors";
 
 interface PitchSequenceProps {
@@ -39,6 +40,8 @@ interface PitchSequenceProps {
   mobileZoneCompact?: boolean;
   /** Batter hot/cold zone overlay (MLB zones 01–09). */
   batterZones?: BatterHotZoneCell[];
+  /** Current batter stand (`L` / `R`) for Gameday chalk boxes. */
+  batSide?: string | null;
   /** Outcome odds panel under the pitch feed (desktop dashboard grid). */
   dashboardFooter?: ReactNode;
   /** Start with desktop outcome odds collapsed. */
@@ -344,16 +347,70 @@ function ZoneGridLines({ zone }: { zone: ReturnType<typeof zoneRectPercent> }) {
   );
 }
 
+/** Gameday chalk batter's boxes in the plate band (catcher's view). */
+function BatterBoxChalk({
+  batSide,
+}: {
+  batSide?: string | null;
+}) {
+  const boxes: BatterBoxRects = plateBandBatterBoxes(batSide);
+  const sides = [
+    { key: "rightHanded" as const, label: "RHB" },
+    { key: "leftHanded" as const, label: "LHB" },
+  ];
+
+  return (
+    <g aria-label={batSide ? `Batter stands ${batSide === "L" ? "left" : "right"}` : "Batter's boxes"}>
+      {sides.map(({ key, label }) => {
+        const rect = boxes[key];
+        const active = batSide != null && boxes.activeSide === key;
+        return (
+          <g key={key}>
+            <rect
+              x={rect.x}
+              y={rect.y}
+              width={rect.width}
+              height={rect.height}
+              fill={active ? "var(--zone-chart-box-fill)" : "transparent"}
+              stroke={active ? "var(--zone-chart-box-active)" : "var(--zone-chart-box)"}
+              strokeWidth={active ? 0.55 : 0.35}
+              strokeDasharray={active ? undefined : "1.2 0.9"}
+              rx={0.4}
+            />
+            {active ? (
+              <text
+                x={rect.x + rect.width / 2}
+                y={rect.y + rect.height * 0.42}
+                textAnchor="middle"
+                dominantBaseline="central"
+                fontSize="3.2"
+                fill="var(--zone-chart-box-active)"
+                fontWeight="700"
+                opacity="0.85"
+                style={{ fontVariantNumeric: "tabular-nums" }}
+              >
+                {label}
+              </text>
+            ) : null}
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
 function EmptyStrikeZone({
   className,
   zoneFirst = false,
   mobileZoneCompact = false,
   batterZones,
+  batSide,
 }: {
   className?: string;
   zoneFirst?: boolean;
   mobileZoneCompact?: boolean;
   batterZones?: BatterHotZoneCell[];
+  batSide?: string | null;
 }) {
   const szTop = 3.5;
   const szBottom = 1.5;
@@ -370,6 +427,7 @@ function EmptyStrikeZone({
       aria-hidden
       preserveAspectRatio="xMidYMid meet"
     >
+        <BatterBoxChalk batSide={batSide} />
         <path
           d={plate}
           fill="var(--zone-chart-plate)"
@@ -399,6 +457,7 @@ function StrikeZoneChart({
   entranceFromIndex = pitches.length,
   zoneEntranceFromIndex,
   batterZones,
+  batSide,
 }: {
   pitches: PlayPitch[];
   className?: string;
@@ -407,6 +466,7 @@ function StrikeZoneChart({
   entranceFromIndex?: number;
   zoneEntranceFromIndex?: number;
   batterZones?: BatterHotZoneCell[];
+  batSide?: string | null;
 }) {
   const styles = SIZE_STYLES[size];
   const plotted = pitches.filter((p) => p.isPitch && p.hasPlateLocation !== false);
@@ -430,6 +490,7 @@ function StrikeZoneChart({
       aria-hidden
       preserveAspectRatio="xMidYMid meet"
     >
+      <BatterBoxChalk batSide={batSide} />
       <path
         d={plate}
         fill="var(--zone-chart-plate)"
@@ -612,6 +673,7 @@ function DashboardGridLayout({
   entranceFromIndex,
   zoneEntranceFromIndex,
   batterZones,
+  batSide,
   dashboardFooter,
   dashboardFooterCollapsedDefault = false,
   zoneOverlay,
@@ -627,6 +689,7 @@ function DashboardGridLayout({
   entranceFromIndex: number;
   zoneEntranceFromIndex?: number;
   batterZones?: BatterHotZoneCell[];
+  batSide?: string | null;
   dashboardFooter?: ReactNode;
   dashboardFooterCollapsedDefault?: boolean;
   zoneOverlay?: ReactNode;
@@ -675,6 +738,7 @@ function DashboardGridLayout({
           entranceFromIndex={entranceFromIndex}
           zoneEntranceFromIndex={zoneEntranceFromIndex}
           batterZones={batterZones}
+          batSide={batSide}
           className="min-h-0 flex-1"
         />
       </ZoneWithOpsLabel>
@@ -694,6 +758,7 @@ function SplitLayout({
   zoneFirst = false,
   mobileZoneCompact = false,
   batterZones,
+  batSide,
   zoneMode,
   onZoneModeChange,
   gamePitchCount,
@@ -709,6 +774,7 @@ function SplitLayout({
   zoneFirst?: boolean;
   mobileZoneCompact?: boolean;
   batterZones?: BatterHotZoneCell[];
+  batSide?: string | null;
   zoneMode?: StrikeZoneMode;
   onZoneModeChange?: (mode: StrikeZoneMode) => void;
   gamePitchCount?: number;
@@ -738,6 +804,7 @@ function SplitLayout({
         entranceFromIndex={entranceFromIndex}
         zoneEntranceFromIndex={zoneEntranceFromIndex}
         batterZones={batterZones}
+        batSide={batSide}
         className={zoneFirst ? "h-full w-full" : "flex-1"}
       />
     </ZoneWithOpsLabel>
@@ -800,6 +867,7 @@ export function PitchSequence({
   zoneFirst = false,
   mobileZoneCompact = false,
   batterZones,
+  batSide,
   dashboardFooter,
   dashboardFooterCollapsedDefault = false,
   zoneOverlay,
@@ -837,6 +905,7 @@ export function PitchSequence({
             zoneFirst={zoneFirst}
             mobileZoneCompact={mobileZoneCompact}
             batterZones={batterZones}
+            batSide={batSide}
             className="h-full min-h-0 w-full"
           />
         </ZoneWithOpsLabel>
@@ -857,6 +926,7 @@ export function PitchSequence({
           entranceFromIndex={entranceFromIndex}
           zoneEntranceFromIndex={zoneEntranceFromIndex}
           batterZones={batterZones}
+          batSide={batSide}
           className="h-full min-h-0 w-full"
         />
       </ZoneWithOpsLabel>
@@ -873,6 +943,7 @@ export function PitchSequence({
         entranceFromIndex={entranceFromIndex}
         zoneEntranceFromIndex={zoneEntranceFromIndex}
         batterZones={batterZones}
+        batSide={batSide}
         dashboardFooter={dashboardFooter}
         dashboardFooterCollapsedDefault={dashboardFooterCollapsedDefault}
         zoneOverlay={zoneOverlay}
@@ -896,6 +967,7 @@ export function PitchSequence({
         zoneFirst={zoneFirst}
         mobileZoneCompact={mobileZoneCompact}
         batterZones={batterZones}
+        batSide={batSide}
         {...zoneHeaderProps}
       />
     );

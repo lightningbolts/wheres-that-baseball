@@ -91,8 +91,16 @@ const GAME_824902_FEED: MLBLiveFeedResponse = {
         about: { halfInning: "bottom", inning: 2 },
         count: { balls: 0, strikes: 0, outs: 0 },
         matchup: {
-          batter: { fullName: "Batter" },
-          pitcher: { fullName: "Pitcher" },
+          batter: {
+            id: 1,
+            fullName: "Batter",
+            batSide: { code: "L", description: "Left" },
+          },
+          pitcher: {
+            id: 2,
+            fullName: "Pitcher",
+            pitchHand: { code: "R", description: "Right" },
+          },
         },
       },
     },
@@ -119,6 +127,19 @@ describe("live feed ABS snapshot round-trip", () => {
     const state = parseLiveFeed(824902, reconstructed);
     expect(state.awayAbsChallengesRemaining).toBe(1);
     expect(state.homeAbsChallengesRemaining).toBe(2);
+    expect(state.batSide).toBe("L");
+  });
+
+  it("clears batSide when reconstructing a historical at-bat for replay", () => {
+    const state = parseLiveFeed(824902, GAME_824902_FEED);
+    expect(state.batSide).toBe("L");
+
+    const atBats = state.plays.filter((play) => play.isAtBat !== false);
+    const earlyReplay = gameStateForAtBat(state, atBats[0]!, {
+      awayTeamId: 121,
+      homeTeamId: 144,
+    });
+    expect(earlyReplay.batSide).toBeNull();
   });
 
   it("stamps replay ABS counts on each at-bat for season history scrubbing", () => {

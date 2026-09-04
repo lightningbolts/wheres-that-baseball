@@ -44,6 +44,7 @@ import { allPitchesThroughPoint } from "@/lib/mlb/allGamePitches";
 import { isGameOver } from "@/lib/mlb/gameOver";
 import { isHalfInningBreak } from "@/lib/mlb/lineup";
 import { isPlayByPlayAtBat } from "@/lib/mlb/liveFeed";
+import { resolveBatSide } from "@/lib/mlb/boxScoreLookup";
 import { cn } from "@/lib/utils";
 import { normalizeOutcomeProbabilities } from "@/types/database";
 import type { Game } from "@/types/database";
@@ -274,6 +275,22 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
     return null;
   }, [displayState?.batterId, selectedPlay?.batterId, selectedPlay?.detail.batterId]);
   const { zones: batterHotZones } = useBatterHotZones(zoneBatterId, game.season);
+  const batSide = useMemo(
+    () =>
+      resolveBatSide(
+        displayState?.batSide,
+        boxScore,
+        zoneBatterId,
+        displayState?.offenseTeamId ?? gameState?.offenseTeamId,
+      ),
+    [
+      boxScore,
+      displayState?.batSide,
+      displayState?.offenseTeamId,
+      gameState?.offenseTeamId,
+      zoneBatterId,
+    ],
+  );
 
   const gameZonePitches = useMemo(() => {
     if (!gameState) return [];
@@ -641,6 +658,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
                           size="large"
                           zoneFirst
                           batterZones={batterHotZones ?? undefined}
+                          batSide={batSide}
                           className="h-[clamp(16rem,42dvh,26rem)] w-full"
                         />
                       </div>
@@ -656,6 +674,7 @@ export function HistoricalGameDashboard({ game, historyBack }: HistoricalGameDas
                           layout="dashboard"
                           scrollToLatest={isLive}
                           batterZones={batterHotZones ?? undefined}
+                          batSide={batSide}
                           dashboardFooter={renderOutcomeOdds()}
                           className="min-h-0 flex-1"
                         />

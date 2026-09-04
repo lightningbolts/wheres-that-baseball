@@ -100,6 +100,8 @@ export function gameStateForAtBat(
     ...base,
     batterId: play.batterId,
     batterName: play.batterName,
+    // Per-PA stand is not stored on play-by-play; dashboards fall back to box score.
+    batSide: null,
     pitcherId: play.detail.pitcherId,
     pitcherName: play.detail.pitcherName,
     inning: play.inning,
