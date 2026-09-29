@@ -103,6 +103,8 @@ describe("postseason bracket", () => {
   it("round-trips picks through a shareable query value", () => {
     const encoded = encodePostseasonPicks({ "world-series": 5, "al-wc-a": 2 });
     expect(decodePostseasonPicks(encoded)).toEqual({ "al-wc-a": 2, "world-series": 5 });
+    // Verify URI-encoded strings (as produced by browsers or messaging apps) decode correctly
+    expect(decodePostseasonPicks(encodeURIComponent(encoded))).toEqual({ "al-wc-a": 2, "world-series": 5 });
   });
 
   it("formats portrait mode bracket without text collisions or clipping capsule", () => {

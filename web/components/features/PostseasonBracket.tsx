@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppNav } from "@/components/features/AppNav";
 import { TeamLogo } from "@/components/ui/TeamLogo";
 import {
+  decodePostseasonPicks,
   encodePostseasonPicks,
   resolveSeriesTeams,
   sanitizePostseasonPicks,
@@ -390,8 +391,11 @@ function WorldSeriesColumn({ bracket, picks, onPick }: {
   );
 }
 
+type MobileBracketTab = "all" | "al" | "ws" | "nl";
+
 export function PostseasonBracket({ bracket, initialPicks }: PostseasonBracketProps) {
   const [picks, setPicks] = useState(() => sanitizePostseasonPicks(bracket, initialPicks));
+  const [mobileTab, setMobileTab] = useState<MobileBracketTab>("all");
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState<BracketJpegLayout | null>(null);
   const [canNativeShare, setCanNativeShare] = useState(false);
@@ -399,24 +403,68 @@ export function PostseasonBracket({ bracket, initialPicks }: PostseasonBracketPr
   const encoded = useMemo(() => encodePostseasonPicks(picks), [picks]);
   const storageKey = `wtbb-postseason-picks-${bracket.season}`;
 
+  const wsSeries = useMemo(
+    () => bracket.series.find((item) => item.round === "world-series"),
+    [bracket],
+  );
+  const championTeam = useMemo(() => {
+    if (!wsSeries || !picks[wsSeries.id]) return null;
+    const teams = resolveSeriesTeams(bracket, wsSeries, picks);
+    return teams.find((team) => team?.id === picks[wsSeries.id]) ?? null;
+  }, [bracket, picks, wsSeries]);
+
+  const pickedCount = Object.keys(picks).length;
+  const totalCount = bracket.series.length;
+
   useEffect(() => setCanNativeShare("share" in navigator), []);
 
   useEffect(() => {
-    if (Object.keys(initialPicks).length > 0) return;
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const pParam = params.get("p");
+    if (pParam) {
+      const urlPicks = sanitizePostseasonPicks(bracket, decodePostseasonPicks(pParam));
+      if (Object.keys(urlPicks).length > 0) {
+        setPicks(urlPicks);
+        return;
+      }
+    }
+    if (Object.keys(initialPicks).length > 0) {
+      setPicks(sanitizePostseasonPicks(bracket, initialPicks));
+      return;
+    }
     const saved = window.localStorage.getItem(storageKey);
-    if (saved) setPicks(sanitizePostseasonPicks(bracket, JSON.parse(saved) as PostseasonPicks));
+    if (saved) {
+      try {
+        setPicks(sanitizePostseasonPicks(bracket, JSON.parse(saved) as PostseasonPicks));
+      } catch {
+        // ignore parse error
+      }
+    }
   }, [bracket, initialPicks, storageKey]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
     window.localStorage.setItem(storageKey, JSON.stringify(picks));
-  }, [picks, storageKey]);
+    const url = new URL(window.location.href);
+    url.hash = "";
+    url.searchParams.set("season", String(bracket.season));
+    if (encoded) {
+      url.searchParams.set("p", encoded);
+    } else {
+      url.searchParams.delete("p");
+    }
+    window.history.replaceState(null, "", url.toString());
+  }, [bracket.season, encoded, picks, storageKey]);
 
   const onPick = useCallback((seriesId: string, teamId: number) => {
     setPicks((current) => sanitizePostseasonPicks(bracket, { ...current, [seriesId]: teamId }));
   }, [bracket]);
 
   const shareUrl = useCallback(() => {
+    if (typeof window === "undefined") return "";
     const url = new URL(window.location.href);
+    url.hash = "";
     url.searchParams.set("season", String(bracket.season));
     if (encoded) url.searchParams.set("p", encoded);
     else url.searchParams.delete("p");
@@ -428,7 +476,7 @@ export function PostseasonBracket({ bracket, initialPicks }: PostseasonBracketPr
     try {
       await navigator.clipboard.writeText(shareUrl());
       setCopied(true);
-      window.setTimeout(() => setCopied(false), 1800);
+      window.setTimeout(() => setCopied(false), 2000);
     } catch {
       setShareError("Could not copy the bracket link.");
     }
@@ -436,13 +484,26 @@ export function PostseasonBracket({ bracket, initialPicks }: PostseasonBracketPr
 
   const nativeShare = useCallback(async () => {
     setShareError(null);
+    const url = shareUrl();
     try {
-      await navigator.share({ title: `${bracket.season} postseason dibs`, url: shareUrl() });
+      const title = championTeam
+        ? `${bracket.season} MLB Postseason: ${championTeam.name} to win it all`
+        : `${bracket.season} MLB Postseason Bracket`;
+      const text = championTeam
+        ? `I called dibs on the ${championTeam.name} to win the ${bracket.season} World Series! Check out my bracket:`
+        : `Check out my ${bracket.season} MLB postseason bracket picks:`;
+      await navigator.share({ title, text, url });
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") return;
-      setShareError("Could not open the share sheet.");
+      try {
+        await navigator.clipboard.writeText(url);
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 2000);
+      } catch {
+        setShareError("Could not open the share sheet.");
+      }
     }
-  }, [bracket.season, shareUrl]);
+  }, [bracket.season, championTeam, shareUrl]);
 
   const download = useCallback(async (layout: BracketJpegLayout) => {
     setShareError(null);
@@ -467,20 +528,194 @@ export function PostseasonBracket({ bracket, initialPicks }: PostseasonBracketPr
       <main className="mx-auto w-full max-w-[1480px] px-3 py-5 sm:px-4 sm:py-7">
         <div className="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="font-mono text-xs uppercase tracking-[0.18em] text-muted">{bracket.season} MLB postseason</p>
+            <div className="flex items-center gap-2">
+              <p className="font-mono text-xs uppercase tracking-[0.18em] text-muted">{bracket.season} MLB postseason</p>
+              <span className="rounded bg-surface px-1.5 py-0.5 font-mono text-[10px] font-semibold text-secondary border border-border">
+                {pickedCount}/{totalCount} picks
+              </span>
+            </div>
             <h1 className="mt-1 text-3xl font-medium text-foreground">Postseason picture</h1>
             <p className="mt-2 max-w-2xl text-sm text-muted">Tap a team mark to call dibs. Winners move into the next round automatically. No account required.</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => void copyLink()} className="border border-border bg-surface px-3 py-2 text-xs text-secondary hover:bg-hover">{copied ? "Link copied" : "Copy link"}</button>
-            {canNativeShare ? <button type="button" onClick={() => void nativeShare()} className="border border-border bg-surface px-3 py-2 text-xs text-secondary hover:bg-hover">Share</button> : null}
-            <button type="button" onClick={() => void download("landscape")} disabled={downloading !== null} className="border border-[#1b4332] bg-[#1b4332] px-3 py-2 text-xs text-[#f5f0e4] hover:opacity-90 disabled:opacity-60">{downloading === "landscape" ? "Creating…" : "Landscape JPG"}</button>
-            <button type="button" onClick={() => void download("portrait")} disabled={downloading !== null} className="border border-[#1b4332] bg-transparent px-3 py-2 text-xs text-[#1b4332] hover:bg-[#1b4332]/10 disabled:opacity-60">{downloading === "portrait" ? "Creating…" : "Portrait JPG"}</button>
-            <button type="button" onClick={() => setPicks({})} disabled={Object.keys(picks).length === 0} className="border border-border px-3 py-2 text-xs text-muted hover:bg-hover disabled:opacity-40">Reset</button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void (canNativeShare ? nativeShare() : copyLink())}
+              className="flex items-center gap-1.5 border border-[#1b4332] bg-[#1b4332] px-3.5 py-2 font-mono text-xs font-semibold text-[#f5f0e4] shadow-sm hover:opacity-90"
+            >
+              <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+              </svg>
+              {copied ? "Link Copied!" : "Share Bracket"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void copyLink()}
+              className="border border-border bg-surface px-3 py-2 font-mono text-xs text-secondary hover:bg-hover"
+            >
+              {copied ? "Copied" : "Copy Link"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void download("portrait")}
+              disabled={downloading !== null}
+              className="border border-[#1b4332] bg-transparent px-3 py-2 font-mono text-xs text-[#1b4332] hover:bg-[#1b4332]/10 disabled:opacity-60"
+            >
+              {downloading === "portrait" ? "Creating…" : "Portrait JPG"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void download("landscape")}
+              disabled={downloading !== null}
+              className="border border-border bg-surface px-3 py-2 font-mono text-xs text-secondary hover:bg-hover disabled:opacity-60"
+            >
+              {downloading === "landscape" ? "Creating…" : "Landscape JPG"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setPicks({})}
+              disabled={Object.keys(picks).length === 0}
+              className="border border-border px-3 py-2 font-mono text-xs text-muted hover:bg-hover disabled:opacity-40"
+            >
+              Reset
+            </button>
           </div>
         </div>
+
         {shareError ? <p className="mt-2 text-xs text-red-700">{shareError}</p> : null}
-        <section className="mt-6 overflow-x-auto border border-border bg-panel px-4 py-5 shadow-sm">
+
+        {championTeam ? (
+          <div className="mt-4 flex items-center justify-between gap-3 border border-[#8b6914]/40 bg-gradient-to-r from-[#8b6914]/15 via-surface to-[#8b6914]/15 p-3 sm:px-4 sm:py-3.5 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="relative flex size-12 shrink-0 items-center justify-center rounded-full border-2 border-[#8b6914] bg-surface shadow-sm">
+                <TeamLogo teamId={championTeam.id} abbrev={championTeam.abbreviation} size={36} title={championTeam.name} />
+                {championTeam.seed ? (
+                  <span className="absolute -bottom-1 -right-1 flex size-4 items-center justify-center rounded-full bg-[#1c2b2a] font-mono text-[9px] font-bold text-[#f7f3ea]">
+                    {championTeam.seed}
+                  </span>
+                ) : null}
+              </div>
+              <div>
+                <p className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-[#8b6914]">
+                  ★ {bracket.season} World Series Champion Pick
+                </p>
+                <p className="text-base font-semibold text-foreground">
+                  {championTeam.name}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => void (canNativeShare ? nativeShare() : copyLink())}
+              className="whitespace-nowrap border border-[#8b6914] bg-[#8b6914] px-3 py-1.5 font-mono text-xs font-semibold text-[#f5f0e4] hover:opacity-90"
+            >
+              {copied ? "Copied!" : "Share"}
+            </button>
+          </div>
+        ) : null}
+
+        {/* Mobile View Switcher */}
+        <div className="mt-4 sm:hidden">
+          <div className="grid grid-cols-4 gap-1 rounded-lg border border-border bg-surface p-1">
+            <button
+              type="button"
+              onClick={() => setMobileTab("all")}
+              className={cn(
+                "rounded py-1.5 text-center font-mono text-xs font-semibold transition-colors",
+                mobileTab === "all" ? "bg-[#1b4332] text-[#f5f0e4] shadow-sm" : "text-muted hover:text-foreground",
+              )}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileTab("al")}
+              className={cn(
+                "rounded py-1.5 text-center font-mono text-xs font-semibold transition-colors",
+                mobileTab === "al" ? "bg-[#1b4332] text-[#f5f0e4] shadow-sm" : "text-muted hover:text-foreground",
+              )}
+            >
+              AL
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileTab("ws")}
+              className={cn(
+                "rounded py-1.5 text-center font-mono text-xs font-semibold transition-colors",
+                mobileTab === "ws" ? "bg-[#8b6914] text-[#f5f0e4] shadow-sm" : "text-muted hover:text-foreground",
+              )}
+            >
+              World Series
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileTab("nl")}
+              className={cn(
+                "rounded py-1.5 text-center font-mono text-xs font-semibold transition-colors",
+                mobileTab === "nl" ? "bg-[#1b4332] text-[#f5f0e4] shadow-sm" : "text-muted hover:text-foreground",
+              )}
+            >
+              NL
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile-specific view panels */}
+        <div className="sm:hidden">
+          {mobileTab === "al" && (
+            <section className="mt-3 overflow-x-auto border border-border bg-panel px-3 py-4 shadow-sm">
+              <p className="mb-3 text-center font-mono text-xs font-bold uppercase tracking-[0.16em] text-[#1b4332]">
+                American League
+              </p>
+              <div className="grid min-w-[540px] grid-cols-3 gap-4">
+                <StageColumn league="AL" round="wild-card" bracket={bracket} picks={picks} onPick={onPick} flow="right" />
+                <StageColumn league="AL" round="division" bracket={bracket} picks={picks} onPick={onPick} flow="right" />
+                <StageColumn league="AL" round="championship" bracket={bracket} picks={picks} onPick={onPick} flow="right" />
+              </div>
+            </section>
+          )}
+
+          {mobileTab === "nl" && (
+            <section className="mt-3 overflow-x-auto border border-border bg-panel px-3 py-4 shadow-sm">
+              <p className="mb-3 text-center font-mono text-xs font-bold uppercase tracking-[0.16em] text-[#1b4332]">
+                National League
+              </p>
+              <div className="grid min-w-[540px] grid-cols-3 gap-4">
+                <StageColumn league="NL" round="wild-card" bracket={bracket} picks={picks} onPick={onPick} flow="right" />
+                <StageColumn league="NL" round="division" bracket={bracket} picks={picks} onPick={onPick} flow="right" />
+                <StageColumn league="NL" round="championship" bracket={bracket} picks={picks} onPick={onPick} flow="right" />
+              </div>
+            </section>
+          )}
+
+          {mobileTab === "ws" && (
+            <section className="mt-3 border border-border bg-panel px-4 py-6 shadow-sm">
+              <div className="mx-auto max-w-sm">
+                <WorldSeriesColumn bracket={bracket} picks={picks} onPick={onPick} />
+              </div>
+            </section>
+          )}
+
+          {mobileTab === "all" && (
+            <section className="mt-3 overflow-x-auto border border-border bg-panel px-3 py-4 shadow-sm">
+              <p className="mb-2 text-center font-mono text-[11px] text-muted">
+                ⇄ Swipe horizontally to navigate all rounds
+              </p>
+              <div className="grid min-w-[1220px] grid-cols-[1.05fr_1.05fr_1fr_1.18fr_1fr_1.05fr_1.05fr] gap-6">
+                <StageColumn league="AL" round="wild-card" bracket={bracket} picks={picks} onPick={onPick} flow="right" />
+                <StageColumn league="AL" round="division" bracket={bracket} picks={picks} onPick={onPick} flow="right" />
+                <StageColumn league="AL" round="championship" bracket={bracket} picks={picks} onPick={onPick} flow="right" />
+                <WorldSeriesColumn bracket={bracket} picks={picks} onPick={onPick} />
+                <StageColumn league="NL" round="championship" bracket={bracket} picks={picks} onPick={onPick} flow="left" />
+                <StageColumn league="NL" round="division" bracket={bracket} picks={picks} onPick={onPick} flow="left" />
+                <StageColumn league="NL" round="wild-card" bracket={bracket} picks={picks} onPick={onPick} flow="left" />
+              </div>
+            </section>
+          )}
+        </div>
+
+        {/* Desktop view (always full 7 columns) */}
+        <section className="mt-6 hidden overflow-x-auto border border-border bg-panel px-4 py-5 shadow-sm sm:block">
           <div className="mx-auto grid min-w-[1220px] grid-cols-[1.05fr_1.05fr_1fr_1.18fr_1fr_1.05fr_1.05fr] gap-6">
             <StageColumn league="AL" round="wild-card" bracket={bracket} picks={picks} onPick={onPick} flow="right" />
             <StageColumn league="AL" round="division" bracket={bracket} picks={picks} onPick={onPick} flow="right" />
@@ -491,6 +726,7 @@ export function PostseasonBracket({ bracket, initialPicks }: PostseasonBracketPr
             <StageColumn league="NL" round="wild-card" bracket={bracket} picks={picks} onPick={onPick} flow="left" />
           </div>
         </section>
+
         <p className="mt-4 text-xs text-subtle">Matchups and series status come from MLB. Your picks stay on this device unless you share the generated link or downloaded bracket.</p>
       </main>
     </div>

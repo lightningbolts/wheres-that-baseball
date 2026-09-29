@@ -7,7 +7,7 @@ import {
   sanitizePostseasonPicks,
 } from "@/lib/mlb/postseason";
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Postseason Bracket | Where's That Baseball",

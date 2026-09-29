@@ -260,8 +260,15 @@ export function encodePostseasonPicks(picks: PostseasonPicks): string {
 }
 
 export function decodePostseasonPicks(value: string | null | undefined): PostseasonPicks {
+  if (!value) return {};
+  let decoded = value;
+  try {
+    decoded = decodeURIComponent(value);
+  } catch {
+    // fallback if malformed URI sequence
+  }
   const picks: PostseasonPicks = {};
-  for (const token of value?.split(",") ?? []) {
+  for (const token of decoded.split(",")) {
     const [seriesId, rawTeamId] = token.split(".");
     const teamId = Number.parseInt(rawTeamId, 10);
     if (seriesId && Number.isFinite(teamId)) picks[seriesId] = teamId;
