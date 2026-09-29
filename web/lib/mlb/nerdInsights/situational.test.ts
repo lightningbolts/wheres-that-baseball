@@ -118,7 +118,7 @@ describe("situational helpers", () => {
     const complete = isImmaculateInningComplete(
       halfPlays[2] as Parameters<typeof isImmaculateInningComplete>[0],
       halfPlays,
-      { pitchesByHalf: { "4-bottom": 9 } } as Parameters<typeof isImmaculateInningComplete>[2],
+      { pitchesByHalf: { "4-bottom": 9 } } as unknown as Parameters<typeof isImmaculateInningComplete>[2],
     );
 
     expect(complete).toBe(true);

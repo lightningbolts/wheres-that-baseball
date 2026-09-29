@@ -20,6 +20,7 @@ export function ScrollRestoration() {
   const scrollKey = buildScrollKey(pathname, searchParams.toString());
   const scrollKeyRef = useRef(scrollKey);
   scrollKeyRef.current = scrollKey;
+  const prevPathnameRef = useRef(pathname);
 
   useLayoutEffect(() => {
     if (isAsyncScrollRoute(pathname)) {
@@ -54,11 +55,16 @@ export function ScrollRestoration() {
   }, []);
 
   useEffect(() => {
+    const isSamePage = prevPathnameRef.current === pathname;
+    prevPathnameRef.current = pathname;
+
     if (isAsyncScrollRoute(pathname)) return;
 
     const savedY = getSavedScrollY(scrollKey);
     if (savedY === undefined) {
-      window.scrollTo(0, 0);
+      if (!isSamePage) {
+        window.scrollTo(0, 0);
+      }
       return;
     }
 

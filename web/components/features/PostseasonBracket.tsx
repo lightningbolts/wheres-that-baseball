@@ -446,15 +446,37 @@ export function PostseasonBracket({ bracket, initialPicks }: PostseasonBracketPr
   useEffect(() => {
     if (typeof window === "undefined") return;
     window.localStorage.setItem(storageKey, JSON.stringify(picks));
-    const url = new URL(window.location.href);
-    url.hash = "";
-    url.searchParams.set("season", String(bracket.season));
+
+    const currentUrl = new URL(window.location.href);
+    const targetUrl = new URL(window.location.href);
+    targetUrl.hash = "";
+    targetUrl.searchParams.set("season", String(bracket.season));
     if (encoded) {
-      url.searchParams.set("p", encoded);
+      targetUrl.searchParams.set("p", encoded);
     } else {
-      url.searchParams.delete("p");
+      targetUrl.searchParams.delete("p");
     }
-    window.history.replaceState(null, "", url.toString());
+
+    const nextHref = `${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`;
+    const currentHref = `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`;
+    if (nextHref === currentHref) return;
+
+    const historyState = {
+      ...(typeof window.history.state === "object" && window.history.state !== null
+        ? window.history.state
+        : {}),
+      __NA: true,
+    };
+
+    try {
+      if (typeof History !== "undefined" && History.prototype?.replaceState) {
+        History.prototype.replaceState.call(window.history, historyState, "", nextHref);
+      } else {
+        window.history.replaceState(historyState, "", nextHref);
+      }
+    } catch {
+      // ignore replaceState failure
+    }
   }, [bracket.season, encoded, picks, storageKey]);
 
   const onPick = useCallback((seriesId: string, teamId: number) => {
