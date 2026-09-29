@@ -11,6 +11,7 @@ const MLB_SCHEDULE_BASE = "https://statsapi.mlb.com/api/v1";
 const MLB_FEED_BASE = "https://statsapi.mlb.com/api/v1.1";
 const MLB_TIME_ZONE = "America/New_York";
 const SCHEDULE_HYDRATE = "team,linescore,venue";
+const MLB_GAME_TYPES = "R,F,D,L,W";
 const DEFAULT_DAYS = 7;
 const FEED_BATCH_LIMIT = 15;
 const FEED_CONCURRENCY = 3;
@@ -96,7 +97,7 @@ async function fetchScheduleForDate(date: string): Promise<ScheduleApiGame[]> {
   const url = new URL(`${MLB_SCHEDULE_BASE}/schedule`);
   url.searchParams.set("sportId", "1");
   url.searchParams.set("date", date);
-  url.searchParams.set("gameTypes", "R");
+  url.searchParams.set("gameTypes", MLB_GAME_TYPES);
   url.searchParams.set("hydrate", SCHEDULE_HYDRATE);
 
   const response = await fetch(url.toString());

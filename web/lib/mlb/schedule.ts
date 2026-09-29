@@ -85,6 +85,10 @@ function toSlateGame(
 
   return {
     ...base,
+    gameType: game.gameType ?? "R",
+    seriesDescription: game.seriesDescription ?? null,
+    seriesBestOf: game.gamesInSeries ?? null,
+    seriesStatus: game.seriesStatus?.result ?? null,
     awayAbbrev:
       awayTeam.team.abbreviation ?? awayTeam.team.name.slice(0, 3).toUpperCase(),
     homeAbbrev:
@@ -241,7 +245,7 @@ async function fetchScheduleForDate(date: string): Promise<MLBScheduleGame[]> {
 }
 
 /**
- * Fetches today's regular-season schedule and returns games that are live
+ * Fetches today's MLB schedule and returns games that are live
  * or about to start. Includes carryover west-coast games from yesterday's ET
  * slate after midnight Eastern, and hides Preview games far in the future.
  */

@@ -11,10 +11,11 @@ import {
   parseNerdStatsWindowParam,
 } from "@/lib/mlb/nerdStats/store";
 import { getNerdStatDefinition } from "@/lib/mlb/nerdStats/definitions";
+import { parseNerdSeasonType } from "@/lib/mlb/nerdStats/seasonTypes";
 
 export const dynamic = "force-dynamic";
 
-const NERD_CACHE_VARY = ["season", "statId", "teamId", "window", "split"] as const;
+const NERD_CACHE_VARY = ["season", "statId", "teamId", "window", "split", "seasonType"] as const;
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -23,6 +24,7 @@ export async function GET(request: Request) {
   const teamIdParam = searchParams.get("teamId");
   const window = parseNerdStatsWindowParam(searchParams.get("window"));
   const split = parseNerdStatsSplitParam(searchParams.get("split"));
+  const seasonType = parseNerdSeasonType(searchParams.get("seasonType"));
   const season = seasonParam ? Number.parseInt(seasonParam, 10) : new Date().getFullYear();
   const teamId = teamIdParam ? Number.parseInt(teamIdParam, 10) : undefined;
 
@@ -48,19 +50,19 @@ export async function GET(request: Request) {
       }
       result = card;
     } else if (statId) {
-      const detail = loadNerdStatDetail(season, statId, window, split);
+      const detail = loadNerdStatDetail(season, statId, window, split, seasonType);
       if (!detail) {
         return NextResponse.json({ error: "Stat data not found" }, { status: 404 });
       }
       result = detail;
     } else {
-      const summary = loadNerdStatsSummary(season, window, split);
+      const summary = loadNerdStatsSummary(season, window, split, seasonType);
       result = summary
         ? { ...summary, source: "file" as const }
         : window === "season" && split === "all"
-          ? { ...getEmptyNerdStatsSummary(season), source: "empty" as const, backfillPending: true }
+          ? { ...getEmptyNerdStatsSummary(season, seasonType), source: "empty" as const, backfillPending: true }
           : {
-              ...getEmptyNerdStatsSummary(season),
+              ...getEmptyNerdStatsSummary(season, seasonType),
               source: "empty" as const,
               window,
               split: split === "all" ? undefined : split,

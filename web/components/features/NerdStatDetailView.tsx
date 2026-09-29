@@ -24,6 +24,10 @@ import {
   parseNerdStatWindow,
 } from "@/lib/mlb/nerdStats/windows";
 import { cn } from "@/lib/utils";
+import {
+  nerdSeasonTypeLabel,
+  parseNerdSeasonType,
+} from "@/lib/mlb/nerdStats/seasonTypes";
 
 const CURRENT_SEASON = new Date().getFullYear();
 
@@ -35,11 +39,13 @@ export function NerdStatDetailView({ statId }: NerdStatDetailViewProps) {
   const searchParams = useSearchParams();
   const timeWindow = parseNerdStatWindow(searchParams.get("window"));
   const venueSplit = parseNerdStatSplit(searchParams.get("split"));
+  const seasonType = parseNerdSeasonType(searchParams.get("seasonType"));
   const { data, isLoading, error } = useNerdStatDetail(
     statId,
     CURRENT_SEASON,
     timeWindow,
     venueSplit,
+    seasonType,
   );
 
   useEffect(() => {
@@ -57,7 +63,7 @@ export function NerdStatDetailView({ statId }: NerdStatDetailViewProps) {
 
       <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-6">
         <Link
-          href={nerdStandingsHref(timeWindow, venueSplit)}
+          href={nerdStandingsHref(timeWindow, venueSplit, seasonType)}
           scroll={false}
           onClick={() => blockScrollPersist(2000)}
           className="text-xs text-muted transition-colors hover:text-foreground"
@@ -87,6 +93,7 @@ export function NerdStatDetailView({ statId }: NerdStatDetailViewProps) {
                 <h1 className="mt-1 text-xl font-medium text-foreground">{data.stat.title}</h1>
                 <p className="mt-1 text-xs text-subtle">
                   {nerdStatWindowLabel(timeWindow)}
+                  {` · ${nerdSeasonTypeLabel(seasonType)}`}
                   {venueSplit !== "all" && timeWindow === "season"
                     ? ` · ${nerdStatSplitLabel(venueSplit)}`
                     : ""}
@@ -104,13 +111,13 @@ export function NerdStatDetailView({ statId }: NerdStatDetailViewProps) {
                 )}
               </div>
               <NerdShareActions
-                sharePath={`/nerd/${statId}`}
-                shareCardQuery={`statId=${encodeURIComponent(statId)}&season=${CURRENT_SEASON}`}
+                sharePath={`/nerd/${statId}?seasonType=${seasonType}`}
+                shareCardQuery={`statId=${encodeURIComponent(statId)}&season=${CURRENT_SEASON}&seasonType=${seasonType}`}
                 shareTitle={data.stat.title}
               />
             </div>
 
-            <NerdStatHistoryChart
+            {seasonType === "regular" ? <NerdStatHistoryChart
               statId={statId}
               season={CURRENT_SEASON}
               sort={data.stat.sort}
@@ -118,7 +125,7 @@ export function NerdStatDetailView({ statId }: NerdStatDetailViewProps) {
               initialSplit={timeWindow === "season" ? venueSplit : "all"}
               leagueAverage={data.stat.leagueAverage}
               formatValue={statDefinition?.formatValue}
-            />
+            /> : null}
 
             <div className="mt-6 overflow-hidden rounded-xl border border-border">
               <table className="w-full text-left text-sm">

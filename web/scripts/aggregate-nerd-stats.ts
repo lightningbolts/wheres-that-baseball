@@ -90,6 +90,10 @@ import {
 } from "../lib/mlb/nerdStats/historyStore";
 import type { NerdStatSplitId } from "../lib/mlb/nerdStats/splits";
 import { gameDateInNerdWindow, NERD_STAT_WINDOWS } from "../lib/mlb/nerdStats/windows";
+import {
+  parseNerdSeasonType,
+  type NerdSeasonType,
+} from "../lib/mlb/nerdStats/seasonTypes";
 
 const WEB_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const REPO_ROOT = join(WEB_ROOT, "..");
@@ -129,9 +133,9 @@ const FULL_ROW_BATCH_SIZE = 12;
 const SAVANT_BATCH_SIZE = 10;
 
 const GAME_COLUMNS =
-  "game_pk,game_date,season,away_team_id,home_team_id,away_team_abbrev,home_team_abbrev,away_score,home_score,game_state,box_score,feed_synced_at" as const;
+  "game_pk,game_date,season,game_type,away_team_id,home_team_id,away_team_abbrev,home_team_abbrev,away_score,home_score,game_state,box_score,feed_synced_at" as const;
 
-const FULL_ROW_SELECT_SQL = `SELECT game_pk, game_date, season, away_team_id, home_team_id,
+const FULL_ROW_SELECT_SQL = `SELECT game_pk, game_date, season, game_type, away_team_id, home_team_id,
               away_team_abbrev, home_team_abbrev, away_score, home_score,
               game_state, box_score, feed_synced_at
        FROM games`;
@@ -158,14 +162,16 @@ function readDateRange(): { since?: string; until?: string } {
 
 function resolveStoreOptions(
   season: number,
+  seasonType: NerdSeasonType,
   explicitStatIds?: string[],
   options?: { fullStore?: boolean; teamCards?: boolean },
 ): WriteNerdStatsStoreOptions {
   const onlyNewStats = !options?.fullStore && !explicitStatIds;
 
   return {
-    statIds: explicitStatIds ?? (onlyNewStats ? listMissingStatIds(season) : undefined),
-    skipTeamCards: !options?.teamCards && !options?.fullStore,
+    statIds: explicitStatIds ?? (onlyNewStats ? listMissingStatIds(season, seasonType) : undefined),
+    skipTeamCards: seasonType === "postseason" || (!options?.teamCards && !options?.fullStore),
+    seasonType,
   };
 }
 
@@ -188,6 +194,7 @@ async function extractAndCacheGame(
   const entry: PerGameNerdCacheEntry = {
     gamePk: game.game_pk,
     gameDate: game.game_date,
+    gameType: game.game_type,
     combined,
     home,
     away,
@@ -280,6 +287,14 @@ function writeSeasonAndSplitStores(
   options: WriteNerdStatsStoreOptions,
   playerCounters?: SeasonPlayerNerdCounters,
 ): { writtenStatIds: string[] } {
+  if (options.seasonType === "postseason") {
+    return writeNerdStatsStore(
+      season,
+      countersByScope.combined,
+      processedGamePks,
+      { ...options, skipTeamCards: true },
+    );
+  }
   const { writtenStatIds } = writeNerdStatsStore(
     season,
     countersByScope.combined,
@@ -433,7 +448,8 @@ async function backfillCountersFromManifest(
     forceRefetch: boolean;
   },
 ): Promise<void> {
-  const manifest = loadNerdStatsManifest(season);
+  const seasonType = options.storeOptions.seasonType ?? "regular";
+  const manifest = loadNerdStatsManifest(season, seasonType);
   if (manifest.processedGamePks.length === 0) {
     console.log("No processed games in manifest — run a full aggregate first.");
     return;
@@ -494,7 +510,7 @@ async function backfillCountersFromManifest(
 
   const countersByScope = countersByScopeFromCaches(allCaches);
   if (options.skipSavant) {
-    const previousCombined = loadSeasonCounters(season);
+    const previousCombined = loadSeasonCounters(season, seasonType);
     const previousHome = loadSplitCounters(season, "home");
     const previousAway = loadSplitCounters(season, "away");
     preserveBatSpeedCounters(countersByScope.combined, previousCombined);
@@ -521,8 +537,10 @@ async function backfillCountersFromManifest(
     console.log("Skipped team cards (pass --team-cards to include).");
   }
 
-  await buildRollingWindowStores(season, allCaches, options.storeOptions);
-  buildHistoryStores(season, allCaches, options.storeOptions.statIds);
+  if (seasonType === "regular") {
+    await buildRollingWindowStores(season, allCaches, options.storeOptions);
+    buildHistoryStores(season, allCaches, options.storeOptions.statIds);
+  }
 }
 
 async function refreshWindowBatSpeedFromSavant(
@@ -557,13 +575,14 @@ async function backfillSavantBatSpeedFromManifest(
   season: number,
   storeOptions: WriteNerdStatsStoreOptions,
 ): Promise<void> {
-  const manifest = loadNerdStatsManifest(season);
+  const seasonType = storeOptions.seasonType ?? "regular";
+  const manifest = loadNerdStatsManifest(season, seasonType);
   if (manifest.processedGamePks.length === 0) {
     console.log("No processed games in manifest — run a full aggregate first.");
     return;
   }
 
-  const counters = loadSeasonCounters(season);
+  const counters = loadSeasonCounters(season, seasonType);
   const homeCounters = loadSplitCounters(season, "home");
   const awayCounters = loadSplitCounters(season, "away");
   resetBatSpeedCounters(counters);
@@ -624,8 +643,10 @@ async function backfillSavantBatSpeedFromManifest(
     console.log("Skipping history — no per-game caches could be built from local game_state.");
   }
 
-  console.log("Refreshing rolling window bat speed from Savant…");
-  await refreshWindowBatSpeedFromSavant(season, perGameCaches);
+  if (seasonType === "regular") {
+    console.log("Refreshing rolling window bat speed from Savant…");
+    await refreshWindowBatSpeedFromSavant(season, perGameCaches);
+  }
 }
 
 type BulkCreds =
@@ -688,6 +709,7 @@ function buildDateConditions(
 
 async function listFinalGamePksViaPostgres(
   season: number,
+  seasonType: NerdSeasonType,
   databaseUrl: string,
   dateRange: { since?: string; until?: string },
 ): Promise<number[]> {
@@ -695,7 +717,10 @@ async function listFinalGamePksViaPostgres(
   const pool = new Pool({ connectionString: databaseUrl });
   try {
     const params: Array<string | number> = [season];
-    const conditions = ["season = $1", "status = 'Final'", ...buildDateConditions(dateRange, params)];
+    const gameTypeCondition = seasonType === "postseason"
+      ? "game_type IN ('F', 'D', 'L', 'W')"
+      : "game_type = 'R'";
+    const conditions = ["season = $1", "status = 'Final'", gameTypeCondition, ...buildDateConditions(dateRange, params)];
 
     const { rows } = await pool.query(
       `SELECT game_pk FROM games WHERE ${conditions.join(" AND ")} ORDER BY game_pk`,
@@ -738,6 +763,7 @@ async function fetchGamesByPksViaPostgres(
 
 async function listFinalGamePksViaSupabase(
   season: number,
+  seasonType: NerdSeasonType,
   dateRange: { since?: string; until?: string },
 ): Promise<number[]> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -755,6 +781,10 @@ async function listFinalGamePksViaSupabase(
       .eq("season", season)
       .eq("status", "Final")
       .order("game_pk", { ascending: true });
+
+    query = seasonType === "postseason"
+      ? query.in("game_type", ["F", "D", "L", "W"])
+      : query.eq("game_type", "R");
 
     if (dateRange.since) query = query.gte("game_date", dateRange.since);
     if (dateRange.until) query = query.lte("game_date", dateRange.until);
@@ -810,16 +840,18 @@ async function fetchGamesForPks(
 
 async function listFinalGamePks(
   season: number,
+  seasonType: NerdSeasonType,
   creds: BulkCreds,
   dateRange: { since?: string; until?: string },
 ): Promise<number[]> {
   return creds.mode === "postgres"
-    ? listFinalGamePksViaPostgres(season, creds.databaseUrl, dateRange)
-    : listFinalGamePksViaSupabase(season, dateRange);
+    ? listFinalGamePksViaPostgres(season, seasonType, creds.databaseUrl, dateRange)
+    : listFinalGamePksViaSupabase(season, seasonType, dateRange);
 }
 
 async function main() {
   const season = Number.parseInt(readArg("season") ?? String(new Date().getFullYear()), 10);
+  const seasonType = parseNerdSeasonType(readArg("season-type"));
   const dateRange = readDateRange();
   const incremental = Boolean(dateRange.since || dateRange.until);
   const rebuildStore = hasFlag("rebuild-store");
@@ -830,7 +862,7 @@ async function main() {
   const fullStore = hasFlag("full-store");
   const teamCards = hasFlag("team-cards");
   const explicitStatIds = readCsvArg("stats");
-  const storeOptions = resolveStoreOptions(season, explicitStatIds, {
+  const storeOptions = resolveStoreOptions(season, seasonType, explicitStatIds, {
     fullStore,
     teamCards,
   });
@@ -852,6 +884,10 @@ async function main() {
   }
 
   if (rebuildWindows) {
+    if (seasonType === "postseason") {
+      console.log("Postseason standings do not use rolling-window or venue-split stores.");
+      return;
+    }
     const { rebuiltWindows } = rebuildWindowStoresFromCounters(season, storeOptions);
     const { rebuiltSplits } = rebuildSplitStoresFromCounters(season, storeOptions);
     if (rebuiltWindows.length === 0 && rebuiltSplits.length === 0) {
@@ -868,9 +904,13 @@ async function main() {
   }
 
   if (hasFlag("rebuild-history")) {
+    if (seasonType === "postseason") {
+      console.log("Postseason history charts are not emitted.");
+      return;
+    }
     const creds = await resolveBulkReadCredentialsAsync();
     warnEgressIfRest(creds);
-    const manifest = loadNerdStatsManifest(season);
+    const manifest = loadNerdStatsManifest(season, seasonType);
     if (manifest.processedGamePks.length === 0) {
       console.log("No processed games in manifest — run a full aggregate first.");
       return;
@@ -886,8 +926,8 @@ async function main() {
   }
 
   if (rebuildStore) {
-    const manifest = loadNerdStatsManifest(season);
-    const counters = loadSeasonCounters(season);
+    const manifest = loadNerdStatsManifest(season, seasonType);
+    const counters = loadSeasonCounters(season, seasonType);
     const homeCounters = loadSplitCounters(season, "home");
     const awayCounters = loadSplitCounters(season, "away");
     if (manifest.processedGamePks.length === 0) {
@@ -921,14 +961,14 @@ async function main() {
       `Incremental nerd stats since ${dateRange.since ?? "…"}${dateRange.until ? ` until ${dateRange.until}` : ""}`,
     );
   } else {
-    console.log(`Full nerd stats rebuild for season ${season}`);
+    console.log(`Full ${seasonType} nerd stats rebuild for season ${season}`);
   }
 
-  const gamePks = await listFinalGamePks(season, creds, dateRange);
+  const gamePks = await listFinalGamePks(season, seasonType, creds, dateRange);
   console.log(`Found ${gamePks.length} final game(s) in range`);
 
   if (incremental) {
-    const processed = new Set(loadNerdStatsManifest(season).processedGamePks);
+    const processed = new Set(loadNerdStatsManifest(season, seasonType).processedGamePks);
     const pendingPks = gamePks.filter((gamePk) => !processed.has(gamePk));
 
     if (pendingPks.length === 0) {
@@ -953,16 +993,18 @@ async function main() {
       console.log(`Updated nerd stats with ${pending.length} game(s) in data/nerd-stats/${season}/`);
 
       if (newCaches.length > 0) {
-        console.log("Refreshing rolling window stores…");
-        await refreshRollingWindowStoresIncremental(season, newCaches);
-        const manifest = loadNerdStatsManifest(season);
-        const caches = await loadCachesForHistoryRebuild(
-          season,
-          creds,
-          manifest.processedGamePks,
-          skipSavant,
-        );
-        buildHistoryStores(season, caches, explicitStatIds ?? undefined);
+        if (seasonType === "regular") {
+          console.log("Refreshing rolling window stores…");
+          await refreshRollingWindowStoresIncremental(season, newCaches);
+          const manifest = loadNerdStatsManifest(season, seasonType);
+          const caches = await loadCachesForHistoryRebuild(
+            season,
+            creds,
+            manifest.processedGamePks,
+            skipSavant,
+          );
+          buildHistoryStores(season, caches, explicitStatIds ?? undefined);
+        }
       }
     }
 
@@ -974,7 +1016,7 @@ async function main() {
   const countersByScope = await processGamesIntoAllCounters(season, games, skipSavant);
   const processed = games.map((game) => game.game_pk);
 
-  const fullRebuildStoreOptions = resolveStoreOptions(season, explicitStatIds, {
+  const fullRebuildStoreOptions = resolveStoreOptions(season, seasonType, explicitStatIds, {
     fullStore: true,
     teamCards: true,
   });
@@ -987,8 +1029,10 @@ async function main() {
   );
   console.log(`Wrote nerd stats for ${processed.length} games to data/nerd-stats/${season}/`);
   const allCaches = loadPerGameNerdCaches(season, processed).cached;
-  await buildRollingWindowStores(season, allCaches, fullRebuildStoreOptions);
-  buildHistoryStores(season, allCaches, explicitStatIds ?? undefined);
+  if (seasonType === "regular") {
+    await buildRollingWindowStores(season, allCaches, fullRebuildStoreOptions);
+    buildHistoryStores(season, allCaches, explicitStatIds ?? undefined);
+  }
 }
 
 main().catch((error) => {

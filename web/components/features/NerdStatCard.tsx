@@ -9,6 +9,7 @@ import { nerdStatDetailHref } from "@/lib/mlb/nerdStats/splits";
 import type { NerdStatSplitFilter } from "@/lib/mlb/nerdStats/splits";
 import type { NerdStatLeaderboard } from "@/lib/mlb/nerdStats/types";
 import type { NerdStatWindowId } from "@/lib/mlb/nerdStats/windows";
+import type { NerdSeasonType } from "@/lib/mlb/nerdStats/seasonTypes";
 import { cn } from "@/lib/utils";
 
 interface NerdStatCardProps {
@@ -16,6 +17,7 @@ interface NerdStatCardProps {
   season: number;
   timeWindow?: NerdStatWindowId;
   venueSplit?: NerdStatSplitFilter;
+  seasonType?: NerdSeasonType;
   highlighted?: boolean;
   className?: string;
 }
@@ -25,6 +27,7 @@ export function NerdStatCard({
   season,
   timeWindow = "season",
   venueSplit = "all",
+  seasonType = "regular",
   highlighted,
   className,
 }: NerdStatCardProps) {
@@ -39,7 +42,7 @@ export function NerdStatCard({
 
   return (
     <Link
-      href={nerdStatDetailHref(stat.id, timeWindow, venueSplit)}
+      href={nerdStatDetailHref(stat.id, timeWindow, venueSplit, seasonType)}
       scroll={false}
       onClick={() => {
         const path = window.location.pathname;

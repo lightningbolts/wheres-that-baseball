@@ -13,6 +13,7 @@ import (
 )
 
 const scheduleAPIBase = "https://statsapi.mlb.com/api/v1"
+const mlbGameTypes = "R,F,D,L,W"
 
 // Hydrate contract shared with web/lib/mlb/scheduleApi.ts (row preset):
 // team,linescore,venue
@@ -84,7 +85,7 @@ func ScheduleDateET(t time.Time) string {
 	return t.In(loc).Format("2006-01-02")
 }
 
-// FetchScheduleGames returns all regular-season games on the given calendar date.
+// FetchScheduleGames returns regular-season and postseason games on the given date.
 func FetchScheduleGames(ctx context.Context, httpClient *http.Client, date string) ([]ScheduleGame, error) {
 	if httpClient == nil {
 		httpClient = http.DefaultClient
@@ -100,7 +101,7 @@ func FetchScheduleGames(ctx context.Context, httpClient *http.Client, date strin
 	q := endpoint.Query()
 	q.Set("sportId", "1")
 	q.Set("date", date)
-	q.Set("gameTypes", "R")
+	q.Set("gameTypes", mlbGameTypes)
 	q.Set("hydrate", "team,linescore,venue")
 	endpoint.RawQuery = q.Encode()
 

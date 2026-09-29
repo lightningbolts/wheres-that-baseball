@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getNerdStatDefinition } from "@/lib/mlb/nerdStats/definitions";
 import { renderNerdStatImage, renderTeamNerdCardImage } from "@/lib/mlb/nerdStats/renderShareImage";
 import { loadNerdStatDetail, loadTeamNerdCard } from "@/lib/mlb/nerdStats/store";
+import { parseNerdSeasonType } from "@/lib/mlb/nerdStats/seasonTypes";
 
 export const runtime = "nodejs";
 
@@ -12,6 +13,7 @@ export async function GET(request: Request) {
   const teamIdParam = searchParams.get("teamId");
   const seasonParam = searchParams.get("season");
   const season = seasonParam ? Number.parseInt(seasonParam, 10) : new Date().getFullYear();
+  const seasonType = parseNerdSeasonType(searchParams.get("seasonType"));
 
   if (!statId && !teamIdParam) {
     return NextResponse.json({ error: "statId or teamId required" }, { status: 400 });
@@ -22,7 +24,7 @@ export async function GET(request: Request) {
       if (!getNerdStatDefinition(statId)) {
         return NextResponse.json({ error: "Unknown stat" }, { status: 404 });
       }
-      const detail = loadNerdStatDetail(season, statId);
+      const detail = loadNerdStatDetail(season, statId, "season", "all", seasonType);
       if (!detail) {
         return NextResponse.json({ error: "Stat data not found" }, { status: 404 });
       }

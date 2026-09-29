@@ -40,25 +40,36 @@ import {
   type NerdStatSplitFilter,
   type NerdStatSplitId,
 } from "@/lib/mlb/nerdStats/splits";
+import {
+  isPostseasonGameType,
+  nerdSeasonTypeLabel,
+  type NerdSeasonType,
+} from "@/lib/mlb/nerdStats/seasonTypes";
 
 function seasonDir(season: number): string {
   return join(process.cwd(), "data", "nerd-stats", String(season));
 }
 
-function summaryPath(season: number): string {
-  return join(seasonDir(season), "summary.json");
+function seasonTypeDir(season: number, seasonType: NerdSeasonType): string {
+  return seasonType === "postseason"
+    ? join(seasonDir(season), "postseason")
+    : seasonDir(season);
 }
 
-function manifestPath(season: number): string {
-  return join(seasonDir(season), "manifest.json");
+function summaryPath(season: number, seasonType: NerdSeasonType = "regular"): string {
+  return join(seasonTypeDir(season, seasonType), "summary.json");
 }
 
-function countersPath(season: number): string {
-  return join(seasonDir(season), "counters.json");
+function manifestPath(season: number, seasonType: NerdSeasonType = "regular"): string {
+  return join(seasonTypeDir(season, seasonType), "manifest.json");
 }
 
-function statPath(season: number, statId: string): string {
-  return join(seasonDir(season), "stats", `${statId}.json`);
+function countersPath(season: number, seasonType: NerdSeasonType = "regular"): string {
+  return join(seasonTypeDir(season, seasonType), "counters.json");
+}
+
+function statPath(season: number, statId: string, seasonType: NerdSeasonType = "regular"): string {
+  return join(seasonTypeDir(season, seasonType), "stats", `${statId}.json`);
 }
 
 function teamCardPath(season: number, teamId: number): string {
@@ -97,8 +108,9 @@ function splitStatPath(season: number, split: NerdStatSplitId, statId: string): 
   return join(splitDir(season, split), "stats", `${statId}.json`);
 }
 
-function ensureSeasonDir(season: number): void {
-  mkdirSync(join(seasonDir(season), "stats"), { recursive: true });
+function ensureSeasonDir(season: number, seasonType: NerdSeasonType = "regular"): void {
+  mkdirSync(join(seasonTypeDir(season, seasonType), "stats"), { recursive: true });
+  if (seasonType === "postseason") return;
   mkdirSync(join(seasonDir(season), "teams"), { recursive: true });
   mkdirSync(join(seasonDir(season), "windows"), { recursive: true });
   mkdirSync(join(seasonDir(season), "splits"), { recursive: true });
@@ -116,9 +128,12 @@ function writeJson(path: string, data: unknown): void {
   writeFileSync(path, `${JSON.stringify(data)}\n`, "utf8");
 }
 
-export function loadNerdStatsManifest(season: number): NerdStatsManifest {
+export function loadNerdStatsManifest(
+  season: number,
+  seasonType: NerdSeasonType = "regular",
+): NerdStatsManifest {
   return (
-    readJson<NerdStatsManifest>(manifestPath(season)) ?? {
+    readJson<NerdStatsManifest>(manifestPath(season, seasonType)) ?? {
       season,
       processedGamePks: [],
       generatedAt: new Date(0).toISOString(),
@@ -130,14 +145,18 @@ export function loadNerdStatsSummary(
   season: number,
   window: NerdStatWindowId = "season",
   split: NerdStatSplitFilter = "all",
+  seasonType: NerdSeasonType = "regular",
 ): NerdStatsSummary | null {
   if (split !== "all" && window !== "season") return null;
+  if (seasonType === "postseason" && (window !== "season" || split !== "all")) return null;
 
   const path =
-    split !== "all"
+    seasonType === "postseason"
+      ? summaryPath(season, seasonType)
+      : split !== "all"
       ? splitSummaryPath(season, split)
       : window === "season"
-        ? summaryPath(season)
+        ? summaryPath(season, seasonType)
         : windowSummaryPath(season, window);
   const summary = readJson<NerdStatsSummary>(path);
   if (!summary) return null;
@@ -147,6 +166,8 @@ export function loadNerdStatsSummary(
     windowLabel: summary.windowLabel ?? nerdStatWindowLabel(window),
     split: summary.split ?? (split === "all" ? undefined : split),
     splitLabel: summary.splitLabel ?? nerdStatSplitLabel(split) ?? undefined,
+    seasonType,
+    seasonTypeLabel: nerdSeasonTypeLabel(seasonType),
   };
 }
 
@@ -155,12 +176,14 @@ export function loadNerdStatDetail(
   statId: string,
   window: NerdStatWindowId = "season",
   split: NerdStatSplitFilter = "all",
+  seasonType: NerdSeasonType = "regular",
 ): NerdStatDetail | null {
   if (split !== "all" && window !== "season") return null;
+  if (seasonType === "postseason" && (window !== "season" || split !== "all")) return null;
 
   // Always derive from counters so detail matches summary cards (rolling-window
   // updates rewrite summary.json but may skip stale per-stat JSON on disk).
-  const counters = loadCountersForStore(season, window, split);
+  const counters = loadCountersForStore(season, window, split, seasonType);
   return buildNerdStatDetail(season, statId, counters, window, split);
 }
 
@@ -168,7 +191,9 @@ function loadCountersForStore(
   season: number,
   window: NerdStatWindowId,
   split: NerdStatSplitFilter,
+  seasonType: NerdSeasonType,
 ): SeasonNerdCounters {
+  if (seasonType === "postseason") return loadSeasonCounters(season, seasonType);
   if (split !== "all") return loadSplitCounters(season, split);
   if (window === "season") return loadSeasonCounters(season);
   return loadWindowCounters(season, window);
@@ -191,8 +216,11 @@ export function loadTeamNerdCard(season: number, teamId: number): TeamNerdCard |
   return readJson<TeamNerdCard>(teamCardPath(season, teamId));
 }
 
-export function loadSeasonCounters(season: number): SeasonNerdCounters {
-  const raw = readJson<SeasonNerdCounters>(countersPath(season));
+export function loadSeasonCounters(
+  season: number,
+  seasonType: NerdSeasonType = "regular",
+): SeasonNerdCounters {
+  const raw = readJson<SeasonNerdCounters>(countersPath(season, seasonType));
   if (!raw) return createEmptySeasonCounters();
   return normalizeSeasonCounters(raw);
 }
@@ -204,10 +232,14 @@ export interface WriteNerdStatsStoreOptions {
   skipTeamCards?: boolean;
   /** Override game count written into summary (e.g. when rebuilding from counters). */
   indexedGameCount?: number;
+  seasonType?: NerdSeasonType;
 }
 
-export function listMissingStatIds(season: number): string[] {
-  const stored = new Set(listStoredStatIds(season));
+export function listMissingStatIds(
+  season: number,
+  seasonType: NerdSeasonType = "regular",
+): string[] {
+  const stored = new Set(listStoredStatIds(season, seasonType));
   return NERD_STAT_DEFINITIONS.map((definition) => definition.id).filter((id) => !stored.has(id));
 }
 
@@ -240,7 +272,8 @@ function writeNerdStatsStoreAtPath(
   processedGamePks: number[],
   options: WriteNerdStatsStoreOptions = {},
 ): { writtenStatIds: string[] } {
-  ensureSeasonDir(season);
+  const seasonType = options.seasonType ?? "regular";
+  ensureSeasonDir(season, seasonType);
 
   const statIds = options.statIds ?? NERD_STAT_DEFINITIONS.map((definition) => definition.id);
   const writtenStatIds: string[] = [];
@@ -250,6 +283,8 @@ function writeNerdStatsStoreAtPath(
     ...summary,
     window,
     windowLabel: nerdStatWindowLabel(window),
+    seasonType,
+    seasonTypeLabel: nerdSeasonTypeLabel(seasonType),
   };
 
   if (window === "season") {
@@ -258,9 +293,9 @@ function writeNerdStatsStoreAtPath(
       processedGamePks: [...processedGamePks].sort((a, b) => a - b),
       generatedAt: new Date().toISOString(),
     };
-    writeJson(manifestPath(season), manifest);
-    writeJson(countersPath(season), counters);
-    writeJson(summaryPath(season), summaryWithWindow);
+    writeJson(manifestPath(season, seasonType), manifest);
+    writeJson(countersPath(season, seasonType), counters);
+    writeJson(summaryPath(season, seasonType), summaryWithWindow);
   } else {
     mkdirSync(join(windowDir(season, window), "stats"), { recursive: true });
     writeJson(windowCountersPath(season, window), counters);
@@ -272,12 +307,12 @@ function writeNerdStatsStoreAtPath(
     const detail = buildNerdStatDetail(season, statId, counters, window, "all");
     if (!detail) continue;
     const path =
-      window === "season" ? statPath(season, statId) : windowStatPath(season, window, statId);
+      window === "season" ? statPath(season, statId, seasonType) : windowStatPath(season, window, statId);
     writeJson(path, detail);
     writtenStatIds.push(statId);
   }
 
-  if (!options.skipTeamCards && window === "season") {
+  if (!options.skipTeamCards && window === "season" && seasonType === "regular") {
     for (const card of buildAllTeamNerdCards(season, counters)) {
       writeJson(teamCardPath(season, card.teamId), card);
     }
@@ -406,12 +441,36 @@ export async function appendGameNerdStatsToStore(
   season: number,
   row: GameNerdSourceRow,
 ): Promise<void> {
-  ensureSeasonDir(season);
+  const seasonType: NerdSeasonType = isPostseasonGameType(row.game_type) ? "postseason" : "regular";
+  ensureSeasonDir(season, seasonType);
 
-  const manifest = loadNerdStatsManifest(season);
+  const manifest = loadNerdStatsManifest(season, seasonType);
   if (manifest.processedGamePks.includes(row.game_pk)) return;
 
-  const counters = loadSeasonCounters(season);
+  const counters = loadSeasonCounters(season, seasonType);
+  if (seasonType === "postseason") {
+    const gameCounters = extractNerdCountersFromGame(row, "all");
+    await enrichCountersWithSavantBatSpeed(gameCounters, row.game_pk, { row, split: "all" });
+    mergeSeasonCounters(counters, gameCounters);
+    writePerGameNerdCache(season, {
+      gamePk: row.game_pk,
+      gameDate: row.game_date,
+      gameType: row.game_type,
+      combined: gameCounters,
+      home: createEmptySeasonCounters(),
+      away: createEmptySeasonCounters(),
+      extractedAt: new Date().toISOString(),
+    });
+    writeGameSourceRow(season, row);
+    manifest.processedGamePks.push(row.game_pk);
+    manifest.processedGamePks.sort((a, b) => a - b);
+    writeNerdStatsStore(season, counters, manifest.processedGamePks, {
+      seasonType,
+      skipTeamCards: true,
+    });
+    return;
+  }
+
   const homeCounters = loadSplitCounters(season, "home");
   const awayCounters = loadSplitCounters(season, "away");
 
@@ -431,6 +490,7 @@ export async function appendGameNerdStatsToStore(
   writePerGameNerdCache(season, {
     gamePk: row.game_pk,
     gameDate: row.game_date,
+    gameType: row.game_type,
     combined: gameCounters,
     home: gameHomeCounters,
     away: gameAwayCounters,
@@ -457,12 +517,22 @@ export async function appendGameNerdStatsToStore(
   }
 }
 
-export function getEmptyNerdStatsSummary(season: number): NerdStatsSummary {
-  return buildNerdStatsSummary(season, createEmptySeasonCounters(), 0);
+export function getEmptyNerdStatsSummary(
+  season: number,
+  seasonType: NerdSeasonType = "regular",
+): NerdStatsSummary {
+  return {
+    ...buildNerdStatsSummary(season, createEmptySeasonCounters(), 0),
+    seasonType,
+    seasonTypeLabel: nerdSeasonTypeLabel(seasonType),
+  };
 }
 
-export function listStoredStatIds(season: number): string[] {
-  return listJsonBasenames(join(seasonDir(season), "stats"));
+export function listStoredStatIds(
+  season: number,
+  seasonType: NerdSeasonType = "regular",
+): string[] {
+  return listJsonBasenames(join(seasonTypeDir(season, seasonType), "stats"));
 }
 
 /** Re-emit window summary + stat files from existing window counters (no game re-fetch). */

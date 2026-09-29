@@ -73,6 +73,10 @@ export function LiveGameCard({ game }: LiveGameCardProps) {
   const awayPitcher = liveState?.awayPitcher ?? game.awayPitcher;
   const homePitcher = liveState?.homePitcher ?? game.homePitcher;
   const pitcherLabel = isLive ? "Pitcher" : "Probable";
+  const isPostseason = game.gameType !== "R";
+  const seriesSummary = game.seriesBestOf
+    ? `Best of ${game.seriesBestOf} · ${game.seriesStatus ?? "Series tied 0-0"}`
+    : null;
 
   const fetchBoxScore = useCallback(async () => {
     if (boxScore || boxLoading) return;
@@ -112,6 +116,14 @@ export function LiveGameCard({ game }: LiveGameCardProps) {
       onBlur={() => setHovered(false)}
     >
       <div className={cn(CARD_PANEL, "p-4")}>
+        {isPostseason && seriesSummary ? (
+          <div className="mb-3 border-b border-border pb-2">
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-subtle">
+              {game.seriesDescription ?? "MLB Postseason"}
+            </p>
+            <p className="mt-0.5 text-xs font-medium text-secondary">{seriesSummary}</p>
+          </div>
+        ) : null}
         <div className="mb-3 flex items-start justify-between gap-2">
           <div>
             {isLive && inning != null ? (

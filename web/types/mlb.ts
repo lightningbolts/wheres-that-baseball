@@ -25,6 +25,12 @@ export interface MLBScheduleTeam {
 export interface MLBScheduleGame {
   gamePk: number;
   gameDate: string;
+  gameType?: string;
+  seriesDescription?: string;
+  gamesInSeries?: number;
+  seriesStatus?: {
+    result?: string;
+  };
   status: {
     abstractGameState: string;
     detailedState?: string;
@@ -68,6 +74,10 @@ export interface ActiveGame {
 
 /** Extended game row for the live slate cards (includes linescore summary). */
 export interface SlateGame extends ActiveGame {
+  gameType: string;
+  seriesDescription: string | null;
+  seriesBestOf: number | null;
+  seriesStatus: string | null;
   awayAbbrev: string;
   homeAbbrev: string;
   awayScore: number | null;

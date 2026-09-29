@@ -26,6 +26,12 @@ import {
 } from "@/lib/mlb/nerdStats/windows";
 import { MLB_TEAMS } from "@/lib/mlb/teams";
 import { cn } from "@/lib/utils";
+import {
+  NERD_SEASON_TYPES,
+  nerdSeasonTypeLabel,
+  parseNerdSeasonType,
+  type NerdSeasonType,
+} from "@/lib/mlb/nerdStats/seasonTypes";
 
 const CURRENT_SEASON = new Date().getFullYear();
 const NERD_UI_STORAGE_KEY = "nerd-standings-ui";
@@ -36,6 +42,7 @@ interface SavedNerdUi {
   teamId: number | null;
   timeWindow: NerdStatWindowId;
   venueSplit: NerdStatSplitFilter;
+  seasonType: NerdSeasonType;
 }
 
 function loadSavedNerdUi(): SavedNerdUi | null {
@@ -53,12 +60,20 @@ export function NerdStandingsBrowser() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const savedUi = useMemo(() => loadSavedNerdUi(), []);
+  const initialSeasonType = parseNerdSeasonType(
+    searchParams.get("seasonType") ?? savedUi?.seasonType,
+  );
   const initialWindow = parseNerdStatWindow(
-    searchParams.get("window") ?? savedUi?.timeWindow ?? "season",
+    initialSeasonType === "postseason"
+      ? "season"
+      : searchParams.get("window") ?? savedUi?.timeWindow ?? "season",
   );
   const initialSplit = parseNerdStatSplit(
-    searchParams.get("split") ?? savedUi?.venueSplit ?? "all",
+    initialSeasonType === "postseason"
+      ? "all"
+      : searchParams.get("split") ?? savedUi?.venueSplit ?? "all",
   );
+  const [seasonType, setSeasonType] = useState<NerdSeasonType>(initialSeasonType);
   const [timeWindow, setTimeWindow] = useState<NerdStatWindowId>(initialWindow);
   const [venueSplit, setVenueSplit] = useState<NerdStatSplitFilter>(
     initialWindow === "season" ? initialSplit : "all",
@@ -67,15 +82,17 @@ export function NerdStandingsBrowser() {
     CURRENT_SEASON,
     timeWindow,
     venueSplit,
+    seasonType,
   );
   const [category, setCategory] = useState<NerdStatCategory | "all">(savedUi?.category ?? "all");
   const [search, setSearch] = useState(savedUi?.search ?? "");
   const [teamId, setTeamId] = useState<number | null>(savedUi?.teamId ?? null);
+  const stats = data?.stats;
 
   const filteredStats = useMemo(() => {
-    if (!data?.stats) return [];
+    if (!stats) return [];
     const query = search.trim().toLowerCase();
-    return data.stats.filter((stat) => {
+    return stats.filter((stat) => {
       if (category !== "all" && stat.category !== category) return false;
       if (!query) return true;
       return (
@@ -84,21 +101,23 @@ export function NerdStandingsBrowser() {
         stat.id.includes(query)
       );
     });
-  }, [category, data?.stats, search]);
+  }, [category, search, stats]);
 
   useRestoreScrollWhenReady(!isLoading && filteredStats.length > 0);
 
   useEffect(() => {
-    const fromUrl = parseNerdStatWindow(searchParams.get("window"));
-    const fromSplit = parseNerdStatSplit(searchParams.get("split"));
+    const nextSeasonType = parseNerdSeasonType(searchParams.get("seasonType"));
+    const fromUrl = nextSeasonType === "postseason" ? "season" : parseNerdStatWindow(searchParams.get("window"));
+    const fromSplit = nextSeasonType === "postseason" ? "all" : parseNerdStatSplit(searchParams.get("split"));
+    setSeasonType(nextSeasonType);
     setTimeWindow(fromUrl);
     setVenueSplit(fromUrl === "season" ? fromSplit : "all");
   }, [searchParams]);
 
   useEffect(() => {
-    const payload: SavedNerdUi = { category, search, teamId, timeWindow, venueSplit };
+    const payload: SavedNerdUi = { category, search, teamId, timeWindow, venueSplit, seasonType };
     sessionStorage.setItem(NERD_UI_STORAGE_KEY, JSON.stringify(payload));
-  }, [category, search, teamId, timeWindow, venueSplit]);
+  }, [category, search, seasonType, teamId, timeWindow, venueSplit]);
 
   const statOfTheDay = data?.stats.find((stat) => stat.id === data.statOfTheDayId);
 
@@ -111,9 +130,16 @@ export function NerdStandingsBrowser() {
       params.set("window", nextWindow);
       params.delete("split");
     }
-    router.replace(nerdStandingsHref(nextWindow, nextWindow === "season" ? venueSplit : "all"), {
+    router.replace(nerdStandingsHref(nextWindow, nextWindow === "season" ? venueSplit : "all", seasonType), {
       scroll: false,
     });
+  }
+
+  function handleSeasonTypeChange(nextSeasonType: NerdSeasonType) {
+    setSeasonType(nextSeasonType);
+    setTimeWindow("season");
+    setVenueSplit("all");
+    router.replace(nerdStandingsHref("season", "all", nextSeasonType), { scroll: false });
   }
 
   function handleSplitChange(nextSplit: NerdStatSplitFilter) {
@@ -134,6 +160,7 @@ export function NerdStandingsBrowser() {
           <h1 className="text-xl font-medium text-foreground">Nerd Standings</h1>
           <p className="mt-1 text-sm text-muted">
             Team stat standings · {nerdStatWindowLabel(timeWindow).toLowerCase()}
+            {` · ${nerdSeasonTypeLabel(seasonType).toLowerCase()}`}
             {venueSplit !== "all" && timeWindow === "season"
               ? ` · ${nerdStatSplitLabel(venueSplit)?.toLowerCase()}`
               : ""}
@@ -169,6 +196,14 @@ export function NerdStandingsBrowser() {
 
           <div className="-mx-1 flex shrink-0 items-center gap-2 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <NerdFilterSelect
+              value={seasonType}
+              onChange={(event) => handleSeasonTypeChange(parseNerdSeasonType(event.target.value))}
+            >
+              {NERD_SEASON_TYPES.map((type) => (
+                <option key={type.id} value={type.id}>{type.label}</option>
+              ))}
+            </NerdFilterSelect>
+            {seasonType === "regular" ? <NerdFilterSelect
               value={timeWindow}
               onChange={(event) => handleWindowChange(parseNerdStatWindow(event.target.value))}
             >
@@ -177,8 +212,8 @@ export function NerdStandingsBrowser() {
                   {window.label}
                 </option>
               ))}
-            </NerdFilterSelect>
-            {timeWindow === "season" && (
+            </NerdFilterSelect> : null}
+            {seasonType === "regular" && timeWindow === "season" && (
               <NerdFilterSelect
                 value={venueSplit}
                 onChange={(event) =>
@@ -243,10 +278,12 @@ export function NerdStandingsBrowser() {
                 season={CURRENT_SEASON}
                 timeWindow={timeWindow}
                 venueSplit={venueSplit}
+                seasonType={seasonType}
                 highlighted={
                   stat.id === data?.statOfTheDayId &&
                   timeWindow === "season" &&
                   venueSplit === "all"
+                  && seasonType === "regular"
                 }
               />
             ))}

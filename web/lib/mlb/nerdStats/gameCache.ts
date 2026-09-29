@@ -11,6 +11,7 @@ import { gameDateInNerdWindow, type NerdStatWindowId } from "@/lib/mlb/nerdStats
 export interface PerGameNerdCacheEntry {
   gamePk: number;
   gameDate: string;
+  gameType?: string;
   combined: SeasonNerdCounters;
   home: SeasonNerdCounters;
   away: SeasonNerdCounters;

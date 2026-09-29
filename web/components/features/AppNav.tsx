@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 const NAV_ITEMS = [
   { href: "/", label: "Live", shortLabel: "Live" },
   { href: "/games", label: "Season History", shortLabel: "History" },
+  { href: "/postseason", label: "Postseason", shortLabel: "Playoffs" },
   { href: "/ballparks", label: "Ballpark Hits", shortLabel: "Parks" },
   { href: "/players", label: "Players", shortLabel: "Players" },
   { href: "/nerd", label: "Nerd Standings", shortLabel: "Nerd" },

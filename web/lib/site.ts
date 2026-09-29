@@ -1,7 +1,7 @@
 export const SITE_NAME = "Where's That Baseball";
 export const SITE_NAME_SHORT = "Where's That BB";
 export const SITE_DESCRIPTION =
-  "Live MLB games, ballpark spray charts, and team stat standings.";
+  "Live MLB games, postseason brackets, ballpark spray charts, and team stat standings.";
 
 export const DEVELOPER_NAME = "Kairui";
 export const DEVELOPER_EMAIL = "timberlake2025@gmail.com";

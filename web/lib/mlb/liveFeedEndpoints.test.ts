@@ -37,6 +37,7 @@ describe("liveFeedEndpoints", () => {
 describe("schedule hydrate contract", () => {
   it("exposes slate and row presets", () => {
     expect(SCHEDULE_HYDRATE.slate).toContain("probablePitcher");
+    expect(SCHEDULE_HYDRATE.slate).toContain("seriesStatus");
     expect(SCHEDULE_HYDRATE.row).toContain("venue");
   });
 });

@@ -365,6 +365,8 @@ export interface NerdStatsSummary {
   splitLabel?: string;
   backfillPending?: boolean;
   source?: "file" | "empty";
+  seasonType?: "regular" | "postseason";
+  seasonTypeLabel?: string;
 }
 
 export interface NerdStatDetail {
@@ -402,6 +404,7 @@ export interface GameNerdSourceRow {
   game_pk: number;
   game_date: string;
   season: number;
+  game_type?: string;
   away_team_id: number;
   home_team_id: number;
   away_team_abbrev: string;

@@ -1,5 +1,6 @@
 import type { GameNerdSourceRow } from "@/lib/mlb/nerdStats/types";
 import type { NerdStatWindowId } from "@/lib/mlb/nerdStats/windows";
+import type { NerdSeasonType } from "@/lib/mlb/nerdStats/seasonTypes";
 
 export type NerdStatSplitId = "home" | "away";
 
@@ -39,10 +40,15 @@ export function splitEffectiveMinGames(
   return Math.max(1, Math.round(minGames / 2));
 }
 
-export function nerdStatBrowseQuery(window: NerdStatWindowId, split: NerdStatSplitFilter): string {
+export function nerdStatBrowseQuery(
+  window: NerdStatWindowId,
+  split: NerdStatSplitFilter,
+  seasonType: NerdSeasonType = "regular",
+): string {
   const params = new URLSearchParams();
   if (window !== "season") params.set("window", window);
   if (split !== "all" && window === "season") params.set("split", split);
+  if (seasonType === "postseason") params.set("seasonType", seasonType);
   const query = params.toString();
   return query ? `?${query}` : "";
 }
@@ -51,10 +57,15 @@ export function nerdStatDetailHref(
   statId: string,
   window: NerdStatWindowId,
   split: NerdStatSplitFilter,
+  seasonType: NerdSeasonType = "regular",
 ): string {
-  return `/nerd/${statId}${nerdStatBrowseQuery(window, split)}`;
+  return `/nerd/${statId}${nerdStatBrowseQuery(window, split, seasonType)}`;
 }
 
-export function nerdStandingsHref(window: NerdStatWindowId, split: NerdStatSplitFilter): string {
-  return `/nerd${nerdStatBrowseQuery(window, split)}`;
+export function nerdStandingsHref(
+  window: NerdStatWindowId,
+  split: NerdStatSplitFilter,
+  seasonType: NerdSeasonType = "regular",
+): string {
+  return `/nerd${nerdStatBrowseQuery(window, split, seasonType)}`;
 }
