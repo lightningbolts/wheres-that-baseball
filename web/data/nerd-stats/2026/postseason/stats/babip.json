@@ -1,0 +1,1 @@
+{"season":2026,"stat":{"id":"babip","title":"BABIP","subtitle":"Batting average on balls in play. Lower = fewer hits finding grass.","category":"misfortune","sort":"asc","unit":"AVG","formula":"(H − HR) ÷ (AB − K − HR + SF)","leagueAverage":null,"leagueAverageDisplay":null,"leaders":[]},"allTeams":[],"notableEvents":[],"generatedAt":"2026-09-30T14:34:45.067Z"}
