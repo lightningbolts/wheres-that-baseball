@@ -135,4 +135,99 @@ describe("postseason bracket", () => {
     expect(svg).toContain("M446 695h32");
     expect(svg).toContain("M602 695h32");
   });
+
+  it("updates series status to the latest game in progress instead of old game 1 state", () => {
+    const multiGames: ScheduleApiRawGame[] = [
+      {
+        ...game("F", "NL Wild Card 'A' Game 1", [10, "Braves", "ATL"], [20, "Phillies", "PHI"], 104),
+        seriesGameNumber: 1,
+        status: { abstractGameState: "Final" },
+        seriesStatus: { result: "ATL leads 1-0", isOver: false },
+      },
+      {
+        ...game("F", "NL Wild Card 'A' Game 2", [10, "Braves", "ATL"], [20, "Phillies", "PHI"], 104),
+        seriesGameNumber: 2,
+        status: { abstractGameState: "Final" },
+        seriesStatus: { result: "Series tied 1-1", isOver: false },
+      },
+    ];
+
+    const bracket = buildPostseasonBracket(2026, multiGames);
+    const nlWcA = bracket.series.find((s) => s.id === "nl-wc-a")!;
+    expect(nlWcA.status).toBe("Series tied 1-1");
+    expect(nlWcA.officialWinnerId).toBeNull();
+  });
+
+  it("extracts official winner and advances them automatically to next round without user picks", () => {
+    const wildCardOverGames: ScheduleApiRawGame[] = [
+      {
+        ...game("F", "AL Wild Card 'A' Game 1", [145, "White Sox", "CWS"], [117, "Astros", "HOU"], 103),
+        seriesGameNumber: 1,
+        status: { abstractGameState: "Final" },
+        seriesStatus: { result: "CWS leads 1-0", isOver: false, winningTeam: { id: 145 } },
+      },
+      {
+        ...game("F", "AL Wild Card 'A' Game 2", [145, "White Sox", "CWS"], [117, "Astros", "HOU"], 103),
+        seriesGameNumber: 2,
+        status: { abstractGameState: "Final" },
+        seriesStatus: { result: "CWS wins 2-0", isOver: true, winningTeam: { id: 145 } },
+      },
+      game("D", "ALDS 'B' Game 1", [5002, "A/B", "A/B"], [6, "Second Seed", "SEC"], 103),
+    ];
+
+    const bracket = buildPostseasonBracket(2026, wildCardOverGames);
+    const alWcA = bracket.series.find((s) => s.id === "al-wc-a")!;
+    expect(alWcA.status).toBe("CWS wins 2-0");
+    expect(alWcA.officialWinnerId).toBe(145);
+
+    // Division series should resolve participant to official winner (White Sox) even with empty picks
+    const divisionB = bracket.series.find((s) => s.id === "al-ds-b")!;
+    const resolved = resolveSeriesTeams(bracket, divisionB, {});
+    expect(resolved[0]).toMatchObject({
+      id: 145,
+      name: "White Sox",
+      abbreviation: "CWS",
+      seed: 6,
+    });
+  });
+
+  it("official winner takes precedence over obsolete picks and drops downstream eliminated picks", () => {
+    const wildCardOverGames: ScheduleApiRawGame[] = [
+      {
+        ...game("F", "AL Wild Card 'A' Game 1", [145, "White Sox", "CWS"], [117, "Astros", "HOU"], 103),
+        seriesGameNumber: 1,
+        status: { abstractGameState: "Final" },
+        seriesStatus: { result: "CWS leads 1-0", isOver: false, winningTeam: { id: 145 } },
+      },
+      {
+        ...game("F", "AL Wild Card 'A' Game 2", [145, "White Sox", "CWS"], [117, "Astros", "HOU"], 103),
+        seriesGameNumber: 2,
+        status: { abstractGameState: "Final" },
+        seriesStatus: { result: "CWS wins 2-0", isOver: true, winningTeam: { id: 145 } },
+      },
+      game("D", "ALDS 'B' Game 1", [5002, "A/B", "A/B"], [6, "Second Seed", "SEC"], 103),
+      game("L", "ALCS Game 1", [5010, "AL Low", "Low"], [5011, "AL High", "High"], 103),
+    ];
+
+    const bracket = buildPostseasonBracket(2026, wildCardOverGames);
+    const divisionB = bracket.series.find((s) => s.id === "al-ds-b")!;
+
+    // User previously picked Astros (117) before playoffs started
+    const oldPicks = {
+      "al-wc-a": 117,
+      "al-ds-b": 117,
+      "al-cs": 117,
+    };
+
+    // In division series, White Sox (145) advanced officially, so resolved team is White Sox, not Astros
+    const resolved = resolveSeriesTeams(bracket, divisionB, oldPicks);
+    expect(resolved[0]?.id).toBe(145);
+
+    // Sanitization drops 117 from division and ALCS because Astros is eliminated
+    const sanitized = sanitizePostseasonPicks(bracket, oldPicks);
+    expect(sanitized).toEqual({
+      "al-wc-a": 117, // preserved for historical round pick
+    });
+  });
 });
+

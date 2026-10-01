@@ -131,34 +131,91 @@ function seedInitialRoundTeams(series: PostseasonSeries): PostseasonSeries {
   };
 }
 
+function extractSeriesState(games: ScheduleApiRawGame[]): {
+  status: string | null;
+  officialWinnerId: number | null;
+} {
+  // 1. If any game has isOver === true, that game represents the completed series
+  const overGame = games.find((g) => g.seriesStatus?.isOver);
+  if (overGame) {
+    return {
+      status: overGame.seriesStatus?.result ?? null,
+      officialWinnerId: overGame.seriesStatus?.winningTeam?.id ?? null,
+    };
+  }
+
+  // 2. Otherwise find the latest game played or in progress (Live or Final)
+  const playedGames = games
+    .filter((g) => g.status?.abstractGameState === "Live" || g.status?.abstractGameState === "Final")
+    .sort((a, b) => (b.seriesGameNumber ?? 0) - (a.seriesGameNumber ?? 0));
+
+  if (playedGames.length > 0) {
+    return {
+      status: playedGames[0].seriesStatus?.result ?? null,
+      officialWinnerId: null,
+    };
+  }
+
+  // 3. If no games played yet, check for a real series status result (not preview placeholder text like "plays")
+  const withResult = [...games]
+    .sort((a, b) => (b.seriesGameNumber ?? 0) - (a.seriesGameNumber ?? 0))
+    .find((g) => g.seriesStatus?.result && !g.seriesStatus.result.includes("plays"));
+
+  return {
+    status: withResult?.seriesStatus?.result ?? null,
+    officialWinnerId: null,
+  };
+}
+
 export function buildPostseasonBracket(
   season: number,
   games: ScheduleApiRawGame[],
 ): PostseasonBracket {
-  const firstBySeries = new Map<string, { game: ScheduleApiRawGame; identity: NonNullable<ReturnType<typeof seriesIdentity>> }>();
-  for (const game of [...games].sort((a, b) => (a.seriesGameNumber ?? 99) - (b.seriesGameNumber ?? 99))) {
+  const gamesBySeries = new Map<
+    string,
+    {
+      identity: NonNullable<ReturnType<typeof seriesIdentity>>;
+      games: ScheduleApiRawGame[];
+    }
+  >();
+
+  for (const game of games) {
     const identity = seriesIdentity(game);
-    if (identity && !firstBySeries.has(identity.id)) firstBySeries.set(identity.id, { game, identity });
+    if (!identity) continue;
+    let entry = gamesBySeries.get(identity.id);
+    if (!entry) {
+      entry = { identity, games: [] };
+      gamesBySeries.set(identity.id, entry);
+    }
+    entry.games.push(game);
+  }
+
+  for (const entry of gamesBySeries.values()) {
+    entry.games.sort((a, b) => (a.seriesGameNumber ?? 99) - (b.seriesGameNumber ?? 99));
   }
 
   const wildCards: PostseasonSeries[] = [];
-  for (const { game, identity } of firstBySeries.values()) {
+  for (const { identity, games: seriesGames } of gamesBySeries.values()) {
     if (identity.round !== "wild-card") continue;
+    const firstGame = seriesGames[0];
+    const { status, officialWinnerId } = extractSeriesState(seriesGames);
     wildCards.push(seedInitialRoundTeams({
       ...identity,
-      bestOf: game.gamesInSeries ?? 3,
-      participants: baseParticipants(game),
-      status: game.seriesStatus?.result ?? null,
-      officialWinnerId: game.seriesStatus?.isOver ? game.seriesStatus.winningTeam?.id ?? null : null,
+      bestOf: firstGame.gamesInSeries ?? 3,
+      participants: baseParticipants(firstGame),
+      status,
+      officialWinnerId,
     }));
   }
 
   const series: PostseasonSeries[] = [...wildCards];
-  for (const { game, identity } of firstBySeries.values()) {
+  for (const { identity, games: seriesGames } of gamesBySeries.values()) {
     if (identity.round === "wild-card") continue;
+    const firstGame = seriesGames[0];
+    const { status, officialWinnerId } = extractSeriesState(seriesGames);
     let participants: [PostseasonParticipant, PostseasonParticipant];
     if (identity.round === "division" && identity.league) {
-      participants = baseParticipants(game).map((participant) => {
+      participants = baseParticipants(firstGame).map((participant) => {
         if (
           participant.kind === "team" &&
           (isPlaceholder(participant.team) ||
@@ -192,10 +249,10 @@ export function buildPostseasonBracket(
     }
     series.push({
       ...identity,
-      bestOf: game.gamesInSeries ?? (identity.round === "division" ? 5 : 7),
+      bestOf: firstGame.gamesInSeries ?? (identity.round === "division" ? 5 : 7),
       participants,
-      status: game.seriesStatus?.result ?? null,
-      officialWinnerId: game.seriesStatus?.isOver ? game.seriesStatus.winningTeam?.id ?? null : null,
+      status,
+      officialWinnerId,
     });
   }
 
@@ -224,9 +281,14 @@ export function resolveSeriesTeams(
       }
     }
   }
+  const seriesById = new Map<string, PostseasonSeries>(
+    bracket.series.map((item) => [item.id, item]),
+  );
+
   return series.participants.map((participant) => {
     if (participant.kind === "team") return participant.team;
-    const teamId = picks[participant.seriesId];
+    const sourceSeries = seriesById.get(participant.seriesId);
+    const teamId = sourceSeries?.officialWinnerId ?? picks[participant.seriesId];
     return teamId ? byId.get(teamId) ?? null : null;
   });
 }

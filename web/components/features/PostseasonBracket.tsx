@@ -62,7 +62,7 @@ export function portraitBracketSvg(
   const seriesById = new Map(bracket.series.map((series) => [series.id, series]));
   const pickedTeam = (seriesId: string) => {
     const series = seriesById.get(seriesId);
-    const teamId = picks[seriesId];
+    const teamId = series?.officialWinnerId ?? picks[seriesId];
     return series && teamId
       ? resolveSeriesTeams(bracket, series, picks).find((team) => team?.id === teamId) ?? null
       : null;
@@ -131,7 +131,7 @@ function bracketSvg(
       if (!team) {
         return `<path d="M${slotX + 35} 43l17 17-17 17-17-17z" fill="#ede6d6" stroke="#b6aa8f"/>`;
       }
-      const selected = picks[series.id] === team.id;
+      const selected = (picks[series.id] ?? series.officialWinnerId) === team.id;
       const logoUrl = logoUrls.get(team.id) ?? mlbTeamLogoUrl(team.id, "light");
       return `<g transform="translate(${slotX} 0)"><rect x="2" y="22" width="66" height="72" fill="${selected ? "#dce8df" : "#f8f4e9"}" stroke="${selected ? "#1b4332" : "#c4b89a"}" stroke-width="${selected ? 2 : 1}"/><image href="${xml(logoUrl)}" x="12" y="31" width="46" height="46"/><text x="35" y="89" text-anchor="middle" font-size="9" font-weight="700" fill="#435047" font-family="${BRACKET_FONT_FAMILIES.mono}">${xml(team.abbreviation)}</text>${team.seed ? `<circle cx="10" cy="30" r="9" fill="#1c2b2a"/><text x="10" y="33" text-anchor="middle" font-size="8" font-weight="700" fill="#f8f4e9" font-family="${BRACKET_FONT_FAMILIES.mono}">${team.seed}</text>` : ""}</g>`;
     }).join("");
@@ -241,10 +241,12 @@ async function bracketJpeg(
   }
 }
 
-function TeamSlot({ team, fallback, selected, onSelect }: {
+function TeamSlot({ team, fallback, selected, isWinner, isEliminated, onSelect }: {
   team: PostseasonTeam | null;
   fallback: string;
   selected: boolean;
+  isWinner?: boolean;
+  isEliminated?: boolean;
   onSelect: () => void;
 }) {
   return (
@@ -252,12 +254,14 @@ function TeamSlot({ team, fallback, selected, onSelect }: {
       type="button"
       disabled={!team}
       onClick={onSelect}
-      aria-label={team ? `${team.name}${selected ? ", selected to advance" : ""}` : fallback}
-      aria-pressed={selected}
+      aria-label={team ? `${team.name}${isWinner ? ", series winner" : selected ? ", selected to advance" : ""}` : fallback}
+      aria-pressed={selected || isWinner}
       className={cn(
         "relative flex h-[84px] flex-1 items-center justify-center border border-border bg-surface transition-colors",
         team ? "hover:border-border-strong hover:bg-hover" : "cursor-default border-dashed bg-panel/60",
-        selected && "border-[#1b4332] bg-[#1b4332]/10 ring-2 ring-[#1b4332] ring-offset-1 ring-offset-background",
+        isWinner && "border-[#1b4332] bg-[#1b4332]/15 ring-2 ring-[#1b4332] ring-offset-1 ring-offset-background",
+        !isWinner && selected && "border-[#1b4332] bg-[#1b4332]/10 ring-2 ring-[#1b4332] ring-offset-1 ring-offset-background",
+        isEliminated && "opacity-45 grayscale-[40%]",
       )}
     >
       {team ? (
@@ -271,7 +275,11 @@ function TeamSlot({ team, fallback, selected, onSelect }: {
           <span className="absolute bottom-1 right-1.5 font-mono text-[9px] font-semibold tracking-wide text-subtle">
             {team.abbreviation}
           </span>
-          {selected ? (
+          {isWinner ? (
+            <span className="absolute right-1.5 top-1.5 bg-[#1b4332] px-1.5 py-0.5 font-mono text-[8px] font-bold tracking-wider text-[#f5f0e4]">
+              {selected ? "DIBS ✓" : "WIN"}
+            </span>
+          ) : selected ? (
             <span className="absolute right-1.5 top-1.5 bg-[#1b4332] px-1.5 py-0.5 font-mono text-[8px] font-bold tracking-wider text-[#f5f0e4]">
               DIBS
             </span>
@@ -306,12 +314,16 @@ function SeriesNode({ bracket, series, picks, onPick }: {
         {series.participants.map((participant, index) => {
           const team = teams[index];
           const fallback = participant.kind === "winner" ? participant.label : participant.team.name;
+          const isWinner = Boolean(team && series.officialWinnerId === team.id);
+          const isEliminated = Boolean(team && series.officialWinnerId && series.officialWinnerId !== team.id);
           return (
             <TeamSlot
               key={`${series.id}-${index}`}
               team={team}
               fallback={fallback}
               selected={Boolean(team && selected === team.id)}
+              isWinner={isWinner}
+              isEliminated={isEliminated}
               onSelect={() => team && onPick(series.id, team.id)}
             />
           );
@@ -408,9 +420,11 @@ export function PostseasonBracket({ bracket, initialPicks }: PostseasonBracketPr
     [bracket],
   );
   const championTeam = useMemo(() => {
-    if (!wsSeries || !picks[wsSeries.id]) return null;
+    if (!wsSeries) return null;
+    const champId = wsSeries.officialWinnerId ?? picks[wsSeries.id];
+    if (!champId) return null;
     const teams = resolveSeriesTeams(bracket, wsSeries, picks);
-    return teams.find((team) => team?.id === picks[wsSeries.id]) ?? null;
+    return teams.find((team) => team?.id === champId) ?? null;
   }, [bracket, picks, wsSeries]);
 
   const pickedCount = Object.keys(picks).length;
