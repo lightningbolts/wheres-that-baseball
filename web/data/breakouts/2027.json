@@ -1,0 +1,5516 @@
+{
+  "season": 2027,
+  "basedOnSeason": 2026,
+  "generatedAt": "2026-11-06T04:16:37+00:00",
+  "source": "Baseball Savant (Statcast) leaderboards, MLB Stats API awards and minor-league stats, and MLB Pipeline prospect rankings, 2015-2026",
+  "definitions": {
+    "hitter": "A first true breakout season: 400+ PA with wOBA 30+ points above league (about 120 wRC+), 30 HR, or an All-Star / Silver Slugger / ROY-level honor.",
+    "pitcher": "A first true breakout season: 100+ IP with ERA and xERA 0.6+ runs better than league, 200 K, an elite relief season (50+ IP, 20%+ K-BB), or an All-Star / Cy Young / ROY-level honor.",
+    "eligibility": "Excludes anyone who has already broken out: an above-average full season, a big partial season, 30 HR, 180 K, +10 OAA, elite relief work or 20 saves, a dominant half, or an All-Star, Gold Glove, Silver Slugger, ROY or Players Choice honor. Hitters 30 or younger, pitchers 31 or younger.",
+    "prospects": "Ranked MLB Pipeline prospects (Top 100 or an org Top 30) with under 100 MLB PA / 15 MLB IP in 2026. Same breakout bar, in their first real MLB season."
+  },
+  "backtest": {
+    "hitters": {
+      "seasons": [
+        {
+          "season": 2020,
+          "outcomeSeason": 2021,
+          "cohort": 143,
+          "breakouts": 5,
+          "baseRate": 0.035,
+          "model": {
+            "auc": 0.87,
+            "p10": 0.3,
+            "p25": 0.16,
+            "p50": 0.08
+          },
+          "baselines": {
+            "xwobaGap": {
+              "auc": 0.385,
+              "p10": 0.0,
+              "p25": 0.0,
+              "p50": 0.02
+            },
+            "xwoba": {
+              "auc": 0.729,
+              "p10": 0.2,
+              "p25": 0.12,
+              "p50": 0.08
+            }
+          }
+        },
+        {
+          "season": 2021,
+          "outcomeSeason": 2022,
+          "cohort": 168,
+          "breakouts": 7,
+          "baseRate": 0.0417,
+          "model": {
+            "auc": 0.687,
+            "p10": 0.2,
+            "p25": 0.12,
+            "p50": 0.08
+          },
+          "baselines": {
+            "xwobaGap": {
+              "auc": 0.548,
+              "p10": 0.0,
+              "p25": 0.04,
+              "p50": 0.04
+            },
+            "xwoba": {
+              "auc": 0.665,
+              "p10": 0.2,
+              "p25": 0.08,
+              "p50": 0.06
+            }
+          }
+        },
+        {
+          "season": 2022,
+          "outcomeSeason": 2023,
+          "cohort": 184,
+          "breakouts": 19,
+          "baseRate": 0.1033,
+          "model": {
+            "auc": 0.795,
+            "p10": 0.3,
+            "p25": 0.32,
+            "p50": 0.26
+          },
+          "baselines": {
+            "xwobaGap": {
+              "auc": 0.42,
+              "p10": 0.0,
+              "p25": 0.04,
+              "p50": 0.04
+            },
+            "xwoba": {
+              "auc": 0.683,
+              "p10": 0.2,
+              "p25": 0.2,
+              "p50": 0.18
+            }
+          }
+        },
+        {
+          "season": 2023,
+          "outcomeSeason": 2024,
+          "cohort": 162,
+          "breakouts": 8,
+          "baseRate": 0.0494,
+          "model": {
+            "auc": 0.742,
+            "p10": 0.2,
+            "p25": 0.12,
+            "p50": 0.1
+          },
+          "baselines": {
+            "xwobaGap": {
+              "auc": 0.691,
+              "p10": 0.2,
+              "p25": 0.12,
+              "p50": 0.08
+            },
+            "xwoba": {
+              "auc": 0.688,
+              "p10": 0.1,
+              "p25": 0.04,
+              "p50": 0.08
+            }
+          }
+        },
+        {
+          "season": 2024,
+          "outcomeSeason": 2025,
+          "cohort": 160,
+          "breakouts": 14,
+          "baseRate": 0.0875,
+          "model": {
+            "auc": 0.767,
+            "p10": 0.3,
+            "p25": 0.32,
+            "p50": 0.18
+          },
+          "baselines": {
+            "xwobaGap": {
+              "auc": 0.585,
+              "p10": 0.1,
+              "p25": 0.08,
+              "p50": 0.1
+            },
+            "xwoba": {
+              "auc": 0.745,
+              "p10": 0.4,
+              "p25": 0.28,
+              "p50": 0.16
+            }
+          }
+        },
+        {
+          "season": 2025,
+          "outcomeSeason": 2026,
+          "cohort": 169,
+          "breakouts": 6,
+          "baseRate": 0.0355,
+          "model": {
+            "auc": 0.815,
+            "p10": 0.1,
+            "p25": 0.12,
+            "p50": 0.08
+          },
+          "baselines": {
+            "xwobaGap": {
+              "auc": 0.554,
+              "p10": 0.1,
+              "p25": 0.04,
+              "p50": 0.04
+            },
+            "xwoba": {
+              "auc": 0.849,
+              "p10": 0.1,
+              "p25": 0.08,
+              "p50": 0.12
+            }
+          }
+        }
+      ],
+      "summary": {
+        "model": {
+          "auc": 0.779,
+          "p10": 0.233,
+          "p25": 0.193,
+          "p50": 0.13
+        },
+        "baselines": {
+          "xwobaGap": {
+            "auc": 0.53,
+            "p10": 0.067,
+            "p25": 0.053,
+            "p50": 0.053
+          },
+          "xwoba": {
+            "auc": 0.727,
+            "p10": 0.2,
+            "p25": 0.133,
+            "p50": 0.113
+          }
+        },
+        "baseRate": 0.0587
+      }
+    },
+    "pitchers": {
+      "seasons": [
+        {
+          "season": 2020,
+          "outcomeSeason": 2021,
+          "cohort": 265,
+          "breakouts": 14,
+          "baseRate": 0.0528,
+          "model": {
+            "auc": 0.652,
+            "p10": 0.1,
+            "p25": 0.2,
+            "p50": 0.16
+          },
+          "baselines": {
+            "eraMinusXera": {
+              "auc": 0.501,
+              "p10": 0.2,
+              "p25": 0.12,
+              "p50": 0.08
+            },
+            "kbb": {
+              "auc": 0.54,
+              "p10": 0.2,
+              "p25": 0.12,
+              "p50": 0.08
+            }
+          }
+        },
+        {
+          "season": 2021,
+          "outcomeSeason": 2022,
+          "cohort": 297,
+          "breakouts": 16,
+          "baseRate": 0.0539,
+          "model": {
+            "auc": 0.723,
+            "p10": 0.3,
+            "p25": 0.16,
+            "p50": 0.12
+          },
+          "baselines": {
+            "eraMinusXera": {
+              "auc": 0.509,
+              "p10": 0.0,
+              "p25": 0.0,
+              "p50": 0.0
+            },
+            "kbb": {
+              "auc": 0.695,
+              "p10": 0.0,
+              "p25": 0.08,
+              "p50": 0.12
+            }
+          }
+        },
+        {
+          "season": 2022,
+          "outcomeSeason": 2023,
+          "cohort": 302,
+          "breakouts": 15,
+          "baseRate": 0.0497,
+          "model": {
+            "auc": 0.725,
+            "p10": 0.2,
+            "p25": 0.16,
+            "p50": 0.16
+          },
+          "baselines": {
+            "eraMinusXera": {
+              "auc": 0.454,
+              "p10": 0.1,
+              "p25": 0.04,
+              "p50": 0.02
+            },
+            "kbb": {
+              "auc": 0.617,
+              "p10": 0.1,
+              "p25": 0.04,
+              "p50": 0.06
+            }
+          }
+        },
+        {
+          "season": 2023,
+          "outcomeSeason": 2024,
+          "cohort": 296,
+          "breakouts": 14,
+          "baseRate": 0.0473,
+          "model": {
+            "auc": 0.805,
+            "p10": 0.3,
+            "p25": 0.2,
+            "p50": 0.2
+          },
+          "baselines": {
+            "eraMinusXera": {
+              "auc": 0.614,
+              "p10": 0.0,
+              "p25": 0.04,
+              "p50": 0.04
+            },
+            "kbb": {
+              "auc": 0.817,
+              "p10": 0.1,
+              "p25": 0.16,
+              "p50": 0.18
+            }
+          }
+        },
+        {
+          "season": 2024,
+          "outcomeSeason": 2025,
+          "cohort": 291,
+          "breakouts": 13,
+          "baseRate": 0.0447,
+          "model": {
+            "auc": 0.685,
+            "p10": 0.1,
+            "p25": 0.16,
+            "p50": 0.12
+          },
+          "baselines": {
+            "eraMinusXera": {
+              "auc": 0.469,
+              "p10": 0.1,
+              "p25": 0.04,
+              "p50": 0.06
+            },
+            "kbb": {
+              "auc": 0.655,
+              "p10": 0.2,
+              "p25": 0.12,
+              "p50": 0.08
+            }
+          }
+        },
+        {
+          "season": 2025,
+          "outcomeSeason": 2026,
+          "cohort": 294,
+          "breakouts": 23,
+          "baseRate": 0.0782,
+          "model": {
+            "auc": 0.848,
+            "p10": 0.4,
+            "p25": 0.32,
+            "p50": 0.26
+          },
+          "baselines": {
+            "eraMinusXera": {
+              "auc": 0.442,
+              "p10": 0.0,
+              "p25": 0.04,
+              "p50": 0.04
+            },
+            "kbb": {
+              "auc": 0.796,
+              "p10": 0.6,
+              "p25": 0.36,
+              "p50": 0.26
+            }
+          }
+        }
+      ],
+      "summary": {
+        "model": {
+          "auc": 0.74,
+          "p10": 0.233,
+          "p25": 0.2,
+          "p50": 0.17
+        },
+        "baselines": {
+          "eraMinusXera": {
+            "auc": 0.498,
+            "p10": 0.067,
+            "p25": 0.047,
+            "p50": 0.04
+          },
+          "kbb": {
+            "auc": 0.687,
+            "p10": 0.2,
+            "p25": 0.147,
+            "p50": 0.13
+          }
+        },
+        "baseRate": 0.0544
+      }
+    },
+    "prospectHitters": {
+      "seasons": [
+        {
+          "season": 2018,
+          "outcomeSeason": 2019,
+          "cohort": 538,
+          "breakouts": 4,
+          "baseRate": 0.0074,
+          "model": {
+            "auc": 0.936,
+            "p10": 0.1,
+            "p25": 0.12,
+            "p50": 0.06
+          },
+          "baselines": {
+            "pipelineRank": {
+              "auc": 0.839,
+              "p10": 0.1,
+              "p25": 0.08,
+              "p50": 0.06
+            },
+            "orgRank": {
+              "auc": 0.911,
+              "p10": 0.1,
+              "p25": 0.08,
+              "p50": 0.04
+            }
+          }
+        },
+        {
+          "season": 2020,
+          "outcomeSeason": 2021,
+          "cohort": 481,
+          "breakouts": 3,
+          "baseRate": 0.0062,
+          "model": {
+            "auc": 0.801,
+            "p10": 0.0,
+            "p25": 0.04,
+            "p50": 0.02
+          },
+          "baselines": {
+            "pipelineRank": {
+              "auc": 0.768,
+              "p10": 0.0,
+              "p25": 0.04,
+              "p50": 0.02
+            },
+            "orgRank": {
+              "auc": 0.874,
+              "p10": 0.0,
+              "p25": 0.0,
+              "p50": 0.02
+            }
+          }
+        },
+        {
+          "season": 2021,
+          "outcomeSeason": 2022,
+          "cohort": 509,
+          "breakouts": 5,
+          "baseRate": 0.0098,
+          "model": {
+            "auc": 0.896,
+            "p10": 0.2,
+            "p25": 0.08,
+            "p50": 0.04
+          },
+          "baselines": {
+            "pipelineRank": {
+              "auc": 0.755,
+              "p10": 0.2,
+              "p25": 0.08,
+              "p50": 0.06
+            },
+            "orgRank": {
+              "auc": 0.805,
+              "p10": 0.1,
+              "p25": 0.12,
+              "p50": 0.06
+            }
+          }
+        },
+        {
+          "season": 2022,
+          "outcomeSeason": 2023,
+          "cohort": 488,
+          "breakouts": 4,
+          "baseRate": 0.0082,
+          "model": {
+            "auc": 0.904,
+            "p10": 0.1,
+            "p25": 0.04,
+            "p50": 0.04
+          },
+          "baselines": {
+            "pipelineRank": {
+              "auc": 0.566,
+              "p10": 0.0,
+              "p25": 0.04,
+              "p50": 0.02
+            },
+            "orgRank": {
+              "auc": 0.74,
+              "p10": 0.0,
+              "p25": 0.0,
+              "p50": 0.02
+            }
+          }
+        },
+        {
+          "season": 2023,
+          "outcomeSeason": 2024,
+          "cohort": 511,
+          "breakouts": 2,
+          "baseRate": 0.0039,
+          "model": {
+            "auc": 0.974,
+            "p10": 0.1,
+            "p25": 0.08,
+            "p50": 0.04
+          },
+          "baselines": {
+            "pipelineRank": {
+              "auc": 0.974,
+              "p10": 0.0,
+              "p25": 0.08,
+              "p50": 0.04
+            },
+            "orgRank": {
+              "auc": 0.923,
+              "p10": 0.0,
+              "p25": 0.0,
+              "p50": 0.02
+            }
+          }
+        },
+        {
+          "season": 2024,
+          "outcomeSeason": 2025,
+          "cohort": 492,
+          "breakouts": 3,
+          "baseRate": 0.0061,
+          "model": {
+            "auc": 0.941,
+            "p10": 0.1,
+            "p25": 0.08,
+            "p50": 0.04
+          },
+          "baselines": {
+            "pipelineRank": {
+              "auc": 0.761,
+              "p10": 0.0,
+              "p25": 0.0,
+              "p50": 0.04
+            },
+            "orgRank": {
+              "auc": 0.647,
+              "p10": 0.1,
+              "p25": 0.04,
+              "p50": 0.04
+            }
+          }
+        }
+      ],
+      "summary": {
+        "model": {
+          "auc": 0.909,
+          "p10": 0.1,
+          "p25": 0.073,
+          "p50": 0.04
+        },
+        "baselines": {
+          "pipelineRank": {
+            "auc": 0.777,
+            "p10": 0.05,
+            "p25": 0.053,
+            "p50": 0.04
+          },
+          "orgRank": {
+            "auc": 0.817,
+            "p10": 0.05,
+            "p25": 0.04,
+            "p50": 0.033
+          }
+        },
+        "baseRate": 0.0069
+      }
+    },
+    "prospectPitchers": {
+      "seasons": [
+        {
+          "season": 2020,
+          "outcomeSeason": 2021,
+          "cohort": 392,
+          "breakouts": 4,
+          "baseRate": 0.0102,
+          "model": {
+            "auc": 0.755,
+            "p10": 0.1,
+            "p25": 0.08,
+            "p50": 0.04
+          },
+          "baselines": {
+            "pipelineRank": {
+              "auc": 0.591,
+              "p10": 0.1,
+              "p25": 0.04,
+              "p50": 0.02
+            },
+            "orgRank": {
+              "auc": 0.676,
+              "p10": 0.1,
+              "p25": 0.04,
+              "p50": 0.02
+            }
+          }
+        },
+        {
+          "season": 2021,
+          "outcomeSeason": 2022,
+          "cohort": 368,
+          "breakouts": 4,
+          "baseRate": 0.0109,
+          "model": {
+            "auc": 0.882,
+            "p10": 0.1,
+            "p25": 0.04,
+            "p50": 0.04
+          },
+          "baselines": {
+            "pipelineRank": {
+              "auc": 0.598,
+              "p10": 0.1,
+              "p25": 0.04,
+              "p50": 0.02
+            },
+            "orgRank": {
+              "auc": 0.709,
+              "p10": 0.1,
+              "p25": 0.08,
+              "p50": 0.06
+            }
+          }
+        },
+        {
+          "season": 2022,
+          "outcomeSeason": 2023,
+          "cohort": 392,
+          "breakouts": 2,
+          "baseRate": 0.0051,
+          "model": {
+            "auc": 0.997,
+            "p10": 0.2,
+            "p25": 0.08,
+            "p50": 0.04
+          },
+          "baselines": {
+            "pipelineRank": {
+              "auc": 0.974,
+              "p10": 0.1,
+              "p25": 0.08,
+              "p50": 0.04
+            },
+            "orgRank": {
+              "auc": 0.935,
+              "p10": 0.0,
+              "p25": 0.04,
+              "p50": 0.04
+            }
+          }
+        },
+        {
+          "season": 2023,
+          "outcomeSeason": 2024,
+          "cohort": 360,
+          "breakouts": 5,
+          "baseRate": 0.0139,
+          "model": {
+            "auc": 0.896,
+            "p10": 0.1,
+            "p25": 0.08,
+            "p50": 0.06
+          },
+          "baselines": {
+            "pipelineRank": {
+              "auc": 0.572,
+              "p10": 0.1,
+              "p25": 0.04,
+              "p50": 0.04
+            },
+            "orgRank": {
+              "auc": 0.611,
+              "p10": 0.1,
+              "p25": 0.08,
+              "p50": 0.04
+            }
+          }
+        },
+        {
+          "season": 2024,
+          "outcomeSeason": 2025,
+          "cohort": 381,
+          "breakouts": 4,
+          "baseRate": 0.0105,
+          "model": {
+            "auc": 0.934,
+            "p10": 0.0,
+            "p25": 0.08,
+            "p50": 0.08
+          },
+          "baselines": {
+            "pipelineRank": {
+              "auc": 0.712,
+              "p10": 0.0,
+              "p25": 0.08,
+              "p50": 0.04
+            },
+            "orgRank": {
+              "auc": 0.736,
+              "p10": 0.0,
+              "p25": 0.04,
+              "p50": 0.06
+            }
+          }
+        }
+      ],
+      "summary": {
+        "model": {
+          "auc": 0.893,
+          "p10": 0.1,
+          "p25": 0.072,
+          "p50": 0.052
+        },
+        "baselines": {
+          "pipelineRank": {
+            "auc": 0.689,
+            "p10": 0.08,
+            "p25": 0.056,
+            "p50": 0.032
+          },
+          "orgRank": {
+            "auc": 0.733,
+            "p10": 0.06,
+            "p25": 0.056,
+            "p50": 0.044
+          }
+        },
+        "baseRate": 0.0101
+      }
+    }
+  },
+  "prospects": {
+    "hitters": [
+      {
+        "rank": 1,
+        "playerId": 800543,
+        "name": "Josue De Paula",
+        "teamId": 119,
+        "position": "OF",
+        "age": 22,
+        "probability": 0.309,
+        "pipeline": {
+          "overall": 4,
+          "org": 1,
+          "eta": 2026,
+          "fv": 60
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AA",
+          "pa": 588,
+          "ops": 0.948,
+          "iso": 0.244,
+          "kPct": 14.8,
+          "bbPct": 13.8,
+          "hr": 27,
+          "sb": 31
+        },
+        "drivers": [
+          "MLB Pipeline No. 4 overall (No. 1 Dodgers)",
+          "588 PA at Double-A in 2026",
+          ".948 OPS at Double-A, +.193 vs. league",
+          "Already got a 42-PA MLB look in 2026"
+        ],
+        "signals": [],
+        "risk": "No Triple-A time yet (topped out at Double-A)",
+        "bar": "Has to reach Triple-A and force a call-up early in 2027, then hold a regular's job and 400+ PA at a .346 wOBA (\u2248120 wRC+), 30 HR, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 650391,
+          "name": "Eloy Jim\u00e9nez",
+          "season": 2018,
+          "before": "No. 3 overall, .960 OPS at AAA/AA, age 21",
+          "after": ".343 wOBA, 31 HR in 504 PA"
+        }
+      },
+      {
+        "rank": 2,
+        "playerId": 808265,
+        "name": "Franklin Arias",
+        "teamId": 111,
+        "position": "SS",
+        "age": 21,
+        "probability": 0.249,
+        "pipeline": {
+          "overall": 2,
+          "org": 1,
+          "eta": 2027,
+          "fv": 65
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AAA/AA",
+          "pa": 520,
+          "ops": 0.957,
+          "iso": 0.235,
+          "kPct": 14.2,
+          "bbPct": 10.2,
+          "hr": 25,
+          "sb": 9
+        },
+        "drivers": [
+          "MLB Pipeline No. 2 overall (No. 1 Red Sox)",
+          "188 PA at Triple-A in 2026",
+          ".957 OPS at AAA/AA, +.197 vs. league",
+          "Pipeline ETA 2027"
+        ],
+        "signals": [],
+        "risk": null,
+        "bar": "Needs a regular's job and 400+ PA at a .346 wOBA (\u2248120 wRC+), 30 HR, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 660670,
+          "name": "Ronald Acu\u00f1a Jr.",
+          "season": 2017,
+          "before": "No. 2 overall, .917 OPS at AAA/AA, age 19",
+          "after": ".388 wOBA, 26 HR in 487 PA"
+        }
+      },
+      {
+        "rank": 3,
+        "playerId": 805805,
+        "name": "Walker Jenkins",
+        "teamId": 142,
+        "position": "OF",
+        "age": 22,
+        "probability": 0.241,
+        "pipeline": {
+          "overall": 13,
+          "org": 1,
+          "eta": 2026,
+          "fv": 60
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AAA",
+          "pa": 324,
+          "ops": 0.939,
+          "iso": 0.224,
+          "kPct": 15.6,
+          "bbPct": 13.7,
+          "hr": 14,
+          "sb": 17
+        },
+        "drivers": [
+          "MLB Pipeline No. 13 overall (No. 1 Twins)",
+          "Already got a 93-PA MLB look in 2026",
+          "307 PA at Triple-A in 2026",
+          ".939 OPS at Triple-A, +.169 vs. league"
+        ],
+        "signals": [],
+        "risk": null,
+        "bar": "Needs a regular's job and 400+ PA at a .346 wOBA (\u2248120 wRC+), 30 HR, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 671213,
+          "name": "Triston Casas",
+          "season": 2022,
+          "before": "No. 23 overall, .863 OPS at AAA, age 22",
+          "after": ".367 wOBA, 24 HR in 502 PA"
+        }
+      },
+      {
+        "rank": 4,
+        "playerId": 815908,
+        "name": "Jes\u00fas Made",
+        "teamId": 158,
+        "position": "SS",
+        "age": 20,
+        "probability": 0.19,
+        "pipeline": {
+          "overall": 1,
+          "org": 1,
+          "eta": 2027,
+          "fv": 65
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AA",
+          "pa": 558,
+          "ops": 0.774,
+          "iso": 0.159,
+          "kPct": 14.3,
+          "bbPct": 10.2,
+          "hr": 14,
+          "sb": 37
+        },
+        "drivers": [
+          "MLB Pipeline No. 1 overall (No. 1 Brewers)",
+          "558 PA at Double-A in 2026",
+          "Pipeline ETA 2027",
+          "60-grade power"
+        ],
+        "signals": [],
+        "risk": "No Triple-A time yet (topped out at Double-A)",
+        "bar": "Has to reach Triple-A and force a call-up early in 2027, then hold a regular's job and 400+ PA at a .346 wOBA (\u2248120 wRC+), 30 HR, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 660670,
+          "name": "Ronald Acu\u00f1a Jr.",
+          "season": 2017,
+          "before": "No. 2 overall, .917 OPS at AAA/AA, age 19",
+          "after": ".388 wOBA, 26 HR in 487 PA"
+        }
+      },
+      {
+        "rank": 5,
+        "playerId": 815888,
+        "name": "Leo De Vries",
+        "teamId": 133,
+        "position": "SS/3B",
+        "age": 20,
+        "probability": 0.093,
+        "pipeline": {
+          "overall": 3,
+          "org": 1,
+          "eta": 2027,
+          "fv": 65
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AA",
+          "pa": 428,
+          "ops": 0.836,
+          "iso": 0.168,
+          "kPct": 21.3,
+          "bbPct": 11.4,
+          "hr": 13,
+          "sb": 34
+        },
+        "drivers": [
+          "MLB Pipeline No. 3 overall (No. 1 Athletics)",
+          "428 PA at Double-A in 2026",
+          "Pipeline ETA 2027",
+          "65 future-value grade with plus tools (Hit 60)"
+        ],
+        "signals": [],
+        "risk": "No Triple-A time yet (topped out at Double-A)",
+        "bar": "Has to reach Triple-A and force a call-up early in 2027, then hold a regular's job and 400+ PA at a .346 wOBA (\u2248120 wRC+), 30 HR, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 660670,
+          "name": "Ronald Acu\u00f1a Jr.",
+          "season": 2017,
+          "before": "No. 2 overall, .917 OPS at AAA/AA, age 19",
+          "after": ".388 wOBA, 26 HR in 487 PA"
+        }
+      },
+      {
+        "rank": 6,
+        "playerId": 823787,
+        "name": "Rainiel Rodriguez",
+        "teamId": 138,
+        "position": "C/1B",
+        "age": 20,
+        "probability": 0.092,
+        "pipeline": {
+          "overall": 10,
+          "org": 1,
+          "eta": 2027,
+          "fv": 60
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AA",
+          "pa": 530,
+          "ops": 0.999,
+          "iso": 0.264,
+          "kPct": 19.2,
+          "bbPct": 10.2,
+          "hr": 27,
+          "sb": 11
+        },
+        "drivers": [
+          "MLB Pipeline No. 10 overall (No. 1 Cardinals)",
+          ".999 OPS at Double-A, +.244 vs. league",
+          "65-grade power",
+          "402 PA at Double-A in 2026"
+        ],
+        "signals": [],
+        "risk": "No Triple-A time yet (topped out at Double-A)",
+        "bar": "Has to reach Triple-A and force a call-up early in 2027, then hold a regular's job and 400+ PA at a .346 wOBA (\u2248120 wRC+), 30 HR, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 641355,
+          "name": "Cody Bellinger",
+          "season": 2016,
+          "before": "No. 13 overall, .871 OPS at AAA/AA, age 20",
+          "after": ".380 wOBA, 39 HR in 548 PA"
+        }
+      },
+      {
+        "rank": 7,
+        "playerId": 701527,
+        "name": "Mike Sirota",
+        "teamId": 119,
+        "position": "OF",
+        "age": 24,
+        "probability": 0.092,
+        "pipeline": {
+          "overall": 17,
+          "org": 3,
+          "eta": 2027,
+          "fv": 60
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AAA/AA",
+          "pa": 501,
+          "ops": 0.944,
+          "iso": 0.192,
+          "kPct": 22.8,
+          "bbPct": 19.9,
+          "hr": 17,
+          "sb": 13
+        },
+        "drivers": [
+          "MLB Pipeline No. 17 overall (No. 3 Dodgers)",
+          ".944 OPS at AAA/AA, +.188 vs. league",
+          "Pipeline ETA 2027",
+          "19.9% walk rate at AAA/AA, 9.0 pts above league"
+        ],
+        "signals": [],
+        "risk": "No Triple-A time yet (topped out at Double-A)",
+        "bar": "Has to reach Triple-A and force a call-up early in 2027, then hold a regular's job and 400+ PA at a .346 wOBA (\u2248120 wRC+), 30 HR, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 641355,
+          "name": "Cody Bellinger",
+          "season": 2016,
+          "before": "No. 13 overall, .871 OPS at AAA/AA, age 20",
+          "after": ".380 wOBA, 39 HR in 548 PA"
+        }
+      },
+      {
+        "rank": 8,
+        "playerId": 703155,
+        "name": "Lazaro Montes",
+        "teamId": 136,
+        "position": "OF",
+        "age": 22,
+        "probability": 0.085,
+        "pipeline": {
+          "overall": 53,
+          "org": 4,
+          "eta": 2026,
+          "fv": 55
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AAA/AA",
+          "pa": 542,
+          "ops": 0.927,
+          "iso": 0.309,
+          "kPct": 30.6,
+          "bbPct": 14.6,
+          "hr": 38,
+          "sb": 8
+        },
+        "drivers": [
+          "Already got a 59-PA MLB look in 2026",
+          "203 PA at Triple-A in 2026",
+          "65-grade power",
+          "MLB Pipeline No. 53 overall (No. 4 Mariners)"
+        ],
+        "signals": [],
+        "risk": "30.6% strikeout rate at AAA/AA (7.0 pts worse than league)",
+        "bar": "Needs a regular's job and 400+ PA at a .346 wOBA (\u2248120 wRC+), 30 HR, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 671213,
+          "name": "Triston Casas",
+          "season": 2022,
+          "before": "No. 23 overall, .863 OPS at AAA, age 22",
+          "after": ".367 wOBA, 24 HR in 502 PA"
+        }
+      },
+      {
+        "rank": 9,
+        "playerId": 694514,
+        "name": "Sterlin Thompson",
+        "teamId": 115,
+        "position": "OF",
+        "age": 26,
+        "probability": 0.077,
+        "pipeline": {
+          "overall": null,
+          "org": 11,
+          "eta": 2026,
+          "fv": 45
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AAA",
+          "pa": 408,
+          "ops": 1.005,
+          "iso": 0.201,
+          "kPct": 14.7,
+          "bbPct": 18.9,
+          "hr": 14,
+          "sb": 21
+        },
+        "drivers": [
+          "Already got a 77-PA MLB look in 2026",
+          "1.005 OPS at Triple-A, +.234 vs. league",
+          "408 PA at Triple-A in 2026",
+          "Pipeline ETA was 2026: considered big-league ready now"
+        ],
+        "signals": [],
+        "risk": "Outside the Top 100: scouts see a lower ceiling than the elite names",
+        "bar": "Needs a regular's job and 400+ PA at a .346 wOBA (\u2248120 wRC+), 30 HR, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 666134,
+          "name": "Nolan Jones",
+          "season": 2022,
+          "before": "No. 17 in org, .831 OPS at AAA, age 24",
+          "after": ".395 wOBA, 20 HR in 424 PA"
+        }
+      },
+      {
+        "rank": 10,
+        "playerId": 806964,
+        "name": "Sebastian Walcott",
+        "teamId": 140,
+        "position": "SS/3B",
+        "age": 21,
+        "probability": 0.074,
+        "pipeline": {
+          "overall": 8,
+          "org": 1,
+          "eta": 2027,
+          "fv": 60
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AAA/AA",
+          "pa": 180,
+          "ops": 0.963,
+          "iso": 0.25,
+          "kPct": 23.9,
+          "bbPct": 10.0,
+          "hr": 9,
+          "sb": 12
+        },
+        "drivers": [
+          "MLB Pipeline No. 8 overall (No. 1 Rangers)",
+          ".963 OPS at AAA/AA, +.207 vs. league",
+          "65-grade power",
+          "Pipeline ETA 2027"
+        ],
+        "signals": [],
+        "risk": "No Triple-A time yet (topped out at Double-A)",
+        "bar": "Has to reach Triple-A and force a call-up early in 2027, then hold a regular's job and 400+ PA at a .346 wOBA (\u2248120 wRC+), 30 HR, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 650402,
+          "name": "Gleyber Torres",
+          "season": 2017,
+          "before": "No. 5 overall, .863 OPS at AAA/AA, age 20",
+          "after": ".349 wOBA, 24 HR in 484 PA"
+        }
+      },
+      {
+        "rank": 11,
+        "playerId": 806252,
+        "name": "Ralphy Velazquez",
+        "teamId": 114,
+        "position": "1B/OF",
+        "age": 22,
+        "probability": 0.072,
+        "pipeline": {
+          "overall": 29,
+          "org": 1,
+          "eta": 2027,
+          "fv": 55
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AAA/AA",
+          "pa": 538,
+          "ops": 0.928,
+          "iso": 0.258,
+          "kPct": 19.9,
+          "bbPct": 11.3,
+          "hr": 29,
+          "sb": 2
+        },
+        "drivers": [
+          "MLB Pipeline No. 29 overall (No. 1 Guardians)",
+          "369 PA at Triple-A in 2026",
+          "Pipeline ETA 2027",
+          ".928 OPS at AAA/AA, +.162 vs. league"
+        ],
+        "signals": [],
+        "risk": null,
+        "bar": "Needs a regular's job and 400+ PA at a .346 wOBA (\u2248120 wRC+), 30 HR, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 670541,
+          "name": "Yordan Alvarez",
+          "season": 2018,
+          "before": "No. 44 overall, .903 OPS at AAA/AA, age 21",
+          "after": ".432 wOBA, 27 HR in 369 PA"
+        }
+      },
+      {
+        "rank": 12,
+        "playerId": 809707,
+        "name": "Charlie Condon",
+        "teamId": 115,
+        "position": "1B/OF",
+        "age": 24,
+        "probability": 0.06,
+        "pipeline": {
+          "overall": 56,
+          "org": 3,
+          "eta": 2027,
+          "fv": 55
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AAA",
+          "pa": 598,
+          "ops": 0.904,
+          "iso": 0.241,
+          "kPct": 25.1,
+          "bbPct": 13.2,
+          "hr": 27,
+          "sb": 8
+        },
+        "drivers": [
+          "598 PA at Triple-A in 2026",
+          "MLB Pipeline No. 56 overall (No. 3 Rockies)",
+          "Pipeline ETA 2027",
+          ".904 OPS at Triple-A, +.133 vs. league"
+        ],
+        "signals": [],
+        "risk": "25.1% strikeout rate at Triple-A (2.8 pts worse than league)",
+        "bar": "Needs a regular's job and 400+ PA at a .346 wOBA (\u2248120 wRC+), 30 HR, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 686948,
+          "name": "Drake Baldwin",
+          "season": 2024,
+          "before": "No. 63 overall, .796 OPS at AAA/AA, age 23",
+          "after": ".351 wOBA, 19 HR in 446 PA"
+        }
+      },
+      {
+        "rank": 13,
+        "playerId": 806956,
+        "name": "Ethan Salas",
+        "teamId": 135,
+        "position": "C",
+        "age": 21,
+        "probability": 0.056,
+        "pipeline": {
+          "overall": 21,
+          "org": 1,
+          "eta": 2026,
+          "fv": 55
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AAA/AA",
+          "pa": 405,
+          "ops": 0.822,
+          "iso": 0.153,
+          "kPct": 14.3,
+          "bbPct": 11.6,
+          "hr": 10,
+          "sb": 17
+        },
+        "drivers": [
+          "MLB Pipeline No. 21 overall (No. 1 Padres)",
+          "105 PA at Triple-A in 2026",
+          "Already got a 40-PA MLB look in 2026",
+          "Pipeline ETA was 2026: considered big-league ready now"
+        ],
+        "signals": [],
+        "risk": null,
+        "bar": "Needs a regular's job and 400+ PA at a .346 wOBA (\u2248120 wRC+), 30 HR, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 701538,
+          "name": "Jackson Merrill",
+          "season": 2023,
+          "before": "No. 12 overall, .782 OPS at AA, age 20",
+          "after": ".352 wOBA, 24 HR in 593 PA"
+        }
+      },
+      {
+        "rank": 14,
+        "playerId": 703197,
+        "name": "Michael Arroyo",
+        "teamId": 136,
+        "position": "OF/2B",
+        "age": 22,
+        "probability": 0.053,
+        "pipeline": {
+          "overall": 41,
+          "org": 3,
+          "eta": 2026,
+          "fv": 55
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AAA/AA",
+          "pa": 532,
+          "ops": 0.83,
+          "iso": 0.188,
+          "kPct": 16.4,
+          "bbPct": 8.1,
+          "hr": 18,
+          "sb": 17
+        },
+        "drivers": [
+          "MLB Pipeline No. 41 overall (No. 3 Mariners)",
+          "235 PA at Triple-A in 2026",
+          "Already got a 41-PA MLB look in 2026",
+          "Pipeline ETA was 2026: considered big-league ready now"
+        ],
+        "signals": [],
+        "risk": "8.1% walk rate at AAA/AA, below league average",
+        "bar": "Needs a regular's job and 400+ PA at a .346 wOBA (\u2248120 wRC+), 30 HR, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 609280,
+          "name": "Miguel Andujar",
+          "season": 2017,
+          "before": "No. 65 overall, .850 OPS at AAA/AA, age 22",
+          "after": ".361 wOBA, 27 HR in 606 PA"
+        }
+      },
+      {
+        "rank": 15,
+        "playerId": 689196,
+        "name": "Owen Ayers",
+        "teamId": 112,
+        "position": "C/1B",
+        "age": 26,
+        "probability": 0.051,
+        "pipeline": {
+          "overall": 88,
+          "org": 2,
+          "eta": 2027,
+          "fv": 55
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AAA/AA",
+          "pa": 538,
+          "ops": 0.886,
+          "iso": 0.211,
+          "kPct": 23.5,
+          "bbPct": 15.2,
+          "hr": 25,
+          "sb": 13
+        },
+        "drivers": [
+          "208 PA at Triple-A in 2026",
+          "MLB Pipeline No. 88 overall (No. 2 Cubs)",
+          "Pipeline ETA 2027",
+          ".886 OPS at AAA/AA, +.124 vs. league"
+        ],
+        "signals": [],
+        "risk": "Hit tool graded 45: contact is the question",
+        "bar": "Needs a regular's job and 400+ PA at a .346 wOBA (\u2248120 wRC+), 30 HR, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 686948,
+          "name": "Drake Baldwin",
+          "season": 2024,
+          "before": "No. 63 overall, .796 OPS at AAA/AA, age 23",
+          "after": ".351 wOBA, 19 HR in 446 PA"
+        }
+      },
+      {
+        "rank": 16,
+        "playerId": 814307,
+        "name": "Zyhir Hope",
+        "teamId": 116,
+        "position": "OF",
+        "age": 22,
+        "probability": 0.049,
+        "pipeline": {
+          "overall": 26,
+          "org": 1,
+          "eta": 2027,
+          "fv": 55
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AA",
+          "pa": 564,
+          "ops": 0.88,
+          "iso": 0.226,
+          "kPct": 25.0,
+          "bbPct": 11.0,
+          "hr": 29,
+          "sb": 26
+        },
+        "drivers": [
+          "MLB Pipeline No. 26 overall (No. 1 Tigers)",
+          "564 PA at Double-A in 2026",
+          "Pipeline ETA 2027",
+          "60-grade power"
+        ],
+        "signals": [],
+        "risk": "25.0% strikeout rate at Double-A (0.6 pts worse than league)",
+        "bar": "Has to reach Triple-A and force a call-up early in 2027, then hold a regular's job and 400+ PA at a .346 wOBA (\u2248120 wRC+), 30 HR, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 670541,
+          "name": "Yordan Alvarez",
+          "season": 2018,
+          "before": "No. 44 overall, .903 OPS at AAA/AA, age 21",
+          "after": ".432 wOBA, 27 HR in 369 PA"
+        }
+      },
+      {
+        "rank": 17,
+        "playerId": 805795,
+        "name": "Aidan Miller",
+        "teamId": 143,
+        "position": "SS",
+        "age": 23,
+        "probability": 0.043,
+        "pipeline": {
+          "overall": 59,
+          "org": 2,
+          "eta": 2027,
+          "fv": 55
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AA/A",
+          "pa": 14,
+          "ops": 1.036,
+          "iso": 0.264,
+          "kPct": 7.1,
+          "bbPct": 14.3,
+          "hr": 0,
+          "sb": 1
+        },
+        "drivers": [
+          "1.036 OPS at AA/A, +.282 vs. league",
+          "MLB Pipeline No. 59 overall (No. 2 Phillies)",
+          "Pipeline ETA 2027",
+          "60-grade power"
+        ],
+        "signals": [],
+        "risk": "No Triple-A time yet (topped out at Double-A)",
+        "bar": "Has to reach Triple-A and force a call-up early in 2027, then hold a regular's job and 400+ PA at a .346 wOBA (\u2248120 wRC+), 30 HR, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 670541,
+          "name": "Yordan Alvarez",
+          "season": 2018,
+          "before": "No. 44 overall, .903 OPS at AAA/AA, age 21",
+          "after": ".432 wOBA, 27 HR in 369 PA"
+        }
+      },
+      {
+        "rank": 18,
+        "playerId": 815394,
+        "name": "Theo Gillen",
+        "teamId": 139,
+        "position": "OF",
+        "age": 21,
+        "probability": 0.043,
+        "pipeline": {
+          "overall": 16,
+          "org": 2,
+          "eta": 2027,
+          "fv": 60
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AA",
+          "pa": 533,
+          "ops": 0.894,
+          "iso": 0.217,
+          "kPct": 19.8,
+          "bbPct": 13.4,
+          "hr": 22,
+          "sb": 44
+        },
+        "drivers": [
+          "MLB Pipeline No. 16 overall (No. 2 Rays)",
+          "Pipeline ETA 2027",
+          ".894 OPS at Double-A, +.139 vs. league",
+          "268 PA at Double-A in 2026"
+        ],
+        "signals": [],
+        "risk": "No Triple-A time yet (topped out at Double-A)",
+        "bar": "Has to reach Triple-A and force a call-up early in 2027, then hold a regular's job and 400+ PA at a .346 wOBA (\u2248120 wRC+), 30 HR, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 701538,
+          "name": "Jackson Merrill",
+          "season": 2023,
+          "before": "No. 12 overall, .782 OPS at AA, age 20",
+          "after": ".352 wOBA, 24 HR in 593 PA"
+        }
+      },
+      {
+        "rank": 19,
+        "playerId": 694876,
+        "name": "Cooper Ingle",
+        "teamId": 114,
+        "position": "C/OF",
+        "age": 25,
+        "probability": 0.043,
+        "pipeline": {
+          "overall": null,
+          "org": 4,
+          "eta": 2026,
+          "fv": 50
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AAA",
+          "pa": 473,
+          "ops": 0.951,
+          "iso": 0.231,
+          "kPct": 22.8,
+          "bbPct": 18.2,
+          "hr": 20,
+          "sb": 2
+        },
+        "drivers": [
+          "473 PA at Triple-A in 2026",
+          ".951 OPS at Triple-A, +.180 vs. league",
+          "No. 4 prospect in the Guardians system",
+          "Pipeline ETA was 2026: considered big-league ready now"
+        ],
+        "signals": [
+          "Debuted in 2026: 24 MLB PA so far, still rookie-eligible"
+        ],
+        "risk": "Outside the Top 100: scouts see a lower ceiling than the elite names",
+        "bar": "Needs a regular's job and 400+ PA at a .346 wOBA (\u2248120 wRC+), 30 HR, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 666397,
+          "name": "Edouard Julien",
+          "season": 2022,
+          "before": "No. 5 in org, .931 OPS at AA, age 23",
+          "after": ".366 wOBA, 16 HR in 408 PA"
+        }
+      },
+      {
+        "rank": 20,
+        "playerId": 814409,
+        "name": "Seaver King",
+        "teamId": 120,
+        "position": "SS/2B",
+        "age": 24,
+        "probability": 0.042,
+        "pipeline": {
+          "overall": 51,
+          "org": 3,
+          "eta": 2027,
+          "fv": 55
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AAA/AA",
+          "pa": 521,
+          "ops": 0.899,
+          "iso": 0.213,
+          "kPct": 21.5,
+          "bbPct": 9.6,
+          "hr": 21,
+          "sb": 15
+        },
+        "drivers": [
+          "356 PA at Triple-A in 2026",
+          "MLB Pipeline No. 51 overall (No. 3 Nationals)",
+          "Pipeline ETA 2027",
+          ".899 OPS at AAA/AA, +.133 vs. league"
+        ],
+        "signals": [],
+        "risk": "9.6% walk rate at AAA/AA, below league average",
+        "bar": "Needs a regular's job and 400+ PA at a .346 wOBA (\u2248120 wRC+), 30 HR, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 686948,
+          "name": "Drake Baldwin",
+          "season": 2024,
+          "before": "No. 63 overall, .796 OPS at AAA/AA, age 23",
+          "after": ".351 wOBA, 19 HR in 446 PA"
+        }
+      },
+      {
+        "rank": 21,
+        "playerId": 696486,
+        "name": "James Tibbs III",
+        "teamId": 119,
+        "position": "1B/OF",
+        "age": 24,
+        "probability": 0.04,
+        "pipeline": {
+          "overall": null,
+          "org": 7,
+          "eta": 2027,
+          "fv": 50
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AAA",
+          "pa": 643,
+          "ops": 0.941,
+          "iso": 0.245,
+          "kPct": 23.3,
+          "bbPct": 16.8,
+          "hr": 30,
+          "sb": 10
+        },
+        "drivers": [
+          "643 PA at Triple-A in 2026",
+          ".941 OPS at Triple-A, +.170 vs. league",
+          "Pipeline ETA 2027",
+          "No. 7 prospect in the Dodgers system"
+        ],
+        "signals": [],
+        "risk": "Outside the Top 100: scouts see a lower ceiling than the elite names",
+        "bar": "Needs a regular's job and 400+ PA at a .346 wOBA (\u2248120 wRC+), 30 HR, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 666397,
+          "name": "Edouard Julien",
+          "season": 2022,
+          "before": "No. 5 in org, .931 OPS at AA, age 23",
+          "after": ".366 wOBA, 16 HR in 408 PA"
+        }
+      },
+      {
+        "rank": 22,
+        "playerId": 800508,
+        "name": "Franyerber Montilla",
+        "teamId": 116,
+        "position": "SS",
+        "age": 22,
+        "probability": 0.035,
+        "pipeline": {
+          "overall": null,
+          "org": 28,
+          "eta": 2028,
+          "fv": 40
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "A"
+        },
+        "drivers": [
+          "Pipeline ETA 2028",
+          "50-grade hit tool"
+        ],
+        "signals": [],
+        "risk": "Outside the Top 100: scouts see a lower ceiling than the elite names",
+        "bar": "Has to reach Triple-A and force a call-up early in 2027, then hold a regular's job and 400+ PA at a .346 wOBA (\u2248120 wRC+), 30 HR, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 663697,
+          "name": "Jonathan India",
+          "season": 2020,
+          "before": "No. 5 in org, .792 OPS at AA, age 22",
+          "after": ".363 wOBA, 21 HR in 631 PA"
+        }
+      },
+      {
+        "rank": 23,
+        "playerId": 691181,
+        "name": "Emmanuel Rodriguez",
+        "teamId": 142,
+        "position": "OF",
+        "age": 24,
+        "probability": 0.032,
+        "pipeline": {
+          "overall": null,
+          "org": 5,
+          "eta": 2026,
+          "fv": 50
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AAA",
+          "pa": 258,
+          "ops": 0.914,
+          "iso": 0.238,
+          "kPct": 26.4,
+          "bbPct": 19.1,
+          "hr": 11,
+          "sb": 7
+        },
+        "drivers": [
+          "Already got a 48-PA MLB look in 2026",
+          "220 PA at Triple-A in 2026",
+          "Pipeline ETA was 2026: considered big-league ready now",
+          "No. 5 prospect in the Twins system"
+        ],
+        "signals": [],
+        "risk": "26.4% strikeout rate at Triple-A (4.1 pts worse than league)",
+        "bar": "Needs a regular's job and 400+ PA at a .346 wOBA (\u2248120 wRC+), 30 HR, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 663886,
+          "name": "Tyler Stephenson",
+          "season": 2020,
+          "before": "No. 94 overall, .782 OPS at AA, age 22",
+          "after": ".346 wOBA, 10 HR in 402 PA"
+        }
+      },
+      {
+        "rank": 24,
+        "playerId": 815352,
+        "name": "Caleb Bonemer",
+        "teamId": 145,
+        "position": "3B/SS",
+        "age": 21,
+        "probability": 0.032,
+        "pipeline": {
+          "overall": 27,
+          "org": 2,
+          "eta": 2027,
+          "fv": 55
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AA",
+          "pa": 595,
+          "ops": 0.924,
+          "iso": 0.284,
+          "kPct": 25.2,
+          "bbPct": 14.5,
+          "hr": 37,
+          "sb": 17
+        },
+        "drivers": [
+          "MLB Pipeline No. 27 overall (No. 2 White Sox)",
+          ".924 OPS at Double-A, +.169 vs. league",
+          "Pipeline ETA 2027",
+          "317 PA at Double-A in 2026"
+        ],
+        "signals": [],
+        "risk": "25.2% strikeout rate at Double-A (0.8 pts worse than league)",
+        "bar": "Has to reach Triple-A and force a call-up early in 2027, then hold a regular's job and 400+ PA at a .346 wOBA (\u2248120 wRC+), 30 HR, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 670541,
+          "name": "Yordan Alvarez",
+          "season": 2018,
+          "before": "No. 44 overall, .903 OPS at AAA/AA, age 21",
+          "after": ".432 wOBA, 27 HR in 369 PA"
+        }
+      },
+      {
+        "rank": 25,
+        "playerId": 805207,
+        "name": "Caden Bodine",
+        "teamId": 139,
+        "position": "C",
+        "age": 23,
+        "probability": 0.03,
+        "pipeline": {
+          "overall": 46,
+          "org": 3,
+          "eta": 2027,
+          "fv": 55
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AAA/AA",
+          "pa": 543,
+          "ops": 0.876,
+          "iso": 0.162,
+          "kPct": 7.5,
+          "bbPct": 11.2,
+          "hr": 17,
+          "sb": 10
+        },
+        "drivers": [
+          "MLB Pipeline No. 46 overall (No. 3 Rays)",
+          "240 PA at Double-A and Triple-A in 2026",
+          "Pipeline ETA 2027",
+          "7.5% strikeout rate at AAA/AA, 16.4 pts better than league"
+        ],
+        "signals": [],
+        "risk": null,
+        "bar": "Needs a regular's job and 400+ PA at a .346 wOBA (\u2248120 wRC+), 30 HR, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 663886,
+          "name": "Tyler Stephenson",
+          "season": 2020,
+          "before": "No. 94 overall, .782 OPS at AA, age 22",
+          "after": ".346 wOBA, 10 HR in 402 PA"
+        }
+      }
+    ],
+    "pitchers": [
+      {
+        "rank": 1,
+        "playerId": 689981,
+        "name": "River Ryan",
+        "teamId": 116,
+        "position": "RHP",
+        "age": 28,
+        "probability": 0.28,
+        "pipeline": {
+          "overall": 64,
+          "org": 3,
+          "eta": 2026,
+          "fv": 55
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AAA",
+          "ip": "41",
+          "era": 4.39,
+          "kPct": 26.4,
+          "bbPct": 5.1,
+          "kbbPct": 21.3,
+          "k": 47
+        },
+        "drivers": [
+          "Pipeline ETA was 2026: considered big-league ready now",
+          "55 future-value grade with plus tools (Fastball 65, Slider 60)",
+          "MLB Pipeline No. 64 overall (No. 3 Tigers)",
+          "21.3% K-BB at Triple-A (26% K, 5% BB), 10.2 pts above league"
+        ],
+        "signals": [
+          "Debuted in 2026: 4.1 MLB IP so far, still rookie-eligible"
+        ],
+        "risk": null,
+        "bar": "Needs a rotation spot and 100+ IP at ~3.56 ERA/xERA, 200 K, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 676272,
+          "name": "Bobby Miller",
+          "season": 2022,
+          "before": "No. 24 overall, 23% K-BB at AAA/AA, age 23",
+          "after": "3.76 ERA, 119 K in 124.1 IP"
+        }
+      },
+      {
+        "rank": 2,
+        "playerId": 815549,
+        "name": "Ryan Sloan",
+        "teamId": 136,
+        "position": "RHP",
+        "age": 21,
+        "probability": 0.187,
+        "pipeline": {
+          "overall": 11,
+          "org": 2,
+          "eta": 2027,
+          "fv": 60
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AA",
+          "ip": "101.1",
+          "era": 3.73,
+          "kPct": 30.9,
+          "bbPct": 3.9,
+          "kbbPct": 27.1,
+          "k": 128
+        },
+        "drivers": [
+          "60 future-value grade with plus tools (Fastball 60, Changeup 60)",
+          "Pipeline ETA 2027",
+          "MLB Pipeline No. 11 overall (No. 2 Mariners)",
+          "27.1% K-BB at Double-A (31% K, 4% BB), 13.6 pts above league"
+        ],
+        "signals": [],
+        "risk": null,
+        "bar": "Needs a rotation spot and 100+ IP at ~3.56 ERA/xERA, 200 K, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 694973,
+          "name": "Paul Skenes",
+          "season": 2023,
+          "before": "No. 3 overall, 29% K-BB at AA/A, age 21",
+          "after": "1.96 ERA, 170 K in 133 IP"
+        }
+      },
+      {
+        "rank": 3,
+        "playerId": 805906,
+        "name": "Gage Wood",
+        "teamId": 143,
+        "position": "RHP",
+        "age": 23,
+        "probability": 0.174,
+        "pipeline": {
+          "overall": 30,
+          "org": 1,
+          "eta": 2027,
+          "fv": 55
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AA",
+          "ip": "95",
+          "era": 4.72,
+          "kPct": 33.1,
+          "bbPct": 6.0,
+          "kbbPct": 27.1,
+          "k": 139
+        },
+        "drivers": [
+          "Pipeline ETA 2027",
+          "55 future-value grade with plus tools (Fastball 70)",
+          "MLB Pipeline No. 30 overall (No. 1 Phillies)",
+          "27.1% K-BB at Double-A (33% K, 6% BB), 13.6 pts above league"
+        ],
+        "signals": [],
+        "risk": null,
+        "bar": "Needs a rotation spot and 100+ IP at ~3.56 ERA/xERA, 200 K, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 690990,
+          "name": "Cade Horton",
+          "season": 2024,
+          "before": "No. 52 overall, 19% K-BB at AAA/AA, age 22",
+          "after": "2.67 ERA, 97 K in 118 IP"
+        }
+      },
+      {
+        "rank": 4,
+        "playerId": 803285,
+        "name": "Tyler Bremner",
+        "teamId": 108,
+        "position": "RHP",
+        "age": 23,
+        "probability": 0.132,
+        "pipeline": {
+          "overall": 42,
+          "org": 2,
+          "eta": 2027,
+          "fv": 55
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AA/A+",
+          "ip": "72.2",
+          "era": 4.33,
+          "kPct": 32.9,
+          "bbPct": 8.9,
+          "kbbPct": 24.0,
+          "k": 100
+        },
+        "drivers": [
+          "Pipeline ETA 2027",
+          "55 future-value grade with plus tools (Fastball 65, Changeup 65)",
+          "MLB Pipeline No. 42 overall (No. 2 Angels)",
+          "24.0% K-BB at AA/A+ (33% K, 9% BB), 11.4 pts above league"
+        ],
+        "signals": [],
+        "risk": "No Triple-A time yet (topped out at High-A)",
+        "bar": "Needs a rotation spot and 100+ IP at ~3.56 ERA/xERA, 200 K, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 690990,
+          "name": "Cade Horton",
+          "season": 2024,
+          "before": "No. 52 overall, 19% K-BB at AAA/AA, age 22",
+          "after": "2.67 ERA, 97 K in 118 IP"
+        }
+      },
+      {
+        "rank": 5,
+        "playerId": 824604,
+        "name": "Liam Doyle",
+        "teamId": 138,
+        "position": "LHP",
+        "age": 23,
+        "probability": 0.129,
+        "pipeline": {
+          "overall": 40,
+          "org": 2,
+          "eta": 2027,
+          "fv": 55
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AA",
+          "ip": "103",
+          "era": 3.76,
+          "kPct": 30.0,
+          "bbPct": 12.5,
+          "kbbPct": 17.6,
+          "k": 130
+        },
+        "drivers": [
+          "Pipeline ETA 2027",
+          "55 future-value grade with plus tools (Fastball 70)",
+          "MLB Pipeline No. 40 overall (No. 2 Cardinals)",
+          "103 IP at Double-A in 2026"
+        ],
+        "signals": [],
+        "risk": null,
+        "bar": "Needs a rotation spot and 100+ IP at ~3.56 ERA/xERA, 200 K, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 694819,
+          "name": "Jacob Misiorowski",
+          "season": 2024,
+          "before": "No. 100 overall, 16% K-BB at AAA/AA, age 22",
+          "after": "4.36 ERA, 87 K in 66 IP"
+        }
+      },
+      {
+        "rank": 6,
+        "playerId": 703186,
+        "name": "Jarlin Susana",
+        "teamId": 120,
+        "position": "RHP",
+        "age": 23,
+        "probability": 0.127,
+        "pipeline": {
+          "overall": 66,
+          "org": 4,
+          "eta": 2027,
+          "fv": 55
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AAA/AA/A+",
+          "ip": "20.1",
+          "era": 6.2,
+          "kPct": 40.7,
+          "bbPct": 11.2,
+          "kbbPct": 29.5,
+          "k": 37
+        },
+        "drivers": [
+          "Pipeline ETA 2027",
+          "55 future-value grade with plus tools (Fastball 70, Slider 70)",
+          "29.5% K-BB at AAA/AA/A+ (41% K, 11% BB), 16.7 pts above league",
+          "MLB Pipeline No. 66 overall (No. 4 Nationals)"
+        ],
+        "signals": [],
+        "risk": null,
+        "bar": "Needs a rotation spot and 100+ IP at ~3.56 ERA/xERA, 200 K, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 690990,
+          "name": "Cade Horton",
+          "season": 2024,
+          "before": "No. 52 overall, 19% K-BB at AAA/AA, age 22",
+          "after": "2.67 ERA, 97 K in 118 IP"
+        }
+      },
+      {
+        "rank": 7,
+        "playerId": 804530,
+        "name": "Joseph Dzierwa",
+        "teamId": 110,
+        "position": "LHP",
+        "age": 23,
+        "probability": 0.125,
+        "pipeline": {
+          "overall": 69,
+          "org": 3,
+          "eta": 2027,
+          "fv": 55
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AA",
+          "ip": "131",
+          "era": 2.29,
+          "kPct": 27.9,
+          "bbPct": 5.6,
+          "kbbPct": 22.3,
+          "k": 149
+        },
+        "drivers": [
+          "Pipeline ETA 2027",
+          "55 future-value grade with plus tools (Changeup 60, Control 60)",
+          "MLB Pipeline No. 69 overall (No. 3 Orioles)",
+          "90 IP at Double-A in 2026"
+        ],
+        "signals": [],
+        "risk": null,
+        "bar": "Needs a rotation spot and 100+ IP at ~3.56 ERA/xERA, 200 K, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 690990,
+          "name": "Cade Horton",
+          "season": 2024,
+          "before": "No. 52 overall, 19% K-BB at AAA/AA, age 22",
+          "after": "2.67 ERA, 97 K in 118 IP"
+        }
+      },
+      {
+        "rank": 8,
+        "playerId": 701364,
+        "name": "Jamie Arnold",
+        "teamId": 133,
+        "position": "LHP",
+        "age": 23,
+        "probability": 0.105,
+        "pipeline": {
+          "overall": 55,
+          "org": 3,
+          "eta": 2027,
+          "fv": 55
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AAA/AA",
+          "ip": "118.1",
+          "era": 3.5,
+          "kPct": 25.0,
+          "bbPct": 10.0,
+          "kbbPct": 15.0,
+          "k": 130
+        },
+        "drivers": [
+          "Pipeline ETA 2027",
+          "55 future-value grade with plus tools (Slider 60)",
+          "MLB Pipeline No. 55 overall (No. 3 Athletics)",
+          "118 IP at Double-A and Triple-A in 2026"
+        ],
+        "signals": [],
+        "risk": null,
+        "bar": "Needs a rotation spot and 100+ IP at ~3.56 ERA/xERA, 200 K, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 694819,
+          "name": "Jacob Misiorowski",
+          "season": 2024,
+          "before": "No. 100 overall, 16% K-BB at AAA/AA, age 22",
+          "after": "4.36 ERA, 87 K in 66 IP"
+        }
+      },
+      {
+        "rank": 9,
+        "playerId": 809254,
+        "name": "Anthony Eyanson",
+        "teamId": 110,
+        "position": "RHP",
+        "age": 22,
+        "probability": 0.102,
+        "pipeline": {
+          "overall": 45,
+          "org": 2,
+          "eta": 2027,
+          "fv": 55
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AA",
+          "ip": "99.1",
+          "era": 1.82,
+          "kPct": 34.6,
+          "bbPct": 10.4,
+          "kbbPct": 24.3,
+          "k": 141
+        },
+        "drivers": [
+          "Pipeline ETA 2027",
+          "55 future-value grade with plus tools (Fastball 60, Slider 65)",
+          "MLB Pipeline No. 45 overall (No. 2 Orioles)",
+          "24.3% K-BB at Double-A (35% K, 10% BB), 10.8 pts above league"
+        ],
+        "signals": [],
+        "risk": null,
+        "bar": "Needs a rotation spot and 100+ IP at ~3.56 ERA/xERA, 200 K, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 690990,
+          "name": "Cade Horton",
+          "season": 2024,
+          "before": "No. 52 overall, 19% K-BB at AAA/AA, age 22",
+          "after": "2.67 ERA, 97 K in 118 IP"
+        }
+      },
+      {
+        "rank": 10,
+        "playerId": 702281,
+        "name": "Robby Snelling",
+        "teamId": 146,
+        "position": "LHP",
+        "age": 23,
+        "probability": 0.098,
+        "pipeline": {
+          "overall": 49,
+          "org": 2,
+          "eta": 2026,
+          "fv": 55
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AAA",
+          "ip": "29",
+          "era": 1.86,
+          "kPct": 40.0,
+          "bbPct": 13.6,
+          "kbbPct": 26.4,
+          "k": 44
+        },
+        "drivers": [
+          "Pipeline ETA was 2026: considered big-league ready now",
+          "55 future-value grade",
+          "MLB Pipeline No. 49 overall (No. 2 Marlins)",
+          "26.4% K-BB at Triple-A (40% K, 14% BB), 15.3 pts above league"
+        ],
+        "signals": [
+          "Debuted in 2026: 5 MLB IP so far, still rookie-eligible"
+        ],
+        "risk": null,
+        "bar": "Needs a rotation spot and 100+ IP at ~3.56 ERA/xERA, 200 K, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 690990,
+          "name": "Cade Horton",
+          "season": 2024,
+          "before": "No. 52 overall, 19% K-BB at AAA/AA, age 22",
+          "after": "2.67 ERA, 97 K in 118 IP"
+        }
+      },
+      {
+        "rank": 11,
+        "playerId": 804526,
+        "name": "Nolan Perry",
+        "teamId": 141,
+        "position": "RHP",
+        "age": 23,
+        "probability": 0.094,
+        "pipeline": {
+          "overall": 90,
+          "org": 2,
+          "eta": 2027,
+          "fv": 55
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AA",
+          "ip": "82.2",
+          "era": 2.32,
+          "kPct": 32.2,
+          "bbPct": 12.4,
+          "kbbPct": 19.8,
+          "k": 117
+        },
+        "drivers": [
+          "Pipeline ETA 2027",
+          "55 future-value grade",
+          "MLB Pipeline No. 90 overall (No. 2 Blue Jays)",
+          "19.8% K-BB at Double-A (32% K, 12% BB), 6.3 pts above league"
+        ],
+        "signals": [],
+        "risk": null,
+        "bar": "Needs a rotation spot and 100+ IP at ~3.56 ERA/xERA, 200 K, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 690990,
+          "name": "Cade Horton",
+          "season": 2024,
+          "before": "No. 52 overall, 19% K-BB at AAA/AA, age 22",
+          "after": "2.67 ERA, 97 K in 118 IP"
+        }
+      },
+      {
+        "rank": 12,
+        "playerId": 827267,
+        "name": "Caden Hunter",
+        "teamId": 110,
+        "position": "LHP",
+        "age": 23,
+        "probability": 0.093,
+        "pipeline": {
+          "overall": 92,
+          "org": 4,
+          "eta": 2027,
+          "fv": 55
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AA",
+          "ip": "103",
+          "era": 3.09,
+          "kPct": 33.3,
+          "bbPct": 10.9,
+          "kbbPct": 22.4,
+          "k": 151
+        },
+        "drivers": [
+          "Pipeline ETA 2027",
+          "55 future-value grade with plus tools (Fastball 60)",
+          "MLB Pipeline No. 92 overall (No. 4 Orioles)",
+          "22.4% K-BB at Double-A (33% K, 11% BB), 9.0 pts above league"
+        ],
+        "signals": [],
+        "risk": null,
+        "bar": "Needs a rotation spot and 100+ IP at ~3.56 ERA/xERA, 200 K, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 690990,
+          "name": "Cade Horton",
+          "season": 2024,
+          "before": "No. 52 overall, 19% K-BB at AAA/AA, age 22",
+          "after": "2.67 ERA, 97 K in 118 IP"
+        }
+      },
+      {
+        "rank": 13,
+        "playerId": 815825,
+        "name": "Seth Hernandez",
+        "teamId": 134,
+        "position": "RHP",
+        "age": 21,
+        "probability": 0.093,
+        "pipeline": {
+          "overall": 9,
+          "org": 1,
+          "eta": 2028,
+          "fv": 60
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "A+/A",
+          "ip": "74",
+          "era": 2.43,
+          "kPct": 40.7,
+          "bbPct": 10.5,
+          "kbbPct": 30.2,
+          "k": 118
+        },
+        "drivers": [
+          "60 future-value grade with plus tools (Fastball 70, Curveball 60, Changeup 60)",
+          "Pipeline ETA 2028",
+          "MLB Pipeline No. 9 overall (No. 1 Pirates)",
+          "30.2% K-BB at A+/A (41% K, 10% BB), 18.1 pts above league"
+        ],
+        "signals": [],
+        "risk": "No Triple-A time yet (topped out at High-A)",
+        "bar": "Needs a rotation spot and 100+ IP at ~3.56 ERA/xERA, 200 K, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 694973,
+          "name": "Paul Skenes",
+          "season": 2023,
+          "before": "No. 3 overall, 29% K-BB at AA/A, age 21",
+          "after": "1.96 ERA, 170 K in 133 IP"
+        }
+      },
+      {
+        "rank": 14,
+        "playerId": 701908,
+        "name": "David Hagaman",
+        "teamId": 109,
+        "position": "RHP",
+        "age": 24,
+        "probability": 0.074,
+        "pipeline": {
+          "overall": null,
+          "org": 4,
+          "eta": 2027,
+          "fv": 50
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AA",
+          "ip": "106.2",
+          "era": 2.55,
+          "kPct": 32.4,
+          "bbPct": 8.5,
+          "kbbPct": 23.9,
+          "k": 132
+        },
+        "drivers": [
+          "Pipeline ETA 2027",
+          "No. 4 prospect in the D-backs system",
+          "50 future-value grade with plus tools (Fastball 60, Curveball 60)",
+          "23.9% K-BB at Double-A (32% K, 8% BB), 10.5 pts above league"
+        ],
+        "signals": [],
+        "risk": "Outside the Top 100: scouts see a lower ceiling than the elite names",
+        "bar": "Needs a rotation spot and 100+ IP at ~3.56 ERA/xERA, 200 K, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 676440,
+          "name": "Tanner Bibee",
+          "season": 2022,
+          "before": "No. 65 overall, 24% K-BB at AA, age 23",
+          "after": "2.98 ERA, 141 K in 142 IP"
+        }
+      },
+      {
+        "rank": 15,
+        "playerId": 700251,
+        "name": "Brandon Clarke",
+        "teamId": 138,
+        "position": "LHP",
+        "age": 24,
+        "probability": 0.062,
+        "pipeline": {
+          "overall": null,
+          "org": 9,
+          "eta": 2027,
+          "fv": 50
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AA/A+/A",
+          "ip": "28",
+          "era": 3.54,
+          "kPct": 36.8,
+          "bbPct": 14.0,
+          "kbbPct": 22.8,
+          "k": 42
+        },
+        "drivers": [
+          "Pipeline ETA 2027",
+          "50 future-value grade with plus tools (Fastball 70, Slider 70)",
+          "No. 9 prospect in the Cardinals system",
+          "22.8% K-BB at AA/A+/A (37% K, 14% BB), 10.5 pts above league"
+        ],
+        "signals": [],
+        "risk": "No Triple-A time yet (topped out at Double-A)",
+        "bar": "Needs a rotation spot and 100+ IP at ~3.56 ERA/xERA, 200 K, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 676440,
+          "name": "Tanner Bibee",
+          "season": 2022,
+          "before": "No. 65 overall, 24% K-BB at AA, age 23",
+          "after": "2.98 ERA, 141 K in 142 IP"
+        }
+      },
+      {
+        "rank": 16,
+        "playerId": 806258,
+        "name": "Thomas White",
+        "teamId": 146,
+        "position": "LHP",
+        "age": 22,
+        "probability": 0.057,
+        "pipeline": {
+          "overall": 47,
+          "org": 1,
+          "eta": 2027,
+          "fv": 55
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AAA/A",
+          "ip": "24.2",
+          "era": 4.01,
+          "kPct": 32.7,
+          "bbPct": 14.0,
+          "kbbPct": 18.7,
+          "k": 35
+        },
+        "drivers": [
+          "Pipeline ETA 2027",
+          "55 future-value grade with plus tools (Fastball 60, Slider 70, Changeup 60)",
+          "MLB Pipeline No. 47 overall (No. 1 Marlins)",
+          "18.7% K-BB at AAA/A (33% K, 14% BB), 7.4 pts above league"
+        ],
+        "signals": [],
+        "risk": null,
+        "bar": "Needs a rotation spot and 100+ IP at ~3.56 ERA/xERA, 200 K, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 690990,
+          "name": "Cade Horton",
+          "season": 2024,
+          "before": "No. 52 overall, 19% K-BB at AAA/AA, age 22",
+          "after": "2.67 ERA, 97 K in 118 IP"
+        }
+      },
+      {
+        "rank": 17,
+        "playerId": 695558,
+        "name": "Jonathan Santucci",
+        "teamId": 121,
+        "position": "LHP",
+        "age": 24,
+        "probability": 0.057,
+        "pipeline": {
+          "overall": null,
+          "org": 2,
+          "eta": 2026,
+          "fv": 50
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AAA/AA",
+          "ip": "125",
+          "era": 4.03,
+          "kPct": 30.8,
+          "bbPct": 12.4,
+          "kbbPct": 18.4,
+          "k": 163
+        },
+        "drivers": [
+          "Pipeline ETA was 2026: considered big-league ready now",
+          "No. 2 prospect in the Mets system",
+          "50 future-value grade with plus tools (Slider 60)",
+          "34 IP at Triple-A in 2026"
+        ],
+        "signals": [],
+        "risk": "No Triple-A time yet (topped out at Double-A)",
+        "bar": "Needs a rotation spot and 100+ IP at ~3.56 ERA/xERA, 200 K, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 694819,
+          "name": "Jacob Misiorowski",
+          "season": 2024,
+          "before": "No. 100 overall, 16% K-BB at AAA/AA, age 22",
+          "after": "4.36 ERA, 87 K in 66 IP"
+        }
+      },
+      {
+        "rank": 18,
+        "playerId": 800537,
+        "name": "Christian Zazueta",
+        "teamId": 119,
+        "position": "RHP",
+        "age": 22,
+        "probability": 0.056,
+        "pipeline": {
+          "overall": 33,
+          "org": 5,
+          "eta": 2028,
+          "fv": 55
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AA",
+          "ip": "103.2",
+          "era": 3.44,
+          "kPct": 35.8,
+          "bbPct": 3.7,
+          "kbbPct": 32.1,
+          "k": 144
+        },
+        "drivers": [
+          "55 future-value grade with plus tools (Fastball 60, Changeup 60, Control 60)",
+          "Pipeline ETA 2028",
+          "32.1% K-BB at Double-A (36% K, 4% BB), 18.6 pts above league",
+          "MLB Pipeline No. 33 overall (No. 5 Dodgers)"
+        ],
+        "signals": [],
+        "risk": null,
+        "bar": "Needs a rotation spot and 100+ IP at ~3.56 ERA/xERA, 200 K, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 663978,
+          "name": "Chris Paddack",
+          "season": 2018,
+          "before": "No. 34 overall, 24% K-BB at AA, age 22",
+          "after": "3.33 ERA, 153 K in 140.2 IP"
+        }
+      },
+      {
+        "rank": 19,
+        "playerId": 801725,
+        "name": "Luis De Le\u00f3n",
+        "teamId": 110,
+        "position": "LHP",
+        "age": 24,
+        "probability": 0.056,
+        "pipeline": {
+          "overall": null,
+          "org": 8,
+          "eta": 2026,
+          "fv": 50
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AAA/AA",
+          "ip": "99",
+          "era": 4.73,
+          "kPct": 27.2,
+          "bbPct": 11.9,
+          "kbbPct": 15.4,
+          "k": 121
+        },
+        "drivers": [
+          "Pipeline ETA was 2026: considered big-league ready now",
+          "50 future-value grade with plus tools (Fastball 60, Slider 60)",
+          "No. 8 prospect in the Orioles system",
+          "99 IP at Double-A and Triple-A in 2026"
+        ],
+        "signals": [
+          "Debuted in 2026: 9.1 MLB IP so far, still rookie-eligible"
+        ],
+        "risk": "No Triple-A time yet (topped out at Double-A)",
+        "bar": "Needs a rotation spot and 100+ IP at ~3.56 ERA/xERA, 200 K, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 661395,
+          "name": "Jhoan Duran",
+          "season": 2021,
+          "before": "No. 6 in org, 12% K-BB at AAA, age 23",
+          "after": "1.86 ERA, 89 K in 67.2 IP"
+        }
+      },
+      {
+        "rank": 20,
+        "playerId": 696292,
+        "name": "Ben Hess",
+        "teamId": 147,
+        "position": "RHP",
+        "age": 24,
+        "probability": 0.055,
+        "pipeline": {
+          "overall": null,
+          "org": 5,
+          "eta": 2027,
+          "fv": 50
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AA",
+          "ip": "56.2",
+          "era": 4.45,
+          "kPct": 25.5,
+          "bbPct": 11.8,
+          "kbbPct": 13.7,
+          "k": 65
+        },
+        "drivers": [
+          "Pipeline ETA 2027",
+          "50 future-value grade with plus tools (Slider 60, Curveball 60)",
+          "No. 5 prospect in the Yankees system",
+          "57 IP at Double-A in 2026"
+        ],
+        "signals": [],
+        "risk": "Outside the Top 100: scouts see a lower ceiling than the elite names",
+        "bar": "Needs a rotation spot and 100+ IP at ~3.56 ERA/xERA, 200 K, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 661395,
+          "name": "Jhoan Duran",
+          "season": 2021,
+          "before": "No. 6 in org, 12% K-BB at AAA, age 23",
+          "after": "1.86 ERA, 89 K in 67.2 IP"
+        }
+      },
+      {
+        "rank": 21,
+        "playerId": 703610,
+        "name": "Justin Lamkin",
+        "teamId": 118,
+        "position": "LHP",
+        "age": 23,
+        "probability": 0.048,
+        "pipeline": {
+          "overall": null,
+          "org": 8,
+          "eta": 2027,
+          "fv": 50
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AA/A+",
+          "ip": "39.2",
+          "era": 2.04,
+          "kPct": 34.9,
+          "bbPct": 9.2,
+          "kbbPct": 25.7,
+          "k": 53
+        },
+        "drivers": [
+          "Pipeline ETA 2027",
+          "50 future-value grade with plus tools (Slider 60)",
+          "25.7% K-BB at AA/A+ (35% K, 9% BB), 13.1 pts above league",
+          "No. 8 prospect in the Royals system"
+        ],
+        "signals": [],
+        "risk": "No Triple-A time yet (topped out at Double-A)",
+        "bar": "Needs a rotation spot and 100+ IP at ~3.56 ERA/xERA, 200 K, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 689147,
+          "name": "Orion Kerkering",
+          "season": 2023,
+          "before": "No. 6 in org, 33% K-BB at AAA/AA/A+/A, age 22",
+          "after": "2.29 ERA, 74 K in 63 IP"
+        }
+      },
+      {
+        "rank": 22,
+        "playerId": 694494,
+        "name": "Ty Johnson",
+        "teamId": 139,
+        "position": "RHP",
+        "age": 25,
+        "probability": 0.048,
+        "pipeline": {
+          "overall": null,
+          "org": 10,
+          "eta": 2026,
+          "fv": 50
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AAA",
+          "ip": "62.1",
+          "era": 3.03,
+          "kPct": 34.3,
+          "bbPct": 10.2,
+          "kbbPct": 24.1,
+          "k": 84
+        },
+        "drivers": [
+          "Pipeline ETA was 2026: considered big-league ready now",
+          "50 future-value grade with plus tools (Fastball 60, Slider 60)",
+          "24.1% K-BB at Triple-A (34% K, 10% BB), 13.0 pts above league",
+          "No. 10 prospect in the Rays system"
+        ],
+        "signals": [
+          "Debuted in 2026: 7.2 MLB IP so far, still rookie-eligible"
+        ],
+        "risk": "Outside the Top 100: scouts see a lower ceiling than the elite names",
+        "bar": "Needs 100+ IP at ~3.56 ERA, an elite relief season (50+ IP, 20%+ K-BB), or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 702070,
+          "name": "Noah Cameron",
+          "season": 2024,
+          "before": "No. 5 in org, 21% K-BB at AAA/AA, age 24",
+          "after": "2.99 ERA, 114 K in 138.1 IP"
+        }
+      },
+      {
+        "rank": 23,
+        "playerId": 683235,
+        "name": "Justin Campbell",
+        "teamId": 114,
+        "position": "RHP",
+        "age": 26,
+        "probability": 0.047,
+        "pipeline": {
+          "overall": null,
+          "org": 9,
+          "eta": 2027,
+          "fv": 45
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AAA/AA",
+          "ip": "69",
+          "era": 2.5,
+          "kPct": 27.6,
+          "bbPct": 12.6,
+          "kbbPct": 14.9,
+          "k": 83
+        },
+        "drivers": [
+          "Pipeline ETA 2027",
+          "No. 9 prospect in the Guardians system",
+          "54 IP at Double-A and Triple-A in 2026"
+        ],
+        "signals": [],
+        "risk": "Modest 45 future-value grade",
+        "bar": "Needs a rotation spot and 100+ IP at ~3.56 ERA/xERA, 200 K, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 702070,
+          "name": "Noah Cameron",
+          "season": 2024,
+          "before": "No. 5 in org, 21% K-BB at AAA/AA, age 24",
+          "after": "2.99 ERA, 114 K in 138.1 IP"
+        }
+      },
+      {
+        "rank": 24,
+        "playerId": 686632,
+        "name": "Steven Zobac",
+        "teamId": 118,
+        "position": "RHP",
+        "age": 25,
+        "probability": 0.044,
+        "pipeline": {
+          "overall": null,
+          "org": 14,
+          "eta": 2027,
+          "fv": 45
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AA",
+          "ip": "42.2",
+          "era": 4.85,
+          "kPct": 23.2,
+          "bbPct": 9.6,
+          "kbbPct": 13.6,
+          "k": 41
+        },
+        "drivers": [
+          "Pipeline ETA 2027",
+          "43 IP at Double-A in 2026",
+          "No. 14 prospect in the Royals system"
+        ],
+        "signals": [],
+        "risk": "Modest 45 future-value grade",
+        "bar": "Needs a rotation spot and 100+ IP at ~3.56 ERA/xERA, 200 K, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 681343,
+          "name": "Shane Smith",
+          "season": 2024,
+          "before": "No. 26 in org, 22% K-BB at AAA/AA, age 24",
+          "after": "3.81 ERA, 145 K in 146.1 IP"
+        }
+      },
+      {
+        "rank": 25,
+        "playerId": 815119,
+        "name": "Tanner Franklin",
+        "teamId": 138,
+        "position": "RHP",
+        "age": 23,
+        "probability": 0.042,
+        "pipeline": {
+          "overall": null,
+          "org": 6,
+          "eta": 2027,
+          "fv": 50
+        },
+        "milb": {
+          "season": 2026,
+          "levels": "AA",
+          "ip": "105",
+          "era": 3.34,
+          "kPct": 30.9,
+          "bbPct": 9.6,
+          "kbbPct": 21.3,
+          "k": 133
+        },
+        "drivers": [
+          "Pipeline ETA 2027",
+          "50 future-value grade with plus tools (Fastball 70)",
+          "No. 6 prospect in the Cardinals system",
+          "21.3% K-BB at Double-A (31% K, 10% BB), 7.8 pts above league"
+        ],
+        "signals": [],
+        "risk": "Outside the Top 100: scouts see a lower ceiling than the elite names",
+        "bar": "Needs a rotation spot and 100+ IP at ~3.56 ERA/xERA, 200 K, or a ROY / All-Star season.",
+        "comp": {
+          "playerId": 675911,
+          "name": "Spencer Strider",
+          "season": 2021,
+          "before": "No. 2 in org, 25% K-BB at AAA/AA, age 22",
+          "after": "2.67 ERA, 202 K in 131.2 IP"
+        }
+      }
+    ]
+  },
+  "alreadyBrokeOut": {
+    "hitters": [
+      {
+        "playerId": 701398,
+        "name": "Sal Stewart",
+        "why": [
+          "700 PA of above-average offense (.339 wOBA)",
+          "32 HR",
+          "All-Star",
+          "Players Choice Outstanding Rookie"
+        ]
+      },
+      {
+        "playerId": 805808,
+        "name": "Kevin McGonigle",
+        "why": [
+          "707 PA of above-average offense (.357 wOBA)",
+          "All-Star",
+          "Players Choice Outstanding Rookie"
+        ]
+      },
+      {
+        "playerId": 678246,
+        "name": "Miguel Vargas",
+        "why": [
+          "704 PA of above-average offense (.363 wOBA)",
+          "33 HR",
+          "All-Star"
+        ]
+      },
+      {
+        "playerId": 808959,
+        "name": "Munetaka Murakami",
+        "why": [
+          "553 PA of above-average offense (.356 wOBA)",
+          "35 HR",
+          "All-Star"
+        ]
+      },
+      {
+        "playerId": 671976,
+        "name": "Tristan Peters",
+        "why": [
+          "491 PA of above-average offense (.340 wOBA)",
+          "+11 OAA on defense",
+          "All-Star"
+        ]
+      },
+      {
+        "playerId": 805367,
+        "name": "Chase Meidroth",
+        "why": [
+          "643 PA of above-average offense (.339 wOBA)",
+          "+10 OAA on defense"
+        ]
+      },
+      {
+        "playerId": 672960,
+        "name": "Kazuma Okamoto",
+        "why": [
+          "636 PA of above-average offense (.332 wOBA)",
+          "33 HR"
+        ]
+      },
+      {
+        "playerId": 677649,
+        "name": "Ezequiel Duran",
+        "why": [
+          "+17 OAA on defense",
+          "Gold Glove"
+        ]
+      },
+      {
+        "playerId": 701807,
+        "name": "Carson Benge",
+        "why": [
+          "654 PA of above-average offense (.342 wOBA)"
+        ]
+      },
+      {
+        "playerId": 702284,
+        "name": "Cole Young",
+        "why": [
+          "Gold Glove"
+        ]
+      },
+      {
+        "playerId": 681198,
+        "name": "TJ Rumfield",
+        "why": [
+          "631 PA of above-average offense (.373 wOBA)"
+        ]
+      },
+      {
+        "playerId": 807712,
+        "name": "Luke Keaschall",
+        "why": [
+          "620 PA of above-average offense (.348 wOBA)"
+        ]
+      },
+      {
+        "playerId": 802139,
+        "name": "JJ Wetherholt",
+        "why": [
+          "+25 OAA on defense"
+        ]
+      },
+      {
+        "playerId": 693304,
+        "name": "Nick Gonzales",
+        "why": [
+          "608 PA of above-average offense (.339 wOBA)"
+        ]
+      },
+      {
+        "playerId": 695600,
+        "name": "Carter Jensen",
+        "why": [
+          "603 PA of above-average offense (.341 wOBA)"
+        ]
+      },
+      {
+        "playerId": 677587,
+        "name": "Brayan Rocchio",
+        "why": [
+          "+12 OAA on defense"
+        ]
+      },
+      {
+        "playerId": 702332,
+        "name": "Caleb Durbin",
+        "why": [
+          "Gold Glove"
+        ]
+      },
+      {
+        "playerId": 641343,
+        "name": "Jake Bauers",
+        "why": [
+          "578 PA of above-average offense (.381 wOBA)"
+        ]
+      },
+      {
+        "playerId": 800050,
+        "name": "Chase DeLauter",
+        "why": [
+          "559 PA of above-average offense (.359 wOBA)"
+        ]
+      },
+      {
+        "playerId": 803011,
+        "name": "Sam Antonacci",
+        "why": [
+          "557 PA of above-average offense (.345 wOBA)"
+        ]
+      },
+      {
+        "playerId": 689414,
+        "name": "Liam Hicks",
+        "why": [
+          "554 PA of above-average offense (.352 wOBA)"
+        ]
+      },
+      {
+        "playerId": 695506,
+        "name": "Jac Caglianone",
+        "why": [
+          "553 PA of above-average offense (.360 wOBA)"
+        ]
+      },
+      {
+        "playerId": 669003,
+        "name": "Garrett Mitchell",
+        "why": [
+          "531 PA of above-average offense (.340 wOBA)"
+        ]
+      },
+      {
+        "playerId": 683953,
+        "name": "Travis Bazzana",
+        "why": [
+          "All-Star"
+        ]
+      }
+    ],
+    "pitchers": [
+      {
+        "playerId": 693645,
+        "name": "Cam Schlittler",
+        "why": [
+          "193.2 IP with a 1.95 ERA",
+          "239 strikeouts",
+          "All-Star"
+        ]
+      },
+      {
+        "playerId": 800048,
+        "name": "Parker Messick",
+        "why": [
+          "186.1 IP with a 2.56 ERA",
+          "193 strikeouts",
+          "All-Star"
+        ]
+      },
+      {
+        "playerId": 690997,
+        "name": "Nolan McLean",
+        "why": [
+          "179.2 IP with a 3.16 ERA",
+          "194 strikeouts",
+          "Gold Glove"
+        ]
+      },
+      {
+        "playerId": 695505,
+        "name": "Chase Burns",
+        "why": [
+          "154.1 IP with a 2.86 ERA",
+          "185 strikeouts",
+          "All-Star"
+        ]
+      },
+      {
+        "playerId": 686973,
+        "name": "Louis Varland",
+        "why": [
+          "elite relief (1.27 ERA, 24% K-BB)",
+          "35 saves",
+          "All-Star"
+        ]
+      },
+      {
+        "playerId": 656641,
+        "name": "Jacob Latz",
+        "why": [
+          "elite relief (2.13 ERA, 22% K-BB)",
+          "30 saves",
+          "All-Star"
+        ]
+      },
+      {
+        "playerId": 672282,
+        "name": "Reid Detmers",
+        "why": [
+          "185 IP with a 3.36 ERA",
+          "211 strikeouts"
+        ]
+      },
+      {
+        "playerId": 671737,
+        "name": "Taj Bradley",
+        "why": [
+          "178.1 IP with a 3.73 ERA",
+          "205 strikeouts"
+        ]
+      },
+      {
+        "playerId": 656492,
+        "name": "Foster Griffin",
+        "why": [
+          "172.2 IP with a 3.60 ERA",
+          "All-Star"
+        ]
+      },
+      {
+        "playerId": 680732,
+        "name": "Sean Burke",
+        "why": [
+          "172.1 IP with a 3.34 ERA",
+          "185 strikeouts"
+        ]
+      },
+      {
+        "playerId": 676917,
+        "name": "Cade Cavalli",
+        "why": [
+          "169.2 IP with a 3.02 ERA",
+          "200 strikeouts"
+        ]
+      },
+      {
+        "playerId": 677952,
+        "name": "Braxton Ashcraft",
+        "why": [
+          "165.1 IP with a 3.65 ERA",
+          "All-Star"
+        ]
+      },
+      {
+        "playerId": 676617,
+        "name": "Riley O'Brien",
+        "why": [
+          "38 saves",
+          "All-Star"
+        ]
+      },
+      {
+        "playerId": 641329,
+        "name": "Bryan Baker",
+        "why": [
+          "41 saves",
+          "All-Star"
+        ]
+      },
+      {
+        "playerId": 669467,
+        "name": "Andre Pallante",
+        "why": [
+          "162 IP with a 3.83 ERA"
+        ]
+      },
+      {
+        "playerId": 676282,
+        "name": "Joey Cantillo",
+        "why": [
+          "159 IP with a 3.62 ERA"
+        ]
+      },
+      {
+        "playerId": 691587,
+        "name": "Eury P\u00e9rez",
+        "why": [
+          "159 IP with a 3.91 ERA"
+        ]
+      },
+      {
+        "playerId": 687064,
+        "name": "Brandon Young",
+        "why": [
+          "156.2 IP with a 3.56 ERA"
+        ]
+      },
+      {
+        "playerId": 663567,
+        "name": "Peter Lambert",
+        "why": [
+          "155.2 IP with a 3.82 ERA"
+        ]
+      },
+      {
+        "playerId": 672456,
+        "name": "Keider Montero",
+        "why": [
+          "155 IP with a 3.48 ERA"
+        ]
+      },
+      {
+        "playerId": 694738,
+        "name": "Landen Roupp",
+        "why": [
+          "155 IP with a 4.01 ERA"
+        ]
+      },
+      {
+        "playerId": 801139,
+        "name": "Payton Tolle",
+        "why": [
+          "148.2 IP with a 3.03 ERA"
+        ]
+      },
+      {
+        "playerId": 700712,
+        "name": "Walbert Ure\u00f1a",
+        "why": [
+          "148.1 IP with a 2.97 ERA"
+        ]
+      },
+      {
+        "playerId": 680736,
+        "name": "Justin Wrobleski",
+        "why": [
+          "All-Star"
+        ]
+      }
+    ]
+  },
+  "hitters": [
+    {
+      "rank": 1,
+      "playerId": 691723,
+      "name": "Coby Mayo",
+      "teamId": 110,
+      "position": "3B",
+      "bats": "R",
+      "age": 25,
+      "probability": 0.278,
+      "stats": {
+        "pa": 454,
+        "woba": 0.328,
+        "xwoba": 0.336,
+        "barrelPct": 13.5,
+        "ev50": 103.5,
+        "kPct": 30.4,
+        "bbPct": 7.9,
+        "chasePct": 31.3,
+        "hr": 24
+      },
+      "drivers": [
+        "Barrel rate 13.5% (top 9% of regulars)",
+        "EV50 (avg of hardest-hit half) 103.5 mph (top 6% of regulars)",
+        "xwOBA .336 (top 25% of regulars)"
+      ],
+      "signals": [
+        "Bat speed 75.7 mph (top 7% of MLB)",
+        "Finished strong: .877 OPS after the All-Star break vs .659 before"
+      ],
+      "risk": "Strikeout rate 30.4% (bottom 10% of regulars)",
+      "bar": "Needs .346 wOBA: 18 pts above his .328 (10 above his xwOBA).",
+      "comp": {
+        "playerId": 663728,
+        "name": "Cal Raleigh",
+        "season": 2022,
+        "before": ".329 xwOBA, 15.4% barrels in 415 PA",
+        "after": ".326 wOBA, 30 HR in 569 PA"
+      }
+    },
+    {
+      "rank": 2,
+      "playerId": 805999,
+      "name": "A.J. Ewing",
+      "teamId": 121,
+      "position": "CF",
+      "bats": "L",
+      "age": 22,
+      "probability": 0.275,
+      "stats": {
+        "pa": 492,
+        "woba": 0.311,
+        "xwoba": 0.32,
+        "barrelPct": 7.5,
+        "ev50": 100.0,
+        "kPct": 25.4,
+        "bbPct": 9.3,
+        "chasePct": 26.7,
+        "hr": 11
+      },
+      "drivers": [
+        "Sprint speed 29.4 ft/s (top 6% of regulars)",
+        "Only 22 in 2027: hitters 25 or younger broke out 10% of the time vs 4% at 28+"
+      ],
+      "signals": [],
+      "risk": null,
+      "bar": "Needs .346 wOBA: 35 pts above his .311 (26 above his xwOBA).",
+      "comp": {
+        "playerId": 646240,
+        "name": "Rafael Devers",
+        "season": 2018,
+        "before": ".303 xwOBA, 10.1% barrels in 490 PA",
+        "after": ".377 wOBA, 32 HR in 702 PA"
+      }
+    },
+    {
+      "rank": 3,
+      "playerId": 680664,
+      "name": "Eduardo Valencia",
+      "teamId": 116,
+      "position": "DH",
+      "bats": "R",
+      "age": 27,
+      "probability": 0.26,
+      "stats": {
+        "pa": 138,
+        "woba": 0.433,
+        "xwoba": 0.372,
+        "barrelPct": 15.5,
+        "ev50": 101.9,
+        "kPct": 23.2,
+        "bbPct": 4.3,
+        "chasePct": 35.3,
+        "hr": 8
+      },
+      "drivers": [
+        "wOBA .433 (top 1% of regulars)",
+        "Barrel rate 15.5% (top 4% of regulars)",
+        "EV50 (avg of hardest-hit half) 101.9 mph (top 18% of regulars)"
+      ],
+      "signals": [
+        "Blast rate 14.2% of swings (top 7% of MLB)"
+      ],
+      "risk": "Only 138 PA in 2026: has to win an everyday job first",
+      "bar": "Already hit the .346 wOBA bar in a part-time role; the step is doing it over a full season and 400+ PA (had 138).",
+      "comp": {
+        "playerId": 668227,
+        "name": "Randy Arozarena",
+        "season": 2020,
+        "before": ".365 xwOBA, 14.0% barrels in 76 PA",
+        "after": ".350 wOBA, 20 HR in 604 PA"
+      }
+    },
+    {
+      "rank": 4,
+      "playerId": 694212,
+      "name": "Samuel Basallo",
+      "teamId": 110,
+      "position": "C",
+      "bats": "L",
+      "age": 22,
+      "probability": 0.247,
+      "stats": {
+        "pa": 399,
+        "woba": 0.303,
+        "xwoba": 0.318,
+        "barrelPct": 12.1,
+        "ev50": 102.0,
+        "kPct": 26.6,
+        "bbPct": 8.0,
+        "chasePct": 39.9,
+        "hr": 18
+      },
+      "drivers": [
+        "Barrel rate 12.1% (top 20% of regulars)",
+        "EV50 (avg of hardest-hit half) 102.0 mph (top 18% of regulars)",
+        "Only 22 in 2027: hitters 25 or younger broke out 10% of the time vs 4% at 28+"
+      ],
+      "signals": [
+        "Bat speed 74.3 mph (top 18% of MLB)",
+        "Blast rate 12.9% of swings (top 14% of MLB)"
+      ],
+      "risk": "Whiff rate 31.5% (bottom 16% of regulars)",
+      "bar": "Needs .346 wOBA and 400+ PA (had 399): 43 pts above his .303 (28 above his xwOBA).",
+      "comp": {
+        "playerId": 646240,
+        "name": "Rafael Devers",
+        "season": 2018,
+        "before": ".303 xwOBA, 10.1% barrels in 490 PA",
+        "after": ".377 wOBA, 32 HR in 702 PA"
+      }
+    },
+    {
+      "rank": 5,
+      "playerId": 701358,
+      "name": "Cam Smith",
+      "teamId": 117,
+      "position": "RF",
+      "bats": "R",
+      "age": 24,
+      "probability": 0.245,
+      "stats": {
+        "pa": 568,
+        "woba": 0.293,
+        "xwoba": 0.316,
+        "barrelPct": 11.2,
+        "ev50": 101.7,
+        "kPct": 26.1,
+        "bbPct": 7.7,
+        "chasePct": 30.0,
+        "hr": 21
+      },
+      "drivers": [
+        "Barrel rate 11.2% (top 25% of regulars)",
+        "EV50 (avg of hardest-hit half) 101.7 mph (top 22% of regulars)",
+        "Sprint speed 29.2 ft/s (top 7% of regulars)"
+      ],
+      "signals": [
+        "Bat speed 77.9 mph (top 1% of MLB)"
+      ],
+      "risk": "Whiff rate 29.1% (bottom 27% of regulars)",
+      "bar": "Needs .346 wOBA: 53 pts above his .293 (30 above his xwOBA).",
+      "comp": {
+        "playerId": 663586,
+        "name": "Austin Riley",
+        "season": 2020,
+        "before": ".342 xwOBA, 10.1% barrels in 206 PA",
+        "after": ".379 wOBA, 33 HR in 662 PA"
+      }
+    },
+    {
+      "rank": 6,
+      "playerId": 804606,
+      "name": "Konnor Griffin",
+      "teamId": 134,
+      "position": "SS",
+      "bats": "R",
+      "age": 21,
+      "probability": 0.225,
+      "stats": {
+        "pa": 339,
+        "woba": 0.32,
+        "xwoba": 0.316,
+        "barrelPct": 7.0,
+        "ev50": 100.5,
+        "kPct": 24.2,
+        "bbPct": 5.9,
+        "chasePct": 37.6,
+        "hr": 6
+      },
+      "drivers": [
+        "EV50 (avg of hardest-hit half) 100.5 mph (top 36% of regulars)",
+        "Sprint speed 29.9 ft/s (top 2% of regulars)",
+        "Only 21 in 2027: hitters 25 or younger broke out 10% of the time vs 4% at 28+"
+      ],
+      "signals": [
+        "Bat speed 75.4 mph (top 8% of MLB)"
+      ],
+      "risk": "Whiff rate 28.9% (bottom 29% of regulars)",
+      "bar": "Needs .346 wOBA and 400+ PA (had 339): 26 pts above his .320 (30 above his xwOBA).",
+      "comp": {
+        "playerId": 682829,
+        "name": "Elly De La Cruz",
+        "season": 2023,
+        "before": ".305 xwOBA, 8.6% barrels in 427 PA",
+        "after": ".349 wOBA, 25 HR in 696 PA"
+      }
+    },
+    {
+      "rank": 7,
+      "playerId": 681715,
+      "name": "Heriberto Hern\u00e1ndez",
+      "teamId": 146,
+      "position": "LF",
+      "bats": "R",
+      "age": 27,
+      "probability": 0.224,
+      "stats": {
+        "pa": 505,
+        "woba": 0.329,
+        "xwoba": 0.348,
+        "barrelPct": 12.7,
+        "ev50": 101.9,
+        "kPct": 26.5,
+        "bbPct": 10.3,
+        "chasePct": 23.9,
+        "hr": 25
+      },
+      "drivers": [
+        "Barrel rate 12.7% (top 14% of regulars)",
+        "xwOBA .348 (top 15% of regulars)",
+        "EV50 (avg of hardest-hit half) 101.9 mph (top 19% of regulars)"
+      ],
+      "signals": [
+        "Bat speed 74.3 mph (top 17% of MLB)",
+        "Blast rate 13.9% of swings (top 8% of MLB)"
+      ],
+      "risk": "Whiff rate 32.5% (bottom 11% of regulars)",
+      "bar": "Needs .346 wOBA. His .348 xwOBA already clears it, so the bar is 17 pts of results, not skill.",
+      "comp": {
+        "playerId": 669127,
+        "name": "Shea Langeliers",
+        "season": 2024,
+        "before": ".328 xwOBA, 12.8% barrels in 534 PA",
+        "after": ".365 wOBA, 31 HR in 522 PA"
+      }
+    },
+    {
+      "rank": 8,
+      "playerId": 669477,
+      "name": "Casey Schmitt",
+      "teamId": 137,
+      "position": "LF",
+      "bats": "R",
+      "age": 28,
+      "probability": 0.195,
+      "stats": {
+        "pa": 409,
+        "woba": 0.336,
+        "xwoba": 0.355,
+        "barrelPct": 12.3,
+        "ev50": 100.8,
+        "kPct": 19.8,
+        "bbPct": 2.7,
+        "chasePct": 36.5,
+        "hr": 21
+      },
+      "drivers": [
+        "xwOBA .355 (top 11% of regulars)",
+        "Barrel rate 12.3% (top 18% of regulars)",
+        "EV50 (avg of hardest-hit half) 100.8 mph (top 31% of regulars)"
+      ],
+      "signals": [
+        "Blast rate 14.0% of swings (top 8% of MLB)",
+        "Squared-up rate 27.4% of swings (top 23% of MLB)"
+      ],
+      "risk": "Age 28 in 2027: only 4% of eligible hitters 28+ broke out",
+      "bar": "Needs .346 wOBA. His .355 xwOBA already clears it, so the bar is 10 pts of results, not skill.",
+      "comp": {
+        "playerId": 673548,
+        "name": "Seiya Suzuki",
+        "season": 2022,
+        "before": ".327 xwOBA, 11.1% barrels in 446 PA",
+        "after": ".358 wOBA, 20 HR in 583 PA"
+      }
+    },
+    {
+      "rank": 9,
+      "playerId": 691781,
+      "name": "Brady House",
+      "teamId": 120,
+      "position": "3B",
+      "bats": "R",
+      "age": 24,
+      "probability": 0.194,
+      "stats": {
+        "pa": 355,
+        "woba": 0.313,
+        "xwoba": 0.333,
+        "barrelPct": 9.5,
+        "ev50": 102.2,
+        "kPct": 25.6,
+        "bbPct": 8.2,
+        "chasePct": 34.2,
+        "hr": 10
+      },
+      "drivers": [
+        "EV50 (avg of hardest-hit half) 102.2 mph (top 15% of regulars)",
+        "xwOBA .333 (top 31% of regulars)",
+        "Barrel rate 9.5% (top 36% of regulars)"
+      ],
+      "signals": [
+        "Blast rate 13.0% of swings (top 14% of MLB)"
+      ],
+      "risk": "Whiff rate 29.8% (bottom 22% of regulars)",
+      "bar": "Needs .346 wOBA and 400+ PA (had 355): 33 pts above his .313 (13 above his xwOBA).",
+      "comp": {
+        "playerId": 624424,
+        "name": "Michael Conforto",
+        "season": 2016,
+        "before": ".321 xwOBA, 11.3% barrels in 348 PA",
+        "after": ".392 wOBA, 27 HR in 440 PA"
+      }
+    },
+    {
+      "rank": 10,
+      "playerId": 682626,
+      "name": "Francisco Alvarez",
+      "teamId": 121,
+      "position": "C",
+      "bats": "R",
+      "age": 25,
+      "probability": 0.193,
+      "stats": {
+        "pa": 420,
+        "woba": 0.313,
+        "xwoba": 0.322,
+        "barrelPct": 15.4,
+        "ev50": 102.9,
+        "kPct": 30.7,
+        "bbPct": 9.3,
+        "chasePct": 31.8,
+        "hr": 16
+      },
+      "drivers": [
+        "Barrel rate 15.4% (top 5% of regulars)",
+        "EV50 (avg of hardest-hit half) 102.9 mph (top 8% of regulars)",
+        "Only 25 in 2027: hitters 25 or younger broke out 10% of the time vs 4% at 28+"
+      ],
+      "signals": [
+        "Bat speed 74.2 mph (top 19% of MLB)",
+        "Blast rate 13.2% of swings (top 13% of MLB)"
+      ],
+      "risk": "Whiff rate 34.8% (bottom 5% of regulars)",
+      "bar": "Needs .346 wOBA: 33 pts above his .313 (24 above his xwOBA).",
+      "comp": {
+        "playerId": 663728,
+        "name": "Cal Raleigh",
+        "season": 2022,
+        "before": ".329 xwOBA, 15.4% barrels in 415 PA",
+        "after": ".326 wOBA, 30 HR in 569 PA"
+      }
+    },
+    {
+      "rank": 11,
+      "playerId": 804668,
+      "name": "Rafael Flores Jr.",
+      "teamId": 134,
+      "position": "C",
+      "bats": "R",
+      "age": 26,
+      "probability": 0.188,
+      "stats": {
+        "pa": 163,
+        "woba": 0.367,
+        "xwoba": 0.35,
+        "barrelPct": 14.6,
+        "ev50": 101.5,
+        "kPct": 27.6,
+        "bbPct": 9.2,
+        "chasePct": 27.7,
+        "hr": 11
+      },
+      "drivers": [
+        "Barrel rate 14.6% (top 6% of regulars)",
+        "wOBA .367 (top 8% of regulars)",
+        "EV50 (avg of hardest-hit half) 101.5 mph (top 24% of regulars)"
+      ],
+      "signals": [
+        "Bat speed 73.9 mph (top 22% of MLB)",
+        "Blast rate 12.6% of swings (top 17% of MLB)"
+      ],
+      "risk": "Only 163 PA in 2026: has to win an everyday job first",
+      "bar": "Already hit the .346 wOBA bar in a part-time role; the step is doing it over a full season and 400+ PA (had 163).",
+      "comp": {
+        "playerId": 669394,
+        "name": "Jake Burger",
+        "season": 2022,
+        "before": ".324 xwOBA, 15.0% barrels in 183 PA",
+        "after": ".349 wOBA, 34 HR in 540 PA"
+      }
+    },
+    {
+      "rank": 12,
+      "playerId": 699024,
+      "name": "Leo Bernal",
+      "teamId": 138,
+      "position": "C",
+      "bats": "S",
+      "age": 23,
+      "probability": 0.185,
+      "stats": {
+        "pa": 102,
+        "woba": 0.351,
+        "xwoba": 0.347,
+        "barrelPct": 10.0,
+        "ev50": 102.0,
+        "kPct": 24.5,
+        "bbPct": 6.9,
+        "chasePct": 29.2,
+        "hr": 5
+      },
+      "drivers": [
+        "xwOBA .347 (top 15% of regulars)",
+        "EV50 (avg of hardest-hit half) 102.0 mph (top 18% of regulars)",
+        "Barrel rate 10.0% (top 31% of regulars)"
+      ],
+      "signals": [
+        "Bat speed 73.6 mph (top 25% of MLB)",
+        "Blast rate 15.8% of swings (top 3% of MLB)"
+      ],
+      "risk": "Only 102 PA in 2026: has to win an everyday job first",
+      "bar": "Already hit the .346 wOBA bar in a part-time role; the step is doing it over a full season and 400+ PA (had 102).",
+      "comp": {
+        "playerId": 683002,
+        "name": "Gunnar Henderson",
+        "season": 2022,
+        "before": ".339 xwOBA, 9.8% barrels in 132 PA",
+        "after": ".346 wOBA, 28 HR in 622 PA"
+      }
+    },
+    {
+      "rank": 13,
+      "playerId": 690993,
+      "name": "Colt Keith",
+      "teamId": 116,
+      "position": "3B",
+      "bats": "L",
+      "age": 25,
+      "probability": 0.175,
+      "stats": {
+        "pa": 423,
+        "woba": 0.321,
+        "xwoba": 0.333,
+        "barrelPct": 7.6,
+        "ev50": 100.1,
+        "kPct": 19.9,
+        "bbPct": 7.6,
+        "chasePct": 24.6,
+        "hr": 10
+      },
+      "drivers": [
+        "xwOBA .333 (top 31% of regulars)",
+        "Whiff rate 22.3% (top 37% of regulars)",
+        "Strikeout rate 19.9% (top 38% of regulars)"
+      ],
+      "signals": [
+        "Blast rate 13.9% of swings (top 9% of MLB)",
+        "Squared-up rate 29.7% of swings (top 12% of MLB)"
+      ],
+      "risk": "1447 career PA without a breakout: the clock is ticking",
+      "bar": "Needs .346 wOBA: 25 pts above his .321 (13 above his xwOBA).",
+      "comp": {
+        "playerId": 624424,
+        "name": "Michael Conforto",
+        "season": 2016,
+        "before": ".321 xwOBA, 11.3% barrels in 348 PA",
+        "after": ".392 wOBA, 27 HR in 440 PA"
+      }
+    },
+    {
+      "rank": 14,
+      "playerId": 805300,
+      "name": "Jakob Marsee",
+      "teamId": 146,
+      "position": "CF",
+      "bats": "L",
+      "age": 26,
+      "probability": 0.166,
+      "stats": {
+        "pa": 616,
+        "woba": 0.321,
+        "xwoba": 0.314,
+        "barrelPct": 3.8,
+        "ev50": 97.8,
+        "kPct": 20.5,
+        "bbPct": 12.7,
+        "chasePct": 22.2,
+        "hr": 11
+      },
+      "drivers": [
+        "Whiff rate 18.0% (top 15% of regulars)",
+        "Walk rate 12.7% (top 11% of regulars)"
+      ],
+      "signals": [
+        "Squared-up rate 28.5% of swings (top 17% of MLB)",
+        "Finished strong: .862 OPS after the All-Star break vs .614 before"
+      ],
+      "risk": "Barrel rate 3.8% (bottom 14% of regulars)",
+      "bar": "Needs .346 wOBA: 25 pts above his .321 (32 above his xwOBA).",
+      "comp": {
+        "playerId": 669720,
+        "name": "Austin Hays",
+        "season": 2022,
+        "before": ".301 xwOBA, 5.2% barrels in 582 PA",
+        "after": ".330 wOBA, 16 HR in 566 PA"
+      }
+    },
+    {
+      "rank": 15,
+      "playerId": 701678,
+      "name": "Hao-Yu Lee",
+      "teamId": 116,
+      "position": "2B",
+      "bats": "R",
+      "age": 24,
+      "probability": 0.151,
+      "stats": {
+        "pa": 364,
+        "woba": 0.325,
+        "xwoba": 0.302,
+        "barrelPct": 8.5,
+        "ev50": 100.2,
+        "kPct": 23.9,
+        "bbPct": 8.2,
+        "chasePct": 29.1,
+        "hr": 10
+      },
+      "drivers": [
+        "Only 24 in 2027: hitters 25 or younger broke out 10% of the time vs 4% at 28+"
+      ],
+      "signals": [
+        "Finished strong: .801 OPS after the All-Star break vs .677 before"
+      ],
+      "risk": null,
+      "bar": "Needs .346 wOBA and 400+ PA (had 364): 21 pts above his .325 (44 above his xwOBA).",
+      "comp": {
+        "playerId": 624424,
+        "name": "Michael Conforto",
+        "season": 2016,
+        "before": ".321 xwOBA, 11.3% barrels in 348 PA",
+        "after": ".392 wOBA, 27 HR in 440 PA"
+      }
+    },
+    {
+      "rank": 16,
+      "playerId": 665953,
+      "name": "Andr\u00e9s Chaparro",
+      "teamId": 120,
+      "position": "1B",
+      "bats": "R",
+      "age": 28,
+      "probability": 0.149,
+      "stats": {
+        "pa": 228,
+        "woba": 0.383,
+        "xwoba": 0.344,
+        "barrelPct": 13.1,
+        "ev50": 101.4,
+        "kPct": 23.2,
+        "bbPct": 11.0,
+        "chasePct": 32.0,
+        "hr": 13
+      },
+      "drivers": [
+        "wOBA .383 (top 2% of regulars)",
+        "Barrel rate 13.1% (top 11% of regulars)",
+        "EV50 (avg of hardest-hit half) 101.4 mph (top 26% of regulars)"
+      ],
+      "signals": [
+        "Bat speed 74.2 mph (top 18% of MLB)",
+        "Finished strong: .998 OPS after the All-Star break vs .586 before"
+      ],
+      "risk": "Age 28 in 2027: only 4% of eligible hitters 28+ broke out",
+      "bar": "Already hit the .346 wOBA bar in a part-time role; the step is doing it over a full season and 400+ PA (had 228).",
+      "comp": {
+        "playerId": 621493,
+        "name": "Taylor Ward",
+        "season": 2021,
+        "before": ".342 xwOBA, 10.3% barrels in 237 PA",
+        "after": ".362 wOBA, 23 HR in 564 PA"
+      }
+    },
+    {
+      "rank": 17,
+      "playerId": 686611,
+      "name": "Dylan Crews",
+      "teamId": 120,
+      "position": "RF",
+      "bats": "R",
+      "age": 25,
+      "probability": 0.148,
+      "stats": {
+        "pa": 443,
+        "woba": 0.294,
+        "xwoba": 0.317,
+        "barrelPct": 9.4,
+        "ev50": 101.2,
+        "kPct": 24.2,
+        "bbPct": 6.8,
+        "chasePct": 32.1,
+        "hr": 13
+      },
+      "drivers": [
+        "EV50 (avg of hardest-hit half) 101.2 mph (top 28% of regulars)",
+        "Barrel rate 9.4% (top 36% of regulars)",
+        "Sprint speed 29.3 ft/s (top 7% of regulars)"
+      ],
+      "signals": [
+        "Bat speed 74.1 mph (top 20% of MLB)",
+        "Blast rate 12.1% of swings (top 21% of MLB)"
+      ],
+      "risk": "Whiff rate 29.4% (bottom 24% of regulars)",
+      "bar": "Needs .346 wOBA: 52 pts above his .294 (29 above his xwOBA).",
+      "comp": {
+        "playerId": 665862,
+        "name": "Jazz Chisholm Jr.",
+        "season": 2021,
+        "before": ".307 xwOBA, 9.0% barrels in 507 PA",
+        "after": ".365 wOBA, 14 HR in 241 PA"
+      }
+    },
+    {
+      "rank": 18,
+      "playerId": 703601,
+      "name": "Max Clark",
+      "teamId": 116,
+      "position": "CF",
+      "bats": "L",
+      "age": 22,
+      "probability": 0.14,
+      "stats": {
+        "pa": 206,
+        "woba": 0.337,
+        "xwoba": 0.314,
+        "barrelPct": 2.1,
+        "ev50": 98.3,
+        "kPct": 20.4,
+        "bbPct": 8.7,
+        "chasePct": 28.6,
+        "hr": 3
+      },
+      "drivers": [
+        "Whiff rate 16.7% (top 12% of regulars)",
+        "wOBA .337 (top 30% of regulars)",
+        "Sprint speed 28.6 ft/s (top 18% of regulars)"
+      ],
+      "signals": [
+        "Bat speed 73.7 mph (top 24% of MLB)"
+      ],
+      "risk": "Barrel rate 2.1% (bottom 4% of regulars)",
+      "bar": "Needs .346 wOBA and 400+ PA (had 206): 9 pts above his .337 (32 above his xwOBA).",
+      "comp": {
+        "playerId": 807712,
+        "name": "Luke Keaschall",
+        "season": 2025,
+        "before": ".324 xwOBA, 5.2% barrels in 207 PA",
+        "after": ".348 wOBA, 10 HR in 620 PA"
+      }
+    },
+    {
+      "rank": 19,
+      "playerId": 682987,
+      "name": "Spencer Jones",
+      "teamId": 147,
+      "position": "CF",
+      "bats": "L",
+      "age": 26,
+      "probability": 0.138,
+      "stats": {
+        "pa": 289,
+        "woba": 0.323,
+        "xwoba": 0.328,
+        "barrelPct": 15.9,
+        "ev50": 104.2,
+        "kPct": 36.3,
+        "bbPct": 8.7,
+        "chasePct": 35.3,
+        "hr": 11
+      },
+      "drivers": [
+        "Barrel rate 15.9% (top 4% of regulars)",
+        "EV50 (avg of hardest-hit half) 104.2 mph (top 4% of regulars)",
+        "xwOBA .328 (top 37% of regulars)"
+      ],
+      "signals": [
+        "Bat speed 77.1 mph (top 2% of MLB)"
+      ],
+      "risk": "Whiff rate 38.7% (bottom 1% of regulars)",
+      "bar": "Needs .346 wOBA and 400+ PA (had 289): 23 pts above his .323 (18 above his xwOBA).",
+      "comp": {
+        "playerId": 669394,
+        "name": "Jake Burger",
+        "season": 2022,
+        "before": ".324 xwOBA, 15.0% barrels in 183 PA",
+        "after": ".349 wOBA, 34 HR in 540 PA"
+      }
+    },
+    {
+      "rank": 20,
+      "playerId": 702222,
+      "name": "Justin Crawford",
+      "teamId": 143,
+      "position": "CF",
+      "bats": "L",
+      "age": 23,
+      "probability": 0.138,
+      "stats": {
+        "pa": 465,
+        "woba": 0.294,
+        "xwoba": 0.284,
+        "barrelPct": 2.0,
+        "ev50": 98.1,
+        "kPct": 17.6,
+        "bbPct": 5.8,
+        "chasePct": 37.6,
+        "hr": 3
+      },
+      "drivers": [
+        "Whiff rate 17.7% (top 15% of regulars)",
+        "Strikeout rate 17.6% (top 25% of regulars)",
+        "Sprint speed 29.6 ft/s (top 4% of regulars)"
+      ],
+      "signals": [],
+      "risk": "Barrel rate 2.0% (bottom 3% of regulars)",
+      "bar": "Needs .346 wOBA: 52 pts above his .294 (62 above his xwOBA).",
+      "comp": {
+        "playerId": 672695,
+        "name": "Geraldo Perdomo",
+        "season": 2022,
+        "before": ".274 xwOBA, 2.1% barrels in 500 PA",
+        "after": ".319 wOBA, 6 HR in 495 PA"
+      }
+    },
+    {
+      "rank": 21,
+      "playerId": 687221,
+      "name": "Dalton Rushing",
+      "teamId": 119,
+      "position": "C",
+      "bats": "L",
+      "age": 26,
+      "probability": 0.137,
+      "stats": {
+        "pa": 253,
+        "woba": 0.344,
+        "xwoba": 0.336,
+        "barrelPct": 11.9,
+        "ev50": 101.8,
+        "kPct": 29.2,
+        "bbPct": 9.1,
+        "chasePct": 30.4,
+        "hr": 12
+      },
+      "drivers": [
+        "Barrel rate 11.9% (top 22% of regulars)",
+        "wOBA .344 (top 24% of regulars)",
+        "EV50 (avg of hardest-hit half) 101.8 mph (top 20% of regulars)"
+      ],
+      "signals": [
+        "Blast rate 12.5% of swings (top 18% of MLB)"
+      ],
+      "risk": "Whiff rate 31.8% (bottom 14% of regulars)",
+      "bar": "Needs .346 wOBA and 400+ PA (had 253): 2 pts above his .344 (10 above his xwOBA).",
+      "comp": {
+        "playerId": 656305,
+        "name": "Matt Chapman",
+        "season": 2017,
+        "before": ".324 xwOBA, 13.3% barrels in 326 PA",
+        "after": ".369 wOBA, 24 HR in 616 PA"
+      }
+    },
+    {
+      "rank": 22,
+      "playerId": 665019,
+      "name": "Kody Clemens",
+      "teamId": 142,
+      "position": "2B",
+      "bats": "L",
+      "age": 31,
+      "probability": 0.131,
+      "stats": {
+        "pa": 583,
+        "woba": 0.327,
+        "xwoba": 0.334,
+        "barrelPct": 11.3,
+        "ev50": 101.0,
+        "kPct": 21.8,
+        "bbPct": 6.7,
+        "chasePct": 32.6,
+        "hr": 27
+      },
+      "drivers": [
+        "Barrel rate 11.3% (top 24% of regulars)",
+        "xwOBA .334 (top 29% of regulars)",
+        "EV50 (avg of hardest-hit half) 101.0 mph (top 29% of regulars)"
+      ],
+      "signals": [
+        "Blast rate 13.7% of swings (top 10% of MLB)",
+        "Squared-up rate 29.1% of swings (top 15% of MLB)"
+      ],
+      "risk": "Age 31 in 2027: only 4% of eligible hitters 28+ broke out",
+      "bar": "Needs .346 wOBA: 19 pts above his .327 (12 above his xwOBA).",
+      "comp": {
+        "playerId": 663616,
+        "name": "Trevor Larnach",
+        "season": 2025,
+        "before": ".318 xwOBA, 7.2% barrels in 567 PA",
+        "after": ".347 wOBA, 13 HR in 433 PA"
+      }
+    },
+    {
+      "rank": 23,
+      "playerId": 687952,
+      "name": "Christian Encarnacion-Strand",
+      "teamId": 110,
+      "position": "3B",
+      "bats": "R",
+      "age": 27,
+      "probability": 0.13,
+      "stats": {
+        "pa": 213,
+        "woba": 0.358,
+        "xwoba": 0.332,
+        "barrelPct": 14.0,
+        "ev50": 100.8,
+        "kPct": 25.8,
+        "bbPct": 5.2,
+        "chasePct": 46.4,
+        "hr": 11
+      },
+      "drivers": [
+        "Barrel rate 14.0% (top 8% of regulars)",
+        "wOBA .358 (top 12% of regulars)",
+        "EV50 (avg of hardest-hit half) 100.8 mph (top 32% of regulars)"
+      ],
+      "signals": [],
+      "risk": "Only 213 PA in 2026: has to win an everyday job first",
+      "bar": "Already hit the .346 wOBA bar in a part-time role; the step is doing it over a full season and 400+ PA (had 213).",
+      "comp": {
+        "playerId": 669394,
+        "name": "Jake Burger",
+        "season": 2022,
+        "before": ".324 xwOBA, 15.0% barrels in 183 PA",
+        "after": ".349 wOBA, 34 HR in 540 PA"
+      }
+    },
+    {
+      "rank": 24,
+      "playerId": 691458,
+      "name": "Blaze Jordan",
+      "teamId": 138,
+      "position": "3B",
+      "bats": "R",
+      "age": 24,
+      "probability": 0.129,
+      "stats": {
+        "pa": 199,
+        "woba": 0.284,
+        "xwoba": 0.317,
+        "barrelPct": 10.1,
+        "ev50": 100.1,
+        "kPct": 15.1,
+        "bbPct": 3.5,
+        "chasePct": 35.7,
+        "hr": 3
+      },
+      "drivers": [
+        "Barrel rate 10.1% (top 31% of regulars)",
+        "Strikeout rate 15.1% (top 15% of regulars)",
+        "Whiff rate 20.8% (top 27% of regulars)"
+      ],
+      "signals": [
+        "Blast rate 12.3% of swings (top 19% of MLB)"
+      ],
+      "risk": "Only 199 PA in 2026: has to win an everyday job first",
+      "bar": "Needs .346 wOBA and 400+ PA (had 199): 62 pts above his .284 (29 above his xwOBA).",
+      "comp": {
+        "playerId": 669701,
+        "name": "Josh Smith",
+        "season": 2023,
+        "before": ".323 xwOBA, 10.6% barrels in 232 PA",
+        "after": ".323 wOBA, 13 HR in 592 PA"
+      }
+    },
+    {
+      "rank": 25,
+      "playerId": 694384,
+      "name": "Nolan Schanuel",
+      "teamId": 108,
+      "position": "1B",
+      "bats": "L",
+      "age": 25,
+      "probability": 0.129,
+      "stats": {
+        "pa": 446,
+        "woba": 0.328,
+        "xwoba": 0.334,
+        "barrelPct": 2.4,
+        "ev50": 97.3,
+        "kPct": 13.0,
+        "bbPct": 9.4,
+        "chasePct": 27.2,
+        "hr": 7
+      },
+      "drivers": [
+        "xwOBA .334 (top 29% of regulars)",
+        "Whiff rate 16.4% (top 10% of regulars)",
+        "Strikeout rate 13.0% (top 7% of regulars)"
+      ],
+      "signals": [
+        "Squared-up rate 33.4% of swings (top 5% of MLB)"
+      ],
+      "risk": "Barrel rate 2.4% (bottom 6% of regulars)",
+      "bar": "Needs .346 wOBA: 18 pts above his .328 (12 above his xwOBA).",
+      "comp": {
+        "playerId": 689414,
+        "name": "Liam Hicks",
+        "season": 2025,
+        "before": ".315 xwOBA, 3.6% barrels in 390 PA",
+        "after": ".352 wOBA, 18 HR in 554 PA"
+      }
+    },
+    {
+      "rank": 26,
+      "playerId": 687551,
+      "name": "Drew Gilbert",
+      "teamId": 137,
+      "position": "CF",
+      "bats": "L",
+      "age": 26,
+      "probability": 0.126,
+      "stats": {
+        "pa": 393,
+        "woba": 0.32,
+        "xwoba": 0.334,
+        "barrelPct": 5.9,
+        "ev50": 98.4,
+        "kPct": 18.1,
+        "bbPct": 9.9,
+        "chasePct": 25.1,
+        "hr": 11
+      },
+      "drivers": [
+        "xwOBA .334 (top 29% of regulars)",
+        "Strikeout rate 18.1% (top 27% of regulars)",
+        "Whiff rate 22.4% (top 38% of regulars)"
+      ],
+      "signals": [
+        "Squared-up rate 28.7% of swings (top 17% of MLB)"
+      ],
+      "risk": "Barrel rate 5.9% (bottom 31% of regulars)",
+      "bar": "Needs .346 wOBA and 400+ PA (had 393): 26 pts above his .320 (12 above his xwOBA).",
+      "comp": {
+        "playerId": 687462,
+        "name": "Spencer Horwitz",
+        "season": 2024,
+        "before": ".340 xwOBA, 8.0% barrels in 381 PA",
+        "after": ".344 wOBA, 11 HR in 411 PA"
+      }
+    },
+    {
+      "rank": 27,
+      "playerId": 682848,
+      "name": "Endy Rodr\u00edguez",
+      "teamId": 134,
+      "position": "C",
+      "bats": "S",
+      "age": 27,
+      "probability": 0.125,
+      "stats": {
+        "pa": 159,
+        "woba": 0.37,
+        "xwoba": 0.338,
+        "barrelPct": 10.6,
+        "ev50": 100.8,
+        "kPct": 25.8,
+        "bbPct": 14.5,
+        "chasePct": 26.1,
+        "hr": 7
+      },
+      "drivers": [
+        "wOBA .370 (top 7% of regulars)",
+        "Barrel rate 10.6% (top 28% of regulars)",
+        "EV50 (avg of hardest-hit half) 100.8 mph (top 32% of regulars)"
+      ],
+      "signals": [],
+      "risk": "Only 159 PA in 2026: has to win an everyday job first",
+      "bar": "Already hit the .346 wOBA bar in a part-time role; the step is doing it over a full season and 400+ PA (had 159).",
+      "comp": {
+        "playerId": 621493,
+        "name": "Taylor Ward",
+        "season": 2021,
+        "before": ".342 xwOBA, 10.3% barrels in 237 PA",
+        "after": ".362 wOBA, 23 HR in 564 PA"
+      }
+    },
+    {
+      "rank": 28,
+      "playerId": 695731,
+      "name": "Braden Montgomery",
+      "teamId": 145,
+      "position": "RF",
+      "bats": "S",
+      "age": 24,
+      "probability": 0.124,
+      "stats": {
+        "pa": 365,
+        "woba": 0.298,
+        "xwoba": 0.325,
+        "barrelPct": 4.4,
+        "ev50": 100.1,
+        "kPct": 19.7,
+        "bbPct": 10.4,
+        "chasePct": 27.4,
+        "hr": 6
+      },
+      "drivers": [
+        "Strikeout rate 19.7% (top 36% of regulars)",
+        "Sprint speed 28.4 ft/s (top 22% of regulars)",
+        "Walk rate 10.4% (top 32% of regulars)"
+      ],
+      "signals": [],
+      "risk": "Barrel rate 4.4% (bottom 20% of regulars)",
+      "bar": "Needs .346 wOBA and 400+ PA (had 365): 48 pts above his .298 (21 above his xwOBA).",
+      "comp": {
+        "playerId": 630111,
+        "name": "Yasmany Tom\u00e1s",
+        "season": 2015,
+        "before": ".280 xwOBA, 4.8% barrels in 426 PA",
+        "after": ".345 wOBA, 31 HR in 563 PA"
+      }
+    },
+    {
+      "rank": 29,
+      "playerId": 683357,
+      "name": "Owen Caissie",
+      "teamId": 146,
+      "position": "RF",
+      "bats": "L",
+      "age": 24,
+      "probability": 0.121,
+      "stats": {
+        "pa": 330,
+        "woba": 0.304,
+        "xwoba": 0.302,
+        "barrelPct": 14.2,
+        "ev50": 101.8,
+        "kPct": 37.3,
+        "bbPct": 8.2,
+        "chasePct": 30.0,
+        "hr": 14
+      },
+      "drivers": [
+        "Barrel rate 14.2% (top 7% of regulars)",
+        "EV50 (avg of hardest-hit half) 101.8 mph (top 20% of regulars)",
+        "Sprint speed 28.3 ft/s (top 26% of regulars)"
+      ],
+      "signals": [
+        "Bat speed 75.1 mph (top 11% of MLB)"
+      ],
+      "risk": "Whiff rate 35.6% (bottom 5% of regulars)",
+      "bar": "Needs .346 wOBA and 400+ PA (had 330): 42 pts above his .304 (44 above his xwOBA).",
+      "comp": {
+        "playerId": 656305,
+        "name": "Matt Chapman",
+        "season": 2017,
+        "before": ".324 xwOBA, 13.3% barrels in 326 PA",
+        "after": ".369 wOBA, 24 HR in 616 PA"
+      }
+    },
+    {
+      "rank": 30,
+      "playerId": 699393,
+      "name": "Pedro Ram\u00edrez",
+      "teamId": 112,
+      "position": "2B",
+      "bats": "S",
+      "age": 23,
+      "probability": 0.12,
+      "stats": {
+        "pa": 266,
+        "woba": 0.315,
+        "xwoba": 0.284,
+        "barrelPct": 4.1,
+        "ev50": 99.6,
+        "kPct": 18.4,
+        "bbPct": 7.5,
+        "chasePct": 33.0,
+        "hr": 6
+      },
+      "drivers": [
+        "Whiff rate 20.2% (top 25% of regulars)",
+        "Strikeout rate 18.4% (top 29% of regulars)",
+        "Sprint speed 28.4 ft/s (top 22% of regulars)"
+      ],
+      "signals": [
+        "Blast rate 12.9% of swings (top 15% of MLB)"
+      ],
+      "risk": "Barrel rate 4.1% (bottom 17% of regulars)",
+      "bar": "Needs .346 wOBA and 400+ PA (had 266): 31 pts above his .315 (62 above his xwOBA).",
+      "comp": {
+        "playerId": 622666,
+        "name": "Johan Camargo",
+        "season": 2017,
+        "before": ".298 xwOBA, 5.1% barrels in 256 PA",
+        "after": ".346 wOBA, 19 HR in 524 PA"
+      }
+    }
+  ],
+  "pitchers": [
+    {
+      "rank": 1,
+      "playerId": 805427,
+      "name": "Drew Sommers",
+      "teamId": 116,
+      "role": "RP",
+      "throws": "L",
+      "age": 26,
+      "probability": 0.313,
+      "stats": {
+        "ip": "39.2",
+        "era": 3.63,
+        "xera": 2.18,
+        "kPct": 36.7,
+        "bbPct": 8.3,
+        "kbbPct": 28.4,
+        "whiffPct": 31.1,
+        "xwoba": 0.229,
+        "fbVelo": 95.0,
+        "fbIvb": 7.0,
+        "k": 62
+      },
+      "drivers": [
+        "Strikeout rate 36.7% (top 1% of regulars)",
+        "Ground-ball rate 63.3% (top 1% of regulars)",
+        "Whiff rate 31.1% (top 12% of regulars)"
+      ],
+      "signals": [
+        "Put-away pitch: 4-Seam Fastball (34% usage) gets 45% whiffs, .162 xwOBA, top 1% for the pitch type"
+      ],
+      "risk": "One-inning relief role caps his innings and visibility",
+      "bar": "Needs elite relief: ~3.16 ERA/xERA with 20%+ K-BB over 50+ IP, or a move into the rotation. Was 3.63 / 2.18, 28.4% K-BB.",
+      "comp": {
+        "playerId": 691799,
+        "name": "Grant Taylor",
+        "season": 2025,
+        "before": "24.8% K-BB, 2.91 xERA in 36.2 IP",
+        "after": "2.25 ERA, 106 K in 84 IP"
+      }
+    },
+    {
+      "rank": 2,
+      "playerId": 690986,
+      "name": "Kyle Harrison",
+      "teamId": 158,
+      "role": "SP",
+      "throws": "L",
+      "age": 25,
+      "probability": 0.268,
+      "stats": {
+        "ip": "115.2",
+        "era": 4.2,
+        "xera": 4.01,
+        "kPct": 27.9,
+        "bbPct": 7.1,
+        "kbbPct": 20.8,
+        "whiffPct": 27.9,
+        "xwoba": 0.308,
+        "fbVelo": 94.8,
+        "fbIvb": 14.6,
+        "k": 141
+      },
+      "drivers": [
+        "K-BB% 20.8% (top 12% of regulars)",
+        "Whiff rate 27.9% (top 30% of regulars)",
+        "Fastball velo 94.8 mph (top 38% of regulars)"
+      ],
+      "signals": [],
+      "risk": "Ground-ball rate 37.2% (bottom 20% of regulars)",
+      "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 4.20 ERA / 4.01 xERA.",
+      "comp": {
+        "playerId": 668881,
+        "name": "Hunter Greene",
+        "season": 2023,
+        "before": "20.9% K-BB, 3.79 xERA in 112 IP",
+        "after": "2.75 ERA, 169 K in 150.1 IP"
+      }
+    },
+    {
+      "rank": 3,
+      "playerId": 808963,
+      "name": "Roki Sasaki",
+      "teamId": 119,
+      "role": "SP",
+      "throws": "R",
+      "age": 25,
+      "probability": 0.262,
+      "stats": {
+        "ip": "122.1",
+        "era": 4.49,
+        "xera": 4.3,
+        "kPct": 23.6,
+        "bbPct": 9.2,
+        "kbbPct": 14.4,
+        "whiffPct": 29.7,
+        "xwoba": 0.318,
+        "fbVelo": 97.9,
+        "fbIvb": 16.1,
+        "k": 123
+      },
+      "drivers": [
+        "Fastball velo 97.9 mph (top 7% of regulars)",
+        "Whiff rate 29.7% (top 19% of regulars)",
+        "Fastball ride (IVB) 16.1 in (top 18% of regulars)"
+      ],
+      "signals": [
+        "Put-away pitch: Slider (22% usage) gets 40% whiffs, .245 xwOBA, top 22% for the pitch type",
+        "New weapon: added a split-finger in 2026 (29% usage, 36% whiffs)"
+      ],
+      "risk": "Zone rate 46.7% (bottom 37% of regulars)",
+      "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 4.49 ERA / 4.30 xERA.",
+      "comp": {
+        "playerId": 666157,
+        "name": "Nick Lodolo",
+        "season": 2024,
+        "before": "17.2% K-BB, 3.67 xERA in 115.1 IP",
+        "after": "3.33 ERA, 156 K in 156.2 IP"
+      }
+    },
+    {
+      "rank": 4,
+      "playerId": 667755,
+      "name": "Jos\u00e9 Soriano",
+      "teamId": 141,
+      "role": "SP",
+      "throws": "R",
+      "age": 28,
+      "probability": 0.253,
+      "stats": {
+        "ip": "177.1",
+        "era": 3.91,
+        "xera": 4.45,
+        "kPct": 22.7,
+        "bbPct": 9.8,
+        "kbbPct": 12.9,
+        "whiffPct": 28.6,
+        "xwoba": 0.323,
+        "fbVelo": 96.6,
+        "fbIvb": 7.8,
+        "k": 169
+      },
+      "drivers": [
+        "Ground-ball rate 53.8% (top 8% of regulars)",
+        "Fastball velo 96.6 mph (top 17% of regulars)",
+        "Whiff rate 28.6% (top 24% of regulars)"
+      ],
+      "signals": [
+        "Put-away pitch: Curveball (26% usage) gets 43% whiffs, .285 xwOBA, top 9% for the pitch type"
+      ],
+      "risk": "Zone rate 44.8% (bottom 16% of regulars)",
+      "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 3.91 ERA / 4.45 xERA.",
+      "comp": {
+        "playerId": 656849,
+        "name": "David Peterson",
+        "season": 2024,
+        "before": "10.8% K-BB, 4.58 xERA in 121 IP",
+        "after": "4.22 ERA, 150 K in 168.2 IP"
+      }
+    },
+    {
+      "rank": 5,
+      "playerId": 677960,
+      "name": "Ryan Weathers",
+      "teamId": 147,
+      "role": "SP",
+      "throws": "L",
+      "age": 27,
+      "probability": 0.239,
+      "stats": {
+        "ip": "137.1",
+        "era": 3.6,
+        "xera": 4.32,
+        "kPct": 25.2,
+        "bbPct": 6.7,
+        "kbbPct": 18.5,
+        "whiffPct": 27.0,
+        "xwoba": 0.319,
+        "fbVelo": 95.0,
+        "fbIvb": 12.0,
+        "k": 143
+      },
+      "drivers": [
+        "K-BB% 18.5% (top 20% of regulars)",
+        "Ground-ball rate 49.5% (top 18% of regulars)",
+        "Whiff rate 27.0% (top 37% of regulars)"
+      ],
+      "signals": [
+        "Put-away pitch: Sweeper (20% usage) gets 39% whiffs, .284 xwOBA, top 14% for the pitch type",
+        "Second-half jump: 2.27 ERA, 21% K after the break (vs 4.15, 27% before)"
+      ],
+      "risk": "Fastball down 1.8 mph from 2025",
+      "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 3.60 ERA / 4.32 xERA.",
+      "comp": {
+        "playerId": 622491,
+        "name": "Luis Castillo",
+        "season": 2018,
+        "before": "16.4% K-BB, 4.30 xERA in 169.2 IP",
+        "after": "3.40 ERA, 226 K in 190.2 IP"
+      }
+    },
+    {
+      "rank": 6,
+      "playerId": 669461,
+      "name": "Matthew Liberatore",
+      "teamId": 138,
+      "role": "SP",
+      "throws": "L",
+      "age": 27,
+      "probability": 0.198,
+      "stats": {
+        "ip": "155",
+        "era": 5.23,
+        "xera": 5.02,
+        "kPct": 22.8,
+        "bbPct": 8.2,
+        "kbbPct": 14.6,
+        "whiffPct": 23.9,
+        "xwoba": 0.341,
+        "fbVelo": 93.9,
+        "fbIvb": 15.5,
+        "k": 154
+      },
+      "drivers": [
+        "Fastball ride (IVB) 15.5 in (top 24% of regulars)",
+        "Fastball up 0.7 mph from 2025 (93.9 mph)"
+      ],
+      "signals": [
+        "Put-away pitch: Curveball (18% usage) gets 40% whiffs, .248 xwOBA, top 17% for the pitch type"
+      ],
+      "risk": "Ground-ball rate 38.0% (bottom 25% of regulars)",
+      "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 5.23 ERA / 5.02 xERA.",
+      "comp": {
+        "playerId": 671737,
+        "name": "Taj Bradley",
+        "season": 2025,
+        "before": "11.7% K-BB, 4.10 xERA in 142.2 IP",
+        "after": "3.73 ERA, 205 K in 178.1 IP"
+      }
+    },
+    {
+      "rank": 7,
+      "playerId": 691725,
+      "name": "Andrew Painter",
+      "teamId": 143,
+      "role": "SP",
+      "throws": "R",
+      "age": 24,
+      "probability": 0.167,
+      "stats": {
+        "ip": "126.2",
+        "era": 5.4,
+        "xera": 4.42,
+        "kPct": 20.8,
+        "bbPct": 8.5,
+        "kbbPct": 12.3,
+        "whiffPct": 25.6,
+        "xwoba": 0.322,
+        "fbVelo": 96.3,
+        "fbIvb": 16.0,
+        "k": 115
+      },
+      "drivers": [
+        "Fastball velo 96.3 mph (top 20% of regulars)",
+        "Fastball ride (IVB) 16.0 in (top 19% of regulars)",
+        "Chase rate induced 33.8% (top 20% of regulars)"
+      ],
+      "signals": [
+        "Second-half jump: 3.65 ERA, 25% K after the break (vs 7.06, 18% before)"
+      ],
+      "risk": null,
+      "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 5.40 ERA / 4.42 xERA.",
+      "comp": {
+        "playerId": 680694,
+        "name": "Kyle Bradish",
+        "season": 2022,
+        "before": "12.8% K-BB, 4.58 xERA in 117.2 IP",
+        "after": "2.83 ERA, 168 K in 168.2 IP"
+      }
+    },
+    {
+      "rank": 8,
+      "playerId": 696149,
+      "name": "Bubba Chandler",
+      "teamId": 134,
+      "role": "SP",
+      "throws": "R",
+      "age": 24,
+      "probability": 0.165,
+      "stats": {
+        "ip": "154",
+        "era": 4.5,
+        "xera": 4.3,
+        "kPct": 20.8,
+        "bbPct": 11.9,
+        "kbbPct": 8.9,
+        "whiffPct": 22.2,
+        "xwoba": 0.318,
+        "fbVelo": 98.2,
+        "fbIvb": 16.6,
+        "k": 140
+      },
+      "drivers": [
+        "Fastball velo 98.2 mph (top 5% of regulars)",
+        "Fastball ride (IVB) 16.6 in (top 13% of regulars)",
+        "Barrel rate allowed 6.1% (top 25% of regulars)"
+      ],
+      "signals": [],
+      "risk": "Ground-ball rate 39.5% (bottom 33% of regulars)",
+      "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 4.50 ERA / 4.30 xERA.",
+      "comp": {
+        "playerId": 680732,
+        "name": "Sean Burke",
+        "season": 2025,
+        "before": "11.7% K-BB, 4.93 xERA in 134.1 IP",
+        "after": "3.34 ERA, 185 K in 172.1 IP"
+      }
+    },
+    {
+      "rank": 9,
+      "playerId": 687570,
+      "name": "Connor Prielipp",
+      "teamId": 142,
+      "role": "SP",
+      "throws": "L",
+      "age": 26,
+      "probability": 0.159,
+      "stats": {
+        "ip": "125.2",
+        "era": 4.87,
+        "xera": 3.95,
+        "kPct": 23.9,
+        "bbPct": 8.2,
+        "kbbPct": 15.7,
+        "whiffPct": 23.6,
+        "xwoba": 0.306,
+        "fbVelo": 95.4,
+        "fbIvb": 13.1,
+        "k": 128
+      },
+      "drivers": [
+        "K-BB% 15.7% (top 34% of regulars)",
+        "Fastball velo 95.4 mph (top 30% of regulars)",
+        "Barrel rate allowed 6.5% (top 32% of regulars)"
+      ],
+      "signals": [
+        "Put-away pitch: Curveball (19% usage) gets 38% whiffs, .170 xwOBA, top 22% for the pitch type"
+      ],
+      "risk": "Whiff rate 23.6% (bottom 38% of regulars)",
+      "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 4.87 ERA / 3.95 xERA.",
+      "comp": {
+        "playerId": 680694,
+        "name": "Kyle Bradish",
+        "season": 2022,
+        "before": "12.8% K-BB, 4.58 xERA in 117.2 IP",
+        "after": "2.83 ERA, 168 K in 168.2 IP"
+      }
+    },
+    {
+      "rank": 10,
+      "playerId": 695611,
+      "name": "Gage Jump",
+      "teamId": 133,
+      "role": "SP",
+      "throws": "L",
+      "age": 24,
+      "probability": 0.159,
+      "stats": {
+        "ip": "98.2",
+        "era": 5.47,
+        "xera": 4.63,
+        "kPct": 24.7,
+        "bbPct": 10.5,
+        "kbbPct": 14.2,
+        "whiffPct": 25.2,
+        "xwoba": 0.329,
+        "fbVelo": 96.1,
+        "fbIvb": 16.1,
+        "k": 108
+      },
+      "drivers": [
+        "Strikeout rate 24.7% (top 34% of regulars)",
+        "Fastball velo 96.1 mph (top 22% of regulars)",
+        "Fastball ride (IVB) 16.1 in (top 18% of regulars)"
+      ],
+      "signals": [],
+      "risk": "Ground-ball rate 39.1% (bottom 31% of regulars)",
+      "bar": "Needs ERA and xERA around 3.56 across 100+ IP (had 98.2) or 200 K. Was 5.47 ERA / 4.63 xERA.",
+      "comp": {
+        "playerId": 680694,
+        "name": "Kyle Bradish",
+        "season": 2022,
+        "before": "12.8% K-BB, 4.58 xERA in 117.2 IP",
+        "after": "2.83 ERA, 168 K in 168.2 IP"
+      }
+    },
+    {
+      "rank": 11,
+      "playerId": 682982,
+      "name": "Daniel Espino",
+      "teamId": 114,
+      "role": "RP",
+      "throws": "R",
+      "age": 26,
+      "probability": 0.152,
+      "stats": {
+        "ip": "15.1",
+        "era": 4.11,
+        "xera": 2.9,
+        "kPct": 38.5,
+        "bbPct": 10.8,
+        "kbbPct": 27.7,
+        "whiffPct": 36.8,
+        "xwoba": 0.264,
+        "fbVelo": 98.8,
+        "fbIvb": 16.8,
+        "k": 25
+      },
+      "drivers": [
+        "Strikeout rate 38.5% (top 1% of regulars)",
+        "Whiff rate 36.8% (top 1% of regulars)",
+        "Fastball velo 98.8 mph (top 2% of regulars)"
+      ],
+      "signals": [
+        "Put-away pitch: 4-Seam Fastball (62% usage) gets 42% whiffs, .275 xwOBA, top 1% for the pitch type"
+      ],
+      "risk": "Only 15.1 IP in 2026: needs a bigger role to get there",
+      "bar": "Needs elite relief: ~3.16 ERA/xERA with 20%+ K-BB over 50+ IP, or a move into the rotation. Was 4.11 / 2.90, 27.7% K-BB.",
+      "comp": {
+        "playerId": 592773,
+        "name": "Ryne Stanek",
+        "season": 2017,
+        "before": "17.9% K-BB, 4.96 xERA in 20 IP",
+        "after": "2.98 ERA, 81 K in 66.1 IP"
+      }
+    },
+    {
+      "rank": 12,
+      "playerId": 693855,
+      "name": "Ian Seymour",
+      "teamId": 139,
+      "role": "SP/RP",
+      "throws": "L",
+      "age": 28,
+      "probability": 0.152,
+      "stats": {
+        "ip": "132.2",
+        "era": 4.21,
+        "xera": 3.55,
+        "kPct": 28.7,
+        "bbPct": 6.5,
+        "kbbPct": 22.2,
+        "whiffPct": 29.4,
+        "xwoba": 0.291,
+        "fbVelo": 90.8,
+        "fbIvb": 14.3,
+        "k": 158
+      },
+      "drivers": [
+        "K-BB% 22.2% (top 8% of regulars)",
+        "Whiff rate 29.4% (top 21% of regulars)",
+        "Zone rate 50.5% (top 15% of regulars)"
+      ],
+      "signals": [
+        "Put-away pitch: Changeup (29% usage) gets 38% whiffs, .254 xwOBA, top 19% for the pitch type"
+      ],
+      "risk": "Ground-ball rate 35.2% (bottom 13% of regulars)",
+      "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 4.21 ERA / 3.55 xERA.",
+      "comp": {
+        "playerId": 628452,
+        "name": "Raisel Iglesias",
+        "season": 2016,
+        "before": "17.5% K-BB, 3.02 xERA in 78.1 IP",
+        "after": "2.49 ERA, 92 K in 76 IP"
+      }
+    },
+    {
+      "rank": 13,
+      "playerId": 663855,
+      "name": "Jordan Hicks",
+      "teamId": 145,
+      "role": "RP",
+      "throws": "R",
+      "age": 30,
+      "probability": 0.135,
+      "stats": {
+        "ip": "48",
+        "era": 3.94,
+        "xera": 2.85,
+        "kPct": 29.6,
+        "bbPct": 15.3,
+        "kbbPct": 14.3,
+        "whiffPct": 28.2,
+        "xwoba": 0.262,
+        "fbVelo": 99.2,
+        "fbIvb": 10.6,
+        "k": 64
+      },
+      "drivers": [
+        "Strikeout rate 29.6% (top 11% of regulars)",
+        "Fastball velo 99.2 mph (top 2% of regulars)",
+        "Barrel rate allowed 1.7% (top 1% of regulars)"
+      ],
+      "signals": [
+        "Put-away pitch: Sweeper (30% usage) gets 52% whiffs, .248 xwOBA, top 1% for the pitch type"
+      ],
+      "risk": "One-inning relief role caps his innings and visibility",
+      "bar": "Needs elite relief: ~3.16 ERA/xERA with 20%+ K-BB over 50+ IP, or a move into the rotation. Was 3.94 / 2.85, 14.3% K-BB.",
+      "comp": {
+        "playerId": 642397,
+        "name": "Gregory Soto",
+        "season": 2020,
+        "before": "16.3% K-BB, 3.58 xERA in 23 IP",
+        "after": "3.39 ERA, 76 K in 63.2 IP"
+      }
+    },
+    {
+      "rank": 14,
+      "playerId": 669358,
+      "name": "Shane Baz",
+      "teamId": 110,
+      "role": "SP",
+      "throws": "R",
+      "age": 28,
+      "probability": 0.134,
+      "stats": {
+        "ip": "179.2",
+        "era": 4.11,
+        "xera": 4.27,
+        "kPct": 20.0,
+        "bbPct": 8.2,
+        "kbbPct": 11.8,
+        "whiffPct": 21.5,
+        "xwoba": 0.317,
+        "fbVelo": 94.1,
+        "fbIvb": 13.5,
+        "k": 154
+      },
+      "drivers": [
+        "Zone rate 49.6% (top 21% of regulars)",
+        "Barrel rate allowed 6.8% (top 37% of regulars)"
+      ],
+      "signals": [],
+      "risk": "Fastball down 1.2 mph from 2025",
+      "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 4.11 ERA / 4.27 xERA.",
+      "comp": {
+        "playerId": 671737,
+        "name": "Taj Bradley",
+        "season": 2025,
+        "before": "11.7% K-BB, 4.10 xERA in 142.2 IP",
+        "after": "3.73 ERA, 205 K in 178.1 IP"
+      }
+    },
+    {
+      "rank": 15,
+      "playerId": 696146,
+      "name": "Hagen Smith",
+      "teamId": 145,
+      "role": "RP",
+      "throws": "L",
+      "age": 23,
+      "probability": 0.132,
+      "stats": {
+        "ip": "28",
+        "era": 1.29,
+        "xera": 2.45,
+        "kPct": 37.3,
+        "bbPct": 14.5,
+        "kbbPct": 22.8,
+        "whiffPct": 36.2,
+        "xwoba": 0.243,
+        "fbVelo": 92.2,
+        "fbIvb": 11.7,
+        "k": 41
+      },
+      "drivers": [
+        "Strikeout rate 37.3% (top 1% of regulars)",
+        "Whiff rate 36.2% (top 1% of regulars)",
+        "Barrel rate allowed 1.9% (top 1% of regulars)"
+      ],
+      "signals": [
+        "Put-away pitch: Slider (30% usage) gets 44% whiffs, .178 xwOBA, top 9% for the pitch type"
+      ],
+      "risk": "Zone rate 45.8% (bottom 26% of regulars)",
+      "bar": "Needs elite relief: ~3.16 ERA/xERA with 20%+ K-BB over 50+ IP, or a move into the rotation. Was 1.29 / 2.45, 22.8% K-BB.",
+      "comp": {
+        "playerId": 608331,
+        "name": "Max Fried",
+        "season": 2018,
+        "before": "16.9% K-BB, 4.27 xERA in 33.2 IP",
+        "after": "4.02 ERA, 173 K in 165.2 IP"
+      }
+    },
+    {
+      "rank": 16,
+      "playerId": 801403,
+      "name": "Chase Dollander",
+      "teamId": 115,
+      "role": "SP",
+      "throws": "R",
+      "age": 25,
+      "probability": 0.131,
+      "stats": {
+        "ip": "44",
+        "era": 3.89,
+        "xera": 3.98,
+        "kPct": 24.9,
+        "bbPct": 9.5,
+        "kbbPct": 15.4,
+        "whiffPct": 28.0,
+        "xwoba": 0.307,
+        "fbVelo": 98.6,
+        "fbIvb": 10.3,
+        "k": 47
+      },
+      "drivers": [
+        "Fastball velo 98.6 mph (top 4% of regulars)",
+        "Ground-ball rate 49.6% (top 17% of regulars)",
+        "Strikeout rate 24.9% (top 33% of regulars)"
+      ],
+      "signals": [],
+      "risk": "Fastball ride (IVB) 10.3 in (bottom 28% of regulars)",
+      "bar": "Needs ERA and xERA around 3.56 across 100+ IP (had 44) or 200 K. Was 3.89 ERA / 3.98 xERA.",
+      "comp": {
+        "playerId": 676974,
+        "name": "Max Meyer",
+        "season": 2025,
+        "before": "16.9% K-BB, 4.80 xERA in 64.2 IP",
+        "after": "2.68 ERA, 121 K in 111 IP"
+      }
+    },
+    {
+      "rank": 17,
+      "playerId": 701542,
+      "name": "Will Warren",
+      "teamId": 147,
+      "role": "SP",
+      "throws": "R",
+      "age": 28,
+      "probability": 0.129,
+      "stats": {
+        "ip": "156",
+        "era": 3.92,
+        "xera": 4.35,
+        "kPct": 23.3,
+        "bbPct": 8.0,
+        "kbbPct": 15.3,
+        "whiffPct": 22.7,
+        "xwoba": 0.32,
+        "fbVelo": 93.6,
+        "fbIvb": 11.4,
+        "k": 158
+      },
+      "drivers": [
+        "K-BB% 15.3% (top 38% of regulars)",
+        "Ground-ball rate 45.5% (top 32% of regulars)"
+      ],
+      "signals": [],
+      "risk": "Zone rate 46.2% (bottom 31% of regulars)",
+      "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 3.92 ERA / 4.35 xERA.",
+      "comp": {
+        "playerId": 671737,
+        "name": "Taj Bradley",
+        "season": 2025,
+        "before": "11.7% K-BB, 4.10 xERA in 142.2 IP",
+        "after": "3.73 ERA, 205 K in 178.1 IP"
+      }
+    },
+    {
+      "rank": 18,
+      "playerId": 666171,
+      "name": "Ryan Zeferjahn",
+      "teamId": 112,
+      "role": "RP",
+      "throws": "R",
+      "age": 29,
+      "probability": 0.127,
+      "stats": {
+        "ip": "69.2",
+        "era": 3.88,
+        "xera": 3.1,
+        "kPct": 31.0,
+        "bbPct": 12.9,
+        "kbbPct": 18.1,
+        "whiffPct": 32.0,
+        "xwoba": 0.273,
+        "fbVelo": 97.1,
+        "fbIvb": 13.5,
+        "k": 94
+      },
+      "drivers": [
+        "Strikeout rate 31.0% (top 6% of regulars)",
+        "Whiff rate 32.0% (top 9% of regulars)",
+        "Fastball velo 97.1 mph (top 12% of regulars)"
+      ],
+      "signals": [
+        "Put-away pitch: Sweeper (40% usage) gets 38% whiffs, .246 xwOBA, top 18% for the pitch type",
+        "New weapon: added a sinker in 2026 (16% usage, 13% whiffs)"
+      ],
+      "risk": "Zone rate 44.6% (bottom 14% of regulars)",
+      "bar": "Needs elite relief: ~3.16 ERA/xERA with 20%+ K-BB over 50+ IP, or a move into the rotation. Was 3.88 / 3.10, 18.1% K-BB.",
+      "comp": {
+        "playerId": 642397,
+        "name": "Gregory Soto",
+        "season": 2020,
+        "before": "16.3% K-BB, 3.58 xERA in 23 IP",
+        "after": "3.39 ERA, 76 K in 63.2 IP"
+      }
+    },
+    {
+      "rank": 19,
+      "playerId": 680570,
+      "name": "Grayson Rodriguez",
+      "teamId": 108,
+      "role": "SP",
+      "throws": "R",
+      "age": 27,
+      "probability": 0.126,
+      "stats": {
+        "ip": "98.2",
+        "era": 6.02,
+        "xera": 5.69,
+        "kPct": 19.1,
+        "bbPct": 9.7,
+        "kbbPct": 9.4,
+        "whiffPct": 23.9,
+        "xwoba": 0.36,
+        "fbVelo": 96.1,
+        "fbIvb": 15.4,
+        "k": 85
+      },
+      "drivers": [
+        "Fastball velo 96.1 mph (top 22% of regulars)",
+        "Zone rate 50.2% (top 18% of regulars)",
+        "Fastball ride (IVB) 15.4 in (top 26% of regulars)"
+      ],
+      "signals": [],
+      "risk": "Ground-ball rate 39.8% (bottom 35% of regulars)",
+      "bar": "Needs ERA and xERA around 3.56 across 100+ IP (had 98.2) or 200 K. Was 6.02 ERA / 5.69 xERA.",
+      "comp": {
+        "playerId": 663554,
+        "name": "Casey Mize",
+        "season": 2024,
+        "before": "10.9% K-BB, 4.74 xERA in 102.1 IP",
+        "after": "3.87 ERA, 139 K in 149 IP"
+      }
+    },
+    {
+      "rank": 20,
+      "playerId": 681035,
+      "name": "Christian Scott",
+      "teamId": 121,
+      "role": "SP",
+      "throws": "R",
+      "age": 28,
+      "probability": 0.125,
+      "stats": {
+        "ip": "110",
+        "era": 3.85,
+        "xera": 3.7,
+        "kPct": 28.3,
+        "bbPct": 9.9,
+        "kbbPct": 18.4,
+        "whiffPct": 27.0,
+        "xwoba": 0.297,
+        "fbVelo": 93.8,
+        "fbIvb": 12.8,
+        "k": 134
+      },
+      "drivers": [
+        "Strikeout rate 28.3% (top 15% of regulars)",
+        "Whiff rate 27.0% (top 37% of regulars)",
+        "Barrel rate allowed 6.3% (top 28% of regulars)"
+      ],
+      "signals": [],
+      "risk": "Ground-ball rate 32.7% (bottom 6% of regulars)",
+      "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 3.85 ERA / 3.70 xERA.",
+      "comp": {
+        "playerId": 676710,
+        "name": "Kutter Crawford",
+        "season": 2022,
+        "before": "14.4% K-BB, 4.68 xERA in 77.1 IP",
+        "after": "4.04 ERA, 135 K in 129.1 IP"
+      }
+    },
+    {
+      "rank": 21,
+      "playerId": 695549,
+      "name": "Jackson Jobe",
+      "teamId": 116,
+      "role": "SP",
+      "throws": "R",
+      "age": 24,
+      "probability": 0.124,
+      "stats": {
+        "ip": "46",
+        "era": 3.91,
+        "xera": 3.84,
+        "kPct": 26.4,
+        "bbPct": 8.3,
+        "kbbPct": 18.1,
+        "whiffPct": 25.3,
+        "xwoba": 0.302,
+        "fbVelo": 96.7,
+        "fbIvb": 12.7,
+        "k": 51
+      },
+      "drivers": [
+        "Strikeout rate 26.4% (top 24% of regulars)",
+        "Fastball velo 96.7 mph (top 15% of regulars)",
+        "Ground-ball rate 47.5% (top 23% of regulars)"
+      ],
+      "signals": [],
+      "risk": "Zone rate 45.3% (bottom 21% of regulars)",
+      "bar": "Needs ERA and xERA around 3.56 across 100+ IP (had 46) or 200 K. Was 3.91 ERA / 3.84 xERA.",
+      "comp": {
+        "playerId": 643338,
+        "name": "Chad Green",
+        "season": 2016,
+        "before": "18.7% K-BB, 5.60 xERA in 45.2 IP",
+        "after": "1.83 ERA, 103 K in 69 IP"
+      }
+    },
+    {
+      "rank": 22,
+      "playerId": 676962,
+      "name": "Ben Brown",
+      "teamId": 112,
+      "role": "SP",
+      "throws": "R",
+      "age": 27,
+      "probability": 0.118,
+      "stats": {
+        "ip": "68",
+        "era": 1.85,
+        "xera": 3.25,
+        "kPct": 24.5,
+        "bbPct": 7.2,
+        "kbbPct": 17.3,
+        "whiffPct": 27.3,
+        "xwoba": 0.279,
+        "fbVelo": 96.4,
+        "fbIvb": 14.8,
+        "k": 65
+      },
+      "drivers": [
+        "K-BB% 17.3% (top 26% of regulars)",
+        "Fastball velo 96.4 mph (top 19% of regulars)",
+        "Whiff rate 27.3% (top 34% of regulars)"
+      ],
+      "signals": [
+        "Put-away pitch: Curveball (36% usage) gets 44% whiffs, .222 xwOBA, top 5% for the pitch type",
+        "New weapon: added a sinker in 2026 (21% usage, 13% whiffs)"
+      ],
+      "risk": null,
+      "bar": "Needs ERA and xERA around 3.56 across 100+ IP (had 68) or 200 K. Was 1.85 ERA / 3.25 xERA.",
+      "comp": {
+        "playerId": 628452,
+        "name": "Raisel Iglesias",
+        "season": 2016,
+        "before": "17.5% K-BB, 3.02 xERA in 78.1 IP",
+        "after": "2.49 ERA, 92 K in 76 IP"
+      }
+    },
+    {
+      "rank": 23,
+      "playerId": 663687,
+      "name": "Hogan Harris",
+      "teamId": 133,
+      "role": "RP",
+      "throws": "L",
+      "age": 30,
+      "probability": 0.116,
+      "stats": {
+        "ip": "70.1",
+        "era": 3.33,
+        "xera": 3.73,
+        "kPct": 28.3,
+        "bbPct": 13.5,
+        "kbbPct": 14.8,
+        "whiffPct": 25.3,
+        "xwoba": 0.298,
+        "fbVelo": 95.2,
+        "fbIvb": 17.8,
+        "k": 88
+      },
+      "drivers": [
+        "Strikeout rate 28.3% (top 15% of regulars)",
+        "Fastball ride (IVB) 17.8 in (top 6% of regulars)",
+        "Ground-ball rate 48.6% (top 19% of regulars)"
+      ],
+      "signals": [],
+      "risk": "One-inning relief role caps his innings and visibility",
+      "bar": "Needs elite relief: ~3.16 ERA/xERA with 20%+ K-BB over 50+ IP, or a move into the rotation. Was 3.33 / 3.73, 14.8% K-BB.",
+      "comp": {
+        "playerId": 548389,
+        "name": "Ross Stripling",
+        "season": 2017,
+        "before": "18.0% K-BB, 3.32 xERA in 74.1 IP",
+        "after": "3.02 ERA, 136 K in 122 IP"
+      }
+    },
+    {
+      "rank": 24,
+      "playerId": 673380,
+      "name": "Dedniel N\u00fa\u00f1ez",
+      "teamId": 121,
+      "role": "RP",
+      "throws": "R",
+      "age": 31,
+      "probability": 0.115,
+      "stats": {
+        "ip": "19",
+        "era": 3.32,
+        "xera": 3.6,
+        "kPct": 27.8,
+        "bbPct": 0.0,
+        "kbbPct": 27.8,
+        "whiffPct": 36.6,
+        "xwoba": 0.293,
+        "fbVelo": 96.6,
+        "fbIvb": 15.6,
+        "k": 20
+      },
+      "drivers": [
+        "K-BB% 27.8% (top 1% of regulars)",
+        "Whiff rate 36.6% (top 1% of regulars)",
+        "Chase rate induced 49.1% (top 1% of regulars)"
+      ],
+      "signals": [
+        "Put-away pitch: Slider (45% usage) gets 59% whiffs, .236 xwOBA, top 1% for the pitch type"
+      ],
+      "risk": "Age 31 in 2027: only 4% of eligible pitchers 28+ broke out",
+      "bar": "Needs elite relief: ~3.16 ERA/xERA with 20%+ K-BB over 50+ IP, or a move into the rotation. Was 3.32 / 3.60, 27.8% K-BB.",
+      "comp": {
+        "playerId": 687396,
+        "name": "Brent Headrick",
+        "season": 2025,
+        "before": "25.0% K-BB, 3.12 xERA in 23 IP",
+        "after": "2.18 ERA, 98 K in 78.1 IP"
+      }
+    },
+    {
+      "rank": 25,
+      "playerId": 669165,
+      "name": "Kyle Hurt",
+      "teamId": 119,
+      "role": "RP",
+      "throws": "R",
+      "age": 29,
+      "probability": 0.114,
+      "stats": {
+        "ip": "45.2",
+        "era": 4.14,
+        "xera": 3.76,
+        "kPct": 29.3,
+        "bbPct": 11.6,
+        "kbbPct": 17.7,
+        "whiffPct": 34.6,
+        "xwoba": 0.299,
+        "fbVelo": 96.6,
+        "fbIvb": 16.5,
+        "k": 58
+      },
+      "drivers": [
+        "Whiff rate 34.6% (top 3% of regulars)",
+        "Strikeout rate 29.3% (top 12% of regulars)",
+        "Fastball velo 96.6 mph (top 17% of regulars)"
+      ],
+      "signals": [
+        "Put-away pitch: Changeup (35% usage) gets 38% whiffs, .309 xwOBA, top 19% for the pitch type"
+      ],
+      "risk": "One-inning relief role caps his innings and visibility",
+      "bar": "Needs elite relief: ~3.16 ERA/xERA with 20%+ K-BB over 50+ IP, or a move into the rotation. Was 4.14 / 3.76, 17.7% K-BB.",
+      "comp": {
+        "playerId": 682254,
+        "name": "Mason Montgomery",
+        "season": 2025,
+        "before": "17.2% K-BB, 4.58 xERA in 46 IP",
+        "after": "2.88 ERA, 105 K in 68.2 IP"
+      }
+    },
+    {
+      "rank": 26,
+      "playerId": 676263,
+      "name": "Jack Dreyer",
+      "teamId": 119,
+      "role": "RP",
+      "throws": "L",
+      "age": 28,
+      "probability": 0.113,
+      "stats": {
+        "ip": "64.2",
+        "era": 3.2,
+        "xera": 3.52,
+        "kPct": 28.0,
+        "bbPct": 8.8,
+        "kbbPct": 19.2,
+        "whiffPct": 28.0,
+        "xwoba": 0.29,
+        "fbVelo": 94.0,
+        "fbIvb": 19.5,
+        "k": 73
+      },
+      "drivers": [
+        "Strikeout rate 28.0% (top 17% of regulars)",
+        "Fastball ride (IVB) 19.5 in (top 1% of regulars)",
+        "Whiff rate 28.0% (top 28% of regulars)"
+      ],
+      "signals": [],
+      "risk": "One-inning relief role caps his innings and visibility",
+      "bar": "Needs elite relief: ~3.16 ERA/xERA with 20%+ K-BB over 50+ IP, or a move into the rotation. Was 3.20 / 3.52, 19.2% K-BB.",
+      "comp": {
+        "playerId": 548389,
+        "name": "Ross Stripling",
+        "season": 2017,
+        "before": "18.0% K-BB, 3.32 xERA in 74.1 IP",
+        "after": "3.02 ERA, 136 K in 122 IP"
+      }
+    },
+    {
+      "rank": 27,
+      "playerId": 676106,
+      "name": "Emerson Hancock",
+      "teamId": 136,
+      "role": "SP",
+      "throws": "R",
+      "age": 28,
+      "probability": 0.111,
+      "stats": {
+        "ip": "138.2",
+        "era": 3.57,
+        "xera": 4.01,
+        "kPct": 22.3,
+        "bbPct": 5.7,
+        "kbbPct": 16.6,
+        "whiffPct": 23.7,
+        "xwoba": 0.308,
+        "fbVelo": 93.7,
+        "fbIvb": 5.4,
+        "k": 126
+      },
+      "drivers": [
+        "K-BB% 16.6% (top 30% of regulars)",
+        "Zone rate 51.6% (top 8% of regulars)"
+      ],
+      "signals": [
+        "Put-away pitch: Sweeper (16% usage) gets 37% whiffs, .163 xwOBA, top 21% for the pitch type",
+        "New weapon: added a cutter in 2026 (12% usage, 34% whiffs)"
+      ],
+      "risk": "Fastball ride (IVB) 5.4 in (bottom 6% of regulars)",
+      "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 3.57 ERA / 4.01 xERA.",
+      "comp": {
+        "playerId": 622491,
+        "name": "Luis Castillo",
+        "season": 2018,
+        "before": "16.4% K-BB, 4.30 xERA in 169.2 IP",
+        "after": "3.40 ERA, 226 K in 190.2 IP"
+      }
+    },
+    {
+      "rank": 28,
+      "playerId": 665152,
+      "name": "Dean Kremer",
+      "teamId": 142,
+      "role": "SP",
+      "throws": "R",
+      "age": 31,
+      "probability": 0.111,
+      "stats": {
+        "ip": "90.1",
+        "era": 4.68,
+        "xera": 4.15,
+        "kPct": 23.6,
+        "bbPct": 8.0,
+        "kbbPct": 15.6,
+        "whiffPct": 28.4,
+        "xwoba": 0.313,
+        "fbVelo": 92.3,
+        "fbIvb": 16.2,
+        "k": 86
+      },
+      "drivers": [
+        "Whiff rate 28.4% (top 25% of regulars)",
+        "K-BB% 15.6% (top 35% of regulars)",
+        "Fastball ride (IVB) 16.2 in (top 16% of regulars)"
+      ],
+      "signals": [],
+      "risk": "Age 31 in 2027: only 4% of eligible pitchers 28+ broke out",
+      "bar": "Needs ERA and xERA around 3.56 across 100+ IP (had 90.1) or 200 K. Was 4.68 ERA / 4.15 xERA.",
+      "comp": {
+        "playerId": 593958,
+        "name": "Eduardo Rodriguez",
+        "season": 2018,
+        "before": "18.3% K-BB, 3.76 xERA in 129.2 IP",
+        "after": "3.81 ERA, 213 K in 203.1 IP"
+      }
+    },
+    {
+      "rank": 29,
+      "playerId": 702056,
+      "name": "Trey Yesavage",
+      "teamId": 141,
+      "role": "SP",
+      "throws": "R",
+      "age": 23,
+      "probability": 0.109,
+      "stats": {
+        "ip": "97.2",
+        "era": 3.69,
+        "xera": 3.37,
+        "kPct": 24.2,
+        "bbPct": 11.7,
+        "kbbPct": 12.5,
+        "whiffPct": 30.2,
+        "xwoba": 0.284,
+        "fbVelo": 94.2,
+        "fbIvb": 19.4,
+        "k": 97
+      },
+      "drivers": [
+        "Whiff rate 30.2% (top 16% of regulars)",
+        "Fastball ride (IVB) 19.4 in (top 2% of regulars)",
+        "Strikeout rate 24.2% (top 38% of regulars)"
+      ],
+      "signals": [
+        "Put-away pitch: Slider (24% usage) gets 39% whiffs, .256 xwOBA, top 24% for the pitch type"
+      ],
+      "risk": "Zone rate 43.9% (bottom 9% of regulars)",
+      "bar": "Needs ERA and xERA around 3.56 across 100+ IP (had 97.2) or 200 K. Was 3.69 ERA / 3.37 xERA.",
+      "comp": {
+        "playerId": 680686,
+        "name": "Josiah Gray",
+        "season": 2022,
+        "before": "13.5% K-BB, 4.31 xERA in 148.2 IP",
+        "after": "3.91 ERA, 143 K in 159 IP"
+      }
+    },
+    {
+      "rank": 30,
+      "playerId": 807739,
+      "name": "Kade Anderson",
+      "teamId": 136,
+      "role": "SP",
+      "throws": "L",
+      "age": 22,
+      "probability": 0.109,
+      "stats": {
+        "ip": "35.2",
+        "era": 3.79,
+        "xera": 3.89,
+        "kPct": 21.9,
+        "bbPct": 6.2,
+        "kbbPct": 15.7,
+        "whiffPct": 24.4,
+        "xwoba": 0.304,
+        "fbVelo": 93.5,
+        "fbIvb": 15.8,
+        "k": 32
+      },
+      "drivers": [
+        "Zone rate 52.5% (top 5% of regulars)",
+        "K-BB% 15.7% (top 34% of regulars)",
+        "Fastball ride (IVB) 15.8 in (top 21% of regulars)"
+      ],
+      "signals": [],
+      "risk": "Only 35.2 IP in 2026: needs a bigger role to get there",
+      "bar": "Needs ERA and xERA around 3.56 across 100+ IP (had 35.2) or 200 K. Was 3.79 ERA / 3.89 xERA.",
+      "comp": {
+        "playerId": 800048,
+        "name": "Parker Messick",
+        "season": 2025,
+        "before": "19.4% K-BB, 3.07 xERA in 39.2 IP",
+        "after": "2.56 ERA, 193 K in 186.1 IP"
+      }
+    }
+  ]
+}
