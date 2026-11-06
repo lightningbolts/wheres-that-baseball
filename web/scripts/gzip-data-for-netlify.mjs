@@ -18,8 +18,9 @@ function shouldSkip(absPath) {
   // Per-game rebuild cache — not in git, but skip if present locally.
   if (rel[0] === "nerd-stats" && rel.includes("games")) return true;
   // Statically imported by the app (`@/data/ballparks/index.json`,
-  // `@/data/breakouts/<season>.json`) — must stay plain JSON.
-  if (rel[0] === "ballparks" || rel[0] === "breakouts") return true;
+  // `@/data/breakouts/<season>.json`, `@/data/newstats/respect-<season>.json`)
+  // — must stay plain JSON.
+  if (rel[0] === "ballparks" || rel[0] === "breakouts" || rel[0] === "newstats") return true;
   return false;
 }
 
