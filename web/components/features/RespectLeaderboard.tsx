@@ -20,7 +20,34 @@ const SORTS: { key: RespectSortKey; label: string }[] = [
   { key: "pa", label: "PA" },
 ];
 
-function RespectBar({ value }: { value: number }) {
+export function StatTabs({ active }: { active: "hitters" | "pitchers" }) {
+  const tabs = [
+    { key: "hitters", href: "/respect", label: "Hitters · Respect+" },
+    { key: "pitchers", href: "/respect/pitchers", label: "Pitchers · Attack+" },
+  ] as const;
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      <span className="mr-2 text-xs font-medium uppercase tracking-wide text-subtle">New stat</span>
+      {tabs.map((t) => (
+        <Link
+          key={t.key}
+          href={t.href}
+          aria-current={active === t.key ? "page" : undefined}
+          className={cn(
+            "rounded-md border px-2.5 py-1 text-xs transition-colors",
+            active === t.key
+              ? "border-border-strong bg-surface-elevated text-foreground"
+              : "border-border text-secondary hover:bg-hover hover:text-foreground",
+          )}
+        >
+          {t.label}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+export function RespectBar({ value }: { value: number }) {
   // Diverging bar centered at 100, clamped to 55–145.
   const offset = Math.max(-45, Math.min(45, value - 100));
   const pct = (Math.abs(offset) / 45) * 50;
@@ -35,7 +62,7 @@ function RespectBar({ value }: { value: number }) {
   );
 }
 
-function SummaryTile({ label, value, note }: { label: string; value: string; note: string }) {
+export function SummaryTile({ label, value, note }: { label: string; value: string; note: string }) {
   return (
     <div className="flex flex-col gap-0.5 rounded-lg border border-border bg-surface px-3 py-2.5">
       <span className="text-[10px] uppercase tracking-wide text-subtle">{label}</span>
@@ -45,7 +72,7 @@ function SummaryTile({ label, value, note }: { label: string; value: string; not
   );
 }
 
-function PpCell({ value }: { value: number | null }) {
+export function PpCell({ value }: { value: number | null }) {
   return (
     <td
       className={cn(
@@ -132,7 +159,7 @@ export function RespectLeaderboard({ report }: { report: RespectReport }) {
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <AppNav />
       <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-3 py-6 sm:px-4 sm:py-8">
-        <p className="text-xs font-medium uppercase tracking-wide text-subtle">New stat</p>
+        <StatTabs active="hitters" />
         <h1 className="mt-1 font-serif text-2xl font-medium tracking-tight text-foreground sm:text-3xl">
           Respect+ · {report.season}
         </h1>
@@ -153,7 +180,7 @@ export function RespectLeaderboard({ report }: { report: RespectReport }) {
           <SummaryTile
             label="Year to year"
             value={yoy?.r != null ? yoy.r.toFixed(2) : "—"}
-            note={yoy ? `${yoy.season} → ${report.season}, ${yoy.batters} hitters (small ${yoy.season} sample)` : "No prior season"}
+            note={yoy ? `${yoy.season} → ${report.season}, ${yoy.batters} hitters` : "No prior season"}
           />
           <SummaryTile
             label="Correlation with wOBA"

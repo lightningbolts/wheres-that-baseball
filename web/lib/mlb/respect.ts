@@ -46,3 +46,43 @@ export function respectGrade(percentile: number): string {
   if (percentile >= 10) return "Challenged";
   return "Attacked";
 }
+
+/** Shape of `data/newstats/attack-<season>.json`, written by `ml-engine/newstats/export_attack.py`. */
+export interface AttackPlayer {
+  rank: number;
+  playerId: number;
+  name: string;
+  teamId: number | null;
+  pitches: number;
+  bf: number;
+  /** How often he challenges hitters vs. expectation, scaled so 100 = average, SD 15. */
+  attackPlus: number;
+  percentile: number;
+  /** Percentage points more pitches in the zone / heart of the zone than expected. */
+  zoneAttackPp: number | null;
+  heartAttackPp: number | null;
+  zonePct: number | null;
+  fbPct: number | null;
+  kPct: number | null;
+  bbPct: number | null;
+}
+
+export interface AttackReport {
+  season: number;
+  generatedAt: string;
+  minPitches: number;
+  reliability: { zone_attack: number; heart_attack: number; attack: number; pitch_around: number };
+  yearOverYear: { season: number; pitchers: number; r: number | null } | null;
+  validity: Record<string, number>;
+  players: AttackPlayer[];
+}
+
+export type AttackSortKey = "attackPlus" | "zoneAttackPp" | "heartAttackPp" | "zonePct" | "bbPct" | "kPct" | "pitches";
+
+export function attackGrade(percentile: number): string {
+  if (percentile >= 90) return "Fearless";
+  if (percentile >= 70) return "Aggressive";
+  if (percentile >= 30) return "Balanced";
+  if (percentile >= 10) return "Careful";
+  return "Nibbler";
+}

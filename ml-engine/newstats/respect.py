@@ -50,17 +50,24 @@ def prep(df: pd.DataFrame) -> pd.DataFrame:
     return d
 
 
-def fixed_effects(d: pd.DataFrame, y: str, iters: int = 10) -> tuple[pd.Series, pd.Series]:
-    """Return (residual without batter effect, batter effect) for target y."""
-    keys = ["k_count", "k_state", "k_game", "k_park", "k_pitcher"]
+CONTEXT_KEYS = ["k_count", "k_state", "k_game", "k_park"]
+
+
+def fixed_effects(d: pd.DataFrame, y: str, iters: int = 10, target: str = "batter",
+                  keys: list[str] | None = None) -> tuple[pd.Series, pd.Series]:
+    """Return (residual without the target's effect, target effect) for outcome y.
+
+    Default: batter is the target and the pitcher (x batter hand) is a nuisance key.
+    """
+    keys = keys if keys is not None else CONTEXT_KEYS + ["k_pitcher"]
     r = d[y] - d[y].mean()
-    eff = {k: pd.Series(0.0, index=d.index) for k in keys + ["batter"]}
+    eff = {k: pd.Series(0.0, index=d.index) for k in keys + [target]}
     for _ in range(iters):
-        for k in keys + ["batter"]:
+        for k in keys + [target]:
             others = sum(v for kk, v in eff.items() if kk != k)
             eff[k] = (r - others).groupby(d[k]).transform("mean")
-    resid_no_batter = r - sum(v for kk, v in eff.items() if kk != "batter")
-    return resid_no_batter, eff["batter"]
+    resid_no_target = r - sum(v for kk, v in eff.items() if kk != target)
+    return resid_no_target, eff[target]
 
 
 def batter_quality(df: pd.DataFrame) -> pd.DataFrame:
