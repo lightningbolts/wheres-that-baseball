@@ -56,7 +56,8 @@ from prospect_model import (  # noqa: E402
     prospect_frame,
     prospect_profile,
 )
-from savant import fetch_arsenal, fetch_bat_tracking, fetch_oaa, fetch_season  # noqa: E402
+from context import add_wrc_plus, il_summary  # noqa: E402
+from savant import fetch_arsenal, fetch_bat_tracking, fetch_fip_inputs, fetch_oaa, fetch_season  # noqa: E402
 
 FIRST_SEASON = 2015
 LAST_SEASON = 2026
@@ -126,6 +127,9 @@ def load_hitters() -> pd.DataFrame:
         df["lg_woba"] = lg
         df["woba_plus"] = df["woba"] - lg
         df["xwoba_plus"] = df["xwoba"] - lg_x
+        df["wrc_plus"] = add_wrc_plus(df, year, lg, refresh)
+        df = df.merge(il_summary(year, refresh), on=["player_id", "year"], how="left")
+        df["il_days"] = df["il_days"].fillna(0)
         df["pa_162"] = df["pa"] * scale(year)
         df["hr_162"] = df["home_run"] * scale(year)
         if year >= 2016:
@@ -162,7 +166,7 @@ def load_hitters() -> pd.DataFrame:
 
 
 HIT_FEATURES = [
-    "player_age", "pa_162", "career_pa", "xwoba_plus", "woba_plus", "avg_best_speed",
+    "player_age", "pa_162", "career_pa", "xwoba_plus", "wrc_plus", "avg_best_speed",
     "barrel_batted_rate", "k_percent", "bb_percent", "oz_swing_percent", "whiff_percent",
     "sweet_spot_percent", "pa_162_prev", "xwoba_plus_prev", "sprint_speed",
 ]
@@ -171,7 +175,7 @@ HIT_FEATURES = [
 def hitter_features(all_h: pd.DataFrame) -> pd.DataFrame:
     cur = all_h.copy()
     prev = all_h[["player_id", "year", "pa_162", "woba_plus", "xwoba_plus", "xwoba",
-                  "avg_best_speed", "k_percent"]].copy()
+                  "avg_best_speed", "k_percent", "wrc_plus", "il_days"]].copy()
     prev["year"] += 1
     cur = cur.merge(prev, on=["player_id", "year"], how="left", suffixes=("", "_prev"))
     cur["xwoba_gap"] = cur["xwoba"] - cur["woba"]
@@ -198,6 +202,24 @@ def hitter_pairs(feat: pd.DataFrame, all_h: pd.DataFrame) -> pd.DataFrame:
 # ---------------------------------------------------------------- pitchers
 
 
+def fip_frame(year: int, *, refresh: bool = False) -> pd.DataFrame:
+    """FIP and xFIP on the ERA scale, with that season's league constant and HR/FB rate."""
+    f = fetch_fip_inputs(year, refresh=refresh)
+    ip = f["f_p_out"] / 3
+    fb = f["f_flyballs"].fillna(0) + f["f_popups"].fillna(0)
+    bb = f["f_walk"].fillna(0) + f["f_p_hit_by_pitch"].fillna(0)
+    k, hr = f["f_strikeout"].fillna(0), f["f_home_run"].fillna(0)
+    lg_era = 9 * f["f_p_earned_run"].sum() / ip.sum()
+    const = lg_era - (13 * hr.sum() + 3 * bb.sum() - 2 * k.sum()) / ip.sum()
+    lg_hrfb = hr.sum() / fb.sum()
+    ipn = ip.where(ip > 0)
+    f["fip"] = (13 * hr + 3 * bb - 2 * k) / ipn + const
+    f["xfip"] = (13 * fb * lg_hrfb + 3 * bb - 2 * k) / ipn + const
+    f["hr_fb"] = hr / fb.where(fb > 0)
+    f["lg_hr_fb"] = lg_hrfb
+    return f[["player_id", "year", "fip", "xfip", "hr_fb", "lg_hr_fb"]]
+
+
 def load_pitchers() -> pd.DataFrame:
     frames = []
     for year in range(FIRST_SEASON, LAST_SEASON + 1):
@@ -209,6 +231,11 @@ def load_pitchers() -> pd.DataFrame:
         df["era_minus_lg"] = df["p_era"] - lg_era
         df["xera_minus_lg"] = df["xera"] - lg_xera
         df["runs_vs_lg"] = (df["era_minus_lg"] + df["xera_minus_lg"]) / 2
+        df = df.merge(fip_frame(year, refresh=ARGS.refresh and year == LAST_SEASON), on=["player_id", "year"], how="left")
+        df = df.merge(il_summary(year, ARGS.refresh and year == LAST_SEASON), on=["player_id", "year"], how="left")
+        df["il_days"] = df["il_days"].fillna(0)
+        df["fip_minus_lg"] = df["fip"] - lg_era
+        df["xfip_minus_lg"] = df["xfip"] - lg_era
         df["ip_162"] = df["ip"] * scale(year)
         df["k_162"] = df["strikeout"] * scale(year)
         df["sv_162"] = df["p_save"].fillna(0) * scale(year)
@@ -249,16 +276,17 @@ PIT_FEATURES = [
     "player_age", "ip_162", "career_ip", "ip_per_g", "kbb", "k_percent", "bb_percent",
     "whiff_percent", "xwoba", "xera_minus_lg", "era_minus_lg", "fastball_avg_speed",
     "fastball_avg_break_z_induced", "groundballs_percent", "oz_swing_percent", "ip_162_prev",
-    "kbb_prev", "d_velo", "barrel_batted_rate", "in_zone_percent",
+    "kbb_prev", "d_velo", "barrel_batted_rate", "in_zone_percent", "fip_minus_lg", "xfip_minus_lg",
 ]
 
 
 def pitcher_features(all_p: pd.DataFrame) -> pd.DataFrame:
     cur = all_p.copy()
-    prev = all_p[["player_id", "year", "ip_162", "kbb", "whiff_percent", "fastball_avg_speed"]].copy()
+    prev = all_p[["player_id", "year", "ip_162", "kbb", "whiff_percent", "fastball_avg_speed", "il_days"]].copy()
     prev["year"] += 1
     cur = cur.merge(prev, on=["player_id", "year"], how="left", suffixes=("", "_prev"))
     cur["era_xera_gap"] = cur["p_era"] - cur["xera"]
+    cur["neg_xfip"] = -cur["xfip_minus_lg"]
     cur["d_velo"] = cur["fastball_avg_speed"] - cur["fastball_avg_speed_prev"]
     cur["d_kbb"] = cur["kbb"] - cur["kbb_prev"]
     cur = cur.sort_values(["player_id", "year"])
@@ -353,6 +381,10 @@ def backtest(pairs: pd.DataFrame, features: list[str], baselines: dict[str, str]
 # ---------------------------------------------------------------- explanation helpers
 
 
+def none_or2(x: float) -> float | None:
+    return None if pd.isna(x) else round(float(x), 2)
+
+
 def fmt_ip(ip: float) -> str:
     """Decimal innings -> baseball notation (184.333 -> "184.1")."""
     outs = int(round(float(ip) * 3))
@@ -381,6 +413,7 @@ def pct_rank(series: pd.Series, value: float) -> float:
 HIT_TEXT = {
     "xwoba_plus": ("xwOBA", lambda r: rate3(r["xwoba"]), True),
     "woba_plus": ("wOBA", lambda r: rate3(r["woba"]), True),
+    "wrc_plus": ("wRC+", lambda r: f"{r['wrc_plus']:.0f}", True),
     "avg_best_speed": ("EV50 (avg of hardest-hit half)", lambda r: f"{r['avg_best_speed']:.1f} mph", True),
     "barrel_batted_rate": ("barrel rate", lambda r: f"{r['barrel_batted_rate']:.1f}%", True),
     "k_percent": ("strikeout rate", lambda r: f"{r['k_percent']:.1f}%", False),
@@ -398,6 +431,8 @@ PIT_TEXT = {
     "xwoba": ("xwOBA allowed", lambda r: rate3(r["xwoba"]), False),
     "xera_minus_lg": ("xERA", lambda r: f"{r['xera']:.2f}", False),
     "era_minus_lg": ("ERA", lambda r: f"{r['p_era']:.2f}", False),
+    "fip_minus_lg": ("FIP", lambda r: f"{r['fip']:.2f}", False),
+    "xfip_minus_lg": ("xFIP", lambda r: f"{r['xfip']:.2f}", False),
     "fastball_avg_speed": ("fastball velo", lambda r: f"{r['fastball_avg_speed']:.1f} mph", True),
     "fastball_avg_break_z_induced": ("fastball ride (IVB)", lambda r: f"{r['fastball_avg_break_z_induced']:.1f} in", True),
     "groundballs_percent": ("ground-ball rate", lambda r: f"{r['groundballs_percent']:.1f}%", True),
@@ -408,10 +443,11 @@ PIT_TEXT = {
 
 
 def cap(text: str) -> str:
-    return text if text.startswith(("xw", "wOBA", "xERA")) or text[:2].isupper() else text[:1].upper() + text[1:]
+    return text if text.startswith(("xw", "wOBA", "wRC", "xERA", "xFIP")) or text[:2].isupper() else text[:1].upper() + text[1:]
 
 
-SKILL_STAT_COL = {"xwoba_plus": "xwoba", "woba_plus": "woba", "xera_minus_lg": "xera", "era_minus_lg": "p_era"}
+SKILL_STAT_COL = {"xwoba_plus": "xwoba", "woba_plus": "woba", "xera_minus_lg": "xera", "era_minus_lg": "p_era",
+                  "fip_minus_lg": "fip", "xfip_minus_lg": "xfip"}
 
 
 def skill_sentence(feature: str, r: pd.Series, ref: pd.DataFrame, kind: str) -> tuple[str, float] | None:
@@ -423,9 +459,23 @@ def skill_sentence(feature: str, r: pd.Series, ref: pd.DataFrame, kind: str) -> 
     col = SKILL_STAT_COL.get(feature, feature)
     if pd.isna(r.get(col)):
         return None
+    if feature == "sprint_speed" and r[col] < SPEED_PLAYER:
+        return None  # foot speed isn't part of a slugger's game; don't cite it either way
     pr = pct_rank(ref[col], r[col])
     good = pr if higher_better else 1 - pr
     return f"{cap(label)} {fmt(r)} ({standing(good)} of regulars)", good
+
+
+def il_signal(r: pd.Series, season: int) -> str | None:
+    """'Missed 53 days on the IL in 2026 (right calf strain; left calf strain)' for 15+ IL days."""
+    d = r.get("il_days")
+    if pd.isna(d) or d < 15:
+        return None
+    what = r.get("il_what")
+    what = f" ({what})" if isinstance(what, str) and what else ""
+    stints = int(r.get("il_stints") or 1)
+    times = f" over {stints} stints" if stints > 1 else ""
+    return f"Missed {int(d)} days on the IL in {season}{times}{what}"
 
 
 # Historical breakout rate by next-season age bucket, filled in by build_side().
@@ -487,7 +537,7 @@ def explain(model: Pipeline, features: list[str], row: pd.Series, ref: pd.DataFr
         if contrib[idx] <= 0.03:
             break
         f = features[idx]
-        group = "xwoba" if f in ("xwoba_plus", "woba_plus") else ("k" if f in ("k_percent", "kbb") else f)
+        group = "xwoba" if f in ("xwoba_plus", "woba_plus", "wrc_plus") else ("k" if f in ("k_percent", "kbb") else f)
         if group in used:
             continue
         sk = skill_sentence(f, row, ref, kind)
@@ -702,6 +752,8 @@ def recent_breakouts(feat: pd.DataFrame, half_excluded: list, people: dict, limi
 # ---------------------------------------------------------------- prospects
 
 PROSPECT_TOP_N = 25
+# Sprint speed (ft/s) at which speed is a real part of a hitter's game; MLB average is about 27.
+SPEED_PLAYER = 27.5
 
 
 def build_prospects(kind: str, all_df: pd.DataFrame, feat: pd.DataFrame):
@@ -798,7 +850,7 @@ def main() -> None:
     bt_h, model_h, hist_h, top_h, half_h = build_side(
         "hitter", all_h, feat_h, pairs_h, HIT_FEATURES, {"xwobaGap": "xwoba_gap", "xwoba": "xwoba_plus"})
     bt_p, model_p, hist_p, top_p, half_p = build_side(
-        "pitcher", all_p, feat_p, pairs_p, PIT_FEATURES, {"eraMinusXera": "era_xera_gap", "kbb": "kbb"})
+        "pitcher", all_p, feat_p, pairs_p, PIT_FEATURES, {"eraMinusXera": "era_xera_gap", "kbb": "kbb", "xfip": "neg_xfip"})
 
     pbt_h, pmodel_h, phist_h, pros_h = build_prospects("hitter", all_h, feat_h)
     pbt_p, pmodel_p, phist_p, pros_p = build_prospects("pitcher", all_p, feat_p)
@@ -833,11 +885,12 @@ def main() -> None:
             "probability": round(float(r["prob"]), 3),
             "stats": {
                 "pa": int(r["pa"]), "woba": fmt3(r["woba"]), "xwoba": fmt3(r["xwoba"]),
+                "wrcPlus": int(round(r["wrc_plus"])) if pd.notna(r["wrc_plus"]) else None,
                 "barrelPct": fmt1(r["barrel_batted_rate"]), "ev50": fmt1(r["avg_best_speed"]),
                 "kPct": fmt1(r["k_percent"]), "bbPct": fmt1(r["bb_percent"]),
                 "chasePct": fmt1(r["oz_swing_percent"]), "hr": int(r["home_run"]),
             },
-            "drivers": drivers, "signals": hitter_signals(r, bat, LAST_SEASON), "risk": risk,
+            "drivers": drivers, "signals": [*hitter_signals(r, bat, LAST_SEASON), *filter(None, [il_signal(r, LAST_SEASON)])], "risk": risk,
             "bar": hitter_bar(r, lg_woba), "comp": comp_payload(comps_h[int(r["player_id"])], "hitter", people),
         })
 
@@ -852,12 +905,13 @@ def main() -> None:
             "probability": round(float(r["prob"]), 3),
             "stats": {
                 "ip": fmt_ip(r["ip"]), "era": round(float(r["p_era"]), 2), "xera": round(float(r["xera"]), 2),
+                "fip": none_or2(r["fip"]), "xfip": none_or2(r["xfip"]),
                 "kPct": fmt1(r["k_percent"]), "bbPct": fmt1(r["bb_percent"]), "kbbPct": fmt1(r["kbb"]),
                 "whiffPct": fmt1(r["whiff_percent"]), "xwoba": fmt3(r["xwoba"]),
                 "fbVelo": fmt1(r["fastball_avg_speed"]), "fbIvb": fmt1(r["fastball_avg_break_z_induced"]),
                 "k": int(r["strikeout"]),
             },
-            "drivers": drivers, "signals": pitcher_signals(r, ars, ars_prev, LAST_SEASON), "risk": risk,
+            "drivers": drivers, "signals": [*pitcher_signals(r, ars, ars_prev, LAST_SEASON), *filter(None, [il_signal(r, LAST_SEASON)])], "risk": risk,
             "bar": pitcher_bar(r, lg_era), "comp": comp_payload(comps_p[int(r["player_id"])], "pitcher", people),
         })
 

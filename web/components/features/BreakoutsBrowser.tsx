@@ -192,6 +192,7 @@ function hitterChips(h: BreakoutHitter) {
     { label: "PA", value: String(h.stats.pa) },
     { label: "wOBA", value: formatRate3(h.stats.woba) },
     { label: "xwOBA", value: formatRate3(h.stats.xwoba) },
+    { label: "wRC+", value: h.stats.wrcPlus == null ? "—" : String(Math.round(h.stats.wrcPlus)) },
     { label: "HR", value: h.stats.hr == null ? "—" : String(h.stats.hr) },
     { label: "Barrel", value: fmt1(h.stats.barrelPct, "%") },
     { label: "EV50", value: fmt1(h.stats.ev50) },
@@ -206,6 +207,7 @@ function pitcherChips(p: BreakoutPitcher) {
     { label: "IP", value: p.stats.ip },
     { label: "ERA", value: p.stats.era == null ? "—" : p.stats.era.toFixed(2) },
     { label: "xERA", value: p.stats.xera == null ? "—" : p.stats.xera.toFixed(2) },
+    { label: "xFIP", value: p.stats.xfip == null ? "—" : p.stats.xfip.toFixed(2) },
     { label: "K", value: p.stats.k == null ? "—" : String(p.stats.k) },
     { label: "K-BB%", value: fmt1(p.stats.kbbPct, "%") },
     { label: "Whiff", value: fmt1(p.stats.whiffPct, "%") },
@@ -429,6 +431,7 @@ function turnHitterChips(h: TurnaroundHitter, view: TurnaroundKind, season: numb
     { label: "PA", value: String(s.pa) },
     { label: "wOBA", value: formatRate3(s.woba) },
     { label: "xwOBA", value: formatRate3(s.xwoba) },
+    { label: "wRC+", value: s.wrcPlus == null ? "—" : String(Math.round(s.wrcPlus)) },
   ];
   if (view === "bounceback") chips.push({ label: `${baseYears(season)} wOBA`, value: formatRate3(s.baseWoba) });
   chips.push({ label: "BABIP", value: formatRate3(s.babip) });
@@ -453,6 +456,8 @@ function turnPitcherChips(p: TurnaroundPitcher, view: TurnaroundKind, season: nu
     { label: "IP", value: s.ip },
     { label: "ERA", value: s.era == null ? "—" : s.era.toFixed(2) },
     { label: "xERA", value: s.xera == null ? "—" : s.xera.toFixed(2) },
+    { label: "FIP", value: s.fip == null ? "—" : s.fip.toFixed(2) },
+    { label: "xFIP", value: s.xfip == null ? "—" : s.xfip.toFixed(2) },
   ];
   if (view === "bounceback") {
     chips.push({ label: `${baseYears(season)} ERA`, value: s.baseEra == null ? "—" : s.baseEra.toFixed(2) });
@@ -545,7 +550,7 @@ export function BreakoutsBrowser({
 
   const intro: Record<BreakoutView, string> = {
     breakouts: `Who is most likely to have their first real breakout season in ${nextSeason}? These lists come from a model trained on every Statcast season since 2015. Each probability is the model's estimate that the player clears the breakout bar next year, playing time included. Prospects who haven't had a real MLB look yet get a separate model built on Pipeline rankings and minor-league stats.`,
-    regression: `Who is most likely to give back a big chunk of their ${lastSeason} production in ${nextSeason}? The model learned from every strong Statcast-era season which ones held up and which didn't: luck gaps (wOBA vs. xwOBA, ERA vs. xERA, BABIP, HR rate), how far the year ran ahead of the player's own track record, the quality of contact and stuff behind it, and age. Each probability assumes he keeps playing.`,
+    regression: `Who is most likely to give back a big chunk of their ${lastSeason} production in ${nextSeason}? The model learned from every strong Statcast-era season which ones held up and which didn't: luck gaps (wOBA vs. xwOBA, ERA vs. FIP, xFIP and xERA, BABIP, HR rate), how far the year ran ahead of the player's own track record, the quality of contact and stuff behind it, and age. Each probability assumes he keeps playing.`,
     bounceback: `Which good players coming off a bad ${lastSeason} are most likely to get back to their usual level in ${nextSeason}? The model compares the down year with the two seasons before it and learned from every Statcast-era slump which ones were noise and which were the start of a decline. Each probability includes the chance he doesn't get a real role.`,
   };
 
@@ -768,14 +773,17 @@ export function BreakoutsBrowser({
               </li>
               <li>
                 Inputs separate luck from skill: wOBA vs. xwOBA and SLG vs. xSLG, BABIP and HR rate compared with the
-                player&apos;s own two-year history, ERA vs. xERA, plus the contact quality, plate discipline, stuff and
-                velocity behind the numbers, year-over-year changes in exit velo, sprint speed, velo and whiff rate,
-                workload and age.
+                player&apos;s own two-year history, park-adjusted wRC+, ERA vs. xERA, FIP and xFIP, plus the contact quality,
+                plate discipline, stuff and velocity behind the numbers, year-over-year changes in exit velo, sprint
+                speed, velo and whiff rate, injured-list time, workload and age. Sprint speed is only cited for players
+                who actually run (27.5 ft/s or faster).
               </li>
               <li>
                 Regression is measured among players who kept playing, so it&apos;s about performance, not injuries.
                 Bounceback counts only if the player gets a real role, because losing the job is one of the ways a
-                bounceback fails.
+                bounceback fails. Hitters who still posted a wRC+ above 120 aren&apos;t bounceback candidates: a
+                good year shortened by injury isn&apos;t a down year. IL stints come from MLB transactions, and a
+                slump that came with real IL time is treated differently from one while healthy.
               </li>
               <li>
                 The green or red bullets are the inputs pushing that player&apos;s probability up the most. &ldquo;Case
@@ -784,7 +792,7 @@ export function BreakoutsBrowser({
               </li>
               <li>
                 {view === "regression"
-                  ? "The simple “lucky” heuristics (wOBA above xwOBA, ERA below xERA) do work for regression, especially for pitchers. The model adds the most on hitters, where track record, power-on-contact gaps and swing-and-miss matter more than the xwOBA gap alone."
+                  ? "The simple “lucky” heuristics (wOBA above xwOBA, ERA below xFIP or xERA) do work for regression, especially for pitchers: ERA minus xFIP alone is hard to beat, so the pitcher model is built around it (ERA vs. xFIP, FIP and xERA, plus age and role) and wins on the top of the list rather than by much overall. The model adds the most on hitters, where track record, power-on-contact gaps and swing-and-miss matter more than the xwOBA gap alone."
                   : "Ranking slumping players by how “unlucky” they were barely beats a coin flip, and ranking by how good they used to be does worse than one. Age, whether they kept their job, and whether the bat speed / velocity is still there carry most of the signal."}
               </li>
             </ul>
@@ -795,8 +803,8 @@ export function BreakoutsBrowser({
             <ul className="mt-2 list-disc space-y-1.5 pl-5">
               <li>
                 Inputs are season-level Statcast leaderboards from {report.source.replace(/^.*?, /, "")}: quality of
-                contact (xwOBA, barrels, top-end exit velo, sweet spot), swing decisions (chase, whiff, K%, BB%), and
-                for pitchers K-BB%, whiff, xERA, fastball velo and ride, ground balls and year-over-year velo changes.
+                contact (xwOBA, park-adjusted wRC+, barrels, top-end exit velo, sweet spot), swing decisions (chase, whiff, K%, BB%), and
+                for pitchers K-BB%, whiff, xERA, FIP and xFIP, fastball velo and ride, ground balls and year-over-year velo changes.
                 Age, workload and career playing time are included because opportunity is part of a breakout.
               </li>
               <li>
