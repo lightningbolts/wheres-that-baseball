@@ -17,8 +17,9 @@ function shouldSkip(absPath) {
   if (rel.includes("nerd-stats-local")) return true;
   // Per-game rebuild cache — not in git, but skip if present locally.
   if (rel[0] === "nerd-stats" && rel.includes("games")) return true;
-  // Statically imported by the app (`@/data/ballparks/index.json`) — must stay plain JSON.
-  if (rel[0] === "ballparks") return true;
+  // Statically imported by the app (`@/data/ballparks/index.json`,
+  // `@/data/breakouts/<season>.json`) — must stay plain JSON.
+  if (rel[0] === "ballparks" || rel[0] === "breakouts") return true;
   return false;
 }
 
