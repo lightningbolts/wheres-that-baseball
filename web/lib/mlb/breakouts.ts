@@ -62,6 +62,8 @@ export interface BreakoutHitter extends BreakoutExplanation {
     pa: number;
     woba: number | null;
     xwoba: number | null;
+    /** Park-adjusted wRC+ computed from public inputs (100 = league average). */
+    wrcPlus?: number | null;
     barrelPct: number | null;
     ev50: number | null;
     kPct: number | null;
@@ -84,6 +86,8 @@ export interface BreakoutPitcher extends BreakoutExplanation {
     ip: string;
     era: number | null;
     xera: number | null;
+    fip?: number | null;
+    xfip?: number | null;
     kPct: number | null;
     bbPct: number | null;
     kbbPct: number | null;
@@ -163,6 +167,7 @@ export interface TurnaroundHitter extends BreakoutExplanation {
     pa: number;
     woba: number | null;
     xwoba: number | null;
+    wrcPlus?: number | null;
     babip: number | null;
     slg: number | null;
     xslg: number | null;
@@ -190,6 +195,8 @@ export interface TurnaroundPitcher extends BreakoutExplanation {
     ip: string;
     era: number | null;
     xera: number | null;
+    fip?: number | null;
+    xfip?: number | null;
     babip: number | null;
     hr9: number | null;
     kbbPct: number | null;
@@ -223,6 +230,8 @@ export const BREAKOUT_BASELINE_LABELS: Record<string, string> = {
   rawWoba: "Raw wOBA",
   eraUnderX: "“Lucky” (xERA − ERA)",
   rawEra: "Raw ERA",
+  eraUnderXfip: "“Lucky” (xFIP − ERA)",
+  xfip: "Raw xFIP",
   xOverWoba: "“Unlucky” (xwOBA − wOBA)",
   eraOverX: "“Unlucky” (ERA − xERA)",
   trackRecord: "Best track record",

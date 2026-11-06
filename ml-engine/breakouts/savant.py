@@ -134,3 +134,19 @@ def fetch_extra(role: str, year: int, *, refresh: bool = False) -> pd.DataFrame:
     df = df.drop_duplicates(["player_id"])
     df["year"] = year
     return df.rename(columns={c: f"x_{c}" for c in EXTRA_FIELDS[role]})
+
+
+FIP_FIELDS = ["strikeout", "walk", "p_hit_by_pitch", "home_run", "flyballs", "popups", "p_earned_run", "p_out"]
+
+
+def fetch_fip_inputs(year: int, *, refresh: bool = False) -> pd.DataFrame:
+    """Pitcher counting stats for FIP/xFIP: K, BB, HBP, HR, fly balls (incl. popups), ER, outs."""
+    df = _get_csv(
+        "https://baseballsavant.mlb.com/leaderboard/custom",
+        {"year": year, "type": "pitcher", "filter": "", "min": 1, "selections": ",".join(FIP_FIELDS), "csv": "true"},
+        CACHE_DIR / f"pitcher_{year}_fip.csv",
+        refresh,
+    )
+    df = _numeric(df, ("name_lf",)).drop(columns=["name_lf"]).drop_duplicates(["player_id"])
+    df["year"] = year
+    return df.rename(columns={c: f"f_{c}" for c in FIP_FIELDS})
