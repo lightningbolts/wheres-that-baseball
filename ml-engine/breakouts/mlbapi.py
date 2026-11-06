@@ -83,10 +83,10 @@ def fetch_people(ids: list[int]) -> dict[int, dict]:
     return out
 
 
-def fetch_half_splits(player_id: int, group: str, season: int) -> dict[str, dict]:
+def fetch_half_splits(player_id: int, group: str, season: int, *, refresh: bool = False) -> dict[str, dict]:
     """{'preas': stat, 'posas': stat} for hitting|pitching. Cached per player/season."""
     path = CACHE_DIR / "splits" / f"{group}_{season}_{player_id}.json"
-    if path.exists():
+    if path.exists() and not refresh:
         return json.loads(path.read_text())
     path.parent.mkdir(parents=True, exist_ok=True)
     data = _get(

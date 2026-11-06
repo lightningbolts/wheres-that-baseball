@@ -115,7 +115,7 @@ export interface BreakoutProspect extends BreakoutExplanation {
     hr?: number;
     sb?: number;
     ip?: string;
-    era?: number;
+    era?: number | null;
     kbbPct?: number | null;
     k?: number;
     kPct?: number | null;

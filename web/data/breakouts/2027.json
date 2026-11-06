@@ -1,7 +1,7 @@
 {
   "season": 2027,
   "basedOnSeason": 2026,
-  "generatedAt": "2026-11-06T03:47:50+00:00",
+  "generatedAt": "2026-11-06T04:16:37+00:00",
   "source": "Baseball Savant (Statcast) leaderboards, MLB Stats API awards and minor-league stats, and MLB Pipeline prospect rankings, 2015-2026",
   "definitions": {
     "hitter": "A first true breakout season: 400+ PA with wOBA 30+ points above league (about 120 wRC+), 30 HR, or an All-Star / Silver Slugger / ROY-level honor.",

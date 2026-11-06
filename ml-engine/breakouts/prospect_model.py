@@ -26,11 +26,11 @@ def _ip(value) -> float:
     return int(whole or 0) + (int(frac or 0) / 3 if frac else 0)
 
 
-def milb_hitting(season: int) -> pd.DataFrame:
+def milb_hitting(season: int, refresh: bool = False) -> pd.DataFrame:
     """One row per (player, level) with summed counting stats and level-relative rates."""
     frames = []
     for sid, (code, score) in LEVELS.items():
-        df = pd.DataFrame(fetch_milb("hitting", sid, season))
+        df = pd.DataFrame(fetch_milb("hitting", sid, season, refresh=refresh))
         if df.empty:
             continue
         num = ["plateAppearances", "atBats", "hits", "doubles", "triples", "homeRuns", "baseOnBalls",
@@ -58,10 +58,10 @@ def milb_hitting(season: int) -> pd.DataFrame:
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
-def milb_pitching(season: int) -> pd.DataFrame:
+def milb_pitching(season: int, refresh: bool = False) -> pd.DataFrame:
     frames = []
     for sid, (code, score) in LEVELS.items():
-        df = pd.DataFrame(fetch_milb("pitching", sid, season))
+        df = pd.DataFrame(fetch_milb("pitching", sid, season, refresh=refresh))
         if df.empty:
             continue
         df["ip"] = df["inningsPitched"].map(_ip)
@@ -116,11 +116,12 @@ HIT_P_FEATURES = [
 ]
 
 
-def build_prospect_rows(season: int, kind: str, mlb_prev: dict[int, float]) -> pd.DataFrame:
+def build_prospect_rows(season: int, kind: str, mlb_prev: dict[int, float],
+                        refresh: bool = False) -> pd.DataFrame:
     """Rows for the list published before `season`, using stats from the prior MiLB season."""
     stat_year = season - 1 if season - 1 != 2020 else 2019  # no 2020 minor-league season
-    ranks = [r for r in fetch_rankings(season) if is_pitcher(r["position"]) == (kind == "pitcher")]
-    milb = milb_hitting(stat_year) if kind == "hitter" else milb_pitching(stat_year)
+    ranks = [r for r in fetch_rankings(season, refresh=refresh) if is_pitcher(r["position"]) == (kind == "pitcher")]
+    milb = milb_hitting(stat_year, refresh) if kind == "hitter" else milb_pitching(stat_year, refresh)
     vol = "plateAppearances" if kind == "hitter" else "ip"
     rel = ["ops", "iso", "k_pct", "bb_pct"] if kind == "hitter" else ["era", "k_pct", "bb_pct", "kbb"]
     by_player = {pid: g for pid, g in milb.groupby("player_id")} if not milb.empty else {}
@@ -179,7 +180,7 @@ LEVEL_NAME = {3: "Triple-A", 2: "Double-A", 1: "High-A", 0: "Single-A", -1: "no 
 
 
 def prospect_frame(kind: str, all_df: pd.DataFrame, feat: pd.DataFrame, seasons: range,
-                   min_mlb: float) -> pd.DataFrame:
+                   min_mlb: float, refresh: bool = False) -> pd.DataFrame:
     """Prospect rows for each list season, labeled with a breakout in that season.
 
     Excludes anyone already established, and anyone with enough MLB time the season before to be
@@ -189,7 +190,7 @@ def prospect_frame(kind: str, all_df: pd.DataFrame, feat: pd.DataFrame, seasons:
     out = []
     for season in seasons:
         prev = all_df[all_df["year"] == season - 1].groupby("player_id")[vcol].sum().to_dict()
-        rows = build_prospect_rows(season, kind, prev)
+        rows = build_prospect_rows(season, kind, prev, refresh)
         est = feat[feat["year"] < season].groupby("player_id")["established_season"].max()
         rows = rows[~rows["player_id"].map(est).fillna(False).astype(bool)]
         rows = rows[rows["mlb_prev"] < min_mlb]

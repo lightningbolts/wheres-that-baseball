@@ -672,7 +672,7 @@ def comp_payload(spec: Spec, c: pd.Series | None, people: dict) -> dict | None:
 
 def half_signal(spec: Spec, pid: int) -> list[str]:
     group = "hitting" if spec.kind == "hitter" else "pitching"
-    s = fetch_half_splits(pid, group, LAST_SEASON)
+    s = fetch_half_splits(pid, group, LAST_SEASON, refresh=bb.ARGS.refresh)
     pre, post = s.get("preas"), s.get("posas")
     if not pre or not post:
         return []
@@ -831,7 +831,7 @@ def main() -> None:
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     path = OUT_DIR / f"{NEXT}-turnarounds.json"
-    path.write_text(json.dumps(out, indent=2) + "\n")
+    path.write_text(json.dumps(out, indent=2, allow_nan=False) + "\n")
     print(f"wrote {path}")
 
 

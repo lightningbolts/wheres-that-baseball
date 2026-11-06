@@ -589,7 +589,8 @@ def hitter_signals(r: pd.Series, bat: pd.DataFrame, season: int) -> list[str]:
             pr = pct_rank(bat[col], b[col])
             if pr >= 0.75:
                 out.append(f"{label} {fmt(b[col])} ({standing(pr)} of MLB)")
-    splits = fetch_half_splits(int(r["player_id"]), "hitting", season)
+    splits = fetch_half_splits(int(r["player_id"]), "hitting", season,
+                               refresh=ARGS.refresh and season == LAST_SEASON)
     pre, post = splits.get("preas"), splits.get("posas")
     if pre and post and post.get("plateAppearances", 0) >= 120 and pre.get("plateAppearances", 0) >= 60:
         d = float(post["ops"]) - float(pre["ops"])
@@ -615,7 +616,8 @@ def pitcher_signals(r: pd.Series, ars: pd.DataFrame, ars_prev: pd.DataFrame, sea
                 if prev_usage.get(p["pitch_type"], 0) < 3 and p["pitch_usage"] >= 10:
                     out.append(f"New weapon: added a {p['pitch_name'].lower()} in {season} ({p['pitch_usage']:.0f}% usage, {p['whiff_percent']:.0f}% whiffs)")
                     break
-    splits = fetch_half_splits(int(r["player_id"]), "pitching", season)
+    splits = fetch_half_splits(int(r["player_id"]), "pitching", season,
+                               refresh=ARGS.refresh and season == LAST_SEASON)
     pre, post = splits.get("preas"), splits.get("posas")
     if pre and post:
         def ip(s: dict) -> float:
@@ -633,7 +635,7 @@ def pitcher_signals(r: pd.Series, ars: pd.DataFrame, ars_prev: pd.DataFrame, sea
 def dominant_half(player_id: int, kind: str, season: int) -> str | None:
     """Already broke out for half a season? (pre/post All-Star split)."""
     group = "hitting" if kind == "hitter" else "pitching"
-    splits = fetch_half_splits(player_id, group, season)
+    splits = fetch_half_splits(player_id, group, season, refresh=ARGS.refresh and season == LAST_SEASON)
     for code, label in (("preas", "first half"), ("posas", "second half")):
         s = splits.get(code)
         if not s:
@@ -719,7 +721,8 @@ def build_prospects(kind: str, all_df: pd.DataFrame, feat: pd.DataFrame):
     bt = backtest(hist.assign(year=hist["year"] - 1), features,
                   {"pipelineRank": "neg_rank", "orgRank": "neg_org"}, c=c, first=2017, min_pos=8)
     model = make_model(c).fit(hist[features], hist["label"])
-    cohort = prospect_frame(kind, all_df, feat, range(LAST_SEASON + 1, LAST_SEASON + 2), min_mlb)
+    cohort = prospect_frame(kind, all_df, feat, range(LAST_SEASON + 1, LAST_SEASON + 2), min_mlb,
+                             refresh=ARGS.refresh)
     cohort["prob"] = model.predict_proba(cohort[features])[:, 1]
     cohort = cohort.sort_values("prob", ascending=False).head(PROSPECT_TOP_N)
     return bt, model, hist, cohort
@@ -756,7 +759,7 @@ def prospect_payload(kind: str, cohort: pd.DataFrame, model: Pipeline, hist: pd.
                          "kPct": fmt1(r["k_pct_raw"]), "bbPct": fmt1(r["bb_pct_raw"]),
                          "hr": int(r.get("milb_hr") or 0), "sb": int(r.get("milb_sb") or 0)})
         elif kind == "pitcher" and pd.notna(r.get("kbb_raw")):
-            milb.update({"ip": fmt_ip(r["milb_volume"]), "era": round(float(r["era_raw"]), 2),
+            milb.update({"ip": fmt_ip(r["milb_volume"]), "era": None if pd.isna(r["era_raw"]) else round(float(r["era_raw"]), 2),
                          "kPct": fmt1(r["k_pct_raw"]), "bbPct": fmt1(r["bb_pct_raw"]),
                          "kbbPct": fmt1(r["kbb_raw"]), "k": int(r.get("milb_k") or 0)})
         signals = []
@@ -901,7 +904,7 @@ def main() -> None:
     }
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     path = OUT_DIR / f"{LAST_SEASON + 1}.json"
-    path.write_text(json.dumps(out, indent=2) + "\n")
+    path.write_text(json.dumps(out, indent=2, allow_nan=False) + "\n")
     print(f"wrote {path}")
     print("hitters backtest:", json.dumps(bt_h["summary"]))
     print("pitchers backtest:", json.dumps(bt_p["summary"]))
