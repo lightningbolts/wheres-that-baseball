@@ -113,12 +113,18 @@ def split_half(per_game: pd.DataFrame, value: str, weight: str, min_w: float) ->
     agg = agg[(agg[weight][0] >= min_w) & (agg[weight][1] >= min_w)]
     a = agg[value][0] / agg[weight][0]
     b = agg[value][1] / agg[weight][1]
+    if len(a) < 3:
+        raise ValueError(f"split_half({value}): only {len(a)} batters have {min_w}+ {weight} in both halves; lower min_w")
     r = float(np.corrcoef(a, b)[0, 1])
+    if not np.isfinite(r):
+        raise ValueError(f"split_half({value}): correlation is undefined (no variance across batters)")
     return r, (2 * r / (1 + r)) if r > 0 else r
 
 
 def shrink_k(reliability: float, n_mean: float) -> float:
     """Pseudo-count k so that n/(n+k) equals the measured reliability at the average n."""
+    if not (np.isfinite(reliability) and np.isfinite(n_mean)):
+        raise ValueError(f"shrink_k: non-finite input (reliability={reliability}, n_mean={n_mean})")
     if reliability <= 0.01:
         return float("inf")
     return n_mean * (1 - reliability) / reliability
