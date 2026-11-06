@@ -2,10 +2,8 @@
 
 export interface BreakoutMetricSet {
   auc: number;
-  /** Share of the top 10 / 25 / 50 who actually broke out the next season. */
-  p10: number;
-  p25: number;
-  p50: number;
+  /** `p<N>`: share of the model's top N who actually hit the outcome the next season. */
+  [topN: `p${number}`]: number;
 }
 
 export interface BreakoutBacktestSeason {
@@ -19,6 +17,8 @@ export interface BreakoutBacktestSeason {
 }
 
 export interface BreakoutBacktest {
+  /** Top-N cutoffs reported (breakout backtests use 10/25/50 and omit this). */
+  topN?: number[];
   seasons: BreakoutBacktestSeason[];
   summary: {
     model: BreakoutMetricSet;
@@ -147,7 +147,85 @@ export interface BreakoutReport {
   pitchers: BreakoutPitcher[];
 }
 
+/** Shape of `data/breakouts/<season>-turnarounds.json`, written by `ml-engine/breakouts/build_turnarounds.py`. */
+export type TurnaroundKind = "regression" | "bounceback";
+
+export interface TurnaroundHitter extends BreakoutExplanation {
+  rank: number;
+  playerId: number;
+  name: string;
+  teamId: number | null;
+  position: string | null;
+  bats: string | null;
+  age: number;
+  probability: number;
+  stats: {
+    pa: number;
+    woba: number | null;
+    xwoba: number | null;
+    babip: number | null;
+    slg: number | null;
+    xslg: number | null;
+    barrelPct: number | null;
+    ev50: number | null;
+    kPct: number | null;
+    bbPct: number | null;
+    hr: number | null;
+    /** PA-weighted wOBA over the two prior seasons (null without enough history). */
+    baseWoba: number | null;
+    basePa: number;
+  };
+}
+
+export interface TurnaroundPitcher extends BreakoutExplanation {
+  rank: number;
+  playerId: number;
+  name: string;
+  teamId: number | null;
+  role: "SP" | "RP";
+  throws: string | null;
+  age: number;
+  probability: number;
+  stats: {
+    ip: string;
+    era: number | null;
+    xera: number | null;
+    babip: number | null;
+    hr9: number | null;
+    kbbPct: number | null;
+    whiffPct: number | null;
+    fbVelo: number | null;
+    k: number | null;
+    baseEra: number | null;
+    baseIp: string | null;
+  };
+}
+
+interface TurnaroundDefinition {
+  hitter: string;
+  pitcher: string;
+  eligibility: string;
+}
+
+export interface TurnaroundReport {
+  season: number;
+  basedOnSeason: number;
+  generatedAt: string;
+  source: string;
+  definitions: Record<TurnaroundKind, TurnaroundDefinition>;
+  backtest: Record<TurnaroundKind, { hitters: BreakoutBacktest; pitchers: BreakoutBacktest }>;
+  regression: { hitters: TurnaroundHitter[]; pitchers: TurnaroundPitcher[] };
+  bounceback: { hitters: TurnaroundHitter[]; pitchers: TurnaroundPitcher[] };
+}
+
 export const BREAKOUT_BASELINE_LABELS: Record<string, string> = {
+  wobaOverX: "“Lucky” (wOBA − xwOBA)",
+  rawWoba: "Raw wOBA",
+  eraUnderX: "“Lucky” (xERA − ERA)",
+  rawEra: "Raw ERA",
+  xOverWoba: "“Unlucky” (xwOBA − wOBA)",
+  eraOverX: "“Unlucky” (ERA − xERA)",
+  trackRecord: "Best track record",
   xwobaGap: "“Unlucky” (xwOBA − wOBA)",
   xwoba: "Raw xwOBA",
   eraMinusXera: "“Unlucky” (ERA − xERA)",

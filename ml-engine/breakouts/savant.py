@@ -114,3 +114,23 @@ def fetch_arsenal(year: int, *, refresh: bool = False) -> pd.DataFrame:
         refresh,
     )
     return _numeric(df, ("name_lf", "team_name_alt", "pitch_type", "pitch_name"))
+
+
+EXTRA_FIELDS = {
+    "batter": ["babip", "batting_avg", "slg_percent", "xslg", "xba"],
+    "pitcher": ["babip", "home_run", "batting_avg", "slg_percent", "xslg", "xba"],
+}
+
+
+def fetch_extra(role: str, year: int, *, refresh: bool = False) -> pd.DataFrame:
+    """Results-vs-expected columns (BABIP, AVG/SLG vs xBA/xSLG, HR allowed) for luck features."""
+    df = _get_csv(
+        "https://baseballsavant.mlb.com/leaderboard/custom",
+        {"year": year, "type": role, "filter": "", "min": 1, "selections": ",".join(EXTRA_FIELDS[role]), "csv": "true"},
+        CACHE_DIR / f"{role}_{year}_extra.csv",
+        refresh,
+    )
+    df = _numeric(df, ("name_lf",)).drop(columns=["name_lf"])
+    df = df.drop_duplicates(["player_id"])
+    df["year"] = year
+    return df.rename(columns={c: f"x_{c}" for c in EXTRA_FIELDS[role]})

@@ -302,17 +302,16 @@ def precision_at(scores: np.ndarray, labels: np.ndarray, n: int) -> float:
     return float(labels[order].mean())
 
 
-def metric_set(labels: np.ndarray, scores: np.ndarray) -> dict:
-    return {
-        "auc": round(float(roc_auc_score(labels, scores)), 3),
-        "p10": round(precision_at(scores, labels, 10), 3),
-        "p25": round(precision_at(scores, labels, 25), 3),
-        "p50": round(precision_at(scores, labels, 50), 3),
-    }
+def metric_set(labels: np.ndarray, scores: np.ndarray, ns: tuple[int, ...] = (10, 25, 50)) -> dict:
+    out = {"auc": round(float(roc_auc_score(labels, scores)), 3)}
+    for n in ns:
+        out[f"p{n}"] = round(precision_at(scores, labels, n), 3)
+    return out
 
 
 def backtest(pairs: pd.DataFrame, features: list[str], baselines: dict[str, str], *,
-             c: float = REG_C, first: int = 2019, min_pos: int = 30) -> dict:
+             c: float = REG_C, first: int = 2019, min_pos: int = 30,
+             ns: tuple[int, ...] = (10, 25, 50)) -> dict:
     rows = []
     for year in [y for y in range(first, LAST_SEASON) if y + 1 != 2020]:
         train = pairs[(pairs["year"] + 1 <= year) & (pairs["year"] + 1 != 2020)]
@@ -326,18 +325,18 @@ def backtest(pairs: pd.DataFrame, features: list[str], baselines: dict[str, str]
             "cohort": int(len(test)),
             "breakouts": int(labels.sum()),
             "baseRate": round(float(labels.mean()), 4),
-            "model": metric_set(labels, fit_predict(train, test, features, c)),
+            "model": metric_set(labels, fit_predict(train, test, features, c), ns),
             "baselines": {},
         }
         for name, col in baselines.items():
             s = test[col]
-            row["baselines"][name] = metric_set(labels, s.fillna(s.min()).to_numpy())
+            row["baselines"][name] = metric_set(labels, s.fillna(s.min()).to_numpy(), ns)
         rows.append(row)
 
     def mean_of(get) -> float:
         return round(float(np.mean([get(r) for r in rows])), 3)
 
-    metrics = ("auc", "p10", "p25", "p50")
+    metrics = ("auc", *(f"p{n}" for n in ns))
     return {
         "seasons": rows,
         "summary": {
