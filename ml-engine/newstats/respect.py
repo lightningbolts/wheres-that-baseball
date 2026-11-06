@@ -3,8 +3,8 @@
 For every pitch we ask three questions the pitcher answers before the batter
 does anything: is it in the zone, is it in the heart of the zone, is it a
 fastball? We remove everything that isn't the batter -- count x platoon,
-base/out state, score/inning, and the pitcher's own tendencies vs that batter
-hand -- with additive fixed effects fit by alternating means. What's left,
+base/out state, score/inning, ballpark x batter hand, and the pitcher's own
+tendencies vs that batter hand -- with additive fixed effects fit by alternating means. What's left,
 averaged per batter, is how far pitchers deviate from their normal plan for him.
 
 Raw avoidance mixes fear (don't let him hurt you) with exploitation (he'll chase
@@ -45,12 +45,14 @@ def prep(df: pd.DataFrame) -> pd.DataFrame:
     d["k_state"] = d.bases.astype(str) + "_" + d.outs.astype(str)
     d["k_game"] = d.score_diff.clip(-4, 4).astype(str) + "_" + pd.cut(d.inning, [0, 3, 6, 99], labels=["e", "m", "l"]).astype(str)
     d["k_pitcher"] = d.pitcher.astype(str) + d.b_hand
+    # park x batter hand: short porches and big gaps change how hitters on each side get pitched
+    d["k_park"] = d.venue.astype(str) + d.b_hand
     return d
 
 
 def fixed_effects(d: pd.DataFrame, y: str, iters: int = 10) -> tuple[pd.Series, pd.Series]:
     """Return (residual without batter effect, batter effect) for target y."""
-    keys = ["k_count", "k_state", "k_game", "k_pitcher"]
+    keys = ["k_count", "k_state", "k_game", "k_park", "k_pitcher"]
     r = d[y] - d[y].mean()
     eff = {k: pd.Series(0.0, index=d.index) for k in keys + ["batter"]}
     for _ in range(iters):

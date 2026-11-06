@@ -139,7 +139,7 @@ export function RespectLeaderboard({ report }: { report: RespectReport }) {
         <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-muted sm:text-sm">
           Most hitting stats grade what the hitter does. Respect+ grades what pitchers do because of him. For every pitch
           it asks whether it was in the zone, in the heart of the zone, or a fastball, then removes the count, platoon,
-          base/out state, score and each pitcher&apos;s own habits. The part his chase and whiff rates explain is removed too,
+          base/out state, score, ballpark and each pitcher&apos;s own habits. The part his chase and whiff rates explain is removed too,
           so free swingers don&apos;t look feared just because pitchers know they&apos;ll chase. 100 is average and every 15
           points is one standard deviation. Qualified hitters ({report.minPa}+ PA) · updated {updated}.
         </p>

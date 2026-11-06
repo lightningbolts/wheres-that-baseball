@@ -8,7 +8,7 @@ const data = report as RespectReport;
 
 export const metadata: Metadata = {
   title: `Respect+ ${data.season}: How Pitchers Change Their Plan for Each Hitter | Where's That Baseball`,
-  description: `Respect+ measures how far pitchers move off their normal plan for each MLB hitter: fewer strikes, fewer pitches in the heart of the zone, fewer fastballs. Count, base state, platoon and pitcher tendencies are removed, along with what the hitter's chase and whiff rates explain.`,
+  description: `Respect+ measures how far pitchers move off their normal plan for each MLB hitter: fewer strikes, fewer pitches in the heart of the zone, fewer fastballs. Count, base state, ballpark, platoon and pitcher tendencies are removed, along with what the hitter's chase and whiff rates explain.`,
 };
 
 export default function RespectPage() {

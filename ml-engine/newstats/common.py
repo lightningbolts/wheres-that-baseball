@@ -38,6 +38,7 @@ def _parse_feed(path: str, season: str) -> tuple[list[dict], dict] | None:
         return None
     gpk = feed["gamePk"]
     date = gd["datetime"].get("officialDate")
+    venue = (gd.get("venue") or {}).get("id")
     rows, names = [], {}
     team_ids = {True: gd["teams"]["away"]["id"], False: gd["teams"]["home"]["id"]}
     pa_seq: dict[int, int] = {}  # batter -> PA number within game
@@ -66,7 +67,7 @@ def _parse_feed(path: str, season: str) -> tuple[list[dict], dict] | None:
             coords = pdat.get("coordinates", {}) or {}
             hd = e.get("hitData", {}) or {}
             rows.append(dict(
-                game_pk=gpk, date=date, ab_idx=ab["atBatIndex"], pa_seq=pa_seq[b],
+                game_pk=gpk, date=date, venue=venue, ab_idx=ab["atBatIndex"], pa_seq=pa_seq[b],
                 batter=b, pitcher=p, b_hand=m["batSide"]["code"], p_hand=m["pitchHand"]["code"],
                 bat_team=team_ids[top], inning=ab["inning"], top=top, outs=outs_before, bases=bases,
                 score_diff=bat_score - fld_score,
@@ -89,7 +90,9 @@ def load_pitches(season: str, refresh: bool = False) -> tuple[pd.DataFrame, dict
     cache = DATA / f"newstats_pitches_{season}.parquet"
     ncache = DATA / f"newstats_names_{season}.json"
     if cache.exists() and ncache.exists() and not refresh:
-        return pd.read_parquet(cache), {int(k): v for k, v in json.load(open(ncache)).items()}
+        df = pd.read_parquet(cache)
+        if "venue" in df.columns:  # older caches predate the park key
+            return df, {int(k): v for k, v in json.load(open(ncache)).items()}
     files = sorted(glob.glob(str(DATA / "mlb_feeds" / "*.json")))
     rows, names = [], {}
     with ProcessPoolExecutor() as ex:
