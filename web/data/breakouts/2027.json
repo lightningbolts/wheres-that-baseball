@@ -1,7 +1,7 @@
 {
   "season": 2027,
   "basedOnSeason": 2026,
-  "generatedAt": "2026-11-06T05:06:18+00:00",
+  "generatedAt": "2026-11-06T05:15:01+00:00",
   "source": "Baseball Savant (Statcast) leaderboards, MLB Stats API awards and minor-league stats, and MLB Pipeline prospect rankings, 2015-2026",
   "definitions": {
     "hitter": "A first true breakout season: 400+ PA with wOBA 30+ points above league (about 120 wRC+), 30 HR, or an All-Star / Silver Slugger / ROY-level honor.",
@@ -19,7 +19,7 @@
           "breakouts": 5,
           "baseRate": 0.035,
           "model": {
-            "auc": 0.87,
+            "auc": 0.874,
             "p10": 0.3,
             "p25": 0.16,
             "p50": 0.08
@@ -46,7 +46,7 @@
           "breakouts": 7,
           "baseRate": 0.0417,
           "model": {
-            "auc": 0.687,
+            "auc": 0.685,
             "p10": 0.2,
             "p25": 0.12,
             "p50": 0.08
@@ -73,9 +73,9 @@
           "breakouts": 19,
           "baseRate": 0.1033,
           "model": {
-            "auc": 0.795,
+            "auc": 0.792,
             "p10": 0.3,
-            "p25": 0.32,
+            "p25": 0.36,
             "p50": 0.26
           },
           "baselines": {
@@ -100,7 +100,7 @@
           "breakouts": 8,
           "baseRate": 0.0494,
           "model": {
-            "auc": 0.742,
+            "auc": 0.748,
             "p10": 0.2,
             "p25": 0.12,
             "p50": 0.1
@@ -127,7 +127,7 @@
           "breakouts": 14,
           "baseRate": 0.0875,
           "model": {
-            "auc": 0.767,
+            "auc": 0.762,
             "p10": 0.3,
             "p25": 0.32,
             "p50": 0.18
@@ -154,10 +154,10 @@
           "breakouts": 6,
           "baseRate": 0.0355,
           "model": {
-            "auc": 0.815,
+            "auc": 0.814,
             "p10": 0.1,
             "p25": 0.12,
-            "p50": 0.08
+            "p50": 0.1
           },
           "baselines": {
             "xwobaGap": {
@@ -179,8 +179,8 @@
         "model": {
           "auc": 0.779,
           "p10": 0.233,
-          "p25": 0.193,
-          "p50": 0.13
+          "p25": 0.2,
+          "p50": 0.133
         },
         "baselines": {
           "xwobaGap": {
@@ -3241,56 +3241,18 @@
   "hitters": [
     {
       "rank": 1,
-      "playerId": 691723,
-      "name": "Coby Mayo",
-      "teamId": 110,
-      "position": "3B",
-      "bats": "R",
-      "age": 25,
-      "probability": 0.278,
-      "stats": {
-        "pa": 454,
-        "woba": 0.328,
-        "xwoba": 0.336,
-        "barrelPct": 13.5,
-        "ev50": 103.5,
-        "kPct": 30.4,
-        "bbPct": 7.9,
-        "chasePct": 31.3,
-        "hr": 24
-      },
-      "drivers": [
-        "Barrel rate 13.5% (top 9% of regulars)",
-        "EV50 (avg of hardest-hit half) 103.5 mph (top 6% of regulars)",
-        "xwOBA .336 (top 25% of regulars)"
-      ],
-      "signals": [
-        "Bat speed 75.7 mph (top 7% of MLB)",
-        "Finished strong: .877 OPS after the All-Star break vs .659 before"
-      ],
-      "risk": "Strikeout rate 30.4% (bottom 10% of regulars)",
-      "bar": "Needs .346 wOBA: 18 pts above his .328 (10 above his xwOBA).",
-      "comp": {
-        "playerId": 663728,
-        "name": "Cal Raleigh",
-        "season": 2022,
-        "before": ".329 xwOBA, 15.4% barrels in 415 PA",
-        "after": ".326 wOBA, 30 HR in 569 PA"
-      }
-    },
-    {
-      "rank": 2,
       "playerId": 805999,
       "name": "A.J. Ewing",
       "teamId": 121,
       "position": "CF",
       "bats": "L",
       "age": 22,
-      "probability": 0.275,
+      "probability": 0.276,
       "stats": {
         "pa": 492,
         "woba": 0.311,
         "xwoba": 0.32,
+        "wrcPlus": 97,
         "barrelPct": 7.5,
         "ev50": 100.0,
         "kPct": 25.4,
@@ -3314,6 +3276,46 @@
       }
     },
     {
+      "rank": 2,
+      "playerId": 691723,
+      "name": "Coby Mayo",
+      "teamId": 110,
+      "position": "3B",
+      "bats": "R",
+      "age": 25,
+      "probability": 0.273,
+      "stats": {
+        "pa": 454,
+        "woba": 0.328,
+        "xwoba": 0.336,
+        "wrcPlus": 106,
+        "barrelPct": 13.5,
+        "ev50": 103.5,
+        "kPct": 30.4,
+        "bbPct": 7.9,
+        "chasePct": 31.3,
+        "hr": 24
+      },
+      "drivers": [
+        "Barrel rate 13.5% (top 9% of regulars)",
+        "EV50 (avg of hardest-hit half) 103.5 mph (top 6% of regulars)",
+        "xwOBA .336 (top 25% of regulars)"
+      ],
+      "signals": [
+        "Bat speed 75.7 mph (top 7% of MLB)",
+        "Finished strong: .877 OPS after the All-Star break vs .659 before"
+      ],
+      "risk": "Strikeout rate 30.4% (bottom 10% of regulars)",
+      "bar": "Needs .346 wOBA: 18 pts above his .328 (10 above his xwOBA).",
+      "comp": {
+        "playerId": 666176,
+        "name": "Jo Adell",
+        "season": 2024,
+        "before": ".314 xwOBA, 11.8% barrels in 451 PA",
+        "after": ".333 wOBA, 37 HR in 573 PA"
+      }
+    },
+    {
       "rank": 3,
       "playerId": 680664,
       "name": "Eduardo Valencia",
@@ -3321,11 +3323,12 @@
       "position": "DH",
       "bats": "R",
       "age": 27,
-      "probability": 0.26,
+      "probability": 0.262,
       "stats": {
         "pa": 138,
         "woba": 0.433,
         "xwoba": 0.372,
+        "wrcPlus": 177,
         "barrelPct": 15.5,
         "ev50": 101.9,
         "kPct": 23.2,
@@ -3334,7 +3337,7 @@
         "hr": 8
       },
       "drivers": [
-        "wOBA .433 (top 1% of regulars)",
+        "wRC+ 177 (top 1% of regulars)",
         "Barrel rate 15.5% (top 4% of regulars)",
         "EV50 (avg of hardest-hit half) 101.9 mph (top 18% of regulars)"
       ],
@@ -3353,45 +3356,6 @@
     },
     {
       "rank": 4,
-      "playerId": 694212,
-      "name": "Samuel Basallo",
-      "teamId": 110,
-      "position": "C",
-      "bats": "L",
-      "age": 22,
-      "probability": 0.247,
-      "stats": {
-        "pa": 399,
-        "woba": 0.303,
-        "xwoba": 0.318,
-        "barrelPct": 12.1,
-        "ev50": 102.0,
-        "kPct": 26.6,
-        "bbPct": 8.0,
-        "chasePct": 39.9,
-        "hr": 18
-      },
-      "drivers": [
-        "Barrel rate 12.1% (top 20% of regulars)",
-        "EV50 (avg of hardest-hit half) 102.0 mph (top 18% of regulars)",
-        "Only 22 in 2027: hitters 25 or younger broke out 10% of the time vs 4% at 28+"
-      ],
-      "signals": [
-        "Bat speed 74.3 mph (top 18% of MLB)",
-        "Blast rate 12.9% of swings (top 14% of MLB)"
-      ],
-      "risk": "Whiff rate 31.5% (bottom 16% of regulars)",
-      "bar": "Needs .346 wOBA and 400+ PA (had 399): 43 pts above his .303 (28 above his xwOBA).",
-      "comp": {
-        "playerId": 646240,
-        "name": "Rafael Devers",
-        "season": 2018,
-        "before": ".303 xwOBA, 10.1% barrels in 490 PA",
-        "after": ".377 wOBA, 32 HR in 702 PA"
-      }
-    },
-    {
-      "rank": 5,
       "playerId": 701358,
       "name": "Cam Smith",
       "teamId": 117,
@@ -3403,6 +3367,7 @@
         "pa": 568,
         "woba": 0.293,
         "xwoba": 0.316,
+        "wrcPlus": 84,
         "barrelPct": 11.2,
         "ev50": 101.7,
         "kPct": 26.1,
@@ -3429,45 +3394,48 @@
       }
     },
     {
-      "rank": 6,
-      "playerId": 804606,
-      "name": "Konnor Griffin",
-      "teamId": 134,
-      "position": "SS",
-      "bats": "R",
-      "age": 21,
-      "probability": 0.225,
+      "rank": 5,
+      "playerId": 694212,
+      "name": "Samuel Basallo",
+      "teamId": 110,
+      "position": "C",
+      "bats": "L",
+      "age": 22,
+      "probability": 0.241,
       "stats": {
-        "pa": 339,
-        "woba": 0.32,
-        "xwoba": 0.316,
-        "barrelPct": 7.0,
-        "ev50": 100.5,
-        "kPct": 24.2,
-        "bbPct": 5.9,
-        "chasePct": 37.6,
-        "hr": 6
+        "pa": 399,
+        "woba": 0.303,
+        "xwoba": 0.318,
+        "wrcPlus": 89,
+        "barrelPct": 12.1,
+        "ev50": 102.0,
+        "kPct": 26.6,
+        "bbPct": 8.0,
+        "chasePct": 39.9,
+        "hr": 18
       },
       "drivers": [
-        "EV50 (avg of hardest-hit half) 100.5 mph (top 36% of regulars)",
-        "Sprint speed 29.9 ft/s (top 2% of regulars)",
-        "Only 21 in 2027: hitters 25 or younger broke out 10% of the time vs 4% at 28+"
+        "Barrel rate 12.1% (top 20% of regulars)",
+        "EV50 (avg of hardest-hit half) 102.0 mph (top 18% of regulars)",
+        "Only 22 in 2027: hitters 25 or younger broke out 10% of the time vs 4% at 28+"
       ],
       "signals": [
-        "Bat speed 75.4 mph (top 8% of MLB)"
+        "Bat speed 74.3 mph (top 18% of MLB)",
+        "Blast rate 12.9% of swings (top 14% of MLB)",
+        "Missed 30 days on the IL in 2026 (right shoulder inflammation)"
       ],
-      "risk": "Whiff rate 28.9% (bottom 29% of regulars)",
-      "bar": "Needs .346 wOBA and 400+ PA (had 339): 26 pts above his .320 (30 above his xwOBA).",
+      "risk": "Whiff rate 31.5% (bottom 16% of regulars)",
+      "bar": "Needs .346 wOBA and 400+ PA (had 399): 43 pts above his .303 (28 above his xwOBA).",
       "comp": {
-        "playerId": 682829,
-        "name": "Elly De La Cruz",
-        "season": 2023,
-        "before": ".305 xwOBA, 8.6% barrels in 427 PA",
-        "after": ".349 wOBA, 25 HR in 696 PA"
+        "playerId": 646240,
+        "name": "Rafael Devers",
+        "season": 2018,
+        "before": ".303 xwOBA, 10.1% barrels in 490 PA",
+        "after": ".377 wOBA, 32 HR in 702 PA"
       }
     },
     {
-      "rank": 7,
+      "rank": 6,
       "playerId": 681715,
       "name": "Heriberto Hern\u00e1ndez",
       "teamId": 146,
@@ -3479,6 +3447,7 @@
         "pa": 505,
         "woba": 0.329,
         "xwoba": 0.348,
+        "wrcPlus": 108,
         "barrelPct": 12.7,
         "ev50": 101.9,
         "kPct": 26.5,
@@ -3506,6 +3475,46 @@
       }
     },
     {
+      "rank": 7,
+      "playerId": 804606,
+      "name": "Konnor Griffin",
+      "teamId": 134,
+      "position": "SS",
+      "bats": "R",
+      "age": 21,
+      "probability": 0.224,
+      "stats": {
+        "pa": 339,
+        "woba": 0.32,
+        "xwoba": 0.316,
+        "wrcPlus": 101,
+        "barrelPct": 7.0,
+        "ev50": 100.5,
+        "kPct": 24.2,
+        "bbPct": 5.9,
+        "chasePct": 37.6,
+        "hr": 6
+      },
+      "drivers": [
+        "EV50 (avg of hardest-hit half) 100.5 mph (top 36% of regulars)",
+        "Sprint speed 29.9 ft/s (top 2% of regulars)",
+        "Only 21 in 2027: hitters 25 or younger broke out 10% of the time vs 4% at 28+"
+      ],
+      "signals": [
+        "Bat speed 75.4 mph (top 8% of MLB)",
+        "Missed 86 days on the IL in 2026 over 2 stints (right elbow strain; left ring finger sagittal band injury)"
+      ],
+      "risk": "Whiff rate 28.9% (bottom 29% of regulars)",
+      "bar": "Needs .346 wOBA and 400+ PA (had 339): 26 pts above his .320 (30 above his xwOBA).",
+      "comp": {
+        "playerId": 682829,
+        "name": "Elly De La Cruz",
+        "season": 2023,
+        "before": ".305 xwOBA, 8.6% barrels in 427 PA",
+        "after": ".349 wOBA, 25 HR in 696 PA"
+      }
+    },
+    {
       "rank": 8,
       "playerId": 669477,
       "name": "Casey Schmitt",
@@ -3513,11 +3522,12 @@
       "position": "LF",
       "bats": "R",
       "age": 28,
-      "probability": 0.195,
+      "probability": 0.2,
       "stats": {
         "pa": 409,
         "woba": 0.336,
         "xwoba": 0.355,
+        "wrcPlus": 116,
         "barrelPct": 12.3,
         "ev50": 100.8,
         "kPct": 19.8,
@@ -3532,7 +3542,8 @@
       ],
       "signals": [
         "Blast rate 14.0% of swings (top 8% of MLB)",
-        "Squared-up rate 27.4% of swings (top 23% of MLB)"
+        "Squared-up rate 27.4% of swings (top 23% of MLB)",
+        "Missed 64 days on the IL in 2026 (left knee meniscus tear)"
       ],
       "risk": "Age 28 in 2027: only 4% of eligible hitters 28+ broke out",
       "bar": "Needs .346 wOBA. His .355 xwOBA already clears it, so the bar is 10 pts of results, not skill.",
@@ -3546,17 +3557,59 @@
     },
     {
       "rank": 9,
+      "playerId": 682626,
+      "name": "Francisco Alvarez",
+      "teamId": 121,
+      "position": "C",
+      "bats": "R",
+      "age": 25,
+      "probability": 0.195,
+      "stats": {
+        "pa": 420,
+        "woba": 0.313,
+        "xwoba": 0.322,
+        "wrcPlus": 99,
+        "barrelPct": 15.4,
+        "ev50": 102.9,
+        "kPct": 30.7,
+        "bbPct": 9.3,
+        "chasePct": 31.8,
+        "hr": 16
+      },
+      "drivers": [
+        "Barrel rate 15.4% (top 5% of regulars)",
+        "EV50 (avg of hardest-hit half) 102.9 mph (top 8% of regulars)",
+        "Only 25 in 2027: hitters 25 or younger broke out 10% of the time vs 4% at 28+"
+      ],
+      "signals": [
+        "Bat speed 74.2 mph (top 19% of MLB)",
+        "Blast rate 13.2% of swings (top 13% of MLB)",
+        "Missed 140 days on the IL in 2026 (right meniscus tear)"
+      ],
+      "risk": "Whiff rate 34.8% (bottom 5% of regulars)",
+      "bar": "Needs .346 wOBA: 33 pts above his .313 (24 above his xwOBA).",
+      "comp": {
+        "playerId": 663728,
+        "name": "Cal Raleigh",
+        "season": 2022,
+        "before": ".329 xwOBA, 15.4% barrels in 415 PA",
+        "after": ".326 wOBA, 30 HR in 569 PA"
+      }
+    },
+    {
+      "rank": 10,
       "playerId": 691781,
       "name": "Brady House",
       "teamId": 120,
       "position": "3B",
       "bats": "R",
       "age": 24,
-      "probability": 0.194,
+      "probability": 0.19,
       "stats": {
         "pa": 355,
         "woba": 0.313,
         "xwoba": 0.333,
+        "wrcPlus": 96,
         "barrelPct": 9.5,
         "ev50": 102.2,
         "kPct": 25.6,
@@ -3583,96 +3636,19 @@
       }
     },
     {
-      "rank": 10,
-      "playerId": 682626,
-      "name": "Francisco Alvarez",
-      "teamId": 121,
-      "position": "C",
-      "bats": "R",
-      "age": 25,
-      "probability": 0.193,
-      "stats": {
-        "pa": 420,
-        "woba": 0.313,
-        "xwoba": 0.322,
-        "barrelPct": 15.4,
-        "ev50": 102.9,
-        "kPct": 30.7,
-        "bbPct": 9.3,
-        "chasePct": 31.8,
-        "hr": 16
-      },
-      "drivers": [
-        "Barrel rate 15.4% (top 5% of regulars)",
-        "EV50 (avg of hardest-hit half) 102.9 mph (top 8% of regulars)",
-        "Only 25 in 2027: hitters 25 or younger broke out 10% of the time vs 4% at 28+"
-      ],
-      "signals": [
-        "Bat speed 74.2 mph (top 19% of MLB)",
-        "Blast rate 13.2% of swings (top 13% of MLB)"
-      ],
-      "risk": "Whiff rate 34.8% (bottom 5% of regulars)",
-      "bar": "Needs .346 wOBA: 33 pts above his .313 (24 above his xwOBA).",
-      "comp": {
-        "playerId": 663728,
-        "name": "Cal Raleigh",
-        "season": 2022,
-        "before": ".329 xwOBA, 15.4% barrels in 415 PA",
-        "after": ".326 wOBA, 30 HR in 569 PA"
-      }
-    },
-    {
       "rank": 11,
-      "playerId": 804668,
-      "name": "Rafael Flores Jr.",
-      "teamId": 134,
-      "position": "C",
-      "bats": "R",
-      "age": 26,
-      "probability": 0.188,
-      "stats": {
-        "pa": 163,
-        "woba": 0.367,
-        "xwoba": 0.35,
-        "barrelPct": 14.6,
-        "ev50": 101.5,
-        "kPct": 27.6,
-        "bbPct": 9.2,
-        "chasePct": 27.7,
-        "hr": 11
-      },
-      "drivers": [
-        "Barrel rate 14.6% (top 6% of regulars)",
-        "wOBA .367 (top 8% of regulars)",
-        "EV50 (avg of hardest-hit half) 101.5 mph (top 24% of regulars)"
-      ],
-      "signals": [
-        "Bat speed 73.9 mph (top 22% of MLB)",
-        "Blast rate 12.6% of swings (top 17% of MLB)"
-      ],
-      "risk": "Only 163 PA in 2026: has to win an everyday job first",
-      "bar": "Already hit the .346 wOBA bar in a part-time role; the step is doing it over a full season and 400+ PA (had 163).",
-      "comp": {
-        "playerId": 669394,
-        "name": "Jake Burger",
-        "season": 2022,
-        "before": ".324 xwOBA, 15.0% barrels in 183 PA",
-        "after": ".349 wOBA, 34 HR in 540 PA"
-      }
-    },
-    {
-      "rank": 12,
       "playerId": 699024,
       "name": "Leo Bernal",
       "teamId": 138,
       "position": "C",
       "bats": "S",
       "age": 23,
-      "probability": 0.185,
+      "probability": 0.189,
       "stats": {
         "pa": 102,
         "woba": 0.351,
         "xwoba": 0.347,
+        "wrcPlus": 126,
         "barrelPct": 10.0,
         "ev50": 102.0,
         "kPct": 24.5,
@@ -3681,7 +3657,7 @@
         "hr": 5
       },
       "drivers": [
-        "xwOBA .347 (top 15% of regulars)",
+        "wRC+ 126 (top 14% of regulars)",
         "EV50 (avg of hardest-hit half) 102.0 mph (top 18% of regulars)",
         "Barrel rate 10.0% (top 31% of regulars)"
       ],
@@ -3700,6 +3676,46 @@
       }
     },
     {
+      "rank": 12,
+      "playerId": 804668,
+      "name": "Rafael Flores Jr.",
+      "teamId": 134,
+      "position": "C",
+      "bats": "R",
+      "age": 26,
+      "probability": 0.185,
+      "stats": {
+        "pa": 163,
+        "woba": 0.367,
+        "xwoba": 0.35,
+        "wrcPlus": 133,
+        "barrelPct": 14.6,
+        "ev50": 101.5,
+        "kPct": 27.6,
+        "bbPct": 9.2,
+        "chasePct": 27.7,
+        "hr": 11
+      },
+      "drivers": [
+        "Barrel rate 14.6% (top 6% of regulars)",
+        "wRC+ 133 (top 9% of regulars)",
+        "EV50 (avg of hardest-hit half) 101.5 mph (top 24% of regulars)"
+      ],
+      "signals": [
+        "Bat speed 73.9 mph (top 22% of MLB)",
+        "Blast rate 12.6% of swings (top 17% of MLB)"
+      ],
+      "risk": "Only 163 PA in 2026: has to win an everyday job first",
+      "bar": "Already hit the .346 wOBA bar in a part-time role; the step is doing it over a full season and 400+ PA (had 163).",
+      "comp": {
+        "playerId": 669394,
+        "name": "Jake Burger",
+        "season": 2022,
+        "before": ".324 xwOBA, 15.0% barrels in 183 PA",
+        "after": ".349 wOBA, 34 HR in 540 PA"
+      }
+    },
+    {
       "rank": 13,
       "playerId": 690993,
       "name": "Colt Keith",
@@ -3712,6 +3728,7 @@
         "pa": 423,
         "woba": 0.321,
         "xwoba": 0.333,
+        "wrcPlus": 103,
         "barrelPct": 7.6,
         "ev50": 100.1,
         "kPct": 19.9,
@@ -3746,11 +3763,12 @@
       "position": "CF",
       "bats": "L",
       "age": 26,
-      "probability": 0.166,
+      "probability": 0.167,
       "stats": {
         "pa": 616,
         "woba": 0.321,
         "xwoba": 0.314,
+        "wrcPlus": 103,
         "barrelPct": 3.8,
         "ev50": 97.8,
         "kPct": 20.5,
@@ -3784,11 +3802,12 @@
       "position": "2B",
       "bats": "R",
       "age": 24,
-      "probability": 0.151,
+      "probability": 0.152,
       "stats": {
         "pa": 364,
         "woba": 0.325,
         "xwoba": 0.302,
+        "wrcPlus": 106,
         "barrelPct": 8.5,
         "ev50": 100.2,
         "kPct": 23.9,
@@ -3820,11 +3839,12 @@
       "position": "1B",
       "bats": "R",
       "age": 28,
-      "probability": 0.149,
+      "probability": 0.147,
       "stats": {
         "pa": 228,
         "woba": 0.383,
         "xwoba": 0.344,
+        "wrcPlus": 142,
         "barrelPct": 13.1,
         "ev50": 101.4,
         "kPct": 23.2,
@@ -3833,7 +3853,7 @@
         "hr": 13
       },
       "drivers": [
-        "wOBA .383 (top 2% of regulars)",
+        "wRC+ 142 (top 3% of regulars)",
         "Barrel rate 13.1% (top 11% of regulars)",
         "EV50 (avg of hardest-hit half) 101.4 mph (top 26% of regulars)"
       ],
@@ -3859,11 +3879,12 @@
       "position": "RF",
       "bats": "R",
       "age": 25,
-      "probability": 0.148,
+      "probability": 0.145,
       "stats": {
         "pa": 443,
         "woba": 0.294,
         "xwoba": 0.317,
+        "wrcPlus": 83,
         "barrelPct": 9.4,
         "ev50": 101.2,
         "kPct": 24.2,
@@ -3883,11 +3904,11 @@
       "risk": "Whiff rate 29.4% (bottom 24% of regulars)",
       "bar": "Needs .346 wOBA: 52 pts above his .294 (29 above his xwOBA).",
       "comp": {
-        "playerId": 665862,
-        "name": "Jazz Chisholm Jr.",
-        "season": 2021,
-        "before": ".307 xwOBA, 9.0% barrels in 507 PA",
-        "after": ".365 wOBA, 14 HR in 241 PA"
+        "playerId": 666176,
+        "name": "Jo Adell",
+        "season": 2024,
+        "before": ".314 xwOBA, 11.8% barrels in 451 PA",
+        "after": ".333 wOBA, 37 HR in 573 PA"
       }
     },
     {
@@ -3898,11 +3919,12 @@
       "position": "CF",
       "bats": "L",
       "age": 22,
-      "probability": 0.14,
+      "probability": 0.141,
       "stats": {
         "pa": 206,
         "woba": 0.337,
         "xwoba": 0.314,
+        "wrcPlus": 114,
         "barrelPct": 2.1,
         "ev50": 98.3,
         "kPct": 20.4,
@@ -3911,8 +3933,8 @@
         "hr": 3
       },
       "drivers": [
+        "wRC+ 114 (top 29% of regulars)",
         "Whiff rate 16.7% (top 12% of regulars)",
-        "wOBA .337 (top 30% of regulars)",
         "Sprint speed 28.6 ft/s (top 18% of regulars)"
       ],
       "signals": [
@@ -3936,11 +3958,12 @@
       "position": "CF",
       "bats": "L",
       "age": 26,
-      "probability": 0.138,
+      "probability": 0.137,
       "stats": {
         "pa": 289,
         "woba": 0.323,
         "xwoba": 0.328,
+        "wrcPlus": 103,
         "barrelPct": 15.9,
         "ev50": 104.2,
         "kPct": 36.3,
@@ -3968,17 +3991,58 @@
     },
     {
       "rank": 20,
+      "playerId": 687221,
+      "name": "Dalton Rushing",
+      "teamId": 119,
+      "position": "C",
+      "bats": "L",
+      "age": 26,
+      "probability": 0.136,
+      "stats": {
+        "pa": 253,
+        "woba": 0.344,
+        "xwoba": 0.336,
+        "wrcPlus": 117,
+        "barrelPct": 11.9,
+        "ev50": 101.8,
+        "kPct": 29.2,
+        "bbPct": 9.1,
+        "chasePct": 30.4,
+        "hr": 12
+      },
+      "drivers": [
+        "Barrel rate 11.9% (top 22% of regulars)",
+        "wRC+ 117 (top 24% of regulars)",
+        "EV50 (avg of hardest-hit half) 101.8 mph (top 20% of regulars)"
+      ],
+      "signals": [
+        "Blast rate 12.5% of swings (top 18% of MLB)",
+        "Missed 49 days on the IL in 2026 over 2 stints (right elbow inflammation; right elbow discomfort)"
+      ],
+      "risk": "Whiff rate 31.8% (bottom 14% of regulars)",
+      "bar": "Needs .346 wOBA and 400+ PA (had 253): 2 pts above his .344 (10 above his xwOBA).",
+      "comp": {
+        "playerId": 656305,
+        "name": "Matt Chapman",
+        "season": 2017,
+        "before": ".324 xwOBA, 13.3% barrels in 326 PA",
+        "after": ".369 wOBA, 24 HR in 616 PA"
+      }
+    },
+    {
+      "rank": 21,
       "playerId": 702222,
       "name": "Justin Crawford",
       "teamId": 143,
       "position": "CF",
       "bats": "L",
       "age": 23,
-      "probability": 0.138,
+      "probability": 0.136,
       "stats": {
         "pa": 465,
         "woba": 0.294,
         "xwoba": 0.284,
+        "wrcPlus": 83,
         "barrelPct": 2.0,
         "ev50": 98.1,
         "kPct": 17.6,
@@ -4003,56 +4067,175 @@
       }
     },
     {
-      "rank": 21,
-      "playerId": 687221,
-      "name": "Dalton Rushing",
-      "teamId": 119,
-      "position": "C",
+      "rank": 22,
+      "playerId": 694384,
+      "name": "Nolan Schanuel",
+      "teamId": 108,
+      "position": "1B",
       "bats": "L",
-      "age": 26,
-      "probability": 0.137,
+      "age": 25,
+      "probability": 0.131,
       "stats": {
-        "pa": 253,
-        "woba": 0.344,
-        "xwoba": 0.336,
-        "barrelPct": 11.9,
-        "ev50": 101.8,
-        "kPct": 29.2,
-        "bbPct": 9.1,
-        "chasePct": 30.4,
-        "hr": 12
+        "pa": 446,
+        "woba": 0.328,
+        "xwoba": 0.334,
+        "wrcPlus": 109,
+        "barrelPct": 2.4,
+        "ev50": 97.3,
+        "kPct": 13.0,
+        "bbPct": 9.4,
+        "chasePct": 27.2,
+        "hr": 7
       },
       "drivers": [
-        "Barrel rate 11.9% (top 22% of regulars)",
-        "wOBA .344 (top 24% of regulars)",
-        "EV50 (avg of hardest-hit half) 101.8 mph (top 20% of regulars)"
+        "xwOBA .334 (top 29% of regulars)",
+        "Whiff rate 16.4% (top 10% of regulars)",
+        "Strikeout rate 13.0% (top 7% of regulars)"
       ],
       "signals": [
-        "Blast rate 12.5% of swings (top 18% of MLB)"
+        "Squared-up rate 33.4% of swings (top 5% of MLB)",
+        "Missed 51 days on the IL in 2026 over 2 stints (left ankle inflammation; right intercostal muscle strain)"
       ],
-      "risk": "Whiff rate 31.8% (bottom 14% of regulars)",
-      "bar": "Needs .346 wOBA and 400+ PA (had 253): 2 pts above his .344 (10 above his xwOBA).",
+      "risk": "Barrel rate 2.4% (bottom 6% of regulars)",
+      "bar": "Needs .346 wOBA: 18 pts above his .328 (12 above his xwOBA).",
       "comp": {
-        "playerId": 656305,
-        "name": "Matt Chapman",
-        "season": 2017,
-        "before": ".324 xwOBA, 13.3% barrels in 326 PA",
-        "after": ".369 wOBA, 24 HR in 616 PA"
+        "playerId": 689414,
+        "name": "Liam Hicks",
+        "season": 2025,
+        "before": ".315 xwOBA, 3.6% barrels in 390 PA",
+        "after": ".352 wOBA, 18 HR in 554 PA"
       }
     },
     {
-      "rank": 22,
+      "rank": 23,
+      "playerId": 691458,
+      "name": "Blaze Jordan",
+      "teamId": 138,
+      "position": "3B",
+      "bats": "R",
+      "age": 24,
+      "probability": 0.131,
+      "stats": {
+        "pa": 199,
+        "woba": 0.284,
+        "xwoba": 0.317,
+        "wrcPlus": 81,
+        "barrelPct": 10.1,
+        "ev50": 100.1,
+        "kPct": 15.1,
+        "bbPct": 3.5,
+        "chasePct": 35.7,
+        "hr": 3
+      },
+      "drivers": [
+        "Barrel rate 10.1% (top 31% of regulars)",
+        "Strikeout rate 15.1% (top 15% of regulars)",
+        "Whiff rate 20.8% (top 27% of regulars)"
+      ],
+      "signals": [
+        "Blast rate 12.3% of swings (top 19% of MLB)",
+        "Missed 31 days on the IL in 2026 (left ankle sprain)"
+      ],
+      "risk": "Only 199 PA in 2026: has to win an everyday job first",
+      "bar": "Needs .346 wOBA and 400+ PA (had 199): 62 pts above his .284 (29 above his xwOBA).",
+      "comp": {
+        "playerId": 669701,
+        "name": "Josh Smith",
+        "season": 2023,
+        "before": ".323 xwOBA, 10.6% barrels in 232 PA",
+        "after": ".323 wOBA, 13 HR in 592 PA"
+      }
+    },
+    {
+      "rank": 24,
+      "playerId": 687551,
+      "name": "Drew Gilbert",
+      "teamId": 137,
+      "position": "CF",
+      "bats": "L",
+      "age": 26,
+      "probability": 0.129,
+      "stats": {
+        "pa": 393,
+        "woba": 0.32,
+        "xwoba": 0.334,
+        "wrcPlus": 105,
+        "barrelPct": 5.9,
+        "ev50": 98.4,
+        "kPct": 18.1,
+        "bbPct": 9.9,
+        "chasePct": 25.1,
+        "hr": 11
+      },
+      "drivers": [
+        "xwOBA .334 (top 29% of regulars)",
+        "Strikeout rate 18.1% (top 27% of regulars)",
+        "Whiff rate 22.4% (top 38% of regulars)"
+      ],
+      "signals": [
+        "Squared-up rate 28.7% of swings (top 17% of MLB)"
+      ],
+      "risk": "Barrel rate 5.9% (bottom 31% of regulars)",
+      "bar": "Needs .346 wOBA and 400+ PA (had 393): 26 pts above his .320 (12 above his xwOBA).",
+      "comp": {
+        "playerId": 687462,
+        "name": "Spencer Horwitz",
+        "season": 2024,
+        "before": ".340 xwOBA, 8.0% barrels in 381 PA",
+        "after": ".344 wOBA, 11 HR in 411 PA"
+      }
+    },
+    {
+      "rank": 25,
+      "playerId": 687952,
+      "name": "Christian Encarnacion-Strand",
+      "teamId": 110,
+      "position": "3B",
+      "bats": "R",
+      "age": 27,
+      "probability": 0.128,
+      "stats": {
+        "pa": 213,
+        "woba": 0.358,
+        "xwoba": 0.332,
+        "wrcPlus": 126,
+        "barrelPct": 14.0,
+        "ev50": 100.8,
+        "kPct": 25.8,
+        "bbPct": 5.2,
+        "chasePct": 46.4,
+        "hr": 11
+      },
+      "drivers": [
+        "Barrel rate 14.0% (top 8% of regulars)",
+        "wRC+ 126 (top 15% of regulars)",
+        "EV50 (avg of hardest-hit half) 100.8 mph (top 32% of regulars)"
+      ],
+      "signals": [],
+      "risk": "Only 213 PA in 2026: has to win an everyday job first",
+      "bar": "Already hit the .346 wOBA bar in a part-time role; the step is doing it over a full season and 400+ PA (had 213).",
+      "comp": {
+        "playerId": 669394,
+        "name": "Jake Burger",
+        "season": 2022,
+        "before": ".324 xwOBA, 15.0% barrels in 183 PA",
+        "after": ".349 wOBA, 34 HR in 540 PA"
+      }
+    },
+    {
+      "rank": 26,
       "playerId": 665019,
       "name": "Kody Clemens",
       "teamId": 142,
       "position": "2B",
       "bats": "L",
       "age": 31,
-      "probability": 0.131,
+      "probability": 0.128,
       "stats": {
         "pa": 583,
         "woba": 0.327,
         "xwoba": 0.334,
+        "wrcPlus": 104,
         "barrelPct": 11.3,
         "ev50": 101.0,
         "kPct": 21.8,
@@ -4080,193 +4263,7 @@
       }
     },
     {
-      "rank": 23,
-      "playerId": 687952,
-      "name": "Christian Encarnacion-Strand",
-      "teamId": 110,
-      "position": "3B",
-      "bats": "R",
-      "age": 27,
-      "probability": 0.13,
-      "stats": {
-        "pa": 213,
-        "woba": 0.358,
-        "xwoba": 0.332,
-        "barrelPct": 14.0,
-        "ev50": 100.8,
-        "kPct": 25.8,
-        "bbPct": 5.2,
-        "chasePct": 46.4,
-        "hr": 11
-      },
-      "drivers": [
-        "Barrel rate 14.0% (top 8% of regulars)",
-        "wOBA .358 (top 12% of regulars)",
-        "EV50 (avg of hardest-hit half) 100.8 mph (top 32% of regulars)"
-      ],
-      "signals": [],
-      "risk": "Only 213 PA in 2026: has to win an everyday job first",
-      "bar": "Already hit the .346 wOBA bar in a part-time role; the step is doing it over a full season and 400+ PA (had 213).",
-      "comp": {
-        "playerId": 669394,
-        "name": "Jake Burger",
-        "season": 2022,
-        "before": ".324 xwOBA, 15.0% barrels in 183 PA",
-        "after": ".349 wOBA, 34 HR in 540 PA"
-      }
-    },
-    {
-      "rank": 24,
-      "playerId": 691458,
-      "name": "Blaze Jordan",
-      "teamId": 138,
-      "position": "3B",
-      "bats": "R",
-      "age": 24,
-      "probability": 0.129,
-      "stats": {
-        "pa": 199,
-        "woba": 0.284,
-        "xwoba": 0.317,
-        "barrelPct": 10.1,
-        "ev50": 100.1,
-        "kPct": 15.1,
-        "bbPct": 3.5,
-        "chasePct": 35.7,
-        "hr": 3
-      },
-      "drivers": [
-        "Barrel rate 10.1% (top 31% of regulars)",
-        "Strikeout rate 15.1% (top 15% of regulars)",
-        "Whiff rate 20.8% (top 27% of regulars)"
-      ],
-      "signals": [
-        "Blast rate 12.3% of swings (top 19% of MLB)"
-      ],
-      "risk": "Only 199 PA in 2026: has to win an everyday job first",
-      "bar": "Needs .346 wOBA and 400+ PA (had 199): 62 pts above his .284 (29 above his xwOBA).",
-      "comp": {
-        "playerId": 669701,
-        "name": "Josh Smith",
-        "season": 2023,
-        "before": ".323 xwOBA, 10.6% barrels in 232 PA",
-        "after": ".323 wOBA, 13 HR in 592 PA"
-      }
-    },
-    {
-      "rank": 25,
-      "playerId": 694384,
-      "name": "Nolan Schanuel",
-      "teamId": 108,
-      "position": "1B",
-      "bats": "L",
-      "age": 25,
-      "probability": 0.129,
-      "stats": {
-        "pa": 446,
-        "woba": 0.328,
-        "xwoba": 0.334,
-        "barrelPct": 2.4,
-        "ev50": 97.3,
-        "kPct": 13.0,
-        "bbPct": 9.4,
-        "chasePct": 27.2,
-        "hr": 7
-      },
-      "drivers": [
-        "xwOBA .334 (top 29% of regulars)",
-        "Whiff rate 16.4% (top 10% of regulars)",
-        "Strikeout rate 13.0% (top 7% of regulars)"
-      ],
-      "signals": [
-        "Squared-up rate 33.4% of swings (top 5% of MLB)"
-      ],
-      "risk": "Barrel rate 2.4% (bottom 6% of regulars)",
-      "bar": "Needs .346 wOBA: 18 pts above his .328 (12 above his xwOBA).",
-      "comp": {
-        "playerId": 689414,
-        "name": "Liam Hicks",
-        "season": 2025,
-        "before": ".315 xwOBA, 3.6% barrels in 390 PA",
-        "after": ".352 wOBA, 18 HR in 554 PA"
-      }
-    },
-    {
-      "rank": 26,
-      "playerId": 687551,
-      "name": "Drew Gilbert",
-      "teamId": 137,
-      "position": "CF",
-      "bats": "L",
-      "age": 26,
-      "probability": 0.126,
-      "stats": {
-        "pa": 393,
-        "woba": 0.32,
-        "xwoba": 0.334,
-        "barrelPct": 5.9,
-        "ev50": 98.4,
-        "kPct": 18.1,
-        "bbPct": 9.9,
-        "chasePct": 25.1,
-        "hr": 11
-      },
-      "drivers": [
-        "xwOBA .334 (top 29% of regulars)",
-        "Strikeout rate 18.1% (top 27% of regulars)",
-        "Whiff rate 22.4% (top 38% of regulars)"
-      ],
-      "signals": [
-        "Squared-up rate 28.7% of swings (top 17% of MLB)"
-      ],
-      "risk": "Barrel rate 5.9% (bottom 31% of regulars)",
-      "bar": "Needs .346 wOBA and 400+ PA (had 393): 26 pts above his .320 (12 above his xwOBA).",
-      "comp": {
-        "playerId": 687462,
-        "name": "Spencer Horwitz",
-        "season": 2024,
-        "before": ".340 xwOBA, 8.0% barrels in 381 PA",
-        "after": ".344 wOBA, 11 HR in 411 PA"
-      }
-    },
-    {
       "rank": 27,
-      "playerId": 682848,
-      "name": "Endy Rodr\u00edguez",
-      "teamId": 134,
-      "position": "C",
-      "bats": "S",
-      "age": 27,
-      "probability": 0.125,
-      "stats": {
-        "pa": 159,
-        "woba": 0.37,
-        "xwoba": 0.338,
-        "barrelPct": 10.6,
-        "ev50": 100.8,
-        "kPct": 25.8,
-        "bbPct": 14.5,
-        "chasePct": 26.1,
-        "hr": 7
-      },
-      "drivers": [
-        "wOBA .370 (top 7% of regulars)",
-        "Barrel rate 10.6% (top 28% of regulars)",
-        "EV50 (avg of hardest-hit half) 100.8 mph (top 32% of regulars)"
-      ],
-      "signals": [],
-      "risk": "Only 159 PA in 2026: has to win an everyday job first",
-      "bar": "Already hit the .346 wOBA bar in a part-time role; the step is doing it over a full season and 400+ PA (had 159).",
-      "comp": {
-        "playerId": 621493,
-        "name": "Taylor Ward",
-        "season": 2021,
-        "before": ".342 xwOBA, 10.3% barrels in 237 PA",
-        "after": ".362 wOBA, 23 HR in 564 PA"
-      }
-    },
-    {
-      "rank": 28,
       "playerId": 695731,
       "name": "Braden Montgomery",
       "teamId": 145,
@@ -4278,6 +4275,7 @@
         "pa": 365,
         "woba": 0.298,
         "xwoba": 0.325,
+        "wrcPlus": 89,
         "barrelPct": 4.4,
         "ev50": 100.1,
         "kPct": 19.7,
@@ -4302,56 +4300,58 @@
       }
     },
     {
-      "rank": 29,
-      "playerId": 683357,
-      "name": "Owen Caissie",
-      "teamId": 146,
-      "position": "RF",
-      "bats": "L",
-      "age": 24,
-      "probability": 0.121,
+      "rank": 28,
+      "playerId": 682848,
+      "name": "Endy Rodr\u00edguez",
+      "teamId": 134,
+      "position": "C",
+      "bats": "S",
+      "age": 27,
+      "probability": 0.123,
       "stats": {
-        "pa": 330,
-        "woba": 0.304,
-        "xwoba": 0.302,
-        "barrelPct": 14.2,
-        "ev50": 101.8,
-        "kPct": 37.3,
-        "bbPct": 8.2,
-        "chasePct": 30.0,
-        "hr": 14
+        "pa": 159,
+        "woba": 0.37,
+        "xwoba": 0.338,
+        "wrcPlus": 135,
+        "barrelPct": 10.6,
+        "ev50": 100.8,
+        "kPct": 25.8,
+        "bbPct": 14.5,
+        "chasePct": 26.1,
+        "hr": 7
       },
       "drivers": [
-        "Barrel rate 14.2% (top 7% of regulars)",
-        "EV50 (avg of hardest-hit half) 101.8 mph (top 20% of regulars)",
-        "Sprint speed 28.3 ft/s (top 26% of regulars)"
+        "wRC+ 135 (top 8% of regulars)",
+        "Barrel rate 10.6% (top 28% of regulars)",
+        "EV50 (avg of hardest-hit half) 100.8 mph (top 32% of regulars)"
       ],
       "signals": [
-        "Bat speed 75.1 mph (top 11% of MLB)"
+        "Missed 72 days on the IL in 2026 over 2 stints (left glute strain; left hip inflammation)"
       ],
-      "risk": "Whiff rate 35.6% (bottom 5% of regulars)",
-      "bar": "Needs .346 wOBA and 400+ PA (had 330): 42 pts above his .304 (44 above his xwOBA).",
+      "risk": "Only 159 PA in 2026: has to win an everyday job first",
+      "bar": "Already hit the .346 wOBA bar in a part-time role; the step is doing it over a full season and 400+ PA (had 159).",
       "comp": {
-        "playerId": 656305,
-        "name": "Matt Chapman",
-        "season": 2017,
-        "before": ".324 xwOBA, 13.3% barrels in 326 PA",
-        "after": ".369 wOBA, 24 HR in 616 PA"
+        "playerId": 621493,
+        "name": "Taylor Ward",
+        "season": 2021,
+        "before": ".342 xwOBA, 10.3% barrels in 237 PA",
+        "after": ".362 wOBA, 23 HR in 564 PA"
       }
     },
     {
-      "rank": 30,
+      "rank": 29,
       "playerId": 699393,
       "name": "Pedro Ram\u00edrez",
       "teamId": 112,
       "position": "2B",
       "bats": "S",
       "age": 23,
-      "probability": 0.12,
+      "probability": 0.123,
       "stats": {
         "pa": 266,
         "woba": 0.315,
         "xwoba": 0.284,
+        "wrcPlus": 101,
         "barrelPct": 4.1,
         "ev50": 99.6,
         "kPct": 18.4,
@@ -4375,6 +4375,46 @@
         "season": 2017,
         "before": ".298 xwOBA, 5.1% barrels in 256 PA",
         "after": ".346 wOBA, 19 HR in 524 PA"
+      }
+    },
+    {
+      "rank": 30,
+      "playerId": 682657,
+      "name": "Angel Mart\u00ednez",
+      "teamId": 114,
+      "position": "LF",
+      "bats": "S",
+      "age": 25,
+      "probability": 0.122,
+      "stats": {
+        "pa": 416,
+        "woba": 0.326,
+        "xwoba": 0.299,
+        "wrcPlus": 108,
+        "barrelPct": 7.2,
+        "ev50": 99.0,
+        "kPct": 21.9,
+        "bbPct": 3.1,
+        "chasePct": 42.8,
+        "hr": 18
+      },
+      "drivers": [
+        "wRC+ 108 (top 37% of regulars)",
+        "Whiff rate 20.7% (top 26% of regulars)",
+        "Only 25 in 2027: hitters 25 or younger broke out 10% of the time vs 4% at 28+"
+      ],
+      "signals": [
+        "Finished strong: .807 OPS after the All-Star break vs .718 before",
+        "Missed 38 days on the IL in 2026 (left foot non-displaced fracture)"
+      ],
+      "risk": "Walk rate 3.1% (bottom 1% of regulars)",
+      "bar": "Needs .346 wOBA: 20 pts above his .326 (47 above his xwOBA).",
+      "comp": {
+        "playerId": 670623,
+        "name": "Isaac Paredes",
+        "season": 2022,
+        "before": ".301 xwOBA, 6.4% barrels in 381 PA",
+        "after": ".362 wOBA, 31 HR in 571 PA"
       }
     }
   ],
@@ -4450,7 +4490,9 @@
         "Strikeout rate 27.9% (top 17% of regulars)",
         "Whiff rate 27.9% (top 30% of regulars)"
       ],
-      "signals": [],
+      "signals": [
+        "Missed 27 days on the IL in 2026 (left forearm tightness)"
+      ],
       "risk": "Ground-ball rate 37.2% (bottom 20% of regulars)",
       "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 4.20 ERA / 4.01 xERA.",
       "comp": {
@@ -4492,7 +4534,8 @@
       ],
       "signals": [
         "Put-away pitch: Sweeper (20% usage) gets 39% whiffs, .284 xwOBA, top 14% for the pitch type",
-        "Second-half jump: 2.27 ERA, 21% K after the break (vs 4.15, 27% before)"
+        "Second-half jump: 2.27 ERA, 21% K after the break (vs 4.15, 27% before)",
+        "Missed 38 days on the IL in 2026 (left forearm flexor strain)"
       ],
       "risk": "Fastball down 1.8 mph from 2025",
       "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 3.60 ERA / 4.32 xERA.",
@@ -4577,7 +4620,8 @@
       ],
       "signals": [
         "Put-away pitch: Slider (22% usage) gets 40% whiffs, .245 xwOBA, top 22% for the pitch type",
-        "New weapon: added a split-finger in 2026 (29% usage, 36% whiffs)"
+        "New weapon: added a split-finger in 2026 (29% usage, 36% whiffs)",
+        "Missed 25 days on the IL in 2026 (right middle finger blister)"
       ],
       "risk": "Zone rate 46.7% (bottom 37% of regulars)",
       "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 4.49 ERA / 4.30 xERA.",
@@ -4659,7 +4703,9 @@
         "Fastball ride (IVB) 16.1 in (top 18% of regulars)",
         "Strikeout rate 24.7% (top 34% of regulars)"
       ],
-      "signals": [],
+      "signals": [
+        "Missed 15 days on the IL in 2026 (left shoulder impingement)"
+      ],
       "risk": "Ground-ball rate 39.1% (bottom 31% of regulars)",
       "bar": "Needs ERA and xERA around 3.56 across 100+ IP (had 98.2) or 200 K. Was 5.47 ERA / 4.63 xERA.",
       "comp": {
@@ -4700,7 +4746,8 @@
         "K-BB% 15.7% (top 34% of regulars)"
       ],
       "signals": [
-        "Put-away pitch: Curveball (19% usage) gets 38% whiffs, .170 xwOBA, top 22% for the pitch type"
+        "Put-away pitch: Curveball (19% usage) gets 38% whiffs, .170 xwOBA, top 22% for the pitch type",
+        "Missed 17 days on the IL in 2026 (left middle finger blister)"
       ],
       "risk": "Whiff rate 23.6% (bottom 38% of regulars)",
       "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 4.87 ERA / 3.95 xERA.",
@@ -5029,7 +5076,8 @@
         "xFIP 3.87 (top 32% of regulars)"
       ],
       "signals": [
-        "Put-away pitch: Sweeper (30% usage) gets 52% whiffs, .248 xwOBA, top 1% for the pitch type"
+        "Put-away pitch: Sweeper (30% usage) gets 52% whiffs, .248 xwOBA, top 1% for the pitch type",
+        "Missed 31 days on the IL in 2026 (right lat strain)"
       ],
       "risk": "One-inning relief role caps his innings and visibility",
       "bar": "Needs elite relief: ~3.16 ERA/xERA with 20%+ K-BB over 50+ IP, or a move into the rotation. Was 3.94 / 2.85, 14.3% K-BB.",
@@ -5072,7 +5120,8 @@
       ],
       "signals": [
         "Put-away pitch: Curveball (36% usage) gets 44% whiffs, .222 xwOBA, top 5% for the pitch type",
-        "New weapon: added a sinker in 2026 (21% usage, 13% whiffs)"
+        "New weapon: added a sinker in 2026 (21% usage, 13% whiffs)",
+        "Missed 101 days on the IL in 2026 (neck strain)"
       ],
       "risk": null,
       "bar": "Needs ERA and xERA around 3.56 across 100+ IP (had 68) or 200 K. Was 1.85 ERA / 3.25 xERA.",
@@ -5113,7 +5162,9 @@
         "Strikeout rate 28.3% (top 15% of regulars)",
         "Whiff rate 27.0% (top 37% of regulars)"
       ],
-      "signals": [],
+      "signals": [
+        "Missed 108 days on the IL in 2026 (right hip impingement)"
+      ],
       "risk": "Ground-ball rate 32.7% (bottom 6% of regulars)",
       "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 3.85 ERA / 3.70 xERA.",
       "comp": {
@@ -5153,7 +5204,9 @@
         "Fastball ride (IVB) 15.4 in (top 26% of regulars)",
         "Zone rate 50.2% (top 18% of regulars)"
       ],
-      "signals": [],
+      "signals": [
+        "Missed 77 days on the IL in 2026 over 2 stints (right shoulder inflammation; low back inflammation)"
+      ],
       "risk": "Ground-ball rate 39.8% (bottom 35% of regulars)",
       "bar": "Needs ERA and xERA around 3.56 across 100+ IP (had 98.2) or 200 K. Was 6.02 ERA / 5.69 xERA.",
       "comp": {
@@ -5277,7 +5330,9 @@
         "xFIP 3.94 (top 37% of regulars)",
         "Whiff rate 28.0% (top 28% of regulars)"
       ],
-      "signals": [],
+      "signals": [
+        "Missed 138 days on the IL in 2026 (right elbow strain)"
+      ],
       "risk": "Fastball ride (IVB) 10.3 in (bottom 28% of regulars)",
       "bar": "Needs ERA and xERA around 3.56 across 100+ IP (had 44) or 200 K. Was 3.89 ERA / 3.98 xERA.",
       "comp": {
@@ -5360,7 +5415,9 @@
         "Fastball velo 96.7 mph (top 15% of regulars)",
         "Strikeout rate 26.4% (top 24% of regulars)"
       ],
-      "signals": [],
+      "signals": [
+        "Missed 134 days on the IL in 2026 (recovering from Tommy John surgery)"
+      ],
       "risk": "Zone rate 45.3% (bottom 21% of regulars)",
       "bar": "Needs ERA and xERA around 3.56 across 100+ IP (had 46) or 200 K. Was 3.91 ERA / 3.84 xERA.",
       "comp": {
@@ -5441,7 +5498,8 @@
         "Strikeout rate 36.6% (top 1% of regulars)"
       ],
       "signals": [
-        "Put-away pitch: Slider (19% usage) gets 56% whiffs, .177 xwOBA, top 1% for the pitch type"
+        "Put-away pitch: Slider (19% usage) gets 56% whiffs, .177 xwOBA, top 1% for the pitch type",
+        "Missed 30 days on the IL in 2026 over 2 stints (low back muscle spasms; left forearm inflammation)"
       ],
       "risk": "Ground-ball rate 22.1% (bottom 1% of regulars)",
       "bar": "Needs elite relief: ~3.16 ERA/xERA with 20%+ K-BB over 50+ IP, or a move into the rotation. Was 3.13 / 2.51, 26.7% K-BB.",
@@ -5482,7 +5540,9 @@
         "Fastball ride (IVB) 16.2 in (top 16% of regulars)",
         "K-BB% 15.6% (top 35% of regulars)"
       ],
-      "signals": [],
+      "signals": [
+        "Missed 72 days on the IL in 2026 (right quad strain)"
+      ],
       "risk": "Age 31 in 2027: only 4% of eligible pitchers 28+ broke out",
       "bar": "Needs ERA and xERA around 3.56 across 100+ IP (had 90.1) or 200 K. Was 4.68 ERA / 4.15 xERA.",
       "comp": {
@@ -5604,7 +5664,8 @@
         "Strikeout rate 24.2% (top 38% of regulars)"
       ],
       "signals": [
-        "Put-away pitch: Slider (24% usage) gets 39% whiffs, .256 xwOBA, top 24% for the pitch type"
+        "Put-away pitch: Slider (24% usage) gets 39% whiffs, .256 xwOBA, top 24% for the pitch type",
+        "Missed 80 days on the IL in 2026 over 2 stints (right shoulder impingement; left knee inflammation)"
       ],
       "risk": "Zone rate 43.9% (bottom 9% of regulars)",
       "bar": "Needs ERA and xERA around 3.56 across 100+ IP (had 97.2) or 200 K. Was 3.69 ERA / 3.37 xERA.",

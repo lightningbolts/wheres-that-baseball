@@ -62,6 +62,8 @@ export interface BreakoutHitter extends BreakoutExplanation {
     pa: number;
     woba: number | null;
     xwoba: number | null;
+    /** Park-adjusted wRC+ computed from public inputs (100 = league average). */
+    wrcPlus?: number | null;
     barrelPct: number | null;
     ev50: number | null;
     kPct: number | null;
@@ -165,6 +167,7 @@ export interface TurnaroundHitter extends BreakoutExplanation {
     pa: number;
     woba: number | null;
     xwoba: number | null;
+    wrcPlus?: number | null;
     babip: number | null;
     slg: number | null;
     xslg: number | null;

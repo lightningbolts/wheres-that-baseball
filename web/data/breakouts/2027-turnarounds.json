@@ -1,7 +1,7 @@
 {
   "season": 2027,
   "basedOnSeason": 2026,
-  "generatedAt": "2026-11-06T05:06:20+00:00",
+  "generatedAt": "2026-11-06T05:15:04+00:00",
   "source": "Baseball Savant (Statcast) leaderboards and MLB Stats API, 2015-2026",
   "definitions": {
     "regression": {
@@ -12,7 +12,7 @@
     "bounceback": {
       "hitter": "Back within 15 points of his two-year wOBA (league-adjusted) over 250+ PA the next season. Not playing counts as no bounceback.",
       "pitcher": "ERA back within 0.5 runs of his two-year level (league-adjusted) over 40+ IP the next season. Not pitching counts as no bounceback.",
-      "eligibility": "Hitters with 600+ PA and an above-average wOBA across 2024-25 whose 2026 wOBA fell 25+ points (150+ PA). Pitchers with 100+ IP and a better-than-league ERA across 2024-25 whose 2026 ERA rose 1+ run (25+ IP)."
+      "eligibility": "Hitters with 600+ PA and an above-average wOBA across 2024-25 whose 2026 wOBA fell 25+ points (150+ PA, wRC+ 120 or lower). Pitchers with 100+ IP and a better-than-league ERA across 2024-25 whose 2026 ERA rose 1+ run (25+ IP)."
     }
   },
   "backtest": {
@@ -26,9 +26,9 @@
             "breakouts": 32,
             "baseRate": 0.3516,
             "model": {
-              "auc": 0.59,
-              "p10": 0.5,
-              "p25": 0.56
+              "auc": 0.594,
+              "p10": 0.6,
+              "p25": 0.6
             },
             "baselines": {
               "wobaOverX": {
@@ -50,8 +50,8 @@
             "breakouts": 42,
             "baseRate": 0.4242,
             "model": {
-              "auc": 0.721,
-              "p10": 0.9,
+              "auc": 0.729,
+              "p10": 1.0,
               "p25": 0.72
             },
             "baselines": {
@@ -74,9 +74,9 @@
             "breakouts": 41,
             "baseRate": 0.4271,
             "model": {
-              "auc": 0.722,
-              "p10": 1.0,
-              "p25": 0.64
+              "auc": 0.731,
+              "p10": 0.9,
+              "p25": 0.68
             },
             "baselines": {
               "wobaOverX": {
@@ -98,9 +98,9 @@
             "breakouts": 32,
             "baseRate": 0.3596,
             "model": {
-              "auc": 0.734,
-              "p10": 0.8,
-              "p25": 0.6
+              "auc": 0.751,
+              "p10": 0.7,
+              "p25": 0.68
             },
             "baselines": {
               "wobaOverX": {
@@ -122,9 +122,9 @@
             "breakouts": 35,
             "baseRate": 0.3846,
             "model": {
-              "auc": 0.712,
-              "p10": 0.8,
-              "p25": 0.64
+              "auc": 0.684,
+              "p10": 0.7,
+              "p25": 0.6
             },
             "baselines": {
               "wobaOverX": {
@@ -148,7 +148,7 @@
             "model": {
               "auc": 0.599,
               "p10": 0.6,
-              "p25": 0.4
+              "p25": 0.44
             },
             "baselines": {
               "wobaOverX": {
@@ -170,9 +170,9 @@
             "breakouts": 42,
             "baseRate": 0.4421,
             "model": {
-              "auc": 0.628,
-              "p10": 0.8,
-              "p25": 0.6
+              "auc": 0.642,
+              "p10": 0.9,
+              "p25": 0.56
             },
             "baselines": {
               "wobaOverX": {
@@ -190,9 +190,9 @@
         ],
         "summary": {
           "model": {
-            "auc": 0.672,
+            "auc": 0.676,
             "p10": 0.771,
-            "p25": 0.594
+            "p25": 0.611
           },
           "baselines": {
             "wobaOverX": {
@@ -416,23 +416,23 @@
           {
             "season": 2020,
             "outcomeSeason": 2021,
-            "cohort": 45,
+            "cohort": 44,
             "breakouts": 19,
-            "baseRate": 0.4222,
+            "baseRate": 0.4318,
             "model": {
-              "auc": 0.666,
-              "p5": 0.6,
+              "auc": 0.651,
+              "p5": 0.4,
               "p10": 0.6
             },
             "baselines": {
               "xOverWoba": {
-                "auc": 0.543,
+                "auc": 0.547,
                 "p5": 0.6,
                 "p10": 0.5
               },
               "trackRecord": {
-                "auc": 0.324,
-                "p5": 0.0,
+                "auc": 0.337,
+                "p5": 0.2,
                 "p10": 0.1
               }
             }
@@ -440,22 +440,22 @@
           {
             "season": 2021,
             "outcomeSeason": 2022,
-            "cohort": 37,
-            "breakouts": 10,
-            "baseRate": 0.2703,
+            "cohort": 35,
+            "breakouts": 9,
+            "baseRate": 0.2571,
             "model": {
-              "auc": 0.656,
+              "auc": 0.658,
               "p5": 0.2,
-              "p10": 0.3
+              "p10": 0.4
             },
             "baselines": {
               "xOverWoba": {
-                "auc": 0.457,
+                "auc": 0.524,
                 "p5": 0.0,
                 "p10": 0.1
               },
               "trackRecord": {
-                "auc": 0.385,
+                "auc": 0.372,
                 "p5": 0.0,
                 "p10": 0.1
               }
@@ -464,23 +464,23 @@
           {
             "season": 2022,
             "outcomeSeason": 2023,
-            "cohort": 40,
+            "cohort": 36,
             "breakouts": 4,
-            "baseRate": 0.1,
+            "baseRate": 0.1111,
             "model": {
-              "auc": 0.674,
-              "p5": 0.0,
-              "p10": 0.1
+              "auc": 0.734,
+              "p5": 0.2,
+              "p10": 0.2
             },
             "baselines": {
               "xOverWoba": {
-                "auc": 0.521,
+                "auc": 0.516,
                 "p5": 0.2,
                 "p10": 0.1
               },
               "trackRecord": {
-                "auc": 0.493,
-                "p5": 0.0,
+                "auc": 0.555,
+                "p5": 0.2,
                 "p10": 0.1
               }
             }
@@ -488,47 +488,47 @@
           {
             "season": 2023,
             "outcomeSeason": 2024,
-            "cohort": 57,
-            "breakouts": 13,
-            "baseRate": 0.2281,
+            "cohort": 51,
+            "breakouts": 12,
+            "baseRate": 0.2353,
             "model": {
-              "auc": 0.698,
+              "auc": 0.722,
               "p5": 0.6,
               "p10": 0.4
             },
             "baselines": {
               "xOverWoba": {
-                "auc": 0.61,
+                "auc": 0.619,
                 "p5": 0.2,
                 "p10": 0.2
               },
               "trackRecord": {
-                "auc": 0.58,
-                "p5": 0.4,
-                "p10": 0.4
+                "auc": 0.609,
+                "p5": 0.6,
+                "p10": 0.5
               }
             }
           },
           {
             "season": 2024,
             "outcomeSeason": 2025,
-            "cohort": 44,
+            "cohort": 42,
             "breakouts": 11,
-            "baseRate": 0.25,
+            "baseRate": 0.2619,
             "model": {
-              "auc": 0.548,
+              "auc": 0.519,
               "p5": 0.4,
               "p10": 0.2
             },
             "baselines": {
               "xOverWoba": {
-                "auc": 0.544,
+                "auc": 0.525,
                 "p5": 0.2,
                 "p10": 0.3
               },
               "trackRecord": {
-                "auc": 0.521,
-                "p5": 0.2,
+                "auc": 0.554,
+                "p5": 0.4,
                 "p10": 0.3
               }
             }
@@ -536,22 +536,22 @@
           {
             "season": 2025,
             "outcomeSeason": 2026,
-            "cohort": 41,
+            "cohort": 40,
             "breakouts": 10,
-            "baseRate": 0.2439,
+            "baseRate": 0.25,
             "model": {
-              "auc": 0.61,
+              "auc": 0.607,
               "p5": 0.6,
-              "p10": 0.3
+              "p10": 0.4
             },
             "baselines": {
               "xOverWoba": {
-                "auc": 0.665,
+                "auc": 0.677,
                 "p5": 0.4,
                 "p10": 0.3
               },
               "trackRecord": {
-                "auc": 0.497,
+                "auc": 0.51,
                 "p5": 0.2,
                 "p10": 0.2
               }
@@ -560,23 +560,23 @@
         ],
         "summary": {
           "model": {
-            "auc": 0.642,
+            "auc": 0.648,
             "p5": 0.4,
-            "p10": 0.317
+            "p10": 0.367
           },
           "baselines": {
             "xOverWoba": {
-              "auc": 0.557,
+              "auc": 0.568,
               "p5": 0.267,
               "p10": 0.25
             },
             "trackRecord": {
-              "auc": 0.467,
-              "p5": 0.133,
-              "p10": 0.2
+              "auc": 0.49,
+              "p5": 0.267,
+              "p10": 0.217
             }
           },
-          "baseRate": 0.2524
+          "baseRate": 0.2579
         },
         "topN": [
           5,
@@ -765,10 +765,11 @@
         "name": "Tristan Peters",
         "teamId": 145,
         "age": 27,
-        "probability": 0.95,
+        "probability": 0.947,
         "stats": {
           "pa": 491,
           "woba": 0.34,
+          "wrcPlus": 117,
           "xwoba": 0.314,
           "babip": 0.309,
           "slg": 0.437,
@@ -789,7 +790,7 @@
         "signals": [
           "Faded late: .698 OPS after the All-Star break vs .832 before"
         ],
-        "risk": "Only 27 in 2027: young hitters kept their gains more often (34% dropped vs 45% at 31+)",
+        "risk": "wRC+ 117 (top 26% of regulars) says the production is backed by real skill",
         "bar": "Regression = a wOBA around .310 or lower in 2027 (30+ points below 2026) over 200+ PA.",
         "comp": {
           "playerId": 686555,
@@ -807,10 +808,11 @@
         "name": "Ty France",
         "teamId": 135,
         "age": 32,
-        "probability": 0.839,
+        "probability": 0.836,
         "stats": {
           "pa": 500,
           "woba": 0.373,
+          "wrcPlus": 141,
           "xwoba": 0.327,
           "babip": 0.342,
           "slg": 0.502,
@@ -826,7 +828,7 @@
         "drivers": [
           "Career year: .373 wOBA vs .299 over 2024-25 (1025 PA)",
           "SLG .502 vs a .421 xSLG: the power results outran the contact",
-          ".373 wOBA ran 46 points ahead of his .327 xwOBA"
+          "Whiff rate 28.1% (bottom 32% of regulars): thin support for that output"
         ],
         "signals": [],
         "risk": null,
@@ -847,10 +849,11 @@
         "name": "Randy Arozarena",
         "teamId": 136,
         "age": 32,
-        "probability": 0.778,
+        "probability": 0.79,
         "stats": {
           "pa": 670,
           "woba": 0.379,
+          "wrcPlus": 149,
           "xwoba": 0.348,
           "babip": 0.333,
           "slg": 0.484,
@@ -866,31 +869,73 @@
         "drivers": [
           "SLG .484 vs a .419 xSLG: the power results outran the contact",
           "Career year: .379 wOBA vs .326 over 2024-25 (1357 PA)",
-          ".379 wOBA (top 4% of regulars): the higher the peak, the bigger the usual give-back"
+          "149 wRC+ (top 1% of regulars): the higher the peak, the bigger the usual give-back"
         ],
         "signals": [],
         "risk": null,
         "bar": "Regression = a wOBA around .349 or lower in 2027 (30+ points below 2026) over 200+ PA.",
         "comp": {
-          "playerId": 572041,
-          "name": "AJ Pollock",
-          "season": 2021,
-          "before": ".375 wOBA, .356 xwOBA, .326 BABIP in 422 PA",
-          "after": ".297 wOBA in 527 PA"
+          "playerId": 592518,
+          "name": "Manny Machado",
+          "season": 2022,
+          "before": ".382 wOBA, .345 xwOBA, .337 BABIP in 644 PA",
+          "after": ".334 wOBA in 601 PA"
         },
         "position": "LF",
         "bats": "R"
       },
       {
         "rank": 4,
+        "playerId": 665833,
+        "name": "Oneil Cruz",
+        "teamId": 134,
+        "age": 28,
+        "probability": 0.74,
+        "stats": {
+          "pa": 419,
+          "woba": 0.371,
+          "wrcPlus": 135,
+          "xwoba": 0.352,
+          "babip": 0.397,
+          "slg": 0.486,
+          "xslg": 0.472,
+          "barrelPct": 15.4,
+          "ev50": 106.0,
+          "kPct": 33.2,
+          "bbPct": 11.2,
+          "hr": 20,
+          "baseWoba": 0.314,
+          "basePa": 1143
+        },
+        "drivers": [
+          "Whiff rate 35.6% (bottom 5% of regulars): thin support for that output",
+          "Already lost 70 days to the IL in 2026 (left hand fourth and fifth metacarpal non-displaced fractures)",
+          "Career year: .371 wOBA vs .314 over 2024-25 (1143 PA)"
+        ],
+        "signals": [],
+        "risk": "EV50 106.0 mph (top 1% of regulars) says the production is backed by real skill",
+        "bar": "Regression = a wOBA around .341 or lower in 2027 (30+ points below 2026) over 200+ PA.",
+        "comp": {
+          "playerId": 571437,
+          "name": "Aaron Altherr",
+          "season": 2017,
+          "before": ".359 wOBA, .341 xwOBA, .328 BABIP in 412 PA",
+          "after": ".282 wOBA in 285 PA"
+        },
+        "position": "CF",
+        "bats": "L"
+      },
+      {
+        "rank": 5,
         "playerId": 571448,
         "name": "Nolan Arenado",
         "teamId": 109,
         "age": 36,
-        "probability": 0.753,
+        "probability": 0.737,
         "stats": {
           "pa": 599,
           "woba": 0.349,
+          "wrcPlus": 119,
           "xwoba": 0.3,
           "babip": 0.275,
           "slg": 0.475,
@@ -905,11 +950,11 @@
         },
         "drivers": [
           "SLG .475 vs a .366 xSLG: the power results outran the contact",
-          ".349 wOBA ran 49 points ahead of his .300 xwOBA",
-          "Career year: .349 wOBA vs .303 over 2024-25 (1071 PA)"
+          "Career year: .349 wOBA vs .303 over 2024-25 (1071 PA)",
+          "xwOBA .300 (bottom 28% of regulars): thin support for that output"
         ],
         "signals": [],
-        "risk": null,
+        "risk": "wRC+ 119 (top 22% of regulars) says the production is backed by real skill",
         "bar": "Regression = a wOBA around .319 or lower in 2027 (30+ points below 2026) over 200+ PA.",
         "comp": {
           "playerId": 543877,
@@ -922,15 +967,16 @@
         "bats": "R"
       },
       {
-        "rank": 5,
+        "rank": 6,
         "playerId": 641343,
         "name": "Jake Bauers",
         "teamId": 158,
         "age": 31,
-        "probability": 0.737,
+        "probability": 0.723,
         "stats": {
           "pa": 578,
           "woba": 0.381,
+          "wrcPlus": 145,
           "xwoba": 0.371,
           "babip": 0.339,
           "slg": 0.484,
@@ -946,10 +992,10 @@
         "drivers": [
           "Career year: .381 wOBA vs .309 over 2024-25 (564 PA)",
           "Whiff rate 29.8% (bottom 22% of regulars): thin support for that output",
-          ".381 wOBA (top 3% of regulars): the higher the peak, the bigger the usual give-back"
+          "145 wRC+ (top 2% of regulars): the higher the peak, the bigger the usual give-back"
         ],
         "signals": [],
-        "risk": "EV50 103.2 mph (top 7% of regulars) says the production is backed by real skill",
+        "risk": "xwOBA .371 (top 6% of regulars) says the production is backed by real skill",
         "bar": "Regression = a wOBA around .351 or lower in 2027 (30+ points below 2026) over 200+ PA.",
         "comp": {
           "playerId": 571976,
@@ -962,55 +1008,139 @@
         "bats": "L"
       },
       {
-        "rank": 6,
-        "playerId": 665833,
-        "name": "Oneil Cruz",
-        "teamId": 134,
-        "age": 28,
-        "probability": 0.667,
+        "rank": 7,
+        "playerId": 646240,
+        "name": "Rafael Devers",
+        "teamId": 137,
+        "age": 30,
+        "probability": 0.718,
         "stats": {
-          "pa": 419,
-          "woba": 0.371,
-          "xwoba": 0.352,
-          "babip": 0.397,
-          "slg": 0.486,
-          "xslg": 0.472,
-          "barrelPct": 15.4,
-          "ev50": 106.0,
-          "kPct": 33.2,
-          "bbPct": 11.2,
-          "hr": 20,
-          "baseWoba": 0.314,
-          "basePa": 1143
+          "pa": 633,
+          "woba": 0.367,
+          "wrcPlus": 137,
+          "xwoba": 0.342,
+          "babip": 0.294,
+          "slg": 0.525,
+          "xslg": 0.473,
+          "barrelPct": 12.5,
+          "ev50": 103.0,
+          "kPct": 25.4,
+          "bbPct": 10.9,
+          "hr": 37,
+          "baseWoba": 0.365,
+          "basePa": 1330
         },
         "drivers": [
-          "Whiff rate 35.6% (bottom 5% of regulars): thin support for that output",
-          "Career year: .371 wOBA vs .314 over 2024-25 (1143 PA)",
-          ".371 wOBA (top 6% of regulars): the higher the peak, the bigger the usual give-back"
+          "Already lost 167 days to the IL in 2026 (core muscle injury)",
+          "SLG .525 vs a .473 xSLG: the power results outran the contact",
+          "Whiff rate 29.0% (bottom 28% of regulars): thin support for that output"
         ],
         "signals": [],
-        "risk": "EV50 106.0 mph (top 1% of regulars) says the production is backed by real skill",
-        "bar": "Regression = a wOBA around .341 or lower in 2027 (30+ points below 2026) over 200+ PA.",
+        "risk": "Not a one-off: he hit .365 over 1330 PA in 2024-25",
+        "bar": "Regression = a wOBA around .337 or lower in 2027 (30+ points below 2026) over 200+ PA.",
         "comp": {
-          "playerId": 606192,
-          "name": "Teoscar Hern\u00e1ndez",
-          "season": 2024,
-          "before": ".360 wOBA, .347 xwOBA, .344 BABIP in 652 PA",
-          "after": ".315 wOBA in 546 PA"
+          "playerId": 543807,
+          "name": "George Springer",
+          "season": 2022,
+          "before": ".352 wOBA, .345 xwOBA, .285 BABIP in 583 PA",
+          "after": ".320 wOBA in 683 PA"
         },
-        "position": "CF",
+        "position": "1B",
         "bats": "L"
       },
       {
-        "rank": 7,
+        "rank": 8,
+        "playerId": 673962,
+        "name": "Josh Jung",
+        "teamId": 140,
+        "age": 29,
+        "probability": 0.683,
+        "stats": {
+          "pa": 444,
+          "woba": 0.362,
+          "wrcPlus": 136,
+          "xwoba": 0.348,
+          "babip": 0.346,
+          "slg": 0.462,
+          "xslg": 0.44,
+          "barrelPct": 7.2,
+          "ev50": 100.2,
+          "kPct": 18.0,
+          "bbPct": 7.9,
+          "hr": 12,
+          "baseWoba": 0.301,
+          "basePa": 699
+        },
+        "drivers": [
+          "Career year: .362 wOBA vs .301 over 2024-25 (699 PA)",
+          "Already lost 54 days to the IL in 2026 (left calf strain; right hand fracture)",
+          "136 wRC+ (top 6% of regulars): the higher the peak, the bigger the usual give-back"
+        ],
+        "signals": [],
+        "risk": "Whiff rate 18.5% (top 18% of regulars) says the production is backed by real skill",
+        "bar": "Regression = a wOBA around .332 or lower in 2027 (30+ points below 2026) over 200+ PA.",
+        "comp": {
+          "playerId": 666182,
+          "name": "Bo Bichette",
+          "season": 2025,
+          "before": ".361 wOBA, .353 xwOBA, .342 BABIP in 628 PA",
+          "after": ".309 wOBA in 696 PA"
+        },
+        "position": "3B",
+        "bats": "R"
+      },
+      {
+        "rank": 9,
+        "playerId": 575929,
+        "name": "Willson Contreras",
+        "teamId": 111,
+        "age": 35,
+        "probability": 0.631,
+        "stats": {
+          "pa": 535,
+          "woba": 0.391,
+          "wrcPlus": 147,
+          "xwoba": 0.376,
+          "babip": 0.332,
+          "slg": 0.516,
+          "xslg": 0.484,
+          "barrelPct": 13.3,
+          "ev50": 102.4,
+          "kPct": 25.2,
+          "bbPct": 11.0,
+          "hr": 27,
+          "baseWoba": 0.354,
+          "basePa": 921
+        },
+        "drivers": [
+          "Whiff rate 30.8% (bottom 17% of regulars): thin support for that output",
+          "147 wRC+ (top 2% of regulars): the higher the peak, the bigger the usual give-back",
+          "Career year: .391 wOBA vs .354 over 2024-25 (921 PA)"
+        ],
+        "signals": [],
+        "risk": "xwOBA .376 (top 5% of regulars) says the production is backed by real skill",
+        "bar": "Regression = a wOBA around .361 or lower in 2027 (30+ points below 2026) over 200+ PA.",
+        "comp": {
+          "playerId": 592626,
+          "name": "Joc Pederson",
+          "season": 2024,
+          "before": ".391 wOBA, .378 xwOBA, .322 BABIP in 449 PA",
+          "after": ".276 wOBA in 306 PA"
+        },
+        "position": "1B",
+        "bats": "R"
+      },
+      {
+        "rank": 10,
         "playerId": 691718,
         "name": "Pete Crow-Armstrong",
         "teamId": 112,
         "age": 25,
-        "probability": 0.636,
+        "probability": 0.631,
         "stats": {
           "pa": 726,
           "woba": 0.4,
+          "wrcPlus": 158,
           "xwoba": 0.374,
           "babip": 0.327,
           "slg": 0.57,
@@ -1025,32 +1155,33 @@
         },
         "drivers": [
           "Career year: .400 wOBA vs .310 over 2024-25 (1057 PA)",
-          ".400 wOBA (top 1% of regulars): the higher the peak, the bigger the usual give-back",
-          "SLG .570 vs a .508 xSLG: the power results outran the contact"
+          "SLG .570 vs a .508 xSLG: the power results outran the contact",
+          "158 wRC+ (top 1% of regulars): the higher the peak, the bigger the usual give-back"
         ],
         "signals": [],
         "risk": "Only 25 in 2027: young hitters kept their gains more often (34% dropped vs 45% at 31+)",
         "bar": "Regression = a wOBA around .370 or lower in 2027 (30+ points below 2026) over 200+ PA.",
         "comp": {
-          "playerId": 624424,
-          "name": "Michael Conforto",
-          "season": 2017,
-          "before": ".392 wOBA, .376 xwOBA, .328 BABIP in 440 PA",
-          "after": ".342 wOBA in 638 PA"
+          "playerId": 663728,
+          "name": "Cal Raleigh",
+          "season": 2025,
+          "before": ".392 wOBA, .371 xwOBA, .248 BABIP in 705 PA",
+          "after": ".297 wOBA in 530 PA"
         },
         "position": "CF",
         "bats": "L"
       },
       {
-        "rank": 8,
+        "rank": 11,
         "playerId": 700250,
         "name": "Ben Rice",
         "teamId": 147,
         "age": 28,
-        "probability": 0.633,
+        "probability": 0.604,
         "stats": {
           "pa": 667,
           "woba": 0.384,
+          "wrcPlus": 144,
           "xwoba": 0.378,
           "babip": 0.295,
           "slg": 0.534,
@@ -1065,7 +1196,7 @@
         },
         "drivers": [
           "Career year: .384 wOBA vs .336 over 2024-25 (708 PA)",
-          ".384 wOBA (top 2% of regulars): the higher the peak, the bigger the usual give-back",
+          "144 wRC+ (top 2% of regulars): the higher the peak, the bigger the usual give-back",
           "EV50 down 2.4 mph from 2025 (101.7 mph)"
         ],
         "signals": [
@@ -1084,55 +1215,57 @@
         "bats": "L"
       },
       {
-        "rank": 9,
-        "playerId": 575929,
-        "name": "Willson Contreras",
-        "teamId": 111,
-        "age": 35,
-        "probability": 0.63,
+        "rank": 12,
+        "playerId": 805811,
+        "name": "Bryce Eldridge",
+        "teamId": 137,
+        "age": 22,
+        "probability": 0.582,
         "stats": {
-          "pa": 535,
-          "woba": 0.391,
-          "xwoba": 0.376,
-          "babip": 0.332,
-          "slg": 0.516,
-          "xslg": 0.484,
-          "barrelPct": 13.3,
-          "ev50": 102.4,
-          "kPct": 25.2,
-          "bbPct": 11.0,
-          "hr": 27,
-          "baseWoba": 0.354,
-          "basePa": 921
+          "pa": 448,
+          "woba": 0.361,
+          "wrcPlus": 133,
+          "xwoba": 0.359,
+          "babip": 0.344,
+          "slg": 0.461,
+          "xslg": 0.467,
+          "barrelPct": 11.5,
+          "ev50": 102.6,
+          "kPct": 26.6,
+          "bbPct": 13.2,
+          "hr": 17,
+          "baseWoba": null,
+          "basePa": 37
         },
         "drivers": [
-          ".391 wOBA (top 1% of regulars): the higher the peak, the bigger the usual give-back",
-          "Whiff rate 30.8% (bottom 17% of regulars): thin support for that output",
-          "Career year: .391 wOBA vs .354 over 2024-25 (921 PA)"
+          "BABIP .344 (top 6% of regulars) with no long track record to back it",
+          "EV50 down 2.5 mph from 2025 (102.6 mph)",
+          "133 wRC+ (top 9% of regulars): the higher the peak, the bigger the usual give-back"
         ],
         "signals": [],
-        "risk": "xwOBA .376 (top 5% of regulars) says the production is backed by real skill",
-        "bar": "Regression = a wOBA around .361 or lower in 2027 (30+ points below 2026) over 200+ PA.",
+        "risk": "Only 22 in 2027: young hitters kept their gains more often (34% dropped vs 45% at 31+)",
+        "bar": "Regression = a wOBA around .331 or lower in 2027 (30+ points below 2026) over 200+ PA.",
         "comp": {
-          "playerId": 592626,
-          "name": "Joc Pederson",
+          "playerId": 671732,
+          "name": "Lawrence Butler",
           "season": 2024,
-          "before": ".391 wOBA, .378 xwOBA, .322 BABIP in 449 PA",
-          "after": ".276 wOBA in 306 PA"
+          "before": ".345 wOBA, .341 xwOBA, .301 BABIP in 451 PA",
+          "after": ".310 wOBA in 630 PA"
         },
-        "position": "1B",
-        "bats": "R"
+        "position": "DH",
+        "bats": "L"
       },
       {
-        "rank": 10,
+        "rank": 13,
         "playerId": 664040,
         "name": "Brandon Lowe",
         "teamId": 134,
         "age": 32,
-        "probability": 0.594,
+        "probability": 0.572,
         "stats": {
           "pa": 655,
           "woba": 0.355,
+          "wrcPlus": 125,
           "xwoba": 0.331,
           "babip": 0.319,
           "slg": 0.494,
@@ -1151,7 +1284,7 @@
           ".355 wOBA ran 24 points ahead of his .331 xwOBA"
         ],
         "signals": [],
-        "risk": null,
+        "risk": "wRC+ 125 (top 16% of regulars) says the production is backed by real skill",
         "bar": "Regression = a wOBA around .325 or lower in 2027 (30+ points below 2026) over 200+ PA.",
         "comp": {
           "playerId": 519346,
@@ -1164,95 +1297,59 @@
         "bats": "L"
       },
       {
-        "rank": 11,
-        "playerId": 673962,
-        "name": "Josh Jung",
-        "teamId": 140,
-        "age": 29,
-        "probability": 0.591,
+        "rank": 14,
+        "playerId": 673548,
+        "name": "Seiya Suzuki",
+        "teamId": 112,
+        "age": 32,
+        "probability": 0.545,
         "stats": {
-          "pa": 444,
-          "woba": 0.362,
-          "xwoba": 0.348,
-          "babip": 0.346,
-          "slg": 0.462,
-          "xslg": 0.44,
-          "barrelPct": 7.2,
+          "pa": 634,
+          "woba": 0.366,
+          "wrcPlus": 135,
+          "xwoba": 0.34,
+          "babip": 0.33,
+          "slg": 0.473,
+          "xslg": 0.427,
+          "barrelPct": 10.7,
           "ev50": 100.2,
-          "kPct": 18.0,
-          "bbPct": 7.9,
-          "hr": 12,
-          "baseWoba": 0.301,
-          "basePa": 699
+          "kPct": 24.4,
+          "bbPct": 12.8,
+          "hr": 26,
+          "baseWoba": 0.353,
+          "basePa": 1236
         },
         "drivers": [
-          "Career year: .362 wOBA vs .301 over 2024-25 (699 PA)",
-          "Lost 0.9 ft/s of sprint speed since 2025",
-          "Sprint speed 25.7 ft/s (bottom 12% of regulars): thin support for that output"
+          "SLG .473 vs a .427 xSLG: the power results outran the contact",
+          "EV50 down 2.7 mph from 2025 (100.2 mph)",
+          ".366 wOBA ran 26 points ahead of his .340 xwOBA"
         ],
-        "signals": [],
-        "risk": "Whiff rate 18.5% (top 18% of regulars) says the production is backed by real skill",
-        "bar": "Regression = a wOBA around .332 or lower in 2027 (30+ points below 2026) over 200+ PA.",
+        "signals": [
+          "Missed 15 days on the IL in 2026 (right knee sprain)"
+        ],
+        "risk": "Not a one-off: he hit .353 over 1236 PA in 2024-25",
+        "bar": "Regression = a wOBA around .336 or lower in 2027 (30+ points below 2026) over 200+ PA.",
         "comp": {
-          "playerId": 666182,
-          "name": "Bo Bichette",
-          "season": 2025,
-          "before": ".361 wOBA, .353 xwOBA, .342 BABIP in 628 PA",
-          "after": ".309 wOBA in 696 PA"
+          "playerId": 572821,
+          "name": "Brian Dozier",
+          "season": 2017,
+          "before": ".362 wOBA, .342 xwOBA, .300 BABIP in 705 PA",
+          "after": ".304 wOBA in 632 PA"
         },
-        "position": "3B",
+        "position": "RF",
         "bats": "R"
       },
       {
-        "rank": 12,
-        "playerId": 805811,
-        "name": "Bryce Eldridge",
-        "teamId": 137,
-        "age": 22,
-        "probability": 0.586,
-        "stats": {
-          "pa": 448,
-          "woba": 0.361,
-          "xwoba": 0.359,
-          "babip": 0.344,
-          "slg": 0.461,
-          "xslg": 0.467,
-          "barrelPct": 11.5,
-          "ev50": 102.6,
-          "kPct": 26.6,
-          "bbPct": 13.2,
-          "hr": 17,
-          "baseWoba": null,
-          "basePa": 37
-        },
-        "drivers": [
-          "BABIP .344 (top 6% of regulars) with no long track record to back it",
-          "EV50 down 2.5 mph from 2025 (102.6 mph)",
-          "Sprint speed 26.0 ft/s (bottom 15% of regulars): thin support for that output"
-        ],
-        "signals": [],
-        "risk": "Only 22 in 2027: young hitters kept their gains more often (34% dropped vs 45% at 31+)",
-        "bar": "Regression = a wOBA around .331 or lower in 2027 (30+ points below 2026) over 200+ PA.",
-        "comp": {
-          "playerId": 671732,
-          "name": "Lawrence Butler",
-          "season": 2024,
-          "before": ".345 wOBA, .341 xwOBA, .301 BABIP in 451 PA",
-          "after": ".310 wOBA in 630 PA"
-        },
-        "position": "DH",
-        "bats": "L"
-      },
-      {
-        "rank": 13,
+        "rank": 15,
         "playerId": 695506,
         "name": "Jac Caglianone",
         "teamId": 118,
         "age": 24,
-        "probability": 0.562,
+        "probability": 0.535,
         "stats": {
           "pa": 553,
           "woba": 0.36,
+          "wrcPlus": 127,
           "xwoba": 0.357,
           "babip": 0.361,
           "slg": 0.494,
@@ -1266,72 +1363,76 @@
           "basePa": 232
         },
         "drivers": [
-          "BABIP .361 (top 3% of regulars) with no long track record to back it",
-          "Whiff rate 29.4% (bottom 24% of regulars): thin support for that output"
+          "Whiff rate 29.4% (bottom 24% of regulars): thin support for that output",
+          "BABIP .361 (top 3% of regulars) with no long track record to back it"
         ],
         "signals": [],
         "risk": "Only 24 in 2027: young hitters kept their gains more often (34% dropped vs 45% at 31+)",
         "bar": "Regression = a wOBA around .330 or lower in 2027 (30+ points below 2026) over 200+ PA.",
         "comp": {
-          "playerId": 671732,
-          "name": "Lawrence Butler",
+          "playerId": 681297,
+          "name": "Colton Cowser",
           "season": 2024,
-          "before": ".345 wOBA, .341 xwOBA, .301 BABIP in 451 PA",
-          "after": ".310 wOBA in 630 PA"
+          "before": ".331 wOBA, .333 xwOBA, .317 BABIP in 561 PA",
+          "after": ".285 wOBA in 360 PA"
         },
         "position": "RF",
         "bats": "L"
       },
       {
-        "rank": 14,
-        "playerId": 681198,
-        "name": "TJ Rumfield",
-        "teamId": 115,
-        "age": 27,
-        "probability": 0.556,
+        "rank": 16,
+        "playerId": 663616,
+        "name": "Trevor Larnach",
+        "teamId": 142,
+        "age": 30,
+        "probability": 0.532,
         "stats": {
-          "pa": 631,
-          "woba": 0.373,
-          "xwoba": 0.333,
-          "babip": 0.331,
-          "slg": 0.453,
-          "xslg": 0.386,
-          "barrelPct": 5.0,
-          "ev50": 96.2,
-          "kPct": 13.6,
-          "bbPct": 11.4,
-          "hr": 16,
-          "baseWoba": null,
-          "basePa": 0
+          "pa": 433,
+          "woba": 0.347,
+          "wrcPlus": 117,
+          "xwoba": 0.327,
+          "babip": 0.309,
+          "slg": 0.436,
+          "xslg": 0.394,
+          "barrelPct": 7.5,
+          "ev50": 99.0,
+          "kPct": 18.2,
+          "bbPct": 10.4,
+          "hr": 13,
+          "baseWoba": 0.325,
+          "basePa": 967
         },
         "drivers": [
-          "SLG .453 vs a .386 xSLG: the power results outran the contact",
-          ".373 wOBA ran 40 points ahead of his .333 xwOBA",
-          ".373 wOBA (top 5% of regulars): the higher the peak, the bigger the usual give-back"
+          "SLG .436 vs a .394 xSLG: the power results outran the contact",
+          "EV50 down 2.3 mph from 2025 (99.0 mph)",
+          ".347 wOBA ran 20 points ahead of his .327 xwOBA"
         ],
-        "signals": [],
-        "risk": "Whiff rate 18.8% (top 19% of regulars) says the production is backed by real skill",
-        "bar": "Regression = a wOBA around .343 or lower in 2027 (30+ points below 2026) over 200+ PA.",
+        "signals": [
+          "Faded late: .704 OPS after the All-Star break vs .830 before"
+        ],
+        "risk": "wRC+ 117 (top 25% of regulars) says the production is backed by real skill",
+        "bar": "Regression = a wOBA around .317 or lower in 2027 (30+ points below 2026) over 200+ PA.",
         "comp": {
-          "playerId": 645277,
-          "name": "Ozzie Albies",
+          "playerId": 600869,
+          "name": "Jeimer Candelario",
           "season": 2023,
-          "before": ".358 wOBA, .341 xwOBA, .289 BABIP in 660 PA",
-          "after": ".307 wOBA in 435 PA"
+          "before": ".346 wOBA, .318 xwOBA, .292 BABIP in 576 PA",
+          "after": ".304 wOBA in 463 PA"
         },
-        "position": "1B",
+        "position": "LF",
         "bats": "L"
       },
       {
-        "rank": 15,
+        "rank": 17,
         "playerId": 547180,
         "name": "Bryce Harper",
         "teamId": 143,
         "age": 34,
-        "probability": 0.548,
+        "probability": 0.525,
         "stats": {
           "pa": 693,
           "woba": 0.375,
+          "wrcPlus": 137,
           "xwoba": 0.379,
           "babip": 0.309,
           "slg": 0.485,
@@ -1363,97 +1464,59 @@
         "bats": "L"
       },
       {
-        "rank": 16,
-        "playerId": 673548,
-        "name": "Seiya Suzuki",
-        "teamId": 112,
-        "age": 32,
-        "probability": 0.542,
+        "rank": 18,
+        "playerId": 672515,
+        "name": "Gabriel Moreno",
+        "teamId": 109,
+        "age": 27,
+        "probability": 0.524,
         "stats": {
-          "pa": 634,
-          "woba": 0.366,
-          "xwoba": 0.34,
-          "babip": 0.33,
-          "slg": 0.473,
-          "xslg": 0.427,
-          "barrelPct": 10.7,
-          "ev50": 100.2,
-          "kPct": 24.4,
-          "bbPct": 12.8,
-          "hr": 26,
-          "baseWoba": 0.353,
-          "basePa": 1236
+          "pa": 549,
+          "woba": 0.38,
+          "wrcPlus": 139,
+          "xwoba": 0.363,
+          "babip": 0.339,
+          "slg": 0.486,
+          "xslg": 0.451,
+          "barrelPct": 7.7,
+          "ev50": 99.9,
+          "kPct": 14.6,
+          "bbPct": 11.1,
+          "hr": 16,
+          "baseWoba": 0.332,
+          "basePa": 660
         },
         "drivers": [
-          "SLG .473 vs a .427 xSLG: the power results outran the contact",
-          "EV50 down 2.7 mph from 2025 (100.2 mph)",
-          ".366 wOBA ran 26 points ahead of his .340 xwOBA"
+          "Career year: .380 wOBA vs .332 over 2024-25 (660 PA)",
+          "SLG .486 vs a .451 xSLG: the power results outran the contact",
+          ".380 wOBA (top 3% of regulars): the higher the peak, the bigger the usual give-back"
         ],
-        "signals": [],
-        "risk": "Not a one-off: he hit .353 over 1236 PA in 2024-25",
-        "bar": "Regression = a wOBA around .336 or lower in 2027 (30+ points below 2026) over 200+ PA.",
+        "signals": [
+          "Missed 20 days on the IL in 2026 (left oblique strain)"
+        ],
+        "risk": "Whiff rate 15.5% (top 8% of regulars) says the production is backed by real skill",
+        "bar": "Regression = a wOBA around .350 or lower in 2027 (30+ points below 2026) over 200+ PA.",
         "comp": {
-          "playerId": 460086,
-          "name": "Alex Gordon",
-          "season": 2015,
-          "before": ".351 wOBA, .330 xwOBA, .327 BABIP in 422 PA",
-          "after": ".303 wOBA in 506 PA"
+          "playerId": 672695,
+          "name": "Geraldo Perdomo",
+          "season": 2025,
+          "before": ".370 wOBA, .356 xwOBA, .303 BABIP in 720 PA",
+          "after": ".336 wOBA in 680 PA"
         },
-        "position": "RF",
+        "position": "C",
         "bats": "R"
       },
       {
-        "rank": 17,
-        "playerId": 663616,
-        "name": "Trevor Larnach",
-        "teamId": 142,
-        "age": 30,
-        "probability": 0.539,
-        "stats": {
-          "pa": 433,
-          "woba": 0.347,
-          "xwoba": 0.327,
-          "babip": 0.309,
-          "slg": 0.436,
-          "xslg": 0.394,
-          "barrelPct": 7.5,
-          "ev50": 99.0,
-          "kPct": 18.2,
-          "bbPct": 10.4,
-          "hr": 13,
-          "baseWoba": 0.325,
-          "basePa": 967
-        },
-        "drivers": [
-          "SLG .436 vs a .394 xSLG: the power results outran the contact",
-          "EV50 down 2.3 mph from 2025 (99.0 mph)",
-          ".347 wOBA ran 20 points ahead of his .327 xwOBA"
-        ],
-        "signals": [
-          "Faded late: .704 OPS after the All-Star break vs .830 before"
-        ],
-        "risk": null,
-        "bar": "Regression = a wOBA around .317 or lower in 2027 (30+ points below 2026) over 200+ PA.",
-        "comp": {
-          "playerId": 600869,
-          "name": "Jeimer Candelario",
-          "season": 2023,
-          "before": ".346 wOBA, .318 xwOBA, .292 BABIP in 576 PA",
-          "after": ".304 wOBA in 463 PA"
-        },
-        "position": "LF",
-        "bats": "L"
-      },
-      {
-        "rank": 18,
+        "rank": 19,
         "playerId": 670541,
         "name": "Yordan Alvarez",
         "teamId": 117,
         "age": 30,
-        "probability": 0.531,
+        "probability": 0.521,
         "stats": {
           "pa": 691,
           "woba": 0.429,
+          "wrcPlus": 175,
           "xwoba": 0.442,
           "babip": 0.334,
           "slg": 0.602,
@@ -1467,9 +1530,8 @@
           "basePa": 834
         },
         "drivers": [
-          ".429 wOBA (top 1% of regulars): the higher the peak, the bigger the usual give-back",
-          "Career year: .429 wOBA vs .387 over 2024-25 (834 PA)",
-          "Sprint speed 25.4 ft/s (bottom 8% of regulars): thin support for that output"
+          "175 wRC+ (top 1% of regulars): the higher the peak, the bigger the usual give-back",
+          "Career year: .429 wOBA vs .387 over 2024-25 (834 PA)"
         ],
         "signals": [],
         "risk": "SLG .602 trailed his .636 xSLG",
@@ -1485,137 +1547,57 @@
         "bats": "L"
       },
       {
-        "rank": 19,
-        "playerId": 672515,
-        "name": "Gabriel Moreno",
-        "teamId": 109,
+        "rank": 20,
+        "playerId": 681198,
+        "name": "TJ Rumfield",
+        "teamId": 115,
         "age": 27,
-        "probability": 0.509,
+        "probability": 0.513,
         "stats": {
-          "pa": 549,
-          "woba": 0.38,
-          "xwoba": 0.363,
-          "babip": 0.339,
-          "slg": 0.486,
-          "xslg": 0.451,
-          "barrelPct": 7.7,
-          "ev50": 99.9,
-          "kPct": 14.6,
-          "bbPct": 11.1,
+          "pa": 631,
+          "woba": 0.373,
+          "wrcPlus": 125,
+          "xwoba": 0.333,
+          "babip": 0.331,
+          "slg": 0.453,
+          "xslg": 0.386,
+          "barrelPct": 5.0,
+          "ev50": 96.2,
+          "kPct": 13.6,
+          "bbPct": 11.4,
           "hr": 16,
-          "baseWoba": 0.332,
-          "basePa": 660
+          "baseWoba": null,
+          "basePa": 0
         },
         "drivers": [
-          "Career year: .380 wOBA vs .332 over 2024-25 (660 PA)",
-          ".380 wOBA (top 3% of regulars): the higher the peak, the bigger the usual give-back",
-          "SLG .486 vs a .451 xSLG: the power results outran the contact"
+          "SLG .453 vs a .386 xSLG: the power results outran the contact",
+          ".373 wOBA ran 40 points ahead of his .333 xwOBA",
+          "EV50 96.2 mph (bottom 6% of regulars): thin support for that output"
         ],
         "signals": [],
-        "risk": "Whiff rate 15.5% (top 8% of regulars) says the production is backed by real skill",
-        "bar": "Regression = a wOBA around .350 or lower in 2027 (30+ points below 2026) over 200+ PA.",
+        "risk": "Whiff rate 18.8% (top 19% of regulars) says the production is backed by real skill",
+        "bar": "Regression = a wOBA around .343 or lower in 2027 (30+ points below 2026) over 200+ PA.",
         "comp": {
-          "playerId": 672695,
-          "name": "Geraldo Perdomo",
-          "season": 2025,
-          "before": ".370 wOBA, .356 xwOBA, .303 BABIP in 720 PA",
-          "after": ".336 wOBA in 680 PA"
+          "playerId": 645277,
+          "name": "Ozzie Albies",
+          "season": 2023,
+          "before": ".358 wOBA, .341 xwOBA, .289 BABIP in 660 PA",
+          "after": ".307 wOBA in 435 PA"
         },
-        "position": "C",
-        "bats": "R"
-      },
-      {
-        "rank": 20,
-        "playerId": 656941,
-        "name": "Kyle Schwarber",
-        "teamId": 143,
-        "age": 34,
-        "probability": 0.507,
-        "stats": {
-          "pa": 701,
-          "woba": 0.368,
-          "xwoba": 0.364,
-          "babip": 0.28,
-          "slg": 0.503,
-          "xslg": 0.487,
-          "barrelPct": 15.6,
-          "ev50": 103.5,
-          "kPct": 31.4,
-          "bbPct": 15.0,
-          "hr": 45,
-          "baseWoba": 0.379,
-          "basePa": 1416
-        },
-        "drivers": [
-          "Whiff rate 33.1% (bottom 8% of regulars): thin support for that output",
-          "EV50 down 2.1 mph from 2025 (103.5 mph)",
-          ".368 wOBA (top 8% of regulars): the higher the peak, the bigger the usual give-back"
-        ],
-        "signals": [
-          "Faded late: .752 OPS after the All-Star break vs .927 before"
-        ],
-        "risk": "EV50 103.5 mph (top 6% of regulars) says the production is backed by real skill",
-        "bar": "Regression = a wOBA around .338 or lower in 2027 (30+ points below 2026) over 200+ PA.",
-        "comp": {
-          "playerId": 667670,
-          "name": "Brent Rooker",
-          "season": 2025,
-          "before": ".349 wOBA, .351 xwOBA, .302 BABIP in 699 PA",
-          "after": ".294 wOBA in 202 PA"
-        },
-        "position": "DH",
+        "position": "1B",
         "bats": "L"
       },
       {
         "rank": 21,
-        "playerId": 571970,
-        "name": "Max Muncy",
-        "teamId": 119,
-        "age": 36,
-        "probability": 0.498,
-        "stats": {
-          "pa": 561,
-          "woba": 0.361,
-          "xwoba": 0.349,
-          "babip": 0.294,
-          "slg": 0.49,
-          "xslg": 0.47,
-          "barrelPct": 12.9,
-          "ev50": 101.0,
-          "kPct": 25.0,
-          "bbPct": 11.6,
-          "hr": 29,
-          "baseWoba": 0.364,
-          "basePa": 681
-        },
-        "drivers": [
-          "Whiff rate 29.2% (bottom 26% of regulars): thin support for that output",
-          "EV50 down 0.9 mph from 2025 (101.0 mph)",
-          ".361 wOBA ran 12 points ahead of his .349 xwOBA"
-        ],
-        "signals": [],
-        "risk": null,
-        "bar": "Regression = a wOBA around .331 or lower in 2027 (30+ points below 2026) over 200+ PA.",
-        "comp": {
-          "playerId": 572233,
-          "name": "Christian Walker",
-          "season": 2024,
-          "before": ".343 wOBA, .354 xwOBA, .287 BABIP in 552 PA",
-          "after": ".310 wOBA in 640 PA"
-        },
-        "position": "3B",
-        "bats": "L"
-      },
-      {
-        "rank": 22,
         "playerId": 592626,
         "name": "Joc Pederson",
         "teamId": 140,
         "age": 35,
-        "probability": 0.489,
+        "probability": 0.51,
         "stats": {
           "pa": 432,
           "woba": 0.352,
+          "wrcPlus": 130,
           "xwoba": 0.343,
           "babip": 0.249,
           "slg": 0.487,
@@ -1629,9 +1611,9 @@
           "basePa": 755
         },
         "drivers": [
-          "Whiff rate 30.0% (bottom 21% of regulars): thin support for that output",
           "SLG .487 vs a .445 xSLG: the power results outran the contact",
-          "Sprint speed 25.0 ft/s (bottom 4% of regulars): thin support for that output"
+          "Whiff rate 30.0% (bottom 21% of regulars): thin support for that output",
+          "Turns 35 in 2027: 45% of strong hitters 31+ lost 30+ points of wOBA the next year, vs 34% at 27 or younger"
         ],
         "signals": [],
         "risk": "Not a one-off: he hit .344 over 755 PA in 2024-25",
@@ -1647,57 +1629,58 @@
         "bats": "L"
       },
       {
-        "rank": 23,
-        "playerId": 664983,
-        "name": "Jake McCarthy",
-        "teamId": 115,
-        "age": 29,
-        "probability": 0.488,
+        "rank": 22,
+        "playerId": 808959,
+        "name": "Munetaka Murakami",
+        "teamId": 145,
+        "age": 27,
+        "probability": 0.494,
         "stats": {
-          "pa": 596,
-          "woba": 0.349,
-          "xwoba": 0.321,
-          "babip": 0.326,
-          "slg": 0.475,
-          "xslg": 0.41,
-          "barrelPct": 5.4,
-          "ev50": 97.1,
-          "kPct": 15.9,
-          "bbPct": 5.0,
-          "hr": 15,
-          "baseWoba": 0.306,
-          "basePa": 717
+          "pa": 553,
+          "woba": 0.356,
+          "wrcPlus": 127,
+          "xwoba": 0.351,
+          "babip": 0.263,
+          "slg": 0.478,
+          "xslg": 0.469,
+          "barrelPct": 20.5,
+          "ev50": 104.4,
+          "kPct": 35.4,
+          "bbPct": 16.6,
+          "hr": 35,
+          "baseWoba": null,
+          "basePa": 0
         },
         "drivers": [
-          "SLG .475 vs a .410 xSLG: the power results outran the contact",
-          "Career year: .349 wOBA vs .306 over 2024-25 (717 PA)",
-          ".349 wOBA ran 28 points ahead of his .321 xwOBA"
+          "Whiff rate 42.3% (bottom 1% of regulars): thin support for that output",
+          "Already lost 41 days to the IL in 2026 (right hamstring strain)"
         ],
         "signals": [
-          "Faded late: .754 OPS after the All-Star break vs .863 before"
+          "Faded late: .751 OPS after the All-Star break vs .911 before"
         ],
-        "risk": "Sprint speed 30.0 ft/s (top 1% of regulars) says the production is backed by real skill",
-        "bar": "Regression = a wOBA around .319 or lower in 2027 (30+ points below 2026) over 200+ PA.",
+        "risk": "Only 27 in 2027: young hitters kept their gains more often (34% dropped vs 45% at 31+)",
+        "bar": "Regression = a wOBA around .326 or lower in 2027 (30+ points below 2026) over 200+ PA.",
         "comp": {
-          "playerId": 600869,
-          "name": "Jeimer Candelario",
-          "season": 2023,
-          "before": ".346 wOBA, .318 xwOBA, .292 BABIP in 576 PA",
-          "after": ".304 wOBA in 463 PA"
+          "playerId": 593934,
+          "name": "Miguel San\u00f3",
+          "season": 2017,
+          "before": ".361 wOBA, .347 xwOBA, .375 BABIP in 483 PA",
+          "after": ".295 wOBA in 299 PA"
         },
-        "position": "LF",
+        "position": "1B",
         "bats": "L"
       },
       {
-        "rank": 24,
+        "rank": 23,
         "playerId": 678882,
         "name": "Ceddanne Rafaela",
         "teamId": 111,
         "age": 26,
-        "probability": 0.486,
+        "probability": 0.491,
         "stats": {
           "pa": 576,
           "woba": 0.332,
+          "wrcPlus": 107,
           "xwoba": 0.285,
           "babip": 0.336,
           "slg": 0.444,
@@ -1712,60 +1695,104 @@
         },
         "drivers": [
           "SLG .444 vs a .362 xSLG: the power results outran the contact",
-          ".332 wOBA ran 47 points ahead of his .285 xwOBA",
-          "EV50 down 2.7 mph from 2025 (96.9 mph)"
+          "xwOBA .285 (bottom 13% of regulars): thin support for that output",
+          ".332 wOBA ran 47 points ahead of his .285 xwOBA"
         ],
-        "signals": [],
+        "signals": [
+          "Missed 20 days on the IL in 2026 (right quadriceps strain)"
+        ],
         "risk": "Only 26 in 2027: young hitters kept their gains more often (34% dropped vs 45% at 31+)",
         "bar": "Regression = a wOBA around .302 or lower in 2027 (30+ points below 2026) over 200+ PA.",
         "comp": {
-          "playerId": 622666,
-          "name": "Johan Camargo",
-          "season": 2018,
-          "before": ".346 wOBA, .306 xwOBA, .315 BABIP in 524 PA",
-          "after": ".279 wOBA in 248 PA"
+          "playerId": 570731,
+          "name": "Jonathan Schoop",
+          "season": 2017,
+          "before": ".355 wOBA, .330 xwOBA, .330 BABIP in 675 PA",
+          "after": ".290 wOBA in 501 PA"
         },
         "position": "CF",
         "bats": "R"
       },
       {
-        "rank": 25,
-        "playerId": 608324,
-        "name": "Alex Bregman",
-        "teamId": 112,
-        "age": 33,
-        "probability": 0.481,
+        "rank": 24,
+        "playerId": 680869,
+        "name": "Zack Gelof",
+        "teamId": 133,
+        "age": 27,
+        "probability": 0.488,
         "stats": {
-          "pa": 702,
-          "woba": 0.357,
-          "xwoba": 0.327,
-          "babip": 0.275,
-          "slg": 0.464,
-          "xslg": 0.391,
-          "barrelPct": 6.4,
-          "ev50": 98.0,
-          "kPct": 14.5,
-          "bbPct": 10.8,
-          "hr": 28,
-          "baseWoba": 0.342,
-          "basePa": 1129
+          "pa": 435,
+          "woba": 0.346,
+          "wrcPlus": 120,
+          "xwoba": 0.323,
+          "babip": 0.298,
+          "slg": 0.475,
+          "xslg": 0.437,
+          "barrelPct": 10.8,
+          "ev50": 100.1,
+          "kPct": 24.6,
+          "bbPct": 7.1,
+          "hr": 22,
+          "baseWoba": 0.268,
+          "basePa": 648
         },
         "drivers": [
-          "SLG .464 vs a .391 xSLG: the power results outran the contact",
-          ".357 wOBA ran 30 points ahead of his .327 xwOBA",
-          "EV50 down 1.3 mph from 2025 (98.0 mph)"
+          "Career year: .346 wOBA vs .268 over 2024-25 (648 PA)",
+          "Already lost 41 days to the IL in 2026 (right hand contusion; right knee laceration)",
+          "SLG .475 vs a .437 xSLG: the power results outran the contact"
         ],
         "signals": [],
-        "risk": "Whiff rate 15.6% (top 8% of regulars) says the production is backed by real skill",
-        "bar": "Regression = a wOBA around .327 or lower in 2027 (30+ points below 2026) over 200+ PA.",
+        "risk": "Only 27 in 2027: young hitters kept their gains more often (34% dropped vs 45% at 31+)",
+        "bar": "Regression = a wOBA around .316 or lower in 2027 (30+ points below 2026) over 200+ PA.",
         "comp": {
-          "playerId": 608070,
-          "name": "Jos\u00e9 Ram\u00edrez",
-          "season": 2025,
-          "before": ".359 wOBA, .342 xwOBA, .279 BABIP in 673 PA",
-          "after": ".301 wOBA in 544 PA"
+          "playerId": 571437,
+          "name": "Aaron Altherr",
+          "season": 2017,
+          "before": ".359 wOBA, .341 xwOBA, .328 BABIP in 412 PA",
+          "after": ".282 wOBA in 285 PA"
         },
         "position": "3B",
+        "bats": "R"
+      },
+      {
+        "rank": 25,
+        "playerId": 665161,
+        "name": "Jeremy Pe\u00f1a",
+        "teamId": 117,
+        "age": 29,
+        "probability": 0.487,
+        "stats": {
+          "pa": 483,
+          "woba": 0.347,
+          "wrcPlus": 120,
+          "xwoba": 0.326,
+          "babip": 0.327,
+          "slg": 0.477,
+          "xslg": 0.431,
+          "barrelPct": 7.2,
+          "ev50": 99.8,
+          "kPct": 24.0,
+          "bbPct": 5.0,
+          "hr": 22,
+          "baseWoba": 0.331,
+          "basePa": 1193
+        },
+        "drivers": [
+          "Whiff rate 31.8% (bottom 14% of regulars): thin support for that output",
+          "SLG .477 vs a .431 xSLG: the power results outran the contact",
+          "Already lost 46 days to the IL in 2026 (grade one hamstring strain; left calf strain)"
+        ],
+        "signals": [],
+        "risk": "Sprint speed 29.3 ft/s (top 7% of regulars) says the production is backed by real skill",
+        "bar": "Regression = a wOBA around .317 or lower in 2027 (30+ points below 2026) over 200+ PA.",
+        "comp": {
+          "playerId": 676801,
+          "name": "Chas McCormick",
+          "season": 2023,
+          "before": ".362 wOBA, .340 xwOBA, .331 BABIP in 457 PA",
+          "after": ".257 wOBA in 267 PA"
+        },
+        "position": "SS",
         "bats": "R"
       }
     ],
@@ -1835,7 +1862,9 @@
           "1.83 ERA vs a 4.67 xFIP: only 9.7% of his fly balls left the park (league 13.1%)",
           "1.83 ERA was 1.20 runs better than his 3.03 xERA"
         ],
-        "signals": [],
+        "signals": [
+          "Missed 40 days on the IL in 2026 (left groin strain)"
+        ],
         "risk": null,
         "bar": "Regression = an ERA of about 2.83 or higher in 2027 over 40+ IP.",
         "comp": {
@@ -1913,7 +1942,9 @@
           "1.91 ERA vs a 4.23 xFIP: only 9.8% of his fly balls left the park (league 13.1%)",
           "1.91 ERA was 1.51 runs better than his 3.42 xERA"
         ],
-        "signals": [],
+        "signals": [
+          "Missed 56 days on the IL in 2026 (left pectoral strain)"
+        ],
         "risk": null,
         "bar": "Regression = an ERA of about 2.91 or higher in 2027 over 40+ IP.",
         "comp": {
@@ -2069,7 +2100,9 @@
           "1.01 ERA vs a 3.35 xFIP: only 2.2% of his fly balls left the park (league 13.1%)",
           "1.01 ERA was 0.92 runs better than his 1.93 xERA"
         ],
-        "signals": [],
+        "signals": [
+          "Missed 68 days on the IL in 2026 (left biceps tendinitis)"
+        ],
         "risk": null,
         "bar": "Regression = an ERA of about 2.01 or higher in 2027 over 40+ IP.",
         "comp": {
@@ -2108,7 +2141,9 @@
           "2.13 ERA vs a 4.15 xFIP: only 7.8% of his fly balls left the park (league 13.1%)",
           "2.13 ERA was 1.00 runs better than his 3.13 xERA"
         ],
-        "signals": [],
+        "signals": [
+          "Missed 27 days on the IL in 2026 (right hamstring strain)"
+        ],
         "risk": null,
         "bar": "Regression = an ERA of about 3.13 or higher in 2027 over 40+ IP.",
         "comp": {
@@ -2147,7 +2182,9 @@
           "2.56 ERA was 1.60 runs better than his 4.16 xFIP",
           "2.56 ERA was 1.28 runs better than his 3.84 xERA"
         ],
-        "signals": [],
+        "signals": [
+          "Missed 61 days on the IL in 2026 (left lat surgery)"
+        ],
         "risk": null,
         "bar": "Regression = an ERA of about 3.56 or higher in 2027 over 40+ IP.",
         "comp": {
@@ -2265,7 +2302,9 @@
           "3.04 ERA was 1.41 runs better than his 4.45 xFIP",
           "3.04 ERA was 1.47 runs better than his 4.51 xERA"
         ],
-        "signals": [],
+        "signals": [
+          "Missed 25 days on the IL in 2026 over 2 stints (left forearm contusion; low back inflammation)"
+        ],
         "risk": null,
         "bar": "Regression = an ERA of about 4.04 or higher in 2027 over 40+ IP.",
         "comp": {
@@ -2344,6 +2383,7 @@
           "2.76 ERA was 1.08 runs better than his 3.84 xERA"
         ],
         "signals": [
+          "Missed 66 days on the IL in 2026 over 2 stints",
           "Faded late: 3.46 ERA after the All-Star break vs 1.82 before"
         ],
         "risk": null,
@@ -2423,7 +2463,9 @@
           "2.98 ERA was 1.44 runs better than his 4.42 xFIP",
           "2.98 ERA was 1.11 runs better than his 4.09 xERA"
         ],
-        "signals": [],
+        "signals": [
+          "Missed 18 days on the IL in 2026 (right forearm strain)"
+        ],
         "risk": null,
         "bar": "Regression = an ERA of about 3.98 or higher in 2027 over 40+ IP.",
         "comp": {
@@ -2540,7 +2582,9 @@
           "2.73 ERA vs a 4.20 xFIP: only 2.5% of his fly balls left the park (league 13.1%)",
           "2.73 ERA was 1.14 runs better than his 3.87 xERA"
         ],
-        "signals": [],
+        "signals": [
+          "Missed 24 days on the IL in 2026 (right wrist inflammation)"
+        ],
         "risk": null,
         "bar": "Regression = an ERA of about 3.73 or higher in 2027 over 40+ IP.",
         "comp": {
@@ -2579,7 +2623,9 @@
           "3.02 ERA vs a 4.53 xFIP: only 9.4% of his fly balls left the park (league 13.1%)",
           "3.02 ERA was 0.87 runs better than his 3.89 xERA"
         ],
-        "signals": [],
+        "signals": [
+          "Missed 15 days on the IL in 2026 (left elbow contusion)"
+        ],
         "risk": null,
         "bar": "Regression = an ERA of about 4.02 or higher in 2027 over 40+ IP.",
         "comp": {
@@ -2617,7 +2663,9 @@
         "drivers": [
           "2.38 ERA vs a 4.08 xFIP: only 8.8% of his fly balls left the park (league 13.1%)"
         ],
-        "signals": [],
+        "signals": [
+          "Missed 15 days on the IL in 2026 (right forearm tightness)"
+        ],
         "risk": null,
         "bar": "Regression = an ERA of about 3.38 or higher in 2027 over 40+ IP.",
         "comp": {
@@ -2735,7 +2783,9 @@
         "drivers": [
           "2.54 ERA was 1.50 runs better than his 4.04 xFIP"
         ],
-        "signals": [],
+        "signals": [
+          "Missed 27 days on the IL in 2026 (left thoracic spine inflammation)"
+        ],
         "risk": null,
         "bar": "Regression = an ERA of about 3.54 or higher in 2027 over 40+ IP.",
         "comp": {
@@ -2758,10 +2808,11 @@
         "name": "Jackson Merrill",
         "teamId": 135,
         "age": 24,
-        "probability": 0.666,
+        "probability": 0.72,
         "stats": {
           "pa": 664,
           "woba": 0.32,
+          "wrcPlus": 105,
           "xwoba": 0.347,
           "babip": 0.302,
           "slg": 0.44,
@@ -2775,9 +2826,9 @@
           "basePa": 1076
         },
         "drivers": [
-          "Kept his job through it (664 PA), so the playing time should be there",
           "Sprint speed 29.0 ft/s (top 11% of regulars): the underlying skill is still there",
-          "EV50 101.4 mph (top 25% of regulars): the underlying skill is still there"
+          "EV50 101.4 mph (top 25% of regulars): the underlying skill is still there",
+          "His .320 wOBA trailed his .347 xwOBA by 27 points"
         ],
         "signals": [
           "Finished strong: .908 OPS after the All-Star break vs .628 before"
@@ -2785,11 +2836,11 @@
         "risk": "Chase rate 37.6% (bottom 12% of regulars)",
         "bar": "Bounceback = about .332+ wOBA over 250+ PA, back within 15 points of his 2024-25 level. Was .320 in 2026.",
         "comp": {
-          "playerId": 677594,
-          "name": "Julio Rodr\u00edguez",
-          "season": 2024,
-          "before": ".355 wOBA the two years before, then .321 (.345 xwOBA)",
-          "after": ".341 wOBA in 710 PA"
+          "playerId": 671739,
+          "name": "Michael Harris II",
+          "season": 2025,
+          "before": ".330 wOBA the two years before, then .289 (.315 xwOBA)",
+          "after": ".349 wOBA in 621 PA"
         },
         "position": "CF",
         "bats": "L"
@@ -2800,10 +2851,11 @@
         "name": "Julio Rodr\u00edguez",
         "teamId": 136,
         "age": 26,
-        "probability": 0.658,
+        "probability": 0.707,
         "stats": {
           "pa": 654,
           "woba": 0.31,
+          "wrcPlus": 103,
           "xwoba": 0.334,
           "babip": 0.289,
           "slg": 0.401,
@@ -2817,8 +2869,8 @@
           "basePa": 1323
         },
         "drivers": [
-          "Kept his job through it (654 PA), so the playing time should be there",
           "EV50 102.3 mph (top 13% of regulars): the underlying skill is still there",
+          "Sprint speed 28.7 ft/s (top 16% of regulars): the underlying skill is still there",
           "A reachable bar: back to the .332 wOBA he posted over 1323 PA in 2024-25"
         ],
         "signals": [],
@@ -2840,10 +2892,11 @@
         "name": "Bobby Witt Jr.",
         "teamId": 118,
         "age": 27,
-        "probability": 0.517,
+        "probability": 0.574,
         "stats": {
           "pa": 632,
           "woba": 0.345,
+          "wrcPlus": 117,
           "xwoba": 0.378,
           "babip": 0.32,
           "slg": 0.441,
@@ -2857,19 +2910,19 @@
           "basePa": 1396
         },
         "drivers": [
-          "EV50 103.2 mph (top 8% of regulars): the underlying skill is still there",
           "Sprint speed 30.1 ft/s (top 1% of regulars): the underlying skill is still there",
-          "Kept his job through it (632 PA), so the playing time should be there"
+          "EV50 103.2 mph (top 8% of regulars): the underlying skill is still there",
+          "Strikeout rate 17.2% (top 23% of regulars): the underlying skill is still there"
         ],
         "signals": [],
         "risk": "A high bar: his 2024-25 level was a .385 wOBA over 1396 PA",
         "bar": "Bounceback = about .375+ wOBA over 250+ PA, back within 15 points of his 2024-25 level. Was .345 in 2026.",
         "comp": {
-          "playerId": 665489,
-          "name": "Vladimir Guerrero Jr.",
-          "season": 2023,
-          "before": ".385 wOBA the two years before, then .340 (.380 xwOBA)",
-          "after": ".398 wOBA in 697 PA"
+          "playerId": 677594,
+          "name": "Julio Rodr\u00edguez",
+          "season": 2024,
+          "before": ".355 wOBA the two years before, then .321 (.345 xwOBA)",
+          "after": ".341 wOBA in 710 PA"
         },
         "position": "SS",
         "bats": "R"
@@ -2880,10 +2933,11 @@
         "name": "Gunnar Henderson",
         "teamId": 110,
         "age": 26,
-        "probability": 0.511,
+        "probability": 0.573,
         "stats": {
           "pa": 702,
           "woba": 0.313,
+          "wrcPlus": 96,
           "xwoba": 0.322,
           "babip": 0.261,
           "slg": 0.403,
@@ -2897,19 +2951,19 @@
           "basePa": 1370
         },
         "drivers": [
-          "Kept his job through it (702 PA), so the playing time should be there",
           "Sprint speed 28.2 ft/s (top 28% of regulars): the underlying skill is still there",
-          "BABIP .261, 63 points under his 2024-25 mark (.324)"
+          "BABIP .261, 63 points under his 2024-25 mark (.324)",
+          "Only 26 in 2027: 39% of bounceback candidates 30 or younger got back to form, vs 11% at 33+"
         ],
         "signals": [],
         "risk": "A high bar: his 2024-25 level was a .361 wOBA over 1370 PA",
         "bar": "Bounceback = about .351+ wOBA over 250+ PA, back within 15 points of his 2024-25 level. Was .313 in 2026.",
         "comp": {
-          "playerId": 607208,
-          "name": "Trea Turner",
+          "playerId": 641820,
+          "name": "Trey Mancini",
           "season": 2018,
-          "before": ".362 wOBA the two years before, then .331 (.335 xwOBA)",
-          "after": ".356 wOBA in 569 PA"
+          "before": ".355 wOBA the two years before, then .308 (.328 xwOBA)",
+          "after": ".373 wOBA in 679 PA"
         },
         "position": "SS",
         "bats": "L"
@@ -2920,10 +2974,11 @@
         "name": "Iv\u00e1n Herrera",
         "teamId": 138,
         "age": 27,
-        "probability": 0.438,
+        "probability": 0.498,
         "stats": {
           "pa": 717,
           "woba": 0.329,
+          "wrcPlus": 111,
           "xwoba": 0.336,
           "babip": 0.28,
           "slg": 0.382,
@@ -2937,9 +2992,9 @@
           "basePa": 711
         },
         "drivers": [
-          "Kept his job through it (717 PA), so the playing time should be there",
+          "xwOBA .336 (top 25% of regulars): the underlying skill is still there",
           "BABIP .280, 55 points under his 2024-25 mark (.335)",
-          "Only 27 in 2027: 37% of bounceback candidates 30 or younger got back to form, vs 10% at 33+"
+          "Only 27 in 2027: 39% of bounceback candidates 30 or younger got back to form, vs 11% at 33+"
         ],
         "signals": [],
         "risk": "A high bar: his 2024-25 level was a .360 wOBA over 711 PA",
@@ -2960,10 +3015,11 @@
         "name": "Jarren Duran",
         "teamId": 111,
         "age": 30,
-        "probability": 0.425,
+        "probability": 0.455,
         "stats": {
           "pa": 608,
           "woba": 0.274,
+          "wrcPlus": 69,
           "xwoba": 0.301,
           "babip": 0.252,
           "slg": 0.361,
@@ -2978,8 +3034,8 @@
         },
         "drivers": [
           "Sprint speed 29.0 ft/s (top 11% of regulars): the underlying skill is still there",
-          "Kept his job through it (608 PA), so the playing time should be there",
-          "EV50 101.4 mph (top 25% of regulars): the underlying skill is still there"
+          "EV50 101.4 mph (top 25% of regulars): the underlying skill is still there",
+          "His .274 wOBA trailed his .301 xwOBA by 27 points"
         ],
         "signals": [],
         "risk": "Strikeout rate 27.1% (bottom 19% of regulars)",
@@ -3000,10 +3056,11 @@
         "name": "Austin Riley",
         "teamId": 144,
         "age": 30,
-        "probability": 0.414,
+        "probability": 0.448,
         "stats": {
           "pa": 630,
           "woba": 0.29,
+          "wrcPlus": 82,
           "xwoba": 0.299,
           "babip": 0.299,
           "slg": 0.364,
@@ -3018,8 +3075,8 @@
         },
         "drivers": [
           "EV50 102.1 mph (top 16% of regulars): the underlying skill is still there",
-          "Kept his job through it (630 PA), so the playing time should be there",
-          "A reachable bar: back to the .328 wOBA he posted over 916 PA in 2024-25"
+          "A reachable bar: back to the .328 wOBA he posted over 916 PA in 2024-25",
+          "Barrel rate 12.4% (top 17% of regulars): the underlying skill is still there"
         ],
         "signals": [],
         "risk": "Strikeout rate 31.9% (bottom 6% of regulars)",
@@ -3036,54 +3093,15 @@
       },
       {
         "rank": 8,
-        "playerId": 669016,
-        "name": "Brandon Marsh",
-        "teamId": 143,
-        "age": 29,
-        "probability": 0.354,
-        "stats": {
-          "pa": 568,
-          "woba": 0.308,
-          "xwoba": 0.301,
-          "babip": 0.32,
-          "slg": 0.408,
-          "xslg": 0.401,
-          "barrelPct": 8.0,
-          "ev50": 99.8,
-          "kPct": 25.0,
-          "bbPct": 6.0,
-          "hr": 18,
-          "baseWoba": 0.332,
-          "basePa": 901
-        },
-        "drivers": [
-          "A reachable bar: back to the .332 wOBA he posted over 901 PA in 2024-25",
-          "Kept his job through it (568 PA), so the playing time should be there",
-          "Only 29 in 2027: 37% of bounceback candidates 30 or younger got back to form, vs 10% at 33+"
-        ],
-        "signals": [],
-        "risk": "Even his .308 wOBA was above his .301 xwOBA",
-        "bar": "Bounceback = about .322+ wOBA over 250+ PA, back within 15 points of his 2024-25 level. Was .308 in 2026.",
-        "comp": {
-          "playerId": 663993,
-          "name": "Nathaniel Lowe",
-          "season": 2025,
-          "before": ".339 wOBA the two years before, then .301 (.303 xwOBA)",
-          "after": ".329 wOBA in 429 PA"
-        },
-        "position": "LF",
-        "bats": "L"
-      },
-      {
-        "rank": 9,
         "playerId": 665489,
         "name": "Vladimir Guerrero Jr.",
         "teamId": 141,
         "age": 28,
-        "probability": 0.347,
+        "probability": 0.444,
         "stats": {
           "pa": 609,
           "woba": 0.305,
+          "wrcPlus": 91,
           "xwoba": 0.331,
           "babip": 0.288,
           "slg": 0.356,
@@ -3099,7 +3117,7 @@
         "drivers": [
           "EV50 102.7 mph (top 9% of regulars): the underlying skill is still there",
           "Strikeout rate 13.3% (top 8% of regulars): the underlying skill is still there",
-          "Kept his job through it (609 PA), so the playing time should be there"
+          "His .305 wOBA trailed his .331 xwOBA by 26 points"
         ],
         "signals": [],
         "risk": "A high bar: his 2024-25 level was a .382 wOBA over 1377 PA",
@@ -3115,15 +3133,180 @@
         "bats": "R"
       },
       {
+        "rank": 9,
+        "playerId": 669016,
+        "name": "Brandon Marsh",
+        "teamId": 143,
+        "age": 29,
+        "probability": 0.394,
+        "stats": {
+          "pa": 568,
+          "woba": 0.308,
+          "wrcPlus": 92,
+          "xwoba": 0.301,
+          "babip": 0.32,
+          "slg": 0.408,
+          "xslg": 0.401,
+          "barrelPct": 8.0,
+          "ev50": 99.8,
+          "kPct": 25.0,
+          "bbPct": 6.0,
+          "hr": 18,
+          "baseWoba": 0.332,
+          "basePa": 901
+        },
+        "drivers": [
+          "A reachable bar: back to the .332 wOBA he posted over 901 PA in 2024-25",
+          "Only 29 in 2027: 39% of bounceback candidates 30 or younger got back to form, vs 11% at 33+"
+        ],
+        "signals": [],
+        "risk": "Even his .308 wOBA was above his .301 xwOBA",
+        "bar": "Bounceback = about .322+ wOBA over 250+ PA, back within 15 points of his 2024-25 level. Was .308 in 2026.",
+        "comp": {
+          "playerId": 642715,
+          "name": "Willy Adames",
+          "season": 2023,
+          "before": ".336 wOBA the two years before, then .311 (.333 xwOBA)",
+          "after": ".342 wOBA in 688 PA"
+        },
+        "position": "LF",
+        "bats": "L"
+      },
+      {
         "rank": 10,
+        "playerId": 607208,
+        "name": "Trea Turner",
+        "teamId": 143,
+        "age": 34,
+        "probability": 0.319,
+        "stats": {
+          "pa": 700,
+          "woba": 0.298,
+          "wrcPlus": 86,
+          "xwoba": 0.293,
+          "babip": 0.284,
+          "slg": 0.378,
+          "xslg": 0.363,
+          "barrelPct": 6.0,
+          "ev50": 98.9,
+          "kPct": 21.0,
+          "bbPct": 6.9,
+          "hr": 19,
+          "baseWoba": 0.351,
+          "basePa": 1178
+        },
+        "drivers": [
+          "Sprint speed 29.9 ft/s (top 2% of regulars): the underlying skill is still there",
+          "BABIP .284, 57 points under his 2024-25 mark (.341)"
+        ],
+        "signals": [],
+        "risk": "Turns 34 in 2027: only 11% of hitters 33+ in his spot got back to their old level",
+        "bar": "Bounceback = about .340+ wOBA over 250+ PA, back within 15 points of his 2024-25 level. Was .298 in 2026.",
+        "comp": {
+          "playerId": 543760,
+          "name": "Marcus Semien",
+          "season": 2022,
+          "before": ".351 wOBA the two years before, then .317 (.311 xwOBA)",
+          "after": ".354 wOBA in 753 PA"
+        },
+        "position": "SS",
+        "bats": "R"
+      },
+      {
+        "rank": 11,
+        "playerId": 592518,
+        "name": "Manny Machado",
+        "teamId": 135,
+        "age": 34,
+        "probability": 0.315,
+        "stats": {
+          "pa": 677,
+          "woba": 0.31,
+          "wrcPlus": 99,
+          "xwoba": 0.328,
+          "babip": 0.231,
+          "slg": 0.407,
+          "xslg": 0.42,
+          "barrelPct": 9.7,
+          "ev50": 101.1,
+          "kPct": 21.3,
+          "bbPct": 11.2,
+          "hr": 30,
+          "baseWoba": 0.341,
+          "basePa": 1321
+        },
+        "drivers": [
+          "EV50 101.1 mph (top 29% of regulars): the underlying skill is still there",
+          "BABIP .231, 74 points under his 2024-25 mark (.305)",
+          "A reachable bar: back to the .341 wOBA he posted over 1321 PA in 2024-25"
+        ],
+        "signals": [],
+        "risk": "Turns 34 in 2027: only 11% of hitters 33+ in his spot got back to their old level",
+        "bar": "Bounceback = about .330+ wOBA over 250+ PA, back within 15 points of his 2024-25 level. Was .310 in 2026.",
+        "comp": {
+          "playerId": 521692,
+          "name": "Salvador Perez",
+          "season": 2023,
+          "before": ".344 wOBA the two years before, then .302 (.326 xwOBA)",
+          "after": ".335 wOBA in 652 PA"
+        },
+        "position": "3B",
+        "bats": "R"
+      },
+      {
+        "rank": 12,
+        "playerId": 663757,
+        "name": "Trent Grisham",
+        "teamId": 147,
+        "age": 30,
+        "probability": 0.288,
+        "stats": {
+          "pa": 484,
+          "woba": 0.311,
+          "wrcPlus": 95,
+          "xwoba": 0.337,
+          "babip": 0.222,
+          "slg": 0.395,
+          "xslg": 0.429,
+          "barrelPct": 9.6,
+          "ev50": 100.5,
+          "kPct": 18.4,
+          "bbPct": 12.6,
+          "hr": 18,
+          "baseWoba": 0.338,
+          "basePa": 790
+        },
+        "drivers": [
+          "Strikeout rate 18.4% (top 29% of regulars): the underlying skill is still there",
+          "His .311 wOBA trailed his .337 xwOBA by 26 points",
+          "A reachable bar: back to the .338 wOBA he posted over 790 PA in 2024-25"
+        ],
+        "signals": [
+          "Missed 44 days on the IL in 2026 over 2 stints (right hamstring strain)"
+        ],
+        "risk": null,
+        "bar": "Bounceback = about .327+ wOBA over 250+ PA, back within 15 points of his 2024-25 level. Was .311 in 2026.",
+        "comp": {
+          "playerId": 592626,
+          "name": "Joc Pederson",
+          "season": 2021,
+          "before": ".348 wOBA the two years before, then .315 (.330 xwOBA)",
+          "after": ".373 wOBA in 433 PA"
+        },
+        "position": "CF",
+        "bats": "L"
+      },
+      {
+        "rank": 13,
         "playerId": 668901,
         "name": "Mark Vientos",
         "teamId": 121,
         "age": 27,
-        "probability": 0.314,
+        "probability": 0.276,
         "stats": {
           "pa": 295,
           "woba": 0.283,
+          "wrcPlus": 79,
           "xwoba": 0.304,
           "babip": 0.233,
           "slg": 0.394,
@@ -3142,7 +3325,7 @@
           "BABIP .233, 67 points under his 2024-25 mark (.300)"
         ],
         "signals": [],
-        "risk": "Only 295 PA in 2026: injuries or a lost job make 250+ PA less certain",
+        "risk": "Only 295 PA in 2026 after 52 days on the IL (right hand fracture)",
         "bar": "Bounceback = about .319+ wOBA over 250+ PA, back within 15 points of his 2024-25 level. Was .283 in 2026.",
         "comp": {
           "playerId": 663898,
@@ -3155,55 +3338,16 @@
         "bats": "R"
       },
       {
-        "rank": 11,
-        "playerId": 663757,
-        "name": "Trent Grisham",
-        "teamId": 147,
-        "age": 30,
-        "probability": 0.312,
-        "stats": {
-          "pa": 484,
-          "woba": 0.311,
-          "xwoba": 0.337,
-          "babip": 0.222,
-          "slg": 0.395,
-          "xslg": 0.429,
-          "barrelPct": 9.6,
-          "ev50": 100.5,
-          "kPct": 18.4,
-          "bbPct": 12.6,
-          "hr": 18,
-          "baseWoba": 0.338,
-          "basePa": 790
-        },
-        "drivers": [
-          "A reachable bar: back to the .338 wOBA he posted over 790 PA in 2024-25",
-          "His .311 wOBA trailed his .337 xwOBA by 26 points",
-          "Strikeout rate 18.4% (top 29% of regulars): the underlying skill is still there"
-        ],
-        "signals": [],
-        "risk": null,
-        "bar": "Bounceback = about .327+ wOBA over 250+ PA, back within 15 points of his 2024-25 level. Was .311 in 2026.",
-        "comp": {
-          "playerId": 592626,
-          "name": "Joc Pederson",
-          "season": 2021,
-          "before": ".348 wOBA the two years before, then .315 (.330 xwOBA)",
-          "after": ".373 wOBA in 433 PA"
-        },
-        "position": "CF",
-        "bats": "L"
-      },
-      {
-        "rank": 12,
+        "rank": 14,
         "playerId": 805779,
         "name": "Jacob Wilson",
         "teamId": 133,
         "age": 25,
-        "probability": 0.309,
+        "probability": 0.271,
         "stats": {
           "pa": 337,
           "woba": 0.301,
+          "wrcPlus": 90,
           "xwoba": 0.282,
           "babip": 0.284,
           "slg": 0.388,
@@ -3219,31 +3363,34 @@
         "drivers": [
           "Strikeout rate 11.6% (top 5% of regulars): the underlying skill is still there",
           "A reachable bar: back to the .337 wOBA he posted over 626 PA in 2024-25",
-          "Only 25 in 2027: 37% of bounceback candidates 30 or younger got back to form, vs 10% at 33+"
+          "Only 25 in 2027: 39% of bounceback candidates 30 or younger got back to form, vs 11% at 33+"
         ],
-        "signals": [],
+        "signals": [
+          "Missed 83 days on the IL in 2026 over 3 stints (left shoulder dislocation; right thumb inflammation; left shoulder subluxation)"
+        ],
         "risk": "EV50 95.6 mph (bottom 4% of regulars)",
         "bar": "Bounceback = about .326+ wOBA over 250+ PA, back within 15 points of his 2024-25 level. Was .301 in 2026.",
         "comp": {
-          "playerId": 670770,
-          "name": "TJ Friedl",
-          "season": 2024,
-          "before": ".343 wOBA the two years before, then .305 (.293 xwOBA)",
-          "after": ".333 wOBA in 685 PA"
+          "playerId": 570731,
+          "name": "Jonathan Schoop",
+          "season": 2018,
+          "before": ".338 wOBA the two years before, then .290 (.267 xwOBA)",
+          "after": ".324 wOBA in 464 PA"
         },
         "position": "SS",
         "bats": "R"
       },
       {
-        "rank": 13,
+        "rank": 15,
         "playerId": 665862,
         "name": "Jazz Chisholm Jr.",
         "teamId": 147,
         "age": 29,
-        "probability": 0.303,
+        "probability": 0.27,
         "stats": {
           "pa": 532,
           "woba": 0.312,
+          "wrcPlus": 96,
           "xwoba": 0.294,
           "babip": 0.301,
           "slg": 0.399,
@@ -3259,140 +3406,60 @@
         "drivers": [
           "Sprint speed 28.3 ft/s (top 26% of regulars): the underlying skill is still there",
           "A reachable bar: back to the .337 wOBA he posted over 1152 PA in 2024-25",
-          "Only 29 in 2027: 37% of bounceback candidates 30 or younger got back to form, vs 10% at 33+"
+          "Only 29 in 2027: 39% of bounceback candidates 30 or younger got back to form, vs 11% at 33+"
         ],
         "signals": [],
-        "risk": "Even his .312 wOBA was above his .294 xwOBA",
+        "risk": "Strikeout rate 29.5% (bottom 12% of regulars)",
         "bar": "Bounceback = about .327+ wOBA over 250+ PA, back within 15 points of his 2024-25 level. Was .312 in 2026.",
         "comp": {
-          "playerId": 663993,
-          "name": "Nathaniel Lowe",
+          "playerId": 673962,
+          "name": "Josh Jung",
           "season": 2025,
-          "before": ".339 wOBA the two years before, then .301 (.303 xwOBA)",
-          "after": ".329 wOBA in 429 PA"
+          "before": ".328 wOBA the two years before, then .298 (.304 xwOBA)",
+          "after": ".362 wOBA in 444 PA"
         },
         "position": "2B",
         "bats": "L"
       },
       {
-        "rank": 14,
-        "playerId": 592518,
-        "name": "Manny Machado",
-        "teamId": 135,
-        "age": 34,
-        "probability": 0.291,
-        "stats": {
-          "pa": 677,
-          "woba": 0.31,
-          "xwoba": 0.328,
-          "babip": 0.231,
-          "slg": 0.407,
-          "xslg": 0.42,
-          "barrelPct": 9.7,
-          "ev50": 101.1,
-          "kPct": 21.3,
-          "bbPct": 11.2,
-          "hr": 30,
-          "baseWoba": 0.341,
-          "basePa": 1321
-        },
-        "drivers": [
-          "Kept his job through it (677 PA), so the playing time should be there",
-          "EV50 101.1 mph (top 29% of regulars): the underlying skill is still there",
-          "A reachable bar: back to the .341 wOBA he posted over 1321 PA in 2024-25"
-        ],
-        "signals": [],
-        "risk": "Turns 34 in 2027: only 10% of hitters 33+ in his spot got back to their old level",
-        "bar": "Bounceback = about .330+ wOBA over 250+ PA, back within 15 points of his 2024-25 level. Was .310 in 2026.",
-        "comp": {
-          "playerId": 521692,
-          "name": "Salvador Perez",
-          "season": 2023,
-          "before": ".344 wOBA the two years before, then .302 (.326 xwOBA)",
-          "after": ".335 wOBA in 652 PA"
-        },
-        "position": "3B",
-        "bats": "R"
-      },
-      {
-        "rank": 15,
-        "playerId": 607208,
-        "name": "Trea Turner",
-        "teamId": 143,
-        "age": 34,
-        "probability": 0.286,
-        "stats": {
-          "pa": 700,
-          "woba": 0.298,
-          "xwoba": 0.293,
-          "babip": 0.284,
-          "slg": 0.378,
-          "xslg": 0.363,
-          "barrelPct": 6.0,
-          "ev50": 98.9,
-          "kPct": 21.0,
-          "bbPct": 6.9,
-          "hr": 19,
-          "baseWoba": 0.351,
-          "basePa": 1178
-        },
-        "drivers": [
-          "Kept his job through it (700 PA), so the playing time should be there",
-          "Sprint speed 29.9 ft/s (top 2% of regulars): the underlying skill is still there",
-          "BABIP .284, 57 points under his 2024-25 mark (.341)"
-        ],
-        "signals": [],
-        "risk": "Turns 34 in 2027: only 10% of hitters 33+ in his spot got back to their old level",
-        "bar": "Bounceback = about .340+ wOBA over 250+ PA, back within 15 points of his 2024-25 level. Was .298 in 2026.",
-        "comp": {
-          "playerId": 543760,
-          "name": "Marcus Semien",
-          "season": 2022,
-          "before": ".351 wOBA the two years before, then .317 (.311 xwOBA)",
-          "after": ".354 wOBA in 753 PA"
-        },
-        "position": "SS",
-        "bats": "R"
-      },
-      {
         "rank": 16,
-        "playerId": 660670,
-        "name": "Ronald Acu\u00f1a Jr.",
-        "teamId": 144,
-        "age": 29,
-        "probability": 0.278,
+        "playerId": 663656,
+        "name": "Kyle Tucker",
+        "teamId": 119,
+        "age": 30,
+        "probability": 0.253,
         "stats": {
-          "pa": 469,
-          "woba": 0.348,
-          "xwoba": 0.366,
-          "babip": 0.292,
-          "slg": 0.451,
-          "xslg": 0.495,
-          "barrelPct": 13.0,
-          "ev50": 102.1,
-          "kPct": 22.0,
-          "bbPct": 11.3,
-          "hr": 20,
-          "baseWoba": 0.375,
-          "basePa": 634
+          "pa": 627,
+          "woba": 0.318,
+          "wrcPlus": 100,
+          "xwoba": 0.331,
+          "babip": 0.257,
+          "slg": 0.385,
+          "xslg": 0.393,
+          "barrelPct": 6.4,
+          "ev50": 98.3,
+          "kPct": 16.7,
+          "bbPct": 12.4,
+          "hr": 17,
+          "baseWoba": 0.383,
+          "basePa": 936
         },
         "drivers": [
-          "EV50 102.1 mph (top 17% of regulars): the underlying skill is still there",
-          "Barrel rate 13.0% (top 12% of regulars): the underlying skill is still there",
-          "His .348 wOBA trailed his .366 xwOBA by 18 points"
+          "Strikeout rate 16.7% (top 21% of regulars): the underlying skill is still there",
+          "Only 30 in 2027: 39% of bounceback candidates 30 or younger got back to form, vs 11% at 33+"
         ],
         "signals": [],
-        "risk": "A high bar: his 2024-25 level was a .375 wOBA over 634 PA",
-        "bar": "Bounceback = about .364+ wOBA over 250+ PA, back within 15 points of his 2024-25 level. Was .348 in 2026.",
+        "risk": "A high bar: his 2024-25 level was a .383 wOBA over 936 PA",
+        "bar": "Bounceback = about .373+ wOBA over 250+ PA, back within 15 points of his 2024-25 level. Was .318 in 2026.",
         "comp": {
-          "playerId": 621043,
-          "name": "Carlos Correa",
-          "season": 2023,
-          "before": ".363 wOBA the two years before, then .309 (.327 xwOBA)",
-          "after": ".385 wOBA in 367 PA"
+          "playerId": 457763,
+          "name": "Buster Posey",
+          "season": 2016,
+          "before": ".363 wOBA the two years before, then .341 (.360 xwOBA)",
+          "after": ".366 wOBA in 568 PA"
         },
         "position": "RF",
-        "bats": "R"
+        "bats": "L"
       },
       {
         "rank": 17,
@@ -3400,10 +3467,11 @@
         "name": "Josh Naylor",
         "teamId": 136,
         "age": 30,
-        "probability": 0.246,
+        "probability": 0.252,
         "stats": {
           "pa": 650,
           "woba": 0.297,
+          "wrcPlus": 95,
           "xwoba": 0.31,
           "babip": 0.286,
           "slg": 0.35,
@@ -3417,12 +3485,12 @@
           "basePa": 1237
         },
         "drivers": [
-          "Kept his job through it (650 PA), so the playing time should be there",
           "Strikeout rate 12.2% (top 6% of regulars): the underlying skill is still there",
-          "A reachable bar: back to the .341 wOBA he posted over 1237 PA in 2024-25"
+          "A reachable bar: back to the .341 wOBA he posted over 1237 PA in 2024-25",
+          "Only 30 in 2027: 39% of bounceback candidates 30 or younger got back to form, vs 11% at 33+"
         ],
         "signals": [],
-        "risk": "Sprint speed 24.3 ft/s (bottom 1% of regulars)",
+        "risk": "EV50 98.4 mph (bottom 27% of regulars)",
         "bar": "Bounceback = about .331+ wOBA over 250+ PA, back within 15 points of his 2024-25 level. Was .297 in 2026.",
         "comp": {
           "playerId": 457763,
@@ -3436,52 +3504,15 @@
       },
       {
         "rank": 18,
-        "playerId": 642715,
-        "name": "Willy Adames",
-        "teamId": 137,
-        "age": 31,
-        "probability": 0.232,
-        "stats": {
-          "pa": 505,
-          "woba": 0.311,
-          "xwoba": 0.296,
-          "babip": 0.281,
-          "slg": 0.424,
-          "xslg": 0.391,
-          "barrelPct": 8.9,
-          "ev50": 98.8,
-          "kPct": 27.5,
-          "bbPct": 7.3,
-          "hr": 21,
-          "baseWoba": 0.332,
-          "basePa": 1374
-        },
-        "drivers": [
-          "A reachable bar: back to the .332 wOBA he posted over 1374 PA in 2024-25"
-        ],
-        "signals": [],
-        "risk": "Even his .311 wOBA was above his .296 xwOBA",
-        "bar": "Bounceback = about .321+ wOBA over 250+ PA, back within 15 points of his 2024-25 level. Was .311 in 2026.",
-        "comp": {
-          "playerId": 572233,
-          "name": "Christian Walker",
-          "season": 2021,
-          "before": ".344 wOBA the two years before, then .304 (.314 xwOBA)",
-          "after": ".346 wOBA in 667 PA"
-        },
-        "position": "SS",
-        "bats": "R"
-      },
-      {
-        "rank": 19,
         "playerId": 606466,
         "name": "Ketel Marte",
         "teamId": 109,
         "age": 33,
-        "probability": 0.223,
+        "probability": 0.231,
         "stats": {
           "pa": 624,
           "woba": 0.323,
+          "wrcPlus": 101,
           "xwoba": 0.349,
           "babip": 0.257,
           "slg": 0.432,
@@ -3495,9 +3526,9 @@
           "basePa": 1139
         },
         "drivers": [
-          "Kept his job through it (624 PA), so the playing time should be there",
           "EV50 101.9 mph (top 19% of regulars): the underlying skill is still there",
-          "Strikeout rate 13.8% (top 10% of regulars): the underlying skill is still there"
+          "Strikeout rate 13.8% (top 10% of regulars): the underlying skill is still there",
+          "His .323 wOBA trailed his .349 xwOBA by 26 points"
         ],
         "signals": [],
         "risk": "A high bar: his 2024-25 level was a .386 wOBA over 1139 PA",
@@ -3513,44 +3544,87 @@
         "bats": "S"
       },
       {
-        "rank": 20,
-        "playerId": 665742,
-        "name": "Juan Soto",
-        "teamId": 121,
-        "age": 28,
-        "probability": 0.218,
+        "rank": 19,
+        "playerId": 642715,
+        "name": "Willy Adames",
+        "teamId": 137,
+        "age": 31,
+        "probability": 0.207,
         "stats": {
-          "pa": 482,
-          "woba": 0.385,
-          "xwoba": 0.411,
-          "babip": 0.268,
-          "slg": 0.515,
-          "xslg": 0.574,
-          "barrelPct": 14.0,
-          "ev50": 102.5,
-          "kPct": 13.5,
-          "bbPct": 16.2,
-          "hr": 27,
-          "baseWoba": 0.405,
-          "basePa": 1428
+          "pa": 505,
+          "woba": 0.311,
+          "wrcPlus": 99,
+          "xwoba": 0.296,
+          "babip": 0.281,
+          "slg": 0.424,
+          "xslg": 0.391,
+          "barrelPct": 8.9,
+          "ev50": 98.8,
+          "kPct": 27.5,
+          "bbPct": 7.3,
+          "hr": 21,
+          "baseWoba": 0.332,
+          "basePa": 1374
         },
         "drivers": [
-          "EV50 102.5 mph (top 11% of regulars): the underlying skill is still there",
-          "Strikeout rate 13.5% (top 8% of regulars): the underlying skill is still there",
-          "His .385 wOBA trailed his .411 xwOBA by 26 points"
+          "A reachable bar: back to the .332 wOBA he posted over 1374 PA in 2024-25"
         ],
-        "signals": [],
-        "risk": "A high bar: his 2024-25 level was a .405 wOBA over 1428 PA",
-        "bar": "Bounceback = about .395+ wOBA over 250+ PA, back within 15 points of his 2024-25 level. Was .385 in 2026.",
+        "signals": [
+          "Missed 35 days on the IL in 2026 (left elbow sprain)"
+        ],
+        "risk": "Even his .311 wOBA was above his .296 xwOBA",
+        "bar": "Bounceback = about .321+ wOBA over 250+ PA, back within 15 points of his 2024-25 level. Was .311 in 2026.",
         "comp": {
-          "playerId": 608369,
-          "name": "Corey Seager",
-          "season": 2022,
-          "before": ".391 wOBA the two years before, then .331 (.373 xwOBA)",
-          "after": ".419 wOBA in 536 PA"
+          "playerId": 572233,
+          "name": "Christian Walker",
+          "season": 2021,
+          "before": ".344 wOBA the two years before, then .304 (.314 xwOBA)",
+          "after": ".346 wOBA in 667 PA"
         },
-        "position": "LF",
-        "bats": "L"
+        "position": "SS",
+        "bats": "R"
+      },
+      {
+        "rank": 20,
+        "playerId": 596019,
+        "name": "Francisco Lindor",
+        "teamId": 121,
+        "age": 33,
+        "probability": 0.205,
+        "stats": {
+          "pa": 469,
+          "woba": 0.322,
+          "wrcPlus": 105,
+          "xwoba": 0.331,
+          "babip": 0.242,
+          "slg": 0.423,
+          "xslg": 0.434,
+          "barrelPct": 9.0,
+          "ev50": 100.7,
+          "kPct": 20.3,
+          "bbPct": 9.8,
+          "hr": 21,
+          "baseWoba": 0.356,
+          "basePa": 1421
+        },
+        "drivers": [
+          "BABIP .242, 49 points under his 2024-25 mark (.291)"
+        ],
+        "signals": [
+          "Missed 62 days on the IL in 2026 (left calf strain)",
+          "Finished strong: .768 OPS after the All-Star break vs .671 before"
+        ],
+        "risk": "Turns 33 in 2027: only 11% of hitters 33+ in his spot got back to their old level",
+        "bar": "Bounceback = about .346+ wOBA over 250+ PA, back within 15 points of his 2024-25 level. Was .322 in 2026.",
+        "comp": {
+          "playerId": 572233,
+          "name": "Christian Walker",
+          "season": 2021,
+          "before": ".344 wOBA the two years before, then .304 (.314 xwOBA)",
+          "after": ".346 wOBA in 667 PA"
+        },
+        "position": "SS",
+        "bats": "S"
       }
     ],
     "pitchers": [
@@ -3581,7 +3655,9 @@
           "Fastball velo 98.4 mph (top 5% of pitchers): the underlying skill is still there",
           "Barrel rate allowed 4.3% (top 7% of pitchers): the underlying skill is still there"
         ],
-        "signals": [],
+        "signals": [
+          "Missed 26 days on the IL in 2026 (right ulnar nerve inflammation)"
+        ],
         "risk": null,
         "bar": "Bounceback = an ERA of about 4.32 or better over 40+ IP, within half a run of his 2024-25 level. Was 4.91 in 2026.",
         "comp": {
@@ -3661,7 +3737,9 @@
           "Fastball velo 95.9 mph (top 24% of pitchers): the underlying skill is still there",
           "Only 29 in 2027: 30% of bounceback candidates 30 or younger got back to form"
         ],
-        "signals": [],
+        "signals": [
+          "Missed 92 days on the IL in 2026 (strained right elbow)"
+        ],
         "risk": "Barrel rate allowed 10.1% (bottom 11% of pitchers)",
         "bar": "Bounceback = an ERA of about 4.36 or better over 40+ IP, within half a run of his 2024-25 level. Was 4.95 in 2026.",
         "comp": {
@@ -3701,7 +3779,7 @@
           "Only 29 in 2027: 30% of bounceback candidates 30 or younger got back to form"
         ],
         "signals": [],
-        "risk": "Only 27.1 IP in 2026: injuries or a demotion make 40+ IP less certain",
+        "risk": "Only 27.1 IP in 2026 with no IL time: he lost the role, not health",
         "bar": "Bounceback = an ERA of about 4.02 or better over 40+ IP, within half a run of his 2024-25 level. Was 4.61 in 2026.",
         "comp": {
           "playerId": 666200,
@@ -3739,6 +3817,7 @@
           "A reachable bar: back to the 3.79 ERA he posted over 121 IP in 2024-25"
         ],
         "signals": [
+          "Missed 47 days on the IL in 2026 over 2 stints (left elbow inflammation; left ankle sprain)",
           "Better after the break: 3.95 ERA vs 6.28 before"
         ],
         "risk": "Barrel rate allowed 10.6% (bottom 7% of pitchers)",
@@ -3776,8 +3855,7 @@
           "baseIp": "289.2"
         },
         "drivers": [
-          "A reachable bar: back to the 3.67 ERA he posted over 289.2 IP in 2024-25",
-          "Kept a regular role through it (148.1 IP), so the opportunity should be there"
+          "A reachable bar: back to the 3.67 ERA he posted over 289.2 IP in 2024-25"
         ],
         "signals": [
           "Better after the break: 2.73 ERA vs 6.45 before"
@@ -3820,7 +3898,7 @@
           "A reachable bar: back to the 3.52 ERA he posted over 140.2 IP in 2024-25"
         ],
         "signals": [],
-        "risk": "Only 35.1 IP in 2026: injuries or a demotion make 40+ IP less certain",
+        "risk": "Only 35.1 IP in 2026 after 85 days on the IL (right groin strain; left calf strain)",
         "bar": "Bounceback = an ERA of about 4.07 or better over 40+ IP, within half a run of his 2024-25 level. Was 4.58 in 2026.",
         "comp": {
           "playerId": 476589,
@@ -3858,7 +3936,9 @@
           "Fastball velo 95.7 mph (top 27% of pitchers): the underlying skill is still there",
           "A reachable bar: back to the 3.35 ERA he posted over 115.1 IP in 2024-25"
         ],
-        "signals": [],
+        "signals": [
+          "Missed 23 days on the IL in 2026 (right elbow inflammation)"
+        ],
         "risk": "Barrel rate allowed 10.1% (bottom 11% of pitchers)",
         "bar": "Bounceback = an ERA of about 3.90 or better over 40+ IP, within half a run of his 2024-25 level. Was 4.62 in 2026.",
         "comp": {
@@ -3894,9 +3974,9 @@
           "baseIp": "350.1"
         },
         "drivers": [
-          "Kept a regular role through it (169 IP), so the opportunity should be there",
           "Barrel rate allowed 5.8% (top 21% of pitchers): the underlying skill is still there",
-          "A reachable bar: back to the 3.19 ERA he posted over 350.1 IP in 2024-25"
+          "A reachable bar: back to the 3.19 ERA he posted over 350.1 IP in 2024-25",
+          "BABIP allowed .290, 27 points above his 2024-25 mark (.263)"
         ],
         "signals": [],
         "risk": "Whiff rate down 4.0 points to 26.1%",
@@ -3934,7 +4014,6 @@
           "baseIp": "308"
         },
         "drivers": [
-          "Kept a regular role through it (173 IP), so the opportunity should be there",
           "Fastball velo 96.0 mph (top 23% of pitchers): the underlying skill is still there",
           "Only 27 in 2027: 30% of bounceback candidates 30 or younger got back to form"
         ],
@@ -4014,7 +4093,6 @@
           "baseIp": "304.1"
         },
         "drivers": [
-          "Kept a regular role through it (166 IP), so the opportunity should be there",
           "A reachable bar: back to the 3.26 ERA he posted over 304.1 IP in 2024-25",
           "Only 28 in 2027: 30% of bounceback candidates 30 or younger got back to form"
         ],
@@ -4132,8 +4210,7 @@
           "baseIp": "343"
         },
         "drivers": [
-          "A reachable bar: back to the 3.73 ERA he posted over 343 IP in 2024-25",
-          "Kept a regular role through it (124.1 IP), so the opportunity should be there"
+          "A reachable bar: back to the 3.73 ERA he posted over 343 IP in 2024-25"
         ],
         "signals": [],
         "risk": "Barrel rate allowed 11.3% (bottom 4% of pitchers)",
@@ -4174,7 +4251,9 @@
           "A reachable bar: back to the 3.52 ERA he posted over 248 IP in 2024-25",
           "Only 29 in 2027: 30% of bounceback candidates 30 or younger got back to form"
         ],
-        "signals": [],
+        "signals": [
+          "Missed 146 days on the IL in 2026 (left elbow impingement)"
+        ],
         "risk": "Barrel rate allowed 15.7% (bottom 1% of pitchers)",
         "bar": "Bounceback = an ERA of about 4.09 or better over 40+ IP, within half a run of his 2024-25 level. Was 4.84 in 2026.",
         "comp": {
@@ -4213,7 +4292,7 @@
           "A reachable bar: back to the 3.14 ERA he posted over 114.2 IP in 2024-25"
         ],
         "signals": [],
-        "risk": "Only 34.1 IP in 2026: injuries or a demotion make 40+ IP less certain",
+        "risk": "Only 34.1 IP in 2026 after 93 days on the IL (left lat strain)",
         "bar": "Bounceback = an ERA of about 3.68 or better over 40+ IP, within half a run of his 2024-25 level. Was 4.46 in 2026.",
         "comp": {
           "playerId": 445213,
@@ -4248,10 +4327,11 @@
           "baseIp": "257.2"
         },
         "drivers": [
-          "A reachable bar: back to the 3.67 ERA he posted over 257.2 IP in 2024-25",
-          "Kept a regular role through it (162 IP), so the opportunity should be there"
+          "A reachable bar: back to the 3.67 ERA he posted over 257.2 IP in 2024-25"
         ],
-        "signals": [],
+        "signals": [
+          "Missed 19 days on the IL in 2026 (left intercostal nerve irritation)"
+        ],
         "risk": "His 4.94 ERA wasn't worse than his 6.35 xERA",
         "bar": "Bounceback = an ERA of about 4.20 or better over 40+ IP, within half a run of his 2024-25 level. Was 4.94 in 2026.",
         "comp": {
@@ -4288,7 +4368,6 @@
         },
         "drivers": [
           "A reachable bar: back to the 3.59 ERA he posted over 356 IP in 2024-25",
-          "Kept a regular role through it (130.2 IP), so the opportunity should be there",
           "5.85 ERA was 0.83 runs worse than his 5.02 xERA"
         ],
         "signals": [],
@@ -4332,7 +4411,7 @@
           "5.68 ERA was 1.95 runs worse than his 3.73 xERA"
         ],
         "signals": [],
-        "risk": "Only 25.1 IP in 2026: injuries or a demotion make 40+ IP less certain",
+        "risk": "Only 25.1 IP in 2026 after 124 days on the IL (left groin strain; left elbow discomfort)",
         "bar": "Bounceback = an ERA of about 3.91 or better over 40+ IP, within half a run of his 2024-25 level. Was 5.68 in 2026.",
         "comp": {
           "playerId": 595345,

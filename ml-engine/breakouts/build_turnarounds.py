@@ -59,6 +59,7 @@ PIT_REG_RP_IP, PIT_REG_RP_RUNS = 40, 1.00
 PIT_REG_RISE, PIT_NEXT_IP = 1.00, 40
 
 HIT_BNC_BASE_PA, HIT_BNC_BASE_WOBA, HIT_BNC_DROP, HIT_BNC_MIN_PA = 600, 0.010, 0.025, 150
+HIT_BNC_MAX_WRC = 120  # a 120+ wRC+ season isn't a slump, even if it trails a star's own standard
 HIT_BNC_NEXT_PA, HIT_BNC_TOL = 250, 0.015
 PIT_BNC_BASE_IP, PIT_BNC_BASE_RUNS, PIT_BNC_RISE, PIT_BNC_MIN_IP = 100, 0.25, 1.00, 25
 PIT_BNC_TOL = 0.50
@@ -90,14 +91,16 @@ def hitter_frame(all_h: pd.DataFrame) -> pd.DataFrame:
     h["slg"], h["xslg_"] = h["x_slg_percent"], h["x_xslg"]
     h["slg_gap"] = h["slg"] - h["xslg_"]
     h["xgap"] = h["woba"] - h["xwoba"]
-    lag = ["pa", "woba_plus", "xwoba_plus", "woba", "xwoba", "babip", "avg_best_speed", "k_percent", "sprint_speed"]
+    lag = ["pa", "woba_plus", "xwoba_plus", "woba", "xwoba", "babip", "avg_best_speed", "k_percent", "sprint_speed",
+           "wrc_plus", "il_days"]
     h = h.merge(_lag(h, lag, 1, "_p1"), on=["player_id", "year"], how="left")
     h = h.merge(_lag(h[["player_id", "year", *lag]], lag, 2, "_p2"), on=["player_id", "year"], how="left")
     h = h.merge(_lag(h[["player_id", "year", "pa", "woba", "woba_plus"]], ["pa", "woba", "woba_plus"], -1, "_n"),
                 on=["player_id", "year"], how="left")
     h["base_pa"] = h["pa_p1"].fillna(0) + h["pa_p2"].fillna(0)
-    for col in ("woba_plus", "xwoba_plus", "woba", "xwoba", "babip"):
+    for col in ("woba_plus", "xwoba_plus", "woba", "xwoba", "babip", "wrc_plus"):
         h[f"base_{col}"] = _wavg(h, col, "pa")
+    h["base_il_days"] = h["il_days_p1"].fillna(0) + h["il_days_p2"].fillna(0)
     h["jump"] = h["woba_plus"] - h["base_woba_plus"]
     h["xdrop"] = h["xwoba_plus"] - h["base_xwoba_plus"]
     h["babip_gap"] = h["babip"] - h["base_babip"]
@@ -105,6 +108,7 @@ def hitter_frame(all_h: pd.DataFrame) -> pd.DataFrame:
     h["d_k"] = h["k_percent"] - h["k_percent_p1"]
     h["d_sprint"] = h["sprint_speed"] - h["sprint_speed_p1"]
     h["neg_xgap"] = -h["xgap"]
+    h["il_any"] = (h["il_days"] > 0).astype(float)
     return h
 
 
@@ -117,7 +121,8 @@ def pitcher_frame(all_p: pd.DataFrame) -> pd.DataFrame:
     p["egap"] = p["p_era"] - p["xera"]
     p["era_fip"] = p["p_era"] - p["fip"]
     p["era_xfip"] = p["p_era"] - p["xfip"]
-    lag = ["ip", "era_minus_lg", "xera_minus_lg", "p_era", "xera", "kbb", "babip", "fastball_avg_speed", "whiff_percent"]
+    lag = ["ip", "era_minus_lg", "xera_minus_lg", "p_era", "xera", "kbb", "babip", "fastball_avg_speed", "whiff_percent",
+           "il_days"]
     p = p.merge(_lag(p, lag, 1, "_p1"), on=["player_id", "year"], how="left")
     p = p.merge(_lag(p[["player_id", "year", *lag]], lag, 2, "_p2"), on=["player_id", "year"], how="left")
     p = p.merge(_lag(p[["player_id", "year", "ip", "p_era", "era_minus_lg"]], ["ip", "p_era", "era_minus_lg"], -1, "_n"),
@@ -125,6 +130,7 @@ def pitcher_frame(all_p: pd.DataFrame) -> pd.DataFrame:
     p["base_ip"] = p["ip_p1"].fillna(0) + p["ip_p2"].fillna(0)
     for col in ("era_minus_lg", "xera_minus_lg", "p_era", "xera", "babip"):
         p[f"base_{col}"] = _wavg(p, col, "ip")
+    p["base_il_days"] = p["il_days_p1"].fillna(0) + p["il_days_p2"].fillna(0)
     p["era_jump"] = p["era_minus_lg"] - p["base_era_minus_lg"]
     p["xrise"] = p["xera_minus_lg"] - p["base_xera_minus_lg"]
     p["babip_gap"] = p["babip"] - p["base_babip"]
@@ -166,19 +172,20 @@ HIT_REG = Spec(
     played=lambda f: f["pa_n"] >= HIT_REG_NEXT_PA,
     features=["player_age", "woba_plus", "xwoba_plus", "xgap", "babip", "babip_gap", "slg_gap", "jump",
               "barrel_batted_rate", "avg_best_speed", "d_ev50", "k_percent", "bb_percent", "whiff_percent",
-              "oz_swing_percent", "sprint_speed", "d_sprint", "sweet_spot_percent", "launch_angle_avg"],
+              "oz_swing_percent", "sprint_speed", "d_sprint", "sweet_spot_percent", "launch_angle_avg",
+              "wrc_plus", "il_days", "base_il_days"],
     baselines={"wobaOverX": "xgap", "rawWoba": "woba_plus"},
     c=0.1, ns=(10, 25), top_n=25,
 )
 HIT_BNC = Spec(
     "bounceback", "hitter",
     eligible=lambda f: (f["base_pa"] >= HIT_BNC_BASE_PA) & (f["base_woba_plus"] >= HIT_BNC_BASE_WOBA)
-    & (f["jump"] <= -HIT_BNC_DROP) & (f["pa"] >= HIT_BNC_MIN_PA),
+    & (f["jump"] <= -HIT_BNC_DROP) & (f["pa"] >= HIT_BNC_MIN_PA) & (f["wrc_plus"] <= HIT_BNC_MAX_WRC),
     label=lambda f: (f["pa_n"] >= HIT_BNC_NEXT_PA) & (f["woba_plus_n"] >= f["base_woba_plus"] - HIT_BNC_TOL),
     played=None,
     features=["player_age", "base_woba_plus", "jump", "xdrop", "xgap", "xwoba_plus", "babip_gap", "slg_gap",
               "pa_162", "barrel_batted_rate", "avg_best_speed", "d_ev50", "k_percent", "d_k", "sprint_speed",
-              "d_sprint", "bb_percent", "oz_swing_percent"],
+              "d_sprint", "bb_percent", "oz_swing_percent", "il_any"],
     baselines={"xOverWoba": "neg_xgap", "trackRecord": "base_woba_plus"},
     c=0.05, ns=(5, 10), top_n=20, first=2019, min_pos=20,
 )
@@ -246,6 +253,7 @@ SKILL = {
         "whiff_percent": ("whiff rate", "whiff_percent", lambda v: f"{v:.1f}%", False),
         "oz_swing_percent": ("chase rate", "oz_swing_percent", lambda v: f"{v:.1f}%", False),
         "sprint_speed": ("sprint speed", "sprint_speed", lambda v: f"{v:.1f} ft/s", True),
+        "wrc_plus": ("wRC+", "wrc_plus", lambda v: f"{v:.0f}", True),
         "sweet_spot_percent": ("sweet-spot rate", "sweet_spot_percent", lambda v: f"{v:.1f}%", True),
     },
     "pitcher": {
@@ -260,7 +268,16 @@ SKILL = {
 
 
 def cap(text: str) -> str:
-    return text if text[:2] in ("xw", "xE", "EV", "K-") else text[:1].upper() + text[1:]
+    return text if text[:2] in ("xw", "xE", "EV", "K-", "wR") else text[:1].upper() + text[1:]
+
+
+def speed_player(r: pd.Series) -> bool:
+    return max(r.get("sprint_speed") or 0, r.get("sprint_speed_p1") or 0) >= bb.SPEED_PLAYER
+
+
+def il_note(r: pd.Series) -> str:
+    what = r.get("il_what")
+    return f" ({what})" if isinstance(what, str) and what else ""
 
 
 def skill_line(spec: Spec, f: str, r: pd.Series, ref: pd.DataFrame, supports: bool) -> str | None:
@@ -273,6 +290,8 @@ def skill_line(spec: Spec, f: str, r: pd.Series, ref: pd.DataFrame, supports: bo
     v = r.get(col)
     if pd.isna(v):
         return None
+    if f == "sprint_speed" and v < bb.SPEED_PLAYER:
+        return None  # not a speed player: sprint speed isn't part of his value
     pr = pct_rank(ref[col], v)
     good = pr if hib else 1 - pr
     strong, weak = good >= 0.70, good <= 0.35
@@ -308,6 +327,23 @@ def hitter_reg_line(spec: Spec, f: str, r: pd.Series, ref: pd.DataFrame, support
                     f"of wOBA the next year, vs {a['young'] * 100:.0f}% at {a['youngCut']} or younger")
         if not supports and age_next <= a["youngCut"]:
             return f"Only {age_next} in {NEXT}: young hitters kept their gains more often ({a['young'] * 100:.0f}% dropped vs {a['old'] * 100:.0f}% at {a['oldCut']}+)"
+        return None
+    if f == "wrc_plus" and supports:
+        pr = pct_rank(ref["wrc_plus"], r["wrc_plus"])
+        if pr >= 0.85:
+            return f"{r['wrc_plus']:.0f} wRC+ ({standing(pr)} of regulars): the higher the peak, the bigger the usual give-back"
+        return None
+    if f == "il_days":
+        d = r["il_days"]
+        if supports and d >= 15:
+            return f"Already lost {int(d)} days to the IL in {LAST_SEASON}{il_note(r)}"
+        if not supports and d == 0 and r["base_il_days"] == 0:
+            return f"No IL time in {LAST_SEASON} or {yrs()}"
+        return None
+    if f == "base_il_days":
+        d = r["base_il_days"]
+        if supports and d >= 30:
+            return f"{int(d)} days on the IL across {yrs()}: the health record is a risk"
         return None
     if f == "woba_plus" and supports:
         pr = pct_rank(ref["woba"], r["woba"])
@@ -363,7 +399,7 @@ def hitter_reg_line(spec: Spec, f: str, r: pd.Series, ref: pd.DataFrame, support
         return None
     if f == "d_sprint":
         d = r["d_sprint"]
-        if supports and pd.notna(d) and d <= -0.4:
+        if supports and pd.notna(d) and d <= -0.4 and speed_player(r):
             return f"Lost {abs(d):.1f} ft/s of sprint speed since {Y1}"
         return None
     return skill_line(spec, f, r, ref, supports)
@@ -414,12 +450,19 @@ def hitter_bnc_line(spec: Spec, f: str, r: pd.Series, ref: pd.DataFrame, support
         if supports and pd.notna(g) and g <= -0.030:
             return f"SLG {rate3(r['slg'])} trailed a {rate3(r['xslg_'])} xSLG"
         return None
+    if f == "il_any":
+        d = r["il_days"]
+        if supports and d >= 15:
+            return f"The down year came with {int(d)} days on the IL{il_note(r)}: hurt, not just in decline"
+        if not supports and d == 0:
+            return f"No IL time in {LAST_SEASON}: he slumped while healthy"
+        return None
     if f == "pa_162":
-        # Hitters who kept playing through the slump bounced back more often.
-        if supports and r["pa"] >= 550:
-            return f"Kept his job through it ({int(r['pa'])} PA), so the playing time should be there"
+        # Only worth a line when the playing time itself is the story.
         if not supports and r["pa"] < 350:
-            return f"Only {int(r['pa'])} PA in {LAST_SEASON}: injuries or a lost job make {HIT_BNC_NEXT_PA}+ PA less certain"
+            if r["il_days"] >= 15:
+                return f"Only {int(r['pa'])} PA in {LAST_SEASON} after {int(r['il_days'])} days on the IL{il_note(r)}"
+            return f"Only {int(r['pa'])} PA in {LAST_SEASON} with no IL time: he lost at-bats, not health"
         return None
     if f == "d_ev50":
         d = r["d_ev50"]
@@ -430,7 +473,7 @@ def hitter_bnc_line(spec: Spec, f: str, r: pd.Series, ref: pd.DataFrame, support
         return None
     if f == "d_sprint":
         d = r["d_sprint"]
-        if not supports and pd.notna(d) and d <= -0.4:
+        if not supports and pd.notna(d) and d <= -0.4 and speed_player(r):
             return f"Lost {abs(d):.1f} ft/s of sprint speed since {Y1}"
         return None
     if f == "jump":
@@ -608,11 +651,10 @@ def pitcher_bnc_line(spec: Spec, f: str, r: pd.Series, ref: pd.DataFrame, suppor
             return f"Whiff rate down {abs(d):.1f} points to {r['whiff_percent']:.1f}%"
         return None
     if f == "ip_162":
-        # Pitchers who kept a regular role through the bad year bounced back more often.
-        if supports and r["ip"] >= (120 if r["reliever"] < 1 else 60):
-            return f"Kept a regular role through it ({fmt_ip(r['ip'])} IP), so the opportunity should be there"
         if not supports and r["ip"] < (80 if r["reliever"] < 1 else 40):
-            return f"Only {fmt_ip(r['ip'])} IP in {LAST_SEASON}: injuries or a demotion make {PIT_NEXT_IP}+ IP less certain"
+            if r["il_days"] >= 15:
+                return f"Only {fmt_ip(r['ip'])} IP in {LAST_SEASON} after {int(r['il_days'])} days on the IL{il_note(r)}"
+            return f"Only {fmt_ip(r['ip'])} IP in {LAST_SEASON} with no IL time: he lost the role, not health"
         return None
     if f in ("era_jump", "base_ip"):
         return None
@@ -626,7 +668,7 @@ LINES = {
     ("pitcher", "bounceback"): pitcher_bnc_line,
 }
 GROUPS = {"babip": "babip", "babip_gap": "babip", "xwoba_plus": "xw", "xdrop": "xw", "xgap": "gap",
-          "egap": "gap", "era_fip": "fip", "era_xfip": "fip", "xrise": "xera", "xera_minus_lg": "xera", "d_kbb": "kbb", "kbb": "kbb"}
+          "egap": "gap", "woba_plus": "level", "wrc_plus": "level", "il_days": "il", "il_any": "il", "pa_162": "il", "era_fip": "fip", "era_xfip": "fip", "xrise": "xera", "xera_minus_lg": "xera", "d_kbb": "kbb", "kbb": "kbb"}
 
 
 def explain(spec: Spec, model, r: pd.Series, ref: pd.DataFrame) -> tuple[list[str], str | None]:
@@ -690,6 +732,14 @@ def comp_payload(spec: Spec, c: pd.Series | None, people: dict) -> dict | None:
     return {"playerId": pid, "name": name, "season": int(c["year"]), "before": before, "after": after}
 
 
+def il_signals(r: pd.Series, drivers: list[str], against: str | None) -> list[str]:
+    """IL context as a blue bullet when the drivers didn't already cover it."""
+    if any("IL" in t for t in [*drivers, against or ""]):
+        return []
+    s = bb.il_signal(r, LAST_SEASON)
+    return [s] if s else []
+
+
 def half_signal(spec: Spec, pid: int) -> list[str]:
     group = "hitting" if spec.kind == "hitter" else "pitching"
     s = fetch_half_splits(pid, group, LAST_SEASON, refresh=bb.ARGS.refresh)
@@ -737,7 +787,7 @@ def bar_text(spec: Spec, r: pd.Series, lg: float) -> str:
 def stats_payload(kind: str, r: pd.Series) -> dict:
     if kind == "hitter":
         return {
-            "pa": int(r["pa"]), "woba": fmt3(r["woba"]), "xwoba": fmt3(r["xwoba"]), "babip": fmt3(r["babip"]),
+            "pa": int(r["pa"]), "woba": fmt3(r["woba"]), "wrcPlus": int(round(r["wrc_plus"])) if pd.notna(r["wrc_plus"]) else None, "xwoba": fmt3(r["xwoba"]), "babip": fmt3(r["babip"]),
             "slg": fmt3(r["slg"]), "xslg": fmt3(r["xslg_"]), "barrelPct": fmt1(r["barrel_batted_rate"]),
             "ev50": fmt1(r["avg_best_speed"]), "kPct": fmt1(r["k_percent"]), "bbPct": fmt1(r["bb_percent"]),
             "hr": int(r["home_run"]),
@@ -781,7 +831,7 @@ def payload(spec: Spec, model, hist: pd.DataFrame, top: pd.DataFrame, ref: pd.Da
             "rank": rank, "playerId": pid, "name": p.get("name") or name_from_lf(r["name_lf"]),
             "teamId": p.get("teamId"), "age": int(r["player_age"]) + 1,
             "probability": round(float(r["prob"]), 3), "stats": stats_payload(spec.kind, r),
-            "drivers": drivers, "signals": half_signal(spec, pid), "risk": against,
+            "drivers": drivers, "signals": il_signals(r, drivers, against) + half_signal(spec, pid), "risk": against,
             "bar": bar_text(spec, r, lg), "comp": comp_payload(spec, comps[pid], people),
         }
         if spec.kind == "hitter":
@@ -835,7 +885,7 @@ def main() -> None:
                 "pitcher": (f"ERA back within {PIT_BNC_TOL:.1f} runs of his two-year level (league-adjusted) over "
                             f"{PIT_NEXT_IP}+ IP the next season. Not pitching counts as no bounceback."),
                 "eligibility": (f"Hitters with {HIT_BNC_BASE_PA}+ PA and an above-average wOBA across {yrs()} whose "
-                                f"{LAST_SEASON} wOBA fell {pts(HIT_BNC_DROP)}+ points ({HIT_BNC_MIN_PA}+ PA). Pitchers "
+                                f"{LAST_SEASON} wOBA fell {pts(HIT_BNC_DROP)}+ points ({HIT_BNC_MIN_PA}+ PA, wRC+ {HIT_BNC_MAX_WRC} or lower). Pitchers "
                                 f"with {PIT_BNC_BASE_IP}+ IP and a better-than-league ERA across {yrs()} whose "
                                 f"{LAST_SEASON} ERA rose {PIT_BNC_RISE:.0f}+ run ({PIT_BNC_MIN_IP}+ IP)."),
             },

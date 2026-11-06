@@ -192,6 +192,7 @@ function hitterChips(h: BreakoutHitter) {
     { label: "PA", value: String(h.stats.pa) },
     { label: "wOBA", value: formatRate3(h.stats.woba) },
     { label: "xwOBA", value: formatRate3(h.stats.xwoba) },
+    { label: "wRC+", value: h.stats.wrcPlus == null ? "—" : String(Math.round(h.stats.wrcPlus)) },
     { label: "HR", value: h.stats.hr == null ? "—" : String(h.stats.hr) },
     { label: "Barrel", value: fmt1(h.stats.barrelPct, "%") },
     { label: "EV50", value: fmt1(h.stats.ev50) },
@@ -430,6 +431,7 @@ function turnHitterChips(h: TurnaroundHitter, view: TurnaroundKind, season: numb
     { label: "PA", value: String(s.pa) },
     { label: "wOBA", value: formatRate3(s.woba) },
     { label: "xwOBA", value: formatRate3(s.xwoba) },
+    { label: "wRC+", value: s.wrcPlus == null ? "—" : String(Math.round(s.wrcPlus)) },
   ];
   if (view === "bounceback") chips.push({ label: `${baseYears(season)} wOBA`, value: formatRate3(s.baseWoba) });
   chips.push({ label: "BABIP", value: formatRate3(s.babip) });
@@ -771,14 +773,17 @@ export function BreakoutsBrowser({
               </li>
               <li>
                 Inputs separate luck from skill: wOBA vs. xwOBA and SLG vs. xSLG, BABIP and HR rate compared with the
-                player&apos;s own two-year history, ERA vs. xERA, FIP and xFIP, plus the contact quality, plate discipline, stuff and
-                velocity behind the numbers, year-over-year changes in exit velo, sprint speed, velo and whiff rate,
-                workload and age.
+                player&apos;s own two-year history, park-adjusted wRC+, ERA vs. xERA, FIP and xFIP, plus the contact quality,
+                plate discipline, stuff and velocity behind the numbers, year-over-year changes in exit velo, sprint
+                speed, velo and whiff rate, injured-list time, workload and age. Sprint speed is only cited for players
+                who actually run (27.5 ft/s or faster).
               </li>
               <li>
                 Regression is measured among players who kept playing, so it&apos;s about performance, not injuries.
                 Bounceback counts only if the player gets a real role, because losing the job is one of the ways a
-                bounceback fails.
+                bounceback fails. Hitters who still posted a wRC+ above 120 aren&apos;t bounceback candidates: a
+                good year shortened by injury isn&apos;t a down year. IL stints come from MLB transactions, and a
+                slump that came with real IL time is treated differently from one while healthy.
               </li>
               <li>
                 The green or red bullets are the inputs pushing that player&apos;s probability up the most. &ldquo;Case
@@ -798,7 +803,7 @@ export function BreakoutsBrowser({
             <ul className="mt-2 list-disc space-y-1.5 pl-5">
               <li>
                 Inputs are season-level Statcast leaderboards from {report.source.replace(/^.*?, /, "")}: quality of
-                contact (xwOBA, barrels, top-end exit velo, sweet spot), swing decisions (chase, whiff, K%, BB%), and
+                contact (xwOBA, park-adjusted wRC+, barrels, top-end exit velo, sweet spot), swing decisions (chase, whiff, K%, BB%), and
                 for pitchers K-BB%, whiff, xERA, FIP and xFIP, fastball velo and ride, ground balls and year-over-year velo changes.
                 Age, workload and career playing time are included because opportunity is part of a breakout.
               </li>
