@@ -86,7 +86,7 @@ function CoffeeIcon() {
   );
 }
 
-function NavLinks({ pathname }: { pathname: string }) {
+function NavLinks({ pathname, short = false }: { pathname: string; short?: boolean }) {
   return (
     <>
       {NAV_ITEMS.map((item) => {
@@ -99,6 +99,7 @@ function NavLinks({ pathname }: { pathname: string }) {
           <Link
             key={item.href}
             href={item.href}
+            title={short && item.shortLabel !== item.label ? item.label : undefined}
             className={cn(
               "shrink-0 rounded-md px-2.5 py-1.5 text-xs transition-colors sm:px-3 sm:text-sm",
               isActive
@@ -106,8 +107,14 @@ function NavLinks({ pathname }: { pathname: string }) {
                 : "text-secondary hover:bg-hover hover:text-foreground",
             )}
           >
-            <span className="sm:hidden">{item.shortLabel}</span>
-            <span className="hidden sm:inline">{item.label}</span>
+            {short ? (
+              item.shortLabel
+            ) : (
+              <>
+                <span className="sm:hidden">{item.shortLabel}</span>
+                <span className="hidden sm:inline">{item.label}</span>
+              </>
+            )}
           </Link>
         );
       })}
@@ -129,7 +136,7 @@ export function AppNav({ compact = false }: { compact?: boolean }) {
       <div className={cn("mx-auto w-full max-w-6xl", compact || isGamePage ? "px-2 sm:px-4" : "px-4")}>
         {/* Desktop chrome from xl up — iPad landscape (~1024–1194) stays on compact layout */}
         <div className="hidden items-center justify-between gap-4 xl:flex">
-          <div className="flex min-w-0 items-center gap-4 lg:gap-6">
+          <div className="flex min-w-0 flex-1 items-center gap-4">
             <Link
               href="/"
               className="flex shrink-0 items-center gap-2 text-sm font-medium text-foreground"
@@ -137,8 +144,11 @@ export function AppNav({ compact = false }: { compact?: boolean }) {
               <WtbbMark className="size-11 text-foreground sm:size-12" />
               <span>{SITE_NAME}</span>
             </Link>
-            <nav className="flex items-center gap-0.5 lg:gap-1" aria-label="Main">
-              <NavLinks pathname={pathname} />
+            <nav
+              className="flex min-w-0 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              aria-label="Main"
+            >
+              <NavLinks pathname={pathname} short />
             </nav>
           </div>
           <div className="flex shrink-0 items-center gap-2">
