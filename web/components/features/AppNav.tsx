@@ -109,7 +109,12 @@ function NavLinks({ pathname, short = false }: { pathname: string; short?: boole
             )}
           >
             {short ? (
-              item.shortLabel
+              <>
+                {item.shortLabel}
+                {item.shortLabel !== item.label ? (
+                  <span className="sr-only"> ({item.label})</span>
+                ) : null}
+              </>
             ) : (
               <>
                 <span className="sm:hidden">{item.shortLabel}</span>
