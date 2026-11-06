@@ -84,6 +84,8 @@ export interface BreakoutPitcher extends BreakoutExplanation {
     ip: string;
     era: number | null;
     xera: number | null;
+    fip?: number | null;
+    xfip?: number | null;
     kPct: number | null;
     bbPct: number | null;
     kbbPct: number | null;
@@ -190,6 +192,8 @@ export interface TurnaroundPitcher extends BreakoutExplanation {
     ip: string;
     era: number | null;
     xera: number | null;
+    fip?: number | null;
+    xfip?: number | null;
     babip: number | null;
     hr9: number | null;
     kbbPct: number | null;
@@ -223,6 +227,8 @@ export const BREAKOUT_BASELINE_LABELS: Record<string, string> = {
   rawWoba: "Raw wOBA",
   eraUnderX: "“Lucky” (xERA − ERA)",
   rawEra: "Raw ERA",
+  eraUnderXfip: "“Lucky” (xFIP − ERA)",
+  xfip: "Raw xFIP",
   xOverWoba: "“Unlucky” (xwOBA − wOBA)",
   eraOverX: "“Unlucky” (ERA − xERA)",
   trackRecord: "Best track record",

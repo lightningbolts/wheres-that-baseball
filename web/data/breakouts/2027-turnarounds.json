@@ -1,7 +1,7 @@
 {
   "season": 2027,
   "basedOnSeason": 2026,
-  "generatedAt": "2026-11-06T04:16:39+00:00",
+  "generatedAt": "2026-11-06T05:06:20+00:00",
   "source": "Baseball Savant (Statcast) leaderboards and MLB Stats API, 2015-2026",
   "definitions": {
     "regression": {
@@ -222,20 +222,20 @@
             "breakouts": 39,
             "baseRate": 0.4105,
             "model": {
-              "auc": 0.68,
-              "p10": 0.8,
-              "p25": 0.64
+              "auc": 0.787,
+              "p10": 0.9,
+              "p25": 0.8
             },
             "baselines": {
+              "eraUnderXfip": {
+                "auc": 0.793,
+                "p10": 0.9,
+                "p25": 0.76
+              },
               "eraUnderX": {
                 "auc": 0.731,
                 "p10": 0.9,
                 "p25": 0.72
-              },
-              "rawEra": {
-                "auc": 0.711,
-                "p10": 0.9,
-                "p25": 0.8
               }
             }
           },
@@ -246,20 +246,20 @@
             "breakouts": 69,
             "baseRate": 0.561,
             "model": {
-              "auc": 0.728,
+              "auc": 0.74,
               "p10": 1.0,
-              "p25": 0.84
+              "p25": 0.88
             },
             "baselines": {
+              "eraUnderXfip": {
+                "auc": 0.753,
+                "p10": 1.0,
+                "p25": 0.84
+              },
               "eraUnderX": {
                 "auc": 0.718,
                 "p10": 0.9,
                 "p25": 0.8
-              },
-              "rawEra": {
-                "auc": 0.777,
-                "p10": 1.0,
-                "p25": 0.96
               }
             }
           },
@@ -270,20 +270,20 @@
             "breakouts": 48,
             "baseRate": 0.4752,
             "model": {
-              "auc": 0.598,
-              "p10": 0.7,
-              "p25": 0.6
+              "auc": 0.678,
+              "p10": 0.8,
+              "p25": 0.72
             },
             "baselines": {
+              "eraUnderXfip": {
+                "auc": 0.699,
+                "p10": 0.8,
+                "p25": 0.68
+              },
               "eraUnderX": {
                 "auc": 0.633,
                 "p10": 0.9,
                 "p25": 0.68
-              },
-              "rawEra": {
-                "auc": 0.613,
-                "p10": 0.9,
-                "p25": 0.64
               }
             }
           },
@@ -294,20 +294,20 @@
             "breakouts": 44,
             "baseRate": 0.4231,
             "model": {
-              "auc": 0.734,
+              "auc": 0.763,
               "p10": 0.8,
-              "p25": 0.76
+              "p25": 0.72
             },
             "baselines": {
+              "eraUnderXfip": {
+                "auc": 0.764,
+                "p10": 0.7,
+                "p25": 0.72
+              },
               "eraUnderX": {
                 "auc": 0.685,
                 "p10": 0.6,
                 "p25": 0.56
-              },
-              "rawEra": {
-                "auc": 0.642,
-                "p10": 0.6,
-                "p25": 0.6
               }
             }
           },
@@ -318,20 +318,20 @@
             "breakouts": 43,
             "baseRate": 0.4433,
             "model": {
-              "auc": 0.744,
-              "p10": 0.9,
+              "auc": 0.751,
+              "p10": 1.0,
               "p25": 0.76
             },
             "baselines": {
+              "eraUnderXfip": {
+                "auc": 0.752,
+                "p10": 1.0,
+                "p25": 0.72
+              },
               "eraUnderX": {
                 "auc": 0.686,
                 "p10": 0.7,
                 "p25": 0.68
-              },
-              "rawEra": {
-                "auc": 0.684,
-                "p10": 1.0,
-                "p25": 0.72
               }
             }
           },
@@ -342,20 +342,20 @@
             "breakouts": 33,
             "baseRate": 0.3837,
             "model": {
-              "auc": 0.706,
-              "p10": 0.9,
-              "p25": 0.68
+              "auc": 0.71,
+              "p10": 0.8,
+              "p25": 0.6
             },
             "baselines": {
+              "eraUnderXfip": {
+                "auc": 0.714,
+                "p10": 0.8,
+                "p25": 0.6
+              },
               "eraUnderX": {
                 "auc": 0.662,
                 "p10": 0.8,
                 "p25": 0.48
-              },
-              "rawEra": {
-                "auc": 0.64,
-                "p10": 0.8,
-                "p25": 0.6
               }
             }
           },
@@ -366,40 +366,40 @@
             "breakouts": 40,
             "baseRate": 0.4301,
             "model": {
-              "auc": 0.685,
-              "p10": 0.8,
+              "auc": 0.708,
+              "p10": 0.9,
               "p25": 0.72
             },
             "baselines": {
+              "eraUnderXfip": {
+                "auc": 0.693,
+                "p10": 0.8,
+                "p25": 0.72
+              },
               "eraUnderX": {
                 "auc": 0.696,
                 "p10": 0.8,
                 "p25": 0.64
-              },
-              "rawEra": {
-                "auc": 0.569,
-                "p10": 0.6,
-                "p25": 0.52
               }
             }
           }
         ],
         "summary": {
           "model": {
-            "auc": 0.696,
-            "p10": 0.843,
-            "p25": 0.714
+            "auc": 0.734,
+            "p10": 0.886,
+            "p25": 0.743
           },
           "baselines": {
+            "eraUnderXfip": {
+              "auc": 0.738,
+              "p10": 0.857,
+              "p25": 0.72
+            },
             "eraUnderX": {
               "auc": 0.687,
               "p10": 0.8,
               "p25": 0.651
-            },
-            "rawEra": {
-              "auc": 0.662,
-              "p10": 0.829,
-              "p25": 0.691
             }
           },
           "baseRate": 0.4467
@@ -1772,49 +1772,11 @@
     "pitchers": [
       {
         "rank": 1,
-        "playerId": 643511,
-        "name": "Tyler Rogers",
-        "teamId": 141,
-        "age": 36,
-        "probability": 0.927,
-        "stats": {
-          "ip": "71",
-          "era": 1.77,
-          "xera": 2.88,
-          "babip": 0.262,
-          "hr9": 0.25,
-          "kbbPct": 6.1,
-          "whiffPct": 14.5,
-          "fbVelo": 83.2,
-          "k": 40,
-          "baseEra": 2.38,
-          "baseIp": "147.2"
-        },
-        "drivers": [
-          "K-BB% 6.1% (bottom 4% of pitchers): thin support for that output",
-          "1.77 ERA (top 2% of pitchers): very hard to repeat",
-          "Fastball velo 83.2 mph (bottom 1% of pitchers): thin support for that output"
-        ],
-        "signals": [],
-        "risk": "Ground-ball rate 63.2% (top 1% of pitchers) says the production is backed by real skill",
-        "bar": "Regression = an ERA of about 2.77 or higher in 2027 over 40+ IP.",
-        "comp": {
-          "playerId": 642130,
-          "name": "Blake Taylor",
-          "season": 2020,
-          "before": "2.18 ERA, 2.88 xERA, 5.7% K-BB in 20.2 IP",
-          "after": "3.16 ERA in 42.2 IP"
-        },
-        "role": "RP",
-        "throws": "R"
-      },
-      {
-        "rank": 2,
         "playerId": 621112,
         "name": "Paul Blackburn",
         "teamId": 147,
         "age": 33,
-        "probability": 0.919,
+        "probability": 0.885,
         "stats": {
           "ip": "85",
           "era": 1.59,
@@ -1825,72 +1787,35 @@
           "whiffPct": 22.8,
           "fbVelo": 93.4,
           "k": 69,
+          "fip": 3.74,
+          "xfip": 3.91,
           "baseEra": 5.2,
           "baseIp": "114.1"
         },
         "drivers": [
-          "1.59 ERA (top 1% of pitchers): very hard to repeat",
-          "1.59 ERA was 2.09 runs better than his 3.68 xERA",
-          "K-BB% 10.7% (bottom 28% of pitchers): thin support for that output"
+          "1.59 ERA was 2.32 runs better than his 3.91 xFIP",
+          "1.59 ERA was 2.09 runs better than his 3.68 xERA"
         ],
         "signals": [],
-        "risk": "Ground-ball rate 54.9% (top 7% of pitchers) says the production is backed by real skill",
+        "risk": null,
         "bar": "Regression = an ERA of about 2.59 or higher in 2027 over 40+ IP.",
         "comp": {
-          "playerId": 279571,
-          "name": "Matt Belisle",
-          "season": 2016,
-          "before": "1.76 ERA, 3.82 xERA, 13.4% K-BB in 46 IP",
-          "after": "4.03 ERA in 60.1 IP"
+          "playerId": 571901,
+          "name": "Aaron Loup",
+          "season": 2021,
+          "before": "0.95 ERA, 3.15 xERA, 18.8% K-BB in 56.2 IP",
+          "after": "3.84 ERA in 58.2 IP"
         },
         "role": "RP",
         "throws": "R"
       },
       {
-        "rank": 3,
-        "playerId": 641329,
-        "name": "Bryan Baker",
-        "teamId": 139,
-        "age": 32,
-        "probability": 0.886,
-        "stats": {
-          "ip": "62.1",
-          "era": 1.44,
-          "xera": 3.08,
-          "babip": 0.204,
-          "hr9": 0.58,
-          "kbbPct": 16.8,
-          "whiffPct": 27.2,
-          "fbVelo": 96.3,
-          "k": 63,
-          "baseEra": 4.3,
-          "baseIp": "92"
-        },
-        "drivers": [
-          "1.44 ERA (top 1% of pitchers): very hard to repeat",
-          "1.44 ERA was 1.64 runs better than his 3.08 xERA",
-          "BABIP allowed .204, 82 points below his 2024-25 mark (.286)"
-        ],
-        "signals": [],
-        "risk": "Fastball velo 96.3 mph (top 20% of pitchers) says the production is backed by real skill",
-        "bar": "Regression = an ERA of about 2.44 or higher in 2027 over 40+ IP.",
-        "comp": {
-          "playerId": 593576,
-          "name": "H\u00e9ctor Neris",
-          "season": 2023,
-          "before": "1.71 ERA, 3.28 xERA, 16.8% K-BB in 68.1 IP",
-          "after": "4.10 ERA in 59.1 IP"
-        },
-        "role": "RP",
-        "throws": "R"
-      },
-      {
-        "rank": 4,
+        "rank": 2,
         "playerId": 673513,
         "name": "Yuki Matsui",
         "teamId": 135,
         "age": 31,
-        "probability": 0.879,
+        "probability": 0.883,
         "stats": {
           "ip": "64",
           "era": 1.83,
@@ -1901,16 +1826,17 @@
           "whiffPct": 33.1,
           "fbVelo": 91.9,
           "k": 68,
+          "fip": 4.17,
+          "xfip": 4.67,
           "baseEra": 3.86,
           "baseIp": "126"
         },
         "drivers": [
-          "1.83 ERA (top 3% of pitchers): very hard to repeat",
-          "1.83 ERA was 1.20 runs better than his 3.03 xERA",
-          "Ground-ball rate 36.4% (bottom 16% of pitchers): thin support for that output"
+          "1.83 ERA vs a 4.67 xFIP: only 9.7% of his fly balls left the park (league 13.1%)",
+          "1.83 ERA was 1.20 runs better than his 3.03 xERA"
         ],
         "signals": [],
-        "risk": "Whiff rate 33.1% (top 6% of pitchers) says the production is backed by real skill",
+        "risk": null,
         "bar": "Regression = an ERA of about 2.83 or higher in 2027 over 40+ IP.",
         "comp": {
           "playerId": 518715,
@@ -1923,12 +1849,51 @@
         "throws": "L"
       },
       {
-        "rank": 5,
+        "rank": 3,
+        "playerId": 641329,
+        "name": "Bryan Baker",
+        "teamId": 139,
+        "age": 32,
+        "probability": 0.855,
+        "stats": {
+          "ip": "62.1",
+          "era": 1.44,
+          "xera": 3.08,
+          "babip": 0.204,
+          "hr9": 0.58,
+          "kbbPct": 16.8,
+          "whiffPct": 27.2,
+          "fbVelo": 96.3,
+          "k": 63,
+          "fip": 3.06,
+          "xfip": 3.81,
+          "baseEra": 4.3,
+          "baseIp": "92"
+        },
+        "drivers": [
+          "1.44 ERA vs a 3.81 xFIP: only 6.9% of his fly balls left the park (league 13.1%)",
+          "1.44 ERA was 1.64 runs better than his 3.08 xERA"
+        ],
+        "signals": [],
+        "risk": null,
+        "bar": "Regression = an ERA of about 2.44 or higher in 2027 over 40+ IP.",
+        "comp": {
+          "playerId": 519326,
+          "name": "Hunter Strickland",
+          "season": 2017,
+          "before": "2.64 ERA, 4.39 xERA, 10.8% K-BB in 61.1 IP",
+          "after": "3.97 ERA in 45.1 IP"
+        },
+        "role": "RP",
+        "throws": "R"
+      },
+      {
+        "rank": 4,
         "playerId": 669084,
         "name": "DL Hall",
         "teamId": 158,
         "age": 28,
-        "probability": 0.846,
+        "probability": 0.847,
         "stats": {
           "ip": "61.1",
           "era": 1.91,
@@ -1939,110 +1904,35 @@
           "whiffPct": 28.0,
           "fbVelo": 95.4,
           "k": 64,
+          "fip": 3.88,
+          "xfip": 4.23,
           "baseEra": 4.3,
           "baseIp": "81.2"
         },
         "drivers": [
-          "1.91 ERA (top 3% of pitchers): very hard to repeat",
-          "1.91 ERA was 1.51 runs better than his 3.42 xERA",
-          "BABIP allowed .179, 99 points below his 2024-25 mark (.278)"
+          "1.91 ERA vs a 4.23 xFIP: only 9.8% of his fly balls left the park (league 13.1%)",
+          "1.91 ERA was 1.51 runs better than his 3.42 xERA"
         ],
         "signals": [],
-        "risk": "Fastball velo 95.4 mph (top 30% of pitchers) says the production is backed by real skill",
+        "risk": null,
         "bar": "Regression = an ERA of about 2.91 or higher in 2027 over 40+ IP.",
         "comp": {
-          "playerId": 518715,
-          "name": "Cory Gearrin",
-          "season": 2017,
-          "before": "1.99 ERA, 3.47 xERA, 10.2% K-BB in 68 IP",
-          "after": "3.77 ERA in 57.1 IP"
+          "playerId": 605135,
+          "name": "Chris Bassitt",
+          "season": 2020,
+          "before": "2.29 ERA, 3.82 xERA, 14.6% K-BB in 63 IP",
+          "after": "3.15 ERA in 157.1 IP"
         },
         "role": "RP",
         "throws": "L"
       },
       {
-        "rank": 6,
-        "playerId": 623352,
-        "name": "Josh Hader",
-        "teamId": 117,
-        "age": 33,
-        "probability": 0.832,
-        "stats": {
-          "ip": "44.2",
-          "era": 1.01,
-          "xera": 1.93,
-          "babip": 0.188,
-          "hr9": 0.2,
-          "kbbPct": 23.9,
-          "whiffPct": 34.2,
-          "fbVelo": 95.1,
-          "k": 55,
-          "baseEra": 3.05,
-          "baseIp": "123.2"
-        },
-        "drivers": [
-          "1.01 ERA (top 1% of pitchers): very hard to repeat",
-          "1.01 ERA was 0.92 runs better than his 1.93 xERA",
-          "Ground-ball rate 39.2% (bottom 32% of pitchers): thin support for that output"
-        ],
-        "signals": [],
-        "risk": "K-BB% 23.9% (top 5% of pitchers) says the production is backed by real skill",
-        "bar": "Regression = an ERA of about 2.01 or higher in 2027 over 40+ IP.",
-        "comp": {
-          "playerId": 489446,
-          "name": "Kirby Yates",
-          "season": 2024,
-          "before": "1.17 ERA, 1.85 xERA, 24.1% K-BB in 61.2 IP",
-          "after": "5.23 ERA in 41.1 IP"
-        },
-        "role": "RP",
-        "throws": "L"
-      },
-      {
-        "rank": 7,
-        "playerId": 621097,
-        "name": "Jacob Waguespack",
-        "teamId": 116,
-        "age": 33,
-        "probability": 0.806,
-        "stats": {
-          "ip": "47",
-          "era": 2.49,
-          "xera": 3.1,
-          "babip": 0.16,
-          "hr9": 1.15,
-          "kbbPct": 9.3,
-          "whiffPct": 25.4,
-          "fbVelo": 90.3,
-          "k": 35,
-          "baseEra": null,
-          "baseIp": null
-        },
-        "drivers": [
-          "K-BB% 9.3% (bottom 19% of pitchers): thin support for that output",
-          "BABIP allowed .160, lower than 99% of pitchers",
-          "2.49 ERA (top 9% of pitchers): very hard to repeat"
-        ],
-        "signals": [],
-        "risk": "Ground-ball rate 50.0% (top 16% of pitchers) says the production is backed by real skill",
-        "bar": "Regression = an ERA of about 3.49 or higher in 2027 over 40+ IP.",
-        "comp": {
-          "playerId": 571670,
-          "name": "Dylan Floro",
-          "season": 2018,
-          "before": "2.25 ERA, 2.70 xERA, 12.9% K-BB in 64 IP",
-          "after": "4.24 ERA in 46.2 IP"
-        },
-        "role": "RP",
-        "throws": "R"
-      },
-      {
-        "rank": 8,
+        "rank": 5,
         "playerId": 656271,
         "name": "Brock Burke",
         "teamId": 113,
         "age": 30,
-        "probability": 0.787,
+        "probability": 0.823,
         "stats": {
           "ip": "74.1",
           "era": 2.3,
@@ -2053,34 +1943,74 @@
           "whiffPct": 28.7,
           "fbVelo": 95.5,
           "k": 74,
+          "fip": 3.75,
+          "xfip": 4.6,
           "baseEra": 4.23,
           "baseIp": "95.2"
         },
         "drivers": [
-          "K-BB% 10.9% (bottom 31% of pitchers): thin support for that output",
-          "2.30 ERA was 1.35 runs better than his 3.65 xERA",
-          "2.30 ERA (top 7% of pitchers): very hard to repeat"
+          "2.30 ERA vs a 4.60 xFIP: only 6.7% of his fly balls left the park (league 13.1%)",
+          "2.30 ERA was 1.35 runs better than his 3.65 xERA"
         ],
         "signals": [],
-        "risk": "Fastball velo 95.5 mph (top 29% of pitchers) says the production is backed by real skill",
+        "risk": null,
         "bar": "Regression = an ERA of about 3.30 or higher in 2027 over 40+ IP.",
         "comp": {
-          "playerId": 669060,
-          "name": "Bryse Wilson",
+          "playerId": 542888,
+          "name": "Shawn Armstrong",
           "season": 2023,
-          "before": "2.58 ERA, 3.98 xERA, 12.4% K-BB in 76.2 IP",
-          "after": "4.04 ERA in 104.2 IP"
+          "before": "1.38 ERA, 2.71 xERA, 20.8% K-BB in 52 IP",
+          "after": "4.86 ERA in 66.2 IP"
         },
         "role": "RP",
         "throws": "L"
       },
       {
-        "rank": 9,
+        "rank": 6,
+        "playerId": 643511,
+        "name": "Tyler Rogers",
+        "teamId": 141,
+        "age": 36,
+        "probability": 0.817,
+        "stats": {
+          "ip": "71",
+          "era": 1.77,
+          "xera": 2.88,
+          "babip": 0.262,
+          "hr9": 0.25,
+          "kbbPct": 6.1,
+          "whiffPct": 14.5,
+          "fbVelo": 83.2,
+          "k": 40,
+          "fip": 3.35,
+          "xfip": 4.13,
+          "baseEra": 2.38,
+          "baseIp": "147.2"
+        },
+        "drivers": [
+          "1.77 ERA vs a 4.13 xFIP: only 4.2% of his fly balls left the park (league 13.1%)",
+          "1.77 ERA was 1.11 runs better than his 2.88 xERA"
+        ],
+        "signals": [],
+        "risk": null,
+        "bar": "Regression = an ERA of about 2.77 or higher in 2027 over 40+ IP.",
+        "comp": {
+          "playerId": 683769,
+          "name": "Hunter Gaddis",
+          "season": 2024,
+          "before": "1.57 ERA, 2.71 xERA, 18.7% K-BB in 74.2 IP",
+          "after": "3.11 ERA in 66.2 IP"
+        },
+        "role": "RP",
+        "throws": "R"
+      },
+      {
+        "rank": 7,
         "playerId": 700669,
         "name": "Gordon Graceffo",
         "teamId": 138,
         "age": 27,
-        "probability": 0.764,
+        "probability": 0.797,
         "stats": {
           "ip": "81",
           "era": 2.67,
@@ -2091,150 +2021,74 @@
           "whiffPct": 21.2,
           "fbVelo": 93.8,
           "k": 63,
+          "fip": 3.79,
+          "xfip": 4.45,
           "baseEra": 6.04,
           "baseIp": "50.2"
         },
         "drivers": [
-          "2.67 ERA was 1.93 runs better than his 4.60 xERA",
-          "K-BB% 8.3% (bottom 12% of pitchers): thin support for that output",
-          "BABIP allowed .221, lower than 95% of pitchers"
+          "2.67 ERA vs a 4.45 xFIP: only 7.1% of his fly balls left the park (league 13.1%)",
+          "2.67 ERA was 1.93 runs better than his 4.60 xERA"
         ],
         "signals": [],
-        "risk": "Ground-ball rate 47.5% (top 23% of pitchers) says the production is backed by real skill",
+        "risk": null,
         "bar": "Regression = an ERA of about 3.67 or higher in 2027 over 40+ IP.",
         "comp": {
-          "playerId": 663765,
-          "name": "Jake Woodford",
-          "season": 2022,
-          "before": "2.23 ERA, 4.05 xERA, 6.9% K-BB in 48.1 IP",
-          "after": "6.23 ERA in 47.2 IP"
+          "playerId": 608665,
+          "name": "Kendall Graveman",
+          "season": 2021,
+          "before": "1.77 ERA, 3.65 xERA, 18.5% K-BB in 56 IP",
+          "after": "3.18 ERA in 65 IP"
         },
         "role": "RP",
         "throws": "R"
       },
       {
-        "rank": 10,
-        "playerId": 527048,
-        "name": "Mart\u00edn P\u00e9rez",
-        "teamId": 144,
-        "age": 36,
-        "probability": 0.759,
+        "rank": 8,
+        "playerId": 623352,
+        "name": "Josh Hader",
+        "teamId": 117,
+        "age": 33,
+        "probability": 0.784,
         "stats": {
-          "ip": "142",
-          "era": 3.04,
-          "xera": 4.51,
-          "babip": 0.254,
-          "hr9": 0.89,
-          "kbbPct": 6.7,
-          "whiffPct": 21.1,
-          "fbVelo": 87.7,
-          "k": 102,
-          "baseEra": 4.24,
-          "baseIp": "191"
+          "ip": "44.2",
+          "era": 1.01,
+          "xera": 1.93,
+          "babip": 0.188,
+          "hr9": 0.2,
+          "kbbPct": 23.9,
+          "whiffPct": 34.2,
+          "fbVelo": 95.1,
+          "k": 55,
+          "fip": 1.93,
+          "xfip": 3.35,
+          "baseEra": 3.05,
+          "baseIp": "123.2"
         },
         "drivers": [
-          "K-BB% 6.7% (bottom 6% of pitchers): thin support for that output",
-          "3.04 ERA was 1.47 runs better than his 4.51 xERA",
-          "Fastball velo 87.7 mph (bottom 1% of pitchers): thin support for that output"
+          "1.01 ERA vs a 3.35 xFIP: only 2.2% of his fly balls left the park (league 13.1%)",
+          "1.01 ERA was 0.92 runs better than his 1.93 xERA"
         ],
         "signals": [],
-        "risk": "Ground-ball rate 47.6% (top 22% of pitchers) says the production is backed by real skill",
-        "bar": "Regression = an ERA of about 4.04 or higher in 2027 over 40+ IP.",
-        "comp": {
-          "playerId": 594736,
-          "name": "Cody Anderson",
-          "season": 2015,
-          "before": "3.05 ERA, 4.31 xERA, 5.5% K-BB in 91.1 IP",
-          "after": "6.68 ERA in 60.2 IP"
-        },
-        "role": "SP",
-        "throws": "L"
-      },
-      {
-        "rank": 11,
-        "playerId": 686973,
-        "name": "Louis Varland",
-        "teamId": 141,
-        "age": 29,
-        "probability": 0.743,
-        "stats": {
-          "ip": "78",
-          "era": 1.27,
-          "xera": 2.37,
-          "babip": 0.288,
-          "hr9": 0.23,
-          "kbbPct": 24.1,
-          "whiffPct": 29.4,
-          "fbVelo": 98.7,
-          "k": 97,
-          "baseEra": 4.85,
-          "baseIp": "122.1"
-        },
-        "drivers": [
-          "1.27 ERA (top 1% of pitchers): very hard to repeat",
-          "1.27 ERA was 1.10 runs better than his 2.37 xERA",
-          "BABIP allowed .288, 44 points below his 2024-25 mark (.332)"
-        ],
-        "signals": [],
-        "risk": "K-BB% 24.1% (top 5% of pitchers) says the production is backed by real skill",
-        "bar": "Regression = an ERA of about 2.27 or higher in 2027 over 40+ IP.",
-        "comp": {
-          "playerId": 553878,
-          "name": "Felipe V\u00e1zquez",
-          "season": 2017,
-          "before": "1.67 ERA, 2.55 xERA, 22.6% K-BB in 75.1 IP",
-          "after": "2.70 ERA in 70 IP"
-        },
-        "role": "RP",
-        "throws": "R"
-      },
-      {
-        "rank": 12,
-        "playerId": 593958,
-        "name": "Eduardo Rodriguez",
-        "teamId": 109,
-        "age": 34,
-        "probability": 0.735,
-        "stats": {
-          "ip": "189.2",
-          "era": 2.89,
-          "xera": 4.3,
-          "babip": 0.275,
-          "hr9": 0.9,
-          "kbbPct": 10.2,
-          "whiffPct": 21.9,
-          "fbVelo": 91.3,
-          "k": 143,
-          "baseEra": 5.02,
-          "baseIp": "204.1"
-        },
-        "drivers": [
-          "K-BB% 10.2% (bottom 24% of pitchers): thin support for that output",
-          "2.89 ERA was 1.41 runs better than his 4.30 xERA",
-          "Fastball velo 91.3 mph (bottom 14% of pitchers): thin support for that output"
-        ],
-        "signals": [
-          "Faded late: 3.81 ERA after the All-Star break vs 2.29 before"
-        ],
         "risk": null,
-        "bar": "Regression = an ERA of about 3.89 or higher in 2027 over 40+ IP.",
+        "bar": "Regression = an ERA of about 2.01 or higher in 2027 over 40+ IP.",
         "comp": {
-          "playerId": 656849,
-          "name": "David Peterson",
-          "season": 2024,
-          "before": "2.90 ERA, 4.58 xERA, 10.8% K-BB in 121 IP",
-          "after": "4.22 ERA in 168.2 IP"
+          "playerId": 573204,
+          "name": "Caleb Thielbar",
+          "season": 2020,
+          "before": "2.25 ERA, 3.18 xERA, 15.8% K-BB in 20 IP",
+          "after": "3.23 ERA in 64 IP"
         },
-        "role": "SP",
+        "role": "RP",
         "throws": "L"
       },
       {
-        "rank": 13,
+        "rank": 9,
         "playerId": 595345,
         "name": "Steven Okert",
         "teamId": 117,
         "age": 35,
-        "probability": 0.723,
+        "probability": 0.748,
         "stats": {
           "ip": "67.2",
           "era": 2.13,
@@ -2245,34 +2099,35 @@
           "whiffPct": 30.9,
           "fbVelo": 91.0,
           "k": 68,
+          "fip": 3.23,
+          "xfip": 4.15,
           "baseEra": 3.7,
           "baseIp": "107"
         },
         "drivers": [
-          "2.13 ERA (top 5% of pitchers): very hard to repeat",
-          "Ground-ball rate 28.0% (bottom 3% of pitchers): thin support for that output",
+          "2.13 ERA vs a 4.15 xFIP: only 7.8% of his fly balls left the park (league 13.1%)",
           "2.13 ERA was 1.00 runs better than his 3.13 xERA"
         ],
         "signals": [],
-        "risk": "K-BB% 20.7% (top 12% of pitchers) says the production is backed by real skill",
+        "risk": null,
         "bar": "Regression = an ERA of about 3.13 or higher in 2027 over 40+ IP.",
         "comp": {
-          "playerId": 621381,
-          "name": "Matt Strahm",
-          "season": 2018,
-          "before": "2.05 ERA, 3.42 xERA, 19.6% K-BB in 61.1 IP",
-          "after": "4.71 ERA in 114.2 IP"
+          "playerId": 680704,
+          "name": "Nick Sandlin",
+          "season": 2022,
+          "before": "2.25 ERA, 3.34 xERA, 9.5% K-BB in 44 IP",
+          "after": "3.75 ERA in 60 IP"
         },
         "role": "RP",
         "throws": "L"
       },
       {
-        "rank": 14,
+        "rank": 10,
         "playerId": 621345,
         "name": "A.J. Minter",
         "teamId": 142,
         "age": 33,
-        "probability": 0.668,
+        "probability": 0.731,
         "stats": {
           "ip": "45.2",
           "era": 2.56,
@@ -2283,55 +2138,216 @@
           "whiffPct": 23.4,
           "fbVelo": 90.6,
           "k": 41,
+          "fip": 4.45,
+          "xfip": 4.16,
           "baseEra": 2.38,
           "baseIp": "45.1"
         },
         "drivers": [
-          "2.56 ERA was 1.28 runs better than his 3.84 xERA",
-          "2.56 ERA (top 10% of pitchers): very hard to repeat",
-          "Ground-ball rate 37.5% (bottom 23% of pitchers): thin support for that output"
+          "2.56 ERA was 1.60 runs better than his 4.16 xFIP",
+          "2.56 ERA was 1.28 runs better than his 3.84 xERA"
         ],
         "signals": [],
         "risk": null,
         "bar": "Regression = an ERA of about 3.56 or higher in 2027 over 40+ IP.",
         "comp": {
-          "playerId": 519326,
-          "name": "Hunter Strickland",
-          "season": 2021,
-          "before": "2.61 ERA, 3.73 xERA, 14.9% K-BB in 58.2 IP",
-          "after": "4.91 ERA in 62.1 IP"
+          "playerId": 547179,
+          "name": "Michael Lorenzen",
+          "season": 2024,
+          "before": "3.31 ERA, 4.55 xERA, 7.1% K-BB in 130.1 IP",
+          "after": "4.64 ERA in 141.2 IP"
         },
         "role": "RP",
         "throws": "L"
       },
       {
-        "rank": 15,
-        "playerId": 615698,
-        "name": "Cal Quantrill",
-        "teamId": 140,
-        "age": 32,
-        "probability": 0.668,
+        "rank": 11,
+        "playerId": 621097,
+        "name": "Jacob Waguespack",
+        "teamId": 116,
+        "age": 33,
+        "probability": 0.717,
         "stats": {
-          "ip": "110",
-          "era": 2.86,
-          "xera": 3.87,
-          "babip": 0.24,
-          "hr9": 1.06,
-          "kbbPct": 12.7,
-          "whiffPct": 19.6,
-          "fbVelo": 92.4,
-          "k": 81,
-          "baseEra": 5.45,
-          "baseIp": "266"
+          "ip": "47",
+          "era": 2.49,
+          "xera": 3.1,
+          "babip": 0.16,
+          "hr9": 1.15,
+          "kbbPct": 9.3,
+          "whiffPct": 25.4,
+          "fbVelo": 90.3,
+          "k": 35,
+          "fip": 4.54,
+          "xfip": 4.4,
+          "baseEra": null,
+          "baseIp": null
         },
         "drivers": [
-          "2.86 ERA was 1.01 runs better than his 3.87 xERA",
-          "BABIP allowed .240, 66 points below his 2024-25 mark (.306)",
-          "Whiff rate 19.6% (bottom 8% of pitchers): thin support for that output"
+          "2.49 ERA was 1.91 runs better than his 4.40 xFIP"
         ],
         "signals": [],
         "risk": null,
-        "bar": "Regression = an ERA of about 3.86 or higher in 2027 over 40+ IP.",
+        "bar": "Regression = an ERA of about 3.49 or higher in 2027 over 40+ IP.",
+        "comp": {
+          "playerId": 676760,
+          "name": "Ron Marinaccio",
+          "season": 2022,
+          "before": "2.05 ERA, 2.66 xERA, 17.6% K-BB in 44 IP",
+          "after": "3.99 ERA in 47.1 IP"
+        },
+        "role": "RP",
+        "throws": "R"
+      },
+      {
+        "rank": 12,
+        "playerId": 593958,
+        "name": "Eduardo Rodriguez",
+        "teamId": 109,
+        "age": 34,
+        "probability": 0.716,
+        "stats": {
+          "ip": "189.2",
+          "era": 2.89,
+          "xera": 4.3,
+          "babip": 0.275,
+          "hr9": 0.9,
+          "kbbPct": 10.2,
+          "whiffPct": 21.9,
+          "fbVelo": 91.3,
+          "k": 143,
+          "fip": 3.88,
+          "xfip": 4.47,
+          "baseEra": 5.02,
+          "baseIp": "204.1"
+        },
+        "drivers": [
+          "2.89 ERA vs a 4.47 xFIP: only 9.0% of his fly balls left the park (league 13.1%)",
+          "2.89 ERA was 1.41 runs better than his 4.30 xERA"
+        ],
+        "signals": [
+          "Faded late: 3.81 ERA after the All-Star break vs 2.29 before"
+        ],
+        "risk": null,
+        "bar": "Regression = an ERA of about 3.89 or higher in 2027 over 40+ IP.",
+        "comp": {
+          "playerId": 572888,
+          "name": "Shane Greene",
+          "season": 2017,
+          "before": "2.66 ERA, 4.15 xERA, 13.8% K-BB in 67.2 IP",
+          "after": "5.12 ERA in 63.1 IP"
+        },
+        "role": "SP",
+        "throws": "L"
+      },
+      {
+        "rank": 13,
+        "playerId": 527048,
+        "name": "Mart\u00edn P\u00e9rez",
+        "teamId": 144,
+        "age": 36,
+        "probability": 0.702,
+        "stats": {
+          "ip": "142",
+          "era": 3.04,
+          "xera": 4.51,
+          "babip": 0.254,
+          "hr9": 0.89,
+          "kbbPct": 6.7,
+          "whiffPct": 21.1,
+          "fbVelo": 87.7,
+          "k": 102,
+          "fip": 4.31,
+          "xfip": 4.45,
+          "baseEra": 4.24,
+          "baseIp": "191"
+        },
+        "drivers": [
+          "3.04 ERA was 1.41 runs better than his 4.45 xFIP",
+          "3.04 ERA was 1.47 runs better than his 4.51 xERA"
+        ],
+        "signals": [],
+        "risk": null,
+        "bar": "Regression = an ERA of about 4.04 or higher in 2027 over 40+ IP.",
+        "comp": {
+          "playerId": 656271,
+          "name": "Brock Burke",
+          "season": 2022,
+          "before": "1.97 ERA, 3.39 xERA, 20.1% K-BB in 82.1 IP",
+          "after": "4.37 ERA in 59.2 IP"
+        },
+        "role": "SP",
+        "throws": "L"
+      },
+      {
+        "rank": 14,
+        "playerId": 664199,
+        "name": "Taylor Clarke",
+        "teamId": 109,
+        "age": 34,
+        "probability": 0.69,
+        "stats": {
+          "ip": "73",
+          "era": 2.96,
+          "xera": 4.42,
+          "babip": 0.241,
+          "hr9": 0.86,
+          "kbbPct": 10.7,
+          "whiffPct": 22.7,
+          "fbVelo": 94.8,
+          "k": 45,
+          "fip": 3.85,
+          "xfip": 4.37,
+          "baseEra": 3.25,
+          "baseIp": "55.1"
+        },
+        "drivers": [
+          "2.96 ERA vs a 4.37 xFIP: only 9.2% of his fly balls left the park (league 13.1%)",
+          "2.96 ERA was 1.46 runs better than his 4.42 xERA"
+        ],
+        "signals": [],
+        "risk": null,
+        "bar": "Regression = an ERA of about 3.96 or higher in 2027 over 40+ IP.",
+        "comp": {
+          "playerId": 656271,
+          "name": "Brock Burke",
+          "season": 2022,
+          "before": "1.97 ERA, 3.39 xERA, 20.1% K-BB in 82.1 IP",
+          "after": "4.37 ERA in 59.2 IP"
+        },
+        "role": "RP",
+        "throws": "R"
+      },
+      {
+        "rank": 15,
+        "playerId": 675512,
+        "name": "Troy Melton",
+        "teamId": 116,
+        "age": 26,
+        "probability": 0.659,
+        "stats": {
+          "ip": "114.1",
+          "era": 2.76,
+          "xera": 3.84,
+          "babip": 0.248,
+          "hr9": 1.02,
+          "kbbPct": 12.1,
+          "whiffPct": 23.4,
+          "fbVelo": 94.8,
+          "k": 94,
+          "fip": 4.08,
+          "xfip": 4.18,
+          "baseEra": 2.76,
+          "baseIp": "45.2"
+        },
+        "drivers": [
+          "2.76 ERA was 1.42 runs better than his 4.18 xFIP",
+          "2.76 ERA was 1.08 runs better than his 3.84 xERA"
+        ],
+        "signals": [
+          "Faded late: 3.46 ERA after the All-Star break vs 1.82 before"
+        ],
+        "risk": null,
+        "bar": "Regression = an ERA of about 3.76 or higher in 2027 over 40+ IP.",
         "comp": {
           "playerId": 669854,
           "name": "Ronel Blanco",
@@ -2344,124 +2360,245 @@
       },
       {
         "rank": 16,
-        "playerId": 676477,
-        "name": "Garrett Whitlock",
-        "teamId": 111,
-        "age": 31,
-        "probability": 0.664,
+        "playerId": 592662,
+        "name": "Robbie Ray",
+        "teamId": 135,
+        "age": 35,
+        "probability": 0.659,
         "stats": {
-          "ip": "52.1",
-          "era": 1.72,
-          "xera": 2.62,
-          "babip": 0.278,
-          "hr9": 0.52,
-          "kbbPct": 25.3,
-          "whiffPct": 31.5,
-          "fbVelo": 94.9,
-          "k": 59,
-          "baseEra": 2.19,
-          "baseIp": "90.1"
+          "ip": "165.2",
+          "era": 3.59,
+          "xera": 4.82,
+          "babip": 0.262,
+          "hr9": 1.2,
+          "kbbPct": 7.9,
+          "whiffPct": 24.6,
+          "fbVelo": 93.0,
+          "k": 140,
+          "fip": 4.69,
+          "xfip": 4.94,
+          "baseEra": 3.8,
+          "baseIp": "213"
         },
         "drivers": [
-          "1.72 ERA (top 1% of pitchers): very hard to repeat",
-          "1.72 ERA was 0.90 runs better than his 2.62 xERA"
+          "3.59 ERA was 1.35 runs better than his 4.94 xFIP",
+          "3.59 ERA was 1.23 runs better than his 4.82 xERA"
         ],
         "signals": [],
-        "risk": "K-BB% 25.3% (top 3% of pitchers) says the production is backed by real skill",
-        "bar": "Regression = an ERA of about 2.72 or higher in 2027 over 40+ IP.",
+        "risk": null,
+        "bar": "Regression = an ERA of about 4.59 or higher in 2027 over 40+ IP.",
         "comp": {
-          "playerId": 506433,
-          "name": "Yu Darvish",
-          "season": 2020,
-          "before": "2.01 ERA, 3.02 xERA, 26.6% K-BB in 76 IP",
-          "after": "4.22 ERA in 166.1 IP"
+          "playerId": 668674,
+          "name": "Lucas Erceg",
+          "season": 2025,
+          "before": "2.64 ERA, 3.85 xERA, 12.1% K-BB in 61.1 IP",
+          "after": "5.59 ERA in 48.1 IP"
+        },
+        "role": "SP",
+        "throws": "L"
+      },
+      {
+        "rank": 17,
+        "playerId": 683769,
+        "name": "Hunter Gaddis",
+        "teamId": 114,
+        "age": 29,
+        "probability": 0.657,
+        "stats": {
+          "ip": "60.1",
+          "era": 2.98,
+          "xera": 4.09,
+          "babip": 0.287,
+          "hr9": 1.04,
+          "kbbPct": 13.6,
+          "whiffPct": 29.5,
+          "fbVelo": 95.1,
+          "k": 57,
+          "fip": 3.96,
+          "xfip": 4.42,
+          "baseEra": 2.3,
+          "baseIp": "141.1"
+        },
+        "drivers": [
+          "2.98 ERA was 1.44 runs better than his 4.42 xFIP",
+          "2.98 ERA was 1.11 runs better than his 4.09 xERA"
+        ],
+        "signals": [],
+        "risk": null,
+        "bar": "Regression = an ERA of about 3.98 or higher in 2027 over 40+ IP.",
+        "comp": {
+          "playerId": 448855,
+          "name": "Junior Guerra",
+          "season": 2016,
+          "before": "2.81 ERA, 3.93 xERA, 11.6% K-BB in 121.2 IP",
+          "after": "5.12 ERA in 70.1 IP"
         },
         "role": "RP",
         "throws": "R"
       },
       {
-        "rank": 17,
-        "playerId": 543243,
-        "name": "Sonny Gray",
-        "teamId": 111,
-        "age": 37,
-        "probability": 0.662,
+        "rank": 18,
+        "playerId": 656550,
+        "name": "Grant Holmes",
+        "teamId": 144,
+        "age": 31,
+        "probability": 0.656,
         "stats": {
-          "ip": "169",
-          "era": 2.72,
-          "xera": 3.87,
-          "babip": 0.284,
-          "hr9": 0.85,
-          "kbbPct": 15.1,
-          "whiffPct": 23.1,
-          "fbVelo": 90.6,
-          "k": 149,
-          "baseEra": 4.07,
-          "baseIp": "347"
+          "ip": "151.2",
+          "era": 3.44,
+          "xera": 5.05,
+          "babip": 0.26,
+          "hr9": 1.31,
+          "kbbPct": 8.2,
+          "whiffPct": 27.3,
+          "fbVelo": 93.6,
+          "k": 115,
+          "fip": 4.75,
+          "xfip": 4.5,
+          "baseEra": 3.83,
+          "baseIp": "183.1"
         },
         "drivers": [
-          "2.72 ERA was 1.15 runs better than his 3.87 xERA",
-          "Fastball velo 90.6 mph (bottom 9% of pitchers): thin support for that output",
-          "Whiff rate 23.1% (bottom 32% of pitchers): thin support for that output"
+          "3.44 ERA was 1.61 runs better than his 5.05 xERA",
+          "3.44 ERA was 1.06 runs better than his 4.50 xFIP"
         ],
         "signals": [],
         "risk": null,
-        "bar": "Regression = an ERA of about 3.72 or higher in 2027 over 40+ IP.",
+        "bar": "Regression = an ERA of about 4.44 or higher in 2027 over 40+ IP.",
         "comp": {
-          "playerId": 448614,
-          "name": "Carlos Torres",
+          "playerId": 502239,
+          "name": "Trevor Cahill",
           "season": 2016,
-          "before": "2.73 ERA, 3.74 xERA, 14.2% K-BB in 82.1 IP",
-          "after": "4.21 ERA in 72.2 IP"
+          "before": "2.74 ERA, 4.31 xERA, 10.9% K-BB in 65.2 IP",
+          "after": "4.93 ERA in 84 IP"
         },
         "role": "SP",
         "throws": "R"
       },
       {
-        "rank": 18,
-        "playerId": 592155,
-        "name": "Cam Booser",
-        "teamId": 139,
-        "age": 35,
-        "probability": 0.648,
+        "rank": 19,
+        "playerId": 615698,
+        "name": "Cal Quantrill",
+        "teamId": 140,
+        "age": 32,
+        "probability": 0.656,
         "stats": {
-          "ip": "41",
-          "era": 1.98,
-          "xera": 2.64,
-          "babip": 0.208,
-          "hr9": 1.1,
-          "kbbPct": 25.7,
-          "whiffPct": 28.6,
-          "fbVelo": 92.1,
-          "k": 45,
-          "baseEra": 4.28,
-          "baseIp": "73.2"
+          "ip": "110",
+          "era": 2.86,
+          "xera": 3.87,
+          "babip": 0.24,
+          "hr9": 1.06,
+          "kbbPct": 12.7,
+          "whiffPct": 19.6,
+          "fbVelo": 92.4,
+          "k": 81,
+          "fip": 4.0,
+          "xfip": 4.32,
+          "baseEra": 5.45,
+          "baseIp": "266"
         },
         "drivers": [
-          "1.98 ERA (top 5% of pitchers): very hard to repeat",
-          "Ground-ball rate 30.7% (bottom 4% of pitchers): thin support for that output",
-          "BABIP allowed .208, lower than 97% of pitchers"
+          "2.86 ERA was 1.46 runs better than his 4.32 xFIP",
+          "2.86 ERA was 1.01 runs better than his 3.87 xERA"
         ],
         "signals": [],
-        "risk": "K-BB% 25.7% (top 2% of pitchers) says the production is backed by real skill",
-        "bar": "Regression = an ERA of about 2.98 or higher in 2027 over 40+ IP.",
+        "risk": null,
+        "bar": "Regression = an ERA of about 3.86 or higher in 2027 over 40+ IP.",
         "comp": {
-          "playerId": 676254,
-          "name": "Ryan Walker",
-          "season": 2024,
-          "before": "1.91 ERA, 2.60 xERA, 26.3% K-BB in 80 IP",
-          "after": "4.11 ERA in 61.1 IP"
+          "playerId": 425844,
+          "name": "Zack Greinke",
+          "season": 2015,
+          "before": "1.66 ERA, 2.68 xERA, 19.0% K-BB in 222.2 IP",
+          "after": "4.37 ERA in 158.2 IP"
+        },
+        "role": "SP",
+        "throws": "R"
+      },
+      {
+        "rank": 20,
+        "playerId": 670059,
+        "name": "Colin Holderman",
+        "teamId": 114,
+        "age": 31,
+        "probability": 0.648,
+        "stats": {
+          "ip": "52.2",
+          "era": 2.73,
+          "xera": 3.87,
+          "babip": 0.243,
+          "hr9": 0.17,
+          "kbbPct": 13.5,
+          "whiffPct": 27.0,
+          "fbVelo": 96.7,
+          "k": 50,
+          "fip": 3.15,
+          "xfip": 4.2,
+          "baseEra": 4.44,
+          "baseIp": "77"
+        },
+        "drivers": [
+          "2.73 ERA vs a 4.20 xFIP: only 2.5% of his fly balls left the park (league 13.1%)",
+          "2.73 ERA was 1.14 runs better than his 3.87 xERA"
+        ],
+        "signals": [],
+        "risk": null,
+        "bar": "Regression = an ERA of about 3.73 or higher in 2027 over 40+ IP.",
+        "comp": {
+          "playerId": 448855,
+          "name": "Junior Guerra",
+          "season": 2016,
+          "before": "2.81 ERA, 3.93 xERA, 11.6% K-BB in 121.2 IP",
+          "after": "5.12 ERA in 70.1 IP"
+        },
+        "role": "RP",
+        "throws": "R"
+      },
+      {
+        "rank": 21,
+        "playerId": 682120,
+        "name": "Tim Herrin",
+        "teamId": 114,
+        "age": 30,
+        "probability": 0.644,
+        "stats": {
+          "ip": "56.2",
+          "era": 3.02,
+          "xera": 3.89,
+          "babip": 0.279,
+          "hr9": 0.79,
+          "kbbPct": 10.8,
+          "whiffPct": 30.7,
+          "fbVelo": 94.1,
+          "k": 54,
+          "fip": 4.08,
+          "xfip": 4.53,
+          "baseEra": 3.07,
+          "baseIp": "108.1"
+        },
+        "drivers": [
+          "3.02 ERA vs a 4.53 xFIP: only 9.4% of his fly balls left the park (league 13.1%)",
+          "3.02 ERA was 0.87 runs better than his 3.89 xERA"
+        ],
+        "signals": [],
+        "risk": null,
+        "bar": "Regression = an ERA of about 4.02 or higher in 2027 over 40+ IP.",
+        "comp": {
+          "playerId": 276542,
+          "name": "Joaqu\u00edn Benoit",
+          "season": 2016,
+          "before": "2.81 ERA, 3.61 xERA, 13.7% K-BB in 48 IP",
+          "after": "4.65 ERA in 50.1 IP"
         },
         "role": "RP",
         "throws": "L"
       },
       {
-        "rank": 19,
+        "rank": 22,
         "playerId": 669330,
         "name": "Tyler Wells",
         "teamId": 139,
         "age": 32,
-        "probability": 0.641,
+        "probability": 0.642,
         "stats": {
           "ip": "72",
           "era": 2.38,
@@ -2472,73 +2609,73 @@
           "whiffPct": 30.6,
           "fbVelo": 91.8,
           "k": 72,
+          "fip": 3.37,
+          "xfip": 4.08,
           "baseEra": 4.14,
           "baseIp": "37"
         },
         "drivers": [
-          "2.38 ERA (top 7% of pitchers): very hard to repeat",
-          "Ground-ball rate 27.6% (bottom 2% of pitchers): thin support for that output",
-          "Fastball velo 91.8 mph (bottom 20% of pitchers): thin support for that output"
+          "2.38 ERA vs a 4.08 xFIP: only 8.8% of his fly balls left the park (league 13.1%)"
         ],
         "signals": [],
-        "risk": "K-BB% 19.5% (top 17% of pitchers) says the production is backed by real skill",
+        "risk": null,
         "bar": "Regression = an ERA of about 3.38 or higher in 2027 over 40+ IP.",
         "comp": {
-          "playerId": 456696,
-          "name": "David Hernandez",
-          "season": 2018,
-          "before": "2.53 ERA, 3.25 xERA, 18.9% K-BB in 64 IP",
-          "after": "8.02 ERA in 42.2 IP"
+          "playerId": 643511,
+          "name": "Tyler Rogers",
+          "season": 2021,
+          "before": "2.22 ERA, 2.85 xERA, 12.9% K-BB in 81 IP",
+          "after": "3.57 ERA in 75.2 IP"
         },
         "role": "RP",
         "throws": "R"
       },
       {
-        "rank": 20,
-        "playerId": 675512,
-        "name": "Troy Melton",
-        "teamId": 116,
-        "age": 26,
-        "probability": 0.632,
+        "rank": 23,
+        "playerId": 663969,
+        "name": "Tyler Phillips",
+        "teamId": 146,
+        "age": 29,
+        "probability": 0.634,
         "stats": {
-          "ip": "114.1",
-          "era": 2.76,
-          "xera": 3.84,
-          "babip": 0.248,
-          "hr9": 1.02,
-          "kbbPct": 12.1,
-          "whiffPct": 23.4,
-          "fbVelo": 94.8,
-          "k": 94,
-          "baseEra": 2.76,
-          "baseIp": "45.2"
+          "ip": "126.2",
+          "era": 3.34,
+          "xera": 4.73,
+          "babip": 0.265,
+          "hr9": 1.21,
+          "kbbPct": 8.4,
+          "whiffPct": 26.4,
+          "fbVelo": 95.6,
+          "k": 101,
+          "fip": 4.64,
+          "xfip": 4.43,
+          "baseEra": 4.09,
+          "baseIp": "114.1"
         },
         "drivers": [
-          "2.76 ERA was 1.08 runs better than his 3.84 xERA",
-          "Whiff rate 23.4% (bottom 35% of pitchers): thin support for that output"
+          "3.34 ERA was 1.39 runs better than his 4.73 xERA",
+          "3.34 ERA was 1.09 runs better than his 4.43 xFIP"
         ],
-        "signals": [
-          "Faded late: 3.46 ERA after the All-Star break vs 1.82 before"
-        ],
+        "signals": [],
         "risk": null,
-        "bar": "Regression = an ERA of about 3.76 or higher in 2027 over 40+ IP.",
+        "bar": "Regression = an ERA of about 4.34 or higher in 2027 over 40+ IP.",
         "comp": {
-          "playerId": 543699,
-          "name": "Tanner Roark",
-          "season": 2016,
-          "before": "2.83 ERA, 3.91 xERA, 11.6% K-BB in 210 IP",
-          "after": "4.67 ERA in 181.1 IP"
+          "playerId": 451584,
+          "name": "Wade Davis",
+          "season": 2017,
+          "before": "2.30 ERA, 3.60 xERA, 21.0% K-BB in 58.2 IP",
+          "after": "4.13 ERA in 65.1 IP"
         },
         "role": "SP",
         "throws": "R"
       },
       {
-        "rank": 21,
+        "rank": 24,
         "playerId": 607259,
         "name": "Nick Martinez",
         "teamId": 139,
         "age": 36,
-        "probability": 0.624,
+        "probability": 0.627,
         "stats": {
           "ip": "180",
           "era": 3.1,
@@ -2549,13 +2686,14 @@
           "whiffPct": 17.4,
           "fbVelo": 91.4,
           "k": 109,
+          "fip": 3.95,
+          "xfip": 4.53,
           "baseEra": 3.83,
           "baseIp": "308"
         },
         "drivers": [
-          "3.10 ERA was 0.88 runs better than his 3.98 xERA",
-          "Ground-ball rate 36.5% (bottom 17% of pitchers): thin support for that output",
-          "Whiff rate 17.4% (bottom 2% of pitchers): thin support for that output"
+          "3.10 ERA vs a 4.53 xFIP: only 9.6% of his fly balls left the park (league 13.1%)",
+          "3.10 ERA was 0.88 runs better than his 3.98 xERA"
         ],
         "signals": [
           "Faded late: 3.74 ERA after the All-Star break vs 2.65 before"
@@ -2563,127 +2701,14 @@
         "risk": null,
         "bar": "Regression = an ERA of about 4.10 or higher in 2027 over 40+ IP.",
         "comp": {
-          "playerId": 592866,
-          "name": "Trevor Williams",
-          "season": 2018,
-          "before": "3.11 ERA, 4.04 xERA, 10.2% K-BB in 170.2 IP",
-          "after": "5.38 ERA in 145.2 IP"
+          "playerId": 553878,
+          "name": "Felipe V\u00e1zquez",
+          "season": 2017,
+          "before": "1.67 ERA, 2.55 xERA, 22.6% K-BB in 75.1 IP",
+          "after": "2.70 ERA in 70 IP"
         },
         "role": "SP",
         "throws": "R"
-      },
-      {
-        "rank": 22,
-        "playerId": 682842,
-        "name": "Abner Uribe",
-        "teamId": 158,
-        "age": 27,
-        "probability": 0.622,
-        "stats": {
-          "ip": "59.1",
-          "era": 1.97,
-          "xera": 2.81,
-          "babip": 0.265,
-          "hr9": 0.46,
-          "kbbPct": 18.4,
-          "whiffPct": 26.8,
-          "fbVelo": 98.8,
-          "k": 62,
-          "baseEra": 2.51,
-          "baseIp": "89.2"
-        },
-        "drivers": [
-          "1.97 ERA (top 5% of pitchers): very hard to repeat",
-          "1.97 ERA was 0.84 runs better than his 2.81 xERA"
-        ],
-        "signals": [],
-        "risk": "Fastball velo 98.8 mph (top 2% of pitchers) says the production is backed by real skill",
-        "bar": "Regression = an ERA of about 2.97 or higher in 2027 over 40+ IP.",
-        "comp": {
-          "playerId": 444468,
-          "name": "H\u00e9ctor Rond\u00f3n",
-          "season": 2015,
-          "before": "1.67 ERA, 2.66 xERA, 19.3% K-BB in 70 IP",
-          "after": "3.53 ERA in 51 IP"
-        },
-        "role": "RP",
-        "throws": "R"
-      },
-      {
-        "rank": 23,
-        "playerId": 657514,
-        "name": "Brennan Bernardino",
-        "teamId": 115,
-        "age": 35,
-        "probability": 0.617,
-        "stats": {
-          "ip": "64",
-          "era": 2.81,
-          "xera": 3.73,
-          "babip": 0.287,
-          "hr9": 0.7,
-          "kbbPct": 12.8,
-          "whiffPct": 22.2,
-          "fbVelo": 89.5,
-          "k": 49,
-          "baseEra": 3.6,
-          "baseIp": "102.2"
-        },
-        "drivers": [
-          "2.81 ERA was 0.92 runs better than his 3.73 xERA",
-          "Fastball velo 89.5 mph (bottom 3% of pitchers): thin support for that output",
-          "Whiff rate 22.2% (bottom 24% of pitchers): thin support for that output"
-        ],
-        "signals": [],
-        "risk": null,
-        "bar": "Regression = an ERA of about 3.81 or higher in 2027 over 40+ IP.",
-        "comp": {
-          "playerId": 607536,
-          "name": "Kyle Freeland",
-          "season": 2018,
-          "before": "2.85 ERA, 3.76 xERA, 12.2% K-BB in 202.1 IP",
-          "after": "6.73 ERA in 104.1 IP"
-        },
-        "role": "RP",
-        "throws": "L"
-      },
-      {
-        "rank": 24,
-        "playerId": 663947,
-        "name": "Tyler Holton",
-        "teamId": 116,
-        "age": 31,
-        "probability": 0.615,
-        "stats": {
-          "ip": "72",
-          "era": 2.75,
-          "xera": 3.78,
-          "babip": 0.299,
-          "hr9": 1.0,
-          "kbbPct": 12.0,
-          "whiffPct": 23.4,
-          "fbVelo": 89.5,
-          "k": 55,
-          "baseEra": 2.86,
-          "baseIp": "173"
-        },
-        "drivers": [
-          "2.75 ERA was 1.03 runs better than his 3.78 xERA",
-          "Fastball velo 89.5 mph (bottom 3% of pitchers): thin support for that output",
-          "Whiff rate 23.4% (bottom 35% of pitchers): thin support for that output"
-        ],
-        "signals": [],
-        "risk": "BABIP allowed .299: no hit luck to give back",
-        "bar": "Regression = an ERA of about 3.75 or higher in 2027 over 40+ IP.",
-        "comp": {
-          "playerId": 670174,
-          "name": "Josh Winckowski",
-          "season": 2023,
-          "before": "2.88 ERA, 3.77 xERA, 13.9% K-BB in 84.1 IP",
-          "after": "4.14 ERA in 76 IP"
-        },
-        "role": "RP",
-        "throws": "L"
       },
       {
         "rank": 25,
@@ -2691,7 +2716,7 @@
         "name": "Dylan Dodd",
         "teamId": 144,
         "age": 29,
-        "probability": 0.606,
+        "probability": 0.612,
         "stats": {
           "ip": "49.2",
           "era": 2.54,
@@ -2702,23 +2727,23 @@
           "whiffPct": 29.5,
           "fbVelo": 91.4,
           "k": 53,
+          "fip": 3.82,
+          "xfip": 4.04,
           "baseEra": 3.89,
           "baseIp": "37"
         },
         "drivers": [
-          "Ground-ball rate 27.4% (bottom 2% of pitchers): thin support for that output",
-          "2.54 ERA (top 10% of pitchers): very hard to repeat",
-          "Fastball velo 91.4 mph (bottom 16% of pitchers): thin support for that output"
+          "2.54 ERA was 1.50 runs better than his 4.04 xFIP"
         ],
         "signals": [],
-        "risk": "K-BB% 20.1% (top 14% of pitchers) says the production is backed by real skill",
+        "risk": null,
         "bar": "Regression = an ERA of about 3.54 or higher in 2027 over 40+ IP.",
         "comp": {
-          "playerId": 456696,
-          "name": "David Hernandez",
-          "season": 2018,
-          "before": "2.53 ERA, 3.25 xERA, 18.9% K-BB in 64 IP",
-          "after": "8.02 ERA in 42.2 IP"
+          "playerId": 663947,
+          "name": "Tyler Holton",
+          "season": 2024,
+          "before": "2.19 ERA, 2.75 xERA, 17.0% K-BB in 94.1 IP",
+          "after": "3.66 ERA in 78.2 IP"
         },
         "role": "RP",
         "throws": "L"
@@ -3546,6 +3571,8 @@
           "whiffPct": 25.2,
           "fbVelo": 98.4,
           "k": 44,
+          "fip": 4.1,
+          "xfip": 4.48,
           "baseEra": 3.77,
           "baseIp": "124.1"
         },
@@ -3584,6 +3611,8 @@
           "whiffPct": 26.1,
           "fbVelo": 96.8,
           "k": 63,
+          "fip": 4.16,
+          "xfip": 4.95,
           "baseEra": 2.78,
           "baseIp": "123"
         },
@@ -3622,6 +3651,8 @@
           "whiffPct": 21.3,
           "fbVelo": 95.9,
           "k": 66,
+          "fip": 5.26,
+          "xfip": 4.96,
           "baseEra": 3.81,
           "baseIp": "304.2"
         },
@@ -3660,6 +3691,8 @@
           "whiffPct": 19.7,
           "fbVelo": 95.2,
           "k": 17,
+          "fip": 7.12,
+          "xfip": 6.45,
           "baseEra": 3.45,
           "baseIp": "208.2"
         },
@@ -3697,6 +3730,8 @@
           "whiffPct": 20.8,
           "fbVelo": 93.6,
           "k": 61,
+          "fip": 5.01,
+          "xfip": 4.32,
           "baseEra": 3.79,
           "baseIp": "121"
         },
@@ -3735,6 +3770,8 @@
           "whiffPct": 22.7,
           "fbVelo": 92.3,
           "k": 137,
+          "fip": 3.96,
+          "xfip": 3.88,
           "baseEra": 3.67,
           "baseIp": "289.2"
         },
@@ -3774,6 +3811,8 @@
           "whiffPct": 23.7,
           "fbVelo": 92.4,
           "k": 34,
+          "fip": 4.42,
+          "xfip": 4.69,
           "baseEra": 3.52,
           "baseIp": "140.2"
         },
@@ -3810,6 +3849,8 @@
           "whiffPct": 24.0,
           "fbVelo": 95.7,
           "k": 42,
+          "fip": 4.68,
+          "xfip": 4.53,
           "baseEra": 3.35,
           "baseIp": "115.1"
         },
@@ -3847,6 +3888,8 @@
           "whiffPct": 26.1,
           "fbVelo": 94.3,
           "k": 156,
+          "fip": 4.28,
+          "xfip": 4.32,
           "baseEra": 3.19,
           "baseIp": "350.1"
         },
@@ -3885,6 +3928,8 @@
           "whiffPct": 25.2,
           "fbVelo": 96.0,
           "k": 175,
+          "fip": 3.24,
+          "xfip": 3.68,
           "baseEra": 2.92,
           "baseIp": "308"
         },
@@ -3923,6 +3968,8 @@
           "whiffPct": 20.9,
           "fbVelo": 97.1,
           "k": 34,
+          "fip": 5.39,
+          "xfip": 5.42,
           "baseEra": 3.0,
           "baseIp": "123"
         },
@@ -3961,6 +4008,8 @@
           "whiffPct": 22.4,
           "fbVelo": 92.2,
           "k": 131,
+          "fip": 4.93,
+          "xfip": 4.88,
           "baseEra": 3.26,
           "baseIp": "304.1"
         },
@@ -3999,6 +4048,8 @@
           "whiffPct": 13.1,
           "fbVelo": 88.4,
           "k": 25,
+          "fip": 5.92,
+          "xfip": 4.25,
           "baseEra": 3.22,
           "baseIp": "134"
         },
@@ -4035,6 +4086,8 @@
           "whiffPct": 20.3,
           "fbVelo": 91.3,
           "k": 41,
+          "fip": 4.64,
+          "xfip": 4.75,
           "baseEra": 3.15,
           "baseIp": "188.2"
         },
@@ -4073,6 +4126,8 @@
           "whiffPct": 16.2,
           "fbVelo": 91.6,
           "k": 73,
+          "fip": 6.07,
+          "xfip": 5.34,
           "baseEra": 3.73,
           "baseIp": "343"
         },
@@ -4110,6 +4165,8 @@
           "whiffPct": 31.7,
           "fbVelo": 94.4,
           "k": 45,
+          "fip": 6.18,
+          "xfip": 4.33,
           "baseEra": 3.52,
           "baseIp": "248"
         },
@@ -4147,6 +4204,8 @@
           "whiffPct": 26.7,
           "fbVelo": 94.6,
           "k": 33,
+          "fip": 4.32,
+          "xfip": 5.02,
           "baseEra": 3.14,
           "baseIp": "114.2"
         },
@@ -4183,6 +4242,8 @@
           "whiffPct": 21.6,
           "fbVelo": 91.9,
           "k": 113,
+          "fip": 5.32,
+          "xfip": 4.8,
           "baseEra": 3.67,
           "baseIp": "257.2"
         },
@@ -4220,6 +4281,8 @@
           "whiffPct": 23.7,
           "fbVelo": 95.2,
           "k": 112,
+          "fip": 5.04,
+          "xfip": 4.64,
           "baseEra": 3.59,
           "baseIp": "356"
         },
@@ -4258,6 +4321,8 @@
           "whiffPct": 19.3,
           "fbVelo": 93.7,
           "k": 17,
+          "fip": 4.36,
+          "xfip": 5.44,
           "baseEra": 3.36,
           "baseIp": "142"
         },

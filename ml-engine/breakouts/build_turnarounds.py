@@ -115,6 +115,8 @@ def pitcher_frame(all_p: pd.DataFrame) -> pd.DataFrame:
     p["slg"], p["xslg_"] = p["x_slg_percent"], p["x_xslg"]
     p["slg_gap"] = p["slg"] - p["xslg_"]
     p["egap"] = p["p_era"] - p["xera"]
+    p["era_fip"] = p["p_era"] - p["fip"]
+    p["era_xfip"] = p["p_era"] - p["xfip"]
     lag = ["ip", "era_minus_lg", "xera_minus_lg", "p_era", "xera", "kbb", "babip", "fastball_avg_speed", "whiff_percent"]
     p = p.merge(_lag(p, lag, 1, "_p1"), on=["player_id", "year"], how="left")
     p = p.merge(_lag(p[["player_id", "year", *lag]], lag, 2, "_p2"), on=["player_id", "year"], how="left")
@@ -130,6 +132,7 @@ def pitcher_frame(all_p: pd.DataFrame) -> pd.DataFrame:
     p["d_kbb"] = p["kbb"] - p["kbb_p1"]
     p["d_whiff"] = p["whiff_percent"] - p["whiff_percent_p1"]
     p["neg_egap"] = -p["egap"]
+    p["neg_era_xfip"] = -p["era_xfip"]
     p["neg_era"] = -p["era_minus_lg"]
     p["neg_base_era"] = -p["base_era_minus_lg"]
     p["reliever"] = (p["ip_per_g"] < 2).astype(float)
@@ -185,10 +188,10 @@ PIT_REG = Spec(
     | ((f["ip_162"] >= PIT_REG_RP_IP) & (f["ip_per_g"] < 2) & (f["era_minus_lg"] <= -PIT_REG_RP_RUNS)),
     label=lambda f: (f["era_minus_lg_n"] - f["era_minus_lg"]) >= PIT_REG_RISE,
     played=lambda f: f["ip_n"] >= PIT_NEXT_IP,
-    features=["player_age", "era_minus_lg", "xera_minus_lg", "egap", "babip", "babip_gap", "hr9", "slg_gap",
-              "kbb", "whiff_percent", "barrel_batted_rate", "groundballs_percent", "fastball_avg_speed", "d_velo",
-              "d_kbb", "ip_162", "reliever", "era_jump"],
-    baselines={"eraUnderX": "neg_egap", "rawEra": "neg_era"},
+    # A lean, FIP-anchored set: the full skills set (K-BB, velo, BABIP, ...) backtested worse than
+    # ERA - xFIP alone, while these five beat it on top-10/top-25 hit rate.
+    features=["era_xfip", "era_fip", "egap", "player_age", "reliever"],
+    baselines={"eraUnderXfip": "neg_era_xfip", "eraUnderX": "neg_egap"},
     c=0.1, ns=(10, 25), top_n=25,
 )
 PIT_BNC = Spec(
@@ -449,6 +452,23 @@ def pitcher_reg_line(spec: Spec, f: str, r: pd.Series, ref: pd.DataFrame, suppor
         if pr >= 0.85:
             return f"{r['p_era']:.2f} ERA ({standing(pr)} of pitchers): very hard to repeat"
         return None
+    if f in ("era_xfip", "era_fip"):
+        g = r[f]
+        val = r["xfip"] if f == "era_xfip" else r["fip"]
+        name = "xFIP" if f == "era_xfip" else "FIP"
+        if pd.isna(g):
+            return None
+        if supports and g <= -0.40:
+            hrfb, lg = r.get("hr_fb"), r.get("lg_hr_fb")
+            if f == "era_xfip" and pd.notna(hrfb) and pd.notna(lg) and hrfb <= 0.75 * lg:
+                return (f"{r['p_era']:.2f} ERA vs a {val:.2f} xFIP: only {hrfb * 100:.1f}% of his fly balls left the park "
+                        f"(league {lg * 100:.1f}%)")
+            if f == "era_xfip":
+                return f"{r['p_era']:.2f} ERA was {abs(g):.2f} runs better than his {val:.2f} xFIP"
+            return f"{r['p_era']:.2f} ERA vs a {val:.2f} FIP: his strikeouts, walks and homers point to more runs"
+        if not supports and g >= -0.10:
+            return f"His {r['p_era']:.2f} ERA is backed by a {val:.2f} {name}"
+        return None
     if f == "egap":
         g = r["egap"]
         if pd.isna(g):
@@ -606,7 +626,7 @@ LINES = {
     ("pitcher", "bounceback"): pitcher_bnc_line,
 }
 GROUPS = {"babip": "babip", "babip_gap": "babip", "xwoba_plus": "xw", "xdrop": "xw", "xgap": "gap",
-          "egap": "gap", "xrise": "xera", "xera_minus_lg": "xera", "d_kbb": "kbb", "kbb": "kbb"}
+          "egap": "gap", "era_fip": "fip", "era_xfip": "fip", "xrise": "xera", "xera_minus_lg": "xera", "d_kbb": "kbb", "kbb": "kbb"}
 
 
 def explain(spec: Spec, model, r: pd.Series, ref: pd.DataFrame) -> tuple[list[str], str | None]:
@@ -727,6 +747,7 @@ def stats_payload(kind: str, r: pd.Series) -> dict:
         "ip": fmt_ip(r["ip"]), "era": round(float(r["p_era"]), 2), "xera": fmt1x(r["xera"]),
         "babip": fmt3(r["babip"]), "hr9": fmt1x(r["hr9"]), "kbbPct": fmt1(r["kbb"]),
         "whiffPct": fmt1(r["whiff_percent"]), "fbVelo": fmt1(r["fastball_avg_speed"]), "k": int(r["strikeout"]),
+        "fip": fmt1x(r["fip"]), "xfip": fmt1x(r["xfip"]),
         "baseEra": fmt1x(r["base_p_era"]) if r["base_ip"] >= 30 else None,
         "baseIp": fmt_ip(r["base_ip"]) if r["base_ip"] >= 30 else None,
     }

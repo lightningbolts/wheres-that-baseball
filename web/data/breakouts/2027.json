@@ -1,7 +1,7 @@
 {
   "season": 2027,
   "basedOnSeason": 2026,
-  "generatedAt": "2026-11-06T04:16:37+00:00",
+  "generatedAt": "2026-11-06T05:06:18+00:00",
   "source": "Baseball Savant (Statcast) leaderboards, MLB Stats API awards and minor-league stats, and MLB Pipeline prospect rankings, 2015-2026",
   "definitions": {
     "hitter": "A first true breakout season: 400+ PA with wOBA 30+ points above league (about 120 wRC+), 30 HR, or an All-Star / Silver Slugger / ROY-level honor.",
@@ -208,9 +208,9 @@
           "breakouts": 14,
           "baseRate": 0.0528,
           "model": {
-            "auc": 0.652,
-            "p10": 0.1,
-            "p25": 0.2,
+            "auc": 0.657,
+            "p10": 0.3,
+            "p25": 0.24,
             "p50": 0.16
           },
           "baselines": {
@@ -225,6 +225,12 @@
               "p10": 0.2,
               "p25": 0.12,
               "p50": 0.08
+            },
+            "xfip": {
+              "auc": 0.609,
+              "p10": 0.2,
+              "p25": 0.08,
+              "p50": 0.1
             }
           }
         },
@@ -235,10 +241,10 @@
           "breakouts": 16,
           "baseRate": 0.0539,
           "model": {
-            "auc": 0.723,
+            "auc": 0.734,
             "p10": 0.3,
-            "p25": 0.16,
-            "p50": 0.12
+            "p25": 0.2,
+            "p50": 0.14
           },
           "baselines": {
             "eraMinusXera": {
@@ -252,6 +258,12 @@
               "p10": 0.0,
               "p25": 0.08,
               "p50": 0.12
+            },
+            "xfip": {
+              "auc": 0.741,
+              "p10": 0.2,
+              "p25": 0.16,
+              "p50": 0.14
             }
           }
         },
@@ -262,7 +274,7 @@
           "breakouts": 15,
           "baseRate": 0.0497,
           "model": {
-            "auc": 0.725,
+            "auc": 0.737,
             "p10": 0.2,
             "p25": 0.16,
             "p50": 0.16
@@ -279,6 +291,12 @@
               "p10": 0.1,
               "p25": 0.04,
               "p50": 0.06
+            },
+            "xfip": {
+              "auc": 0.63,
+              "p10": 0.0,
+              "p25": 0.08,
+              "p50": 0.06
             }
           }
         },
@@ -289,9 +307,9 @@
           "breakouts": 14,
           "baseRate": 0.0473,
           "model": {
-            "auc": 0.805,
+            "auc": 0.809,
             "p10": 0.3,
-            "p25": 0.2,
+            "p25": 0.16,
             "p50": 0.2
           },
           "baselines": {
@@ -306,6 +324,12 @@
               "p10": 0.1,
               "p25": 0.16,
               "p50": 0.18
+            },
+            "xfip": {
+              "auc": 0.751,
+              "p10": 0.2,
+              "p25": 0.16,
+              "p50": 0.1
             }
           }
         },
@@ -316,7 +340,7 @@
           "breakouts": 13,
           "baseRate": 0.0447,
           "model": {
-            "auc": 0.685,
+            "auc": 0.68,
             "p10": 0.1,
             "p25": 0.16,
             "p50": 0.12
@@ -333,6 +357,12 @@
               "p10": 0.2,
               "p25": 0.12,
               "p50": 0.08
+            },
+            "xfip": {
+              "auc": 0.669,
+              "p10": 0.2,
+              "p25": 0.08,
+              "p50": 0.06
             }
           }
         },
@@ -343,10 +373,10 @@
           "breakouts": 23,
           "baseRate": 0.0782,
           "model": {
-            "auc": 0.848,
+            "auc": 0.844,
             "p10": 0.4,
             "p25": 0.32,
-            "p50": 0.26
+            "p50": 0.28
           },
           "baselines": {
             "eraMinusXera": {
@@ -360,16 +390,22 @@
               "p10": 0.6,
               "p25": 0.36,
               "p50": 0.26
+            },
+            "xfip": {
+              "auc": 0.835,
+              "p10": 0.6,
+              "p25": 0.44,
+              "p50": 0.3
             }
           }
         }
       ],
       "summary": {
         "model": {
-          "auc": 0.74,
-          "p10": 0.233,
-          "p25": 0.2,
-          "p50": 0.17
+          "auc": 0.744,
+          "p10": 0.267,
+          "p25": 0.207,
+          "p50": 0.177
         },
         "baselines": {
           "eraMinusXera": {
@@ -383,6 +419,12 @@
             "p10": 0.2,
             "p25": 0.147,
             "p50": 0.13
+          },
+          "xfip": {
+            "auc": 0.706,
+            "p10": 0.233,
+            "p25": 0.167,
+            "p50": 0.127
           }
         },
         "baseRate": 0.0544
@@ -4345,11 +4387,13 @@
       "role": "RP",
       "throws": "L",
       "age": 26,
-      "probability": 0.313,
+      "probability": 0.305,
       "stats": {
         "ip": "39.2",
         "era": 3.63,
         "xera": 2.18,
+        "fip": 2.56,
+        "xfip": 1.94,
         "kPct": 36.7,
         "bbPct": 8.3,
         "kbbPct": 28.4,
@@ -4360,9 +4404,9 @@
         "k": 62
       },
       "drivers": [
+        "xFIP 1.94 (top 1% of regulars)",
         "Strikeout rate 36.7% (top 1% of regulars)",
-        "Ground-ball rate 63.3% (top 1% of regulars)",
-        "Whiff rate 31.1% (top 12% of regulars)"
+        "Ground-ball rate 63.3% (top 1% of regulars)"
       ],
       "signals": [
         "Put-away pitch: 4-Seam Fastball (34% usage) gets 45% whiffs, .162 xwOBA, top 1% for the pitch type"
@@ -4385,11 +4429,13 @@
       "role": "SP",
       "throws": "L",
       "age": 25,
-      "probability": 0.268,
+      "probability": 0.283,
       "stats": {
         "ip": "115.2",
         "era": 4.2,
         "xera": 4.01,
+        "fip": 4.02,
+        "xfip": 3.39,
         "kPct": 27.9,
         "bbPct": 7.1,
         "kbbPct": 20.8,
@@ -4400,9 +4446,9 @@
         "k": 141
       },
       "drivers": [
-        "K-BB% 20.8% (top 12% of regulars)",
-        "Whiff rate 27.9% (top 30% of regulars)",
-        "Fastball velo 94.8 mph (top 38% of regulars)"
+        "xFIP 3.39 (top 14% of regulars)",
+        "Strikeout rate 27.9% (top 17% of regulars)",
+        "Whiff rate 27.9% (top 30% of regulars)"
       ],
       "signals": [],
       "risk": "Ground-ball rate 37.2% (bottom 20% of regulars)",
@@ -4417,17 +4463,104 @@
     },
     {
       "rank": 3,
+      "playerId": 677960,
+      "name": "Ryan Weathers",
+      "teamId": 147,
+      "role": "SP",
+      "throws": "L",
+      "age": 27,
+      "probability": 0.274,
+      "stats": {
+        "ip": "137.1",
+        "era": 3.6,
+        "xera": 4.32,
+        "fip": 3.61,
+        "xfip": 3.15,
+        "kPct": 25.2,
+        "bbPct": 6.7,
+        "kbbPct": 18.5,
+        "whiffPct": 27.0,
+        "xwoba": 0.319,
+        "fbVelo": 95.0,
+        "fbIvb": 12.0,
+        "k": 143
+      },
+      "drivers": [
+        "xFIP 3.15 (top 8% of regulars)",
+        "Strikeout rate 25.2% (top 32% of regulars)",
+        "Ground-ball rate 49.5% (top 18% of regulars)"
+      ],
+      "signals": [
+        "Put-away pitch: Sweeper (20% usage) gets 39% whiffs, .284 xwOBA, top 14% for the pitch type",
+        "Second-half jump: 2.27 ERA, 21% K after the break (vs 4.15, 27% before)"
+      ],
+      "risk": "Fastball down 1.8 mph from 2025",
+      "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 3.60 ERA / 4.32 xERA.",
+      "comp": {
+        "playerId": 686613,
+        "name": "Hunter Brown",
+        "season": 2023,
+        "before": "18.5% K-BB, 4.27 xERA in 155.2 IP",
+        "after": "3.49 ERA, 179 K in 170 IP"
+      }
+    },
+    {
+      "rank": 4,
+      "playerId": 667755,
+      "name": "Jos\u00e9 Soriano",
+      "teamId": 141,
+      "role": "SP",
+      "throws": "R",
+      "age": 28,
+      "probability": 0.265,
+      "stats": {
+        "ip": "177.1",
+        "era": 3.91,
+        "xera": 4.45,
+        "fip": 3.89,
+        "xfip": 3.71,
+        "kPct": 22.7,
+        "bbPct": 9.8,
+        "kbbPct": 12.9,
+        "whiffPct": 28.6,
+        "xwoba": 0.323,
+        "fbVelo": 96.6,
+        "fbIvb": 7.8,
+        "k": 169
+      },
+      "drivers": [
+        "xFIP 3.71 (top 25% of regulars)",
+        "Ground-ball rate 53.8% (top 8% of regulars)",
+        "Fastball velo 96.6 mph (top 17% of regulars)"
+      ],
+      "signals": [
+        "Put-away pitch: Curveball (26% usage) gets 43% whiffs, .285 xwOBA, top 9% for the pitch type"
+      ],
+      "risk": "Zone rate 44.8% (bottom 16% of regulars)",
+      "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 3.91 ERA / 4.45 xERA.",
+      "comp": {
+        "playerId": 622491,
+        "name": "Luis Castillo",
+        "season": 2018,
+        "before": "16.4% K-BB, 4.30 xERA in 169.2 IP",
+        "after": "3.40 ERA, 226 K in 190.2 IP"
+      }
+    },
+    {
+      "rank": 5,
       "playerId": 808963,
       "name": "Roki Sasaki",
       "teamId": 119,
       "role": "SP",
       "throws": "R",
       "age": 25,
-      "probability": 0.262,
+      "probability": 0.258,
       "stats": {
         "ip": "122.1",
         "era": 4.49,
         "xera": 4.3,
+        "fip": 4.72,
+        "xfip": 4.01,
         "kPct": 23.6,
         "bbPct": 9.2,
         "kbbPct": 14.4,
@@ -4449,92 +4582,11 @@
       "risk": "Zone rate 46.7% (bottom 37% of regulars)",
       "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 4.49 ERA / 4.30 xERA.",
       "comp": {
-        "playerId": 666157,
-        "name": "Nick Lodolo",
-        "season": 2024,
-        "before": "17.2% K-BB, 3.67 xERA in 115.1 IP",
-        "after": "3.33 ERA, 156 K in 156.2 IP"
-      }
-    },
-    {
-      "rank": 4,
-      "playerId": 667755,
-      "name": "Jos\u00e9 Soriano",
-      "teamId": 141,
-      "role": "SP",
-      "throws": "R",
-      "age": 28,
-      "probability": 0.253,
-      "stats": {
-        "ip": "177.1",
-        "era": 3.91,
-        "xera": 4.45,
-        "kPct": 22.7,
-        "bbPct": 9.8,
-        "kbbPct": 12.9,
-        "whiffPct": 28.6,
-        "xwoba": 0.323,
-        "fbVelo": 96.6,
-        "fbIvb": 7.8,
-        "k": 169
-      },
-      "drivers": [
-        "Ground-ball rate 53.8% (top 8% of regulars)",
-        "Fastball velo 96.6 mph (top 17% of regulars)",
-        "Whiff rate 28.6% (top 24% of regulars)"
-      ],
-      "signals": [
-        "Put-away pitch: Curveball (26% usage) gets 43% whiffs, .285 xwOBA, top 9% for the pitch type"
-      ],
-      "risk": "Zone rate 44.8% (bottom 16% of regulars)",
-      "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 3.91 ERA / 4.45 xERA.",
-      "comp": {
-        "playerId": 656849,
-        "name": "David Peterson",
-        "season": 2024,
-        "before": "10.8% K-BB, 4.58 xERA in 121 IP",
-        "after": "4.22 ERA, 150 K in 168.2 IP"
-      }
-    },
-    {
-      "rank": 5,
-      "playerId": 677960,
-      "name": "Ryan Weathers",
-      "teamId": 147,
-      "role": "SP",
-      "throws": "L",
-      "age": 27,
-      "probability": 0.239,
-      "stats": {
-        "ip": "137.1",
-        "era": 3.6,
-        "xera": 4.32,
-        "kPct": 25.2,
-        "bbPct": 6.7,
-        "kbbPct": 18.5,
-        "whiffPct": 27.0,
-        "xwoba": 0.319,
-        "fbVelo": 95.0,
-        "fbIvb": 12.0,
-        "k": 143
-      },
-      "drivers": [
-        "K-BB% 18.5% (top 20% of regulars)",
-        "Ground-ball rate 49.5% (top 18% of regulars)",
-        "Whiff rate 27.0% (top 37% of regulars)"
-      ],
-      "signals": [
-        "Put-away pitch: Sweeper (20% usage) gets 39% whiffs, .284 xwOBA, top 14% for the pitch type",
-        "Second-half jump: 2.27 ERA, 21% K after the break (vs 4.15, 27% before)"
-      ],
-      "risk": "Fastball down 1.8 mph from 2025",
-      "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 3.60 ERA / 4.32 xERA.",
-      "comp": {
-        "playerId": 622491,
-        "name": "Luis Castillo",
-        "season": 2018,
-        "before": "16.4% K-BB, 4.30 xERA in 169.2 IP",
-        "after": "3.40 ERA, 226 K in 190.2 IP"
+        "playerId": 680694,
+        "name": "Kyle Bradish",
+        "season": 2022,
+        "before": "12.8% K-BB, 4.58 xERA in 117.2 IP",
+        "after": "2.83 ERA, 168 K in 168.2 IP"
       }
     },
     {
@@ -4545,11 +4597,13 @@
       "role": "SP",
       "throws": "L",
       "age": 27,
-      "probability": 0.198,
+      "probability": 0.211,
       "stats": {
         "ip": "155",
         "era": 5.23,
         "xera": 5.02,
+        "fip": 4.62,
+        "xfip": 4.09,
         "kPct": 22.8,
         "bbPct": 8.2,
         "kbbPct": 14.6,
@@ -4578,17 +4632,143 @@
     },
     {
       "rank": 7,
+      "playerId": 695611,
+      "name": "Gage Jump",
+      "teamId": 133,
+      "role": "SP",
+      "throws": "L",
+      "age": 24,
+      "probability": 0.178,
+      "stats": {
+        "ip": "98.2",
+        "era": 5.47,
+        "xera": 4.63,
+        "fip": 4.01,
+        "xfip": 4.0,
+        "kPct": 24.7,
+        "bbPct": 10.5,
+        "kbbPct": 14.2,
+        "whiffPct": 25.2,
+        "xwoba": 0.329,
+        "fbVelo": 96.1,
+        "fbIvb": 16.1,
+        "k": 108
+      },
+      "drivers": [
+        "Fastball velo 96.1 mph (top 22% of regulars)",
+        "Fastball ride (IVB) 16.1 in (top 18% of regulars)",
+        "Strikeout rate 24.7% (top 34% of regulars)"
+      ],
+      "signals": [],
+      "risk": "Ground-ball rate 39.1% (bottom 31% of regulars)",
+      "bar": "Needs ERA and xERA around 3.56 across 100+ IP (had 98.2) or 200 K. Was 5.47 ERA / 4.63 xERA.",
+      "comp": {
+        "playerId": 680694,
+        "name": "Kyle Bradish",
+        "season": 2022,
+        "before": "12.8% K-BB, 4.58 xERA in 117.2 IP",
+        "after": "2.83 ERA, 168 K in 168.2 IP"
+      }
+    },
+    {
+      "rank": 8,
+      "playerId": 687570,
+      "name": "Connor Prielipp",
+      "teamId": 142,
+      "role": "SP",
+      "throws": "L",
+      "age": 26,
+      "probability": 0.168,
+      "stats": {
+        "ip": "125.2",
+        "era": 4.87,
+        "xera": 3.95,
+        "fip": 3.72,
+        "xfip": 3.83,
+        "kPct": 23.9,
+        "bbPct": 8.2,
+        "kbbPct": 15.7,
+        "whiffPct": 23.6,
+        "xwoba": 0.306,
+        "fbVelo": 95.4,
+        "fbIvb": 13.1,
+        "k": 128
+      },
+      "drivers": [
+        "xFIP 3.83 (top 30% of regulars)",
+        "Fastball velo 95.4 mph (top 30% of regulars)",
+        "K-BB% 15.7% (top 34% of regulars)"
+      ],
+      "signals": [
+        "Put-away pitch: Curveball (19% usage) gets 38% whiffs, .170 xwOBA, top 22% for the pitch type"
+      ],
+      "risk": "Whiff rate 23.6% (bottom 38% of regulars)",
+      "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 4.87 ERA / 3.95 xERA.",
+      "comp": {
+        "playerId": 680694,
+        "name": "Kyle Bradish",
+        "season": 2022,
+        "before": "12.8% K-BB, 4.58 xERA in 117.2 IP",
+        "after": "2.83 ERA, 168 K in 168.2 IP"
+      }
+    },
+    {
+      "rank": 9,
+      "playerId": 682982,
+      "name": "Daniel Espino",
+      "teamId": 114,
+      "role": "RP",
+      "throws": "R",
+      "age": 26,
+      "probability": 0.168,
+      "stats": {
+        "ip": "15.1",
+        "era": 4.11,
+        "xera": 2.9,
+        "fip": 3.75,
+        "xfip": 2.76,
+        "kPct": 38.5,
+        "bbPct": 10.8,
+        "kbbPct": 27.7,
+        "whiffPct": 36.8,
+        "xwoba": 0.264,
+        "fbVelo": 98.8,
+        "fbIvb": 16.8,
+        "k": 25
+      },
+      "drivers": [
+        "xFIP 2.76 (top 3% of regulars)",
+        "Whiff rate 36.8% (top 1% of regulars)",
+        "Strikeout rate 38.5% (top 1% of regulars)"
+      ],
+      "signals": [
+        "Put-away pitch: 4-Seam Fastball (62% usage) gets 42% whiffs, .275 xwOBA, top 1% for the pitch type"
+      ],
+      "risk": "Only 15.1 IP in 2026: needs a bigger role to get there",
+      "bar": "Needs elite relief: ~3.16 ERA/xERA with 20%+ K-BB over 50+ IP, or a move into the rotation. Was 4.11 / 2.90, 27.7% K-BB.",
+      "comp": {
+        "playerId": 605218,
+        "name": "Carl Edwards Jr.",
+        "season": 2016,
+        "before": "27.6% K-BB, 2.78 xERA in 36 IP",
+        "after": "2.98 ERA, 94 K in 66.1 IP"
+      }
+    },
+    {
+      "rank": 10,
       "playerId": 691725,
       "name": "Andrew Painter",
       "teamId": 143,
       "role": "SP",
       "throws": "R",
       "age": 24,
-      "probability": 0.167,
+      "probability": 0.162,
       "stats": {
         "ip": "126.2",
         "era": 5.4,
         "xera": 4.42,
+        "fip": 4.66,
+        "xfip": 4.33,
         "kPct": 20.8,
         "bbPct": 8.5,
         "kbbPct": 12.3,
@@ -4617,18 +4797,20 @@
       }
     },
     {
-      "rank": 8,
+      "rank": 11,
       "playerId": 696149,
       "name": "Bubba Chandler",
       "teamId": 134,
       "role": "SP",
       "throws": "R",
       "age": 24,
-      "probability": 0.165,
+      "probability": 0.16,
       "stats": {
         "ip": "154",
         "era": 4.5,
         "xera": 4.3,
+        "fip": 4.24,
+        "xfip": 4.85,
         "kPct": 20.8,
         "bbPct": 11.9,
         "kbbPct": 8.9,
@@ -4644,7 +4826,7 @@
         "Barrel rate allowed 6.1% (top 25% of regulars)"
       ],
       "signals": [],
-      "risk": "Ground-ball rate 39.5% (bottom 33% of regulars)",
+      "risk": "xFIP 4.85 (bottom 11% of regulars)",
       "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 4.50 ERA / 4.30 xERA.",
       "comp": {
         "playerId": 680732,
@@ -4655,253 +4837,20 @@
       }
     },
     {
-      "rank": 9,
-      "playerId": 687570,
-      "name": "Connor Prielipp",
-      "teamId": 142,
-      "role": "SP",
-      "throws": "L",
-      "age": 26,
-      "probability": 0.159,
-      "stats": {
-        "ip": "125.2",
-        "era": 4.87,
-        "xera": 3.95,
-        "kPct": 23.9,
-        "bbPct": 8.2,
-        "kbbPct": 15.7,
-        "whiffPct": 23.6,
-        "xwoba": 0.306,
-        "fbVelo": 95.4,
-        "fbIvb": 13.1,
-        "k": 128
-      },
-      "drivers": [
-        "K-BB% 15.7% (top 34% of regulars)",
-        "Fastball velo 95.4 mph (top 30% of regulars)",
-        "Barrel rate allowed 6.5% (top 32% of regulars)"
-      ],
-      "signals": [
-        "Put-away pitch: Curveball (19% usage) gets 38% whiffs, .170 xwOBA, top 22% for the pitch type"
-      ],
-      "risk": "Whiff rate 23.6% (bottom 38% of regulars)",
-      "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 4.87 ERA / 3.95 xERA.",
-      "comp": {
-        "playerId": 680694,
-        "name": "Kyle Bradish",
-        "season": 2022,
-        "before": "12.8% K-BB, 4.58 xERA in 117.2 IP",
-        "after": "2.83 ERA, 168 K in 168.2 IP"
-      }
-    },
-    {
-      "rank": 10,
-      "playerId": 695611,
-      "name": "Gage Jump",
-      "teamId": 133,
-      "role": "SP",
-      "throws": "L",
-      "age": 24,
-      "probability": 0.159,
-      "stats": {
-        "ip": "98.2",
-        "era": 5.47,
-        "xera": 4.63,
-        "kPct": 24.7,
-        "bbPct": 10.5,
-        "kbbPct": 14.2,
-        "whiffPct": 25.2,
-        "xwoba": 0.329,
-        "fbVelo": 96.1,
-        "fbIvb": 16.1,
-        "k": 108
-      },
-      "drivers": [
-        "Strikeout rate 24.7% (top 34% of regulars)",
-        "Fastball velo 96.1 mph (top 22% of regulars)",
-        "Fastball ride (IVB) 16.1 in (top 18% of regulars)"
-      ],
-      "signals": [],
-      "risk": "Ground-ball rate 39.1% (bottom 31% of regulars)",
-      "bar": "Needs ERA and xERA around 3.56 across 100+ IP (had 98.2) or 200 K. Was 5.47 ERA / 4.63 xERA.",
-      "comp": {
-        "playerId": 680694,
-        "name": "Kyle Bradish",
-        "season": 2022,
-        "before": "12.8% K-BB, 4.58 xERA in 117.2 IP",
-        "after": "2.83 ERA, 168 K in 168.2 IP"
-      }
-    },
-    {
-      "rank": 11,
-      "playerId": 682982,
-      "name": "Daniel Espino",
-      "teamId": 114,
-      "role": "RP",
-      "throws": "R",
-      "age": 26,
-      "probability": 0.152,
-      "stats": {
-        "ip": "15.1",
-        "era": 4.11,
-        "xera": 2.9,
-        "kPct": 38.5,
-        "bbPct": 10.8,
-        "kbbPct": 27.7,
-        "whiffPct": 36.8,
-        "xwoba": 0.264,
-        "fbVelo": 98.8,
-        "fbIvb": 16.8,
-        "k": 25
-      },
-      "drivers": [
-        "Strikeout rate 38.5% (top 1% of regulars)",
-        "Whiff rate 36.8% (top 1% of regulars)",
-        "Fastball velo 98.8 mph (top 2% of regulars)"
-      ],
-      "signals": [
-        "Put-away pitch: 4-Seam Fastball (62% usage) gets 42% whiffs, .275 xwOBA, top 1% for the pitch type"
-      ],
-      "risk": "Only 15.1 IP in 2026: needs a bigger role to get there",
-      "bar": "Needs elite relief: ~3.16 ERA/xERA with 20%+ K-BB over 50+ IP, or a move into the rotation. Was 4.11 / 2.90, 27.7% K-BB.",
-      "comp": {
-        "playerId": 592773,
-        "name": "Ryne Stanek",
-        "season": 2017,
-        "before": "17.9% K-BB, 4.96 xERA in 20 IP",
-        "after": "2.98 ERA, 81 K in 66.1 IP"
-      }
-    },
-    {
       "rank": 12,
-      "playerId": 693855,
-      "name": "Ian Seymour",
-      "teamId": 139,
-      "role": "SP/RP",
-      "throws": "L",
-      "age": 28,
-      "probability": 0.152,
-      "stats": {
-        "ip": "132.2",
-        "era": 4.21,
-        "xera": 3.55,
-        "kPct": 28.7,
-        "bbPct": 6.5,
-        "kbbPct": 22.2,
-        "whiffPct": 29.4,
-        "xwoba": 0.291,
-        "fbVelo": 90.8,
-        "fbIvb": 14.3,
-        "k": 158
-      },
-      "drivers": [
-        "K-BB% 22.2% (top 8% of regulars)",
-        "Whiff rate 29.4% (top 21% of regulars)",
-        "Zone rate 50.5% (top 15% of regulars)"
-      ],
-      "signals": [
-        "Put-away pitch: Changeup (29% usage) gets 38% whiffs, .254 xwOBA, top 19% for the pitch type"
-      ],
-      "risk": "Ground-ball rate 35.2% (bottom 13% of regulars)",
-      "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 4.21 ERA / 3.55 xERA.",
-      "comp": {
-        "playerId": 628452,
-        "name": "Raisel Iglesias",
-        "season": 2016,
-        "before": "17.5% K-BB, 3.02 xERA in 78.1 IP",
-        "after": "2.49 ERA, 92 K in 76 IP"
-      }
-    },
-    {
-      "rank": 13,
-      "playerId": 663855,
-      "name": "Jordan Hicks",
-      "teamId": 145,
-      "role": "RP",
-      "throws": "R",
-      "age": 30,
-      "probability": 0.135,
-      "stats": {
-        "ip": "48",
-        "era": 3.94,
-        "xera": 2.85,
-        "kPct": 29.6,
-        "bbPct": 15.3,
-        "kbbPct": 14.3,
-        "whiffPct": 28.2,
-        "xwoba": 0.262,
-        "fbVelo": 99.2,
-        "fbIvb": 10.6,
-        "k": 64
-      },
-      "drivers": [
-        "Strikeout rate 29.6% (top 11% of regulars)",
-        "Fastball velo 99.2 mph (top 2% of regulars)",
-        "Barrel rate allowed 1.7% (top 1% of regulars)"
-      ],
-      "signals": [
-        "Put-away pitch: Sweeper (30% usage) gets 52% whiffs, .248 xwOBA, top 1% for the pitch type"
-      ],
-      "risk": "One-inning relief role caps his innings and visibility",
-      "bar": "Needs elite relief: ~3.16 ERA/xERA with 20%+ K-BB over 50+ IP, or a move into the rotation. Was 3.94 / 2.85, 14.3% K-BB.",
-      "comp": {
-        "playerId": 642397,
-        "name": "Gregory Soto",
-        "season": 2020,
-        "before": "16.3% K-BB, 3.58 xERA in 23 IP",
-        "after": "3.39 ERA, 76 K in 63.2 IP"
-      }
-    },
-    {
-      "rank": 14,
-      "playerId": 669358,
-      "name": "Shane Baz",
-      "teamId": 110,
-      "role": "SP",
-      "throws": "R",
-      "age": 28,
-      "probability": 0.134,
-      "stats": {
-        "ip": "179.2",
-        "era": 4.11,
-        "xera": 4.27,
-        "kPct": 20.0,
-        "bbPct": 8.2,
-        "kbbPct": 11.8,
-        "whiffPct": 21.5,
-        "xwoba": 0.317,
-        "fbVelo": 94.1,
-        "fbIvb": 13.5,
-        "k": 154
-      },
-      "drivers": [
-        "Zone rate 49.6% (top 21% of regulars)",
-        "Barrel rate allowed 6.8% (top 37% of regulars)"
-      ],
-      "signals": [],
-      "risk": "Fastball down 1.2 mph from 2025",
-      "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 4.11 ERA / 4.27 xERA.",
-      "comp": {
-        "playerId": 671737,
-        "name": "Taj Bradley",
-        "season": 2025,
-        "before": "11.7% K-BB, 4.10 xERA in 142.2 IP",
-        "after": "3.73 ERA, 205 K in 178.1 IP"
-      }
-    },
-    {
-      "rank": 15,
       "playerId": 696146,
       "name": "Hagen Smith",
       "teamId": 145,
       "role": "RP",
       "throws": "L",
       "age": 23,
-      "probability": 0.132,
+      "probability": 0.158,
       "stats": {
         "ip": "28",
         "era": 1.29,
         "xera": 2.45,
+        "fip": 2.34,
+        "xfip": 2.73,
         "kPct": 37.3,
         "bbPct": 14.5,
         "kbbPct": 22.8,
@@ -4912,9 +4861,9 @@
         "k": 41
       },
       "drivers": [
-        "Strikeout rate 37.3% (top 1% of regulars)",
+        "xFIP 2.73 (top 3% of regulars)",
         "Whiff rate 36.2% (top 1% of regulars)",
-        "Barrel rate allowed 1.9% (top 1% of regulars)"
+        "Strikeout rate 37.3% (top 1% of regulars)"
       ],
       "signals": [
         "Put-away pitch: Slider (30% usage) gets 44% whiffs, .178 xwOBA, top 9% for the pitch type"
@@ -4930,18 +4879,390 @@
       }
     },
     {
+      "rank": 13,
+      "playerId": 669358,
+      "name": "Shane Baz",
+      "teamId": 110,
+      "role": "SP",
+      "throws": "R",
+      "age": 28,
+      "probability": 0.151,
+      "stats": {
+        "ip": "179.2",
+        "era": 4.11,
+        "xera": 4.27,
+        "fip": 3.62,
+        "xfip": 4.25,
+        "kPct": 20.0,
+        "bbPct": 8.2,
+        "kbbPct": 11.8,
+        "whiffPct": 21.5,
+        "xwoba": 0.317,
+        "fbVelo": 94.1,
+        "fbIvb": 13.5,
+        "k": 154
+      },
+      "drivers": [
+        "FIP 3.62 (top 30% of regulars)",
+        "Zone rate 49.6% (top 21% of regulars)"
+      ],
+      "signals": [],
+      "risk": "Fastball down 1.2 mph from 2025",
+      "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 4.11 ERA / 4.27 xERA.",
+      "comp": {
+        "playerId": 671737,
+        "name": "Taj Bradley",
+        "season": 2025,
+        "before": "11.7% K-BB, 4.10 xERA in 142.2 IP",
+        "after": "3.73 ERA, 205 K in 178.1 IP"
+      }
+    },
+    {
+      "rank": 14,
+      "playerId": 693855,
+      "name": "Ian Seymour",
+      "teamId": 139,
+      "role": "SP/RP",
+      "throws": "L",
+      "age": 28,
+      "probability": 0.149,
+      "stats": {
+        "ip": "132.2",
+        "era": 4.21,
+        "xera": 3.55,
+        "fip": 4.09,
+        "xfip": 3.51,
+        "kPct": 28.7,
+        "bbPct": 6.5,
+        "kbbPct": 22.2,
+        "whiffPct": 29.4,
+        "xwoba": 0.291,
+        "fbVelo": 90.8,
+        "fbIvb": 14.3,
+        "k": 158
+      },
+      "drivers": [
+        "xFIP 3.51 (top 19% of regulars)",
+        "Strikeout rate 28.7% (top 13% of regulars)",
+        "Whiff rate 29.4% (top 21% of regulars)"
+      ],
+      "signals": [
+        "Put-away pitch: Changeup (29% usage) gets 38% whiffs, .254 xwOBA, top 19% for the pitch type"
+      ],
+      "risk": "Ground-ball rate 35.2% (bottom 13% of regulars)",
+      "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 4.21 ERA / 3.55 xERA.",
+      "comp": {
+        "playerId": 628452,
+        "name": "Raisel Iglesias",
+        "season": 2016,
+        "before": "17.5% K-BB, 3.02 xERA in 78.1 IP",
+        "after": "2.49 ERA, 92 K in 76 IP"
+      }
+    },
+    {
+      "rank": 15,
+      "playerId": 701542,
+      "name": "Will Warren",
+      "teamId": 147,
+      "role": "SP",
+      "throws": "R",
+      "age": 28,
+      "probability": 0.144,
+      "stats": {
+        "ip": "156",
+        "era": 3.92,
+        "xera": 4.35,
+        "fip": 3.93,
+        "xfip": 3.66,
+        "kPct": 23.3,
+        "bbPct": 8.0,
+        "kbbPct": 15.3,
+        "whiffPct": 22.7,
+        "xwoba": 0.32,
+        "fbVelo": 93.6,
+        "fbIvb": 11.4,
+        "k": 158
+      },
+      "drivers": [
+        "xFIP 3.66 (top 23% of regulars)",
+        "K-BB% 15.3% (top 38% of regulars)",
+        "Ground-ball rate 45.5% (top 32% of regulars)"
+      ],
+      "signals": [],
+      "risk": "Zone rate 46.2% (bottom 31% of regulars)",
+      "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 3.92 ERA / 4.35 xERA.",
+      "comp": {
+        "playerId": 593958,
+        "name": "Eduardo Rodriguez",
+        "season": 2018,
+        "before": "18.3% K-BB, 3.76 xERA in 129.2 IP",
+        "after": "3.81 ERA, 213 K in 203.1 IP"
+      }
+    },
+    {
       "rank": 16,
+      "playerId": 663855,
+      "name": "Jordan Hicks",
+      "teamId": 145,
+      "role": "RP",
+      "throws": "R",
+      "age": 30,
+      "probability": 0.134,
+      "stats": {
+        "ip": "48",
+        "era": 3.94,
+        "xera": 2.85,
+        "fip": 3.64,
+        "xfip": 3.87,
+        "kPct": 29.6,
+        "bbPct": 15.3,
+        "kbbPct": 14.3,
+        "whiffPct": 28.2,
+        "xwoba": 0.262,
+        "fbVelo": 99.2,
+        "fbIvb": 10.6,
+        "k": 64
+      },
+      "drivers": [
+        "Fastball velo 99.2 mph (top 2% of regulars)",
+        "Strikeout rate 29.6% (top 11% of regulars)",
+        "xFIP 3.87 (top 32% of regulars)"
+      ],
+      "signals": [
+        "Put-away pitch: Sweeper (30% usage) gets 52% whiffs, .248 xwOBA, top 1% for the pitch type"
+      ],
+      "risk": "One-inning relief role caps his innings and visibility",
+      "bar": "Needs elite relief: ~3.16 ERA/xERA with 20%+ K-BB over 50+ IP, or a move into the rotation. Was 3.94 / 2.85, 14.3% K-BB.",
+      "comp": {
+        "playerId": 608032,
+        "name": "Carlos Est\u00e9vez",
+        "season": 2022,
+        "before": "13.2% K-BB, 4.14 xERA in 57 IP",
+        "after": "3.90 ERA, 78 K in 62.1 IP"
+      }
+    },
+    {
+      "rank": 17,
+      "playerId": 676962,
+      "name": "Ben Brown",
+      "teamId": 112,
+      "role": "SP",
+      "throws": "R",
+      "age": 27,
+      "probability": 0.134,
+      "stats": {
+        "ip": "68",
+        "era": 1.85,
+        "xera": 3.25,
+        "fip": 2.49,
+        "xfip": 3.54,
+        "kPct": 24.5,
+        "bbPct": 7.2,
+        "kbbPct": 17.3,
+        "whiffPct": 27.3,
+        "xwoba": 0.279,
+        "fbVelo": 96.4,
+        "fbIvb": 14.8,
+        "k": 65
+      },
+      "drivers": [
+        "xFIP 3.54 (top 19% of regulars)",
+        "Fastball velo 96.4 mph (top 19% of regulars)",
+        "FIP 2.49 (top 4% of regulars)"
+      ],
+      "signals": [
+        "Put-away pitch: Curveball (36% usage) gets 44% whiffs, .222 xwOBA, top 5% for the pitch type",
+        "New weapon: added a sinker in 2026 (21% usage, 13% whiffs)"
+      ],
+      "risk": null,
+      "bar": "Needs ERA and xERA around 3.56 across 100+ IP (had 68) or 200 K. Was 1.85 ERA / 3.25 xERA.",
+      "comp": {
+        "playerId": 677952,
+        "name": "Braxton Ashcraft",
+        "season": 2025,
+        "before": "16.1% K-BB, 3.43 xERA in 69.2 IP",
+        "after": "3.65 ERA, 173 K in 165.1 IP"
+      }
+    },
+    {
+      "rank": 18,
+      "playerId": 681035,
+      "name": "Christian Scott",
+      "teamId": 121,
+      "role": "SP",
+      "throws": "R",
+      "age": 28,
+      "probability": 0.132,
+      "stats": {
+        "ip": "110",
+        "era": 3.85,
+        "xera": 3.7,
+        "fip": 3.6,
+        "xfip": 3.89,
+        "kPct": 28.3,
+        "bbPct": 9.9,
+        "kbbPct": 18.4,
+        "whiffPct": 27.0,
+        "xwoba": 0.297,
+        "fbVelo": 93.8,
+        "fbIvb": 12.8,
+        "k": 134
+      },
+      "drivers": [
+        "xFIP 3.89 (top 34% of regulars)",
+        "Strikeout rate 28.3% (top 15% of regulars)",
+        "Whiff rate 27.0% (top 37% of regulars)"
+      ],
+      "signals": [],
+      "risk": "Ground-ball rate 32.7% (bottom 6% of regulars)",
+      "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 3.85 ERA / 3.70 xERA.",
+      "comp": {
+        "playerId": 666157,
+        "name": "Nick Lodolo",
+        "season": 2024,
+        "before": "17.2% K-BB, 3.67 xERA in 115.1 IP",
+        "after": "3.33 ERA, 156 K in 156.2 IP"
+      }
+    },
+    {
+      "rank": 19,
+      "playerId": 680570,
+      "name": "Grayson Rodriguez",
+      "teamId": 108,
+      "role": "SP",
+      "throws": "R",
+      "age": 27,
+      "probability": 0.13,
+      "stats": {
+        "ip": "98.2",
+        "era": 6.02,
+        "xera": 5.69,
+        "fip": 5.0,
+        "xfip": 4.67,
+        "kPct": 19.1,
+        "bbPct": 9.7,
+        "kbbPct": 9.4,
+        "whiffPct": 23.9,
+        "xwoba": 0.36,
+        "fbVelo": 96.1,
+        "fbIvb": 15.4,
+        "k": 85
+      },
+      "drivers": [
+        "Fastball velo 96.1 mph (top 22% of regulars)",
+        "Fastball ride (IVB) 15.4 in (top 26% of regulars)",
+        "Zone rate 50.2% (top 18% of regulars)"
+      ],
+      "signals": [],
+      "risk": "Ground-ball rate 39.8% (bottom 35% of regulars)",
+      "bar": "Needs ERA and xERA around 3.56 across 100+ IP (had 98.2) or 200 K. Was 6.02 ERA / 5.69 xERA.",
+      "comp": {
+        "playerId": 663554,
+        "name": "Casey Mize",
+        "season": 2024,
+        "before": "10.9% K-BB, 4.74 xERA in 102.1 IP",
+        "after": "3.87 ERA, 139 K in 149 IP"
+      }
+    },
+    {
+      "rank": 20,
+      "playerId": 669165,
+      "name": "Kyle Hurt",
+      "teamId": 119,
+      "role": "RP",
+      "throws": "R",
+      "age": 29,
+      "probability": 0.127,
+      "stats": {
+        "ip": "45.2",
+        "era": 4.14,
+        "xera": 3.76,
+        "fip": 3.55,
+        "xfip": 3.51,
+        "kPct": 29.3,
+        "bbPct": 11.6,
+        "kbbPct": 17.7,
+        "whiffPct": 34.6,
+        "xwoba": 0.299,
+        "fbVelo": 96.6,
+        "fbIvb": 16.5,
+        "k": 58
+      },
+      "drivers": [
+        "Whiff rate 34.6% (top 3% of regulars)",
+        "xFIP 3.51 (top 19% of regulars)",
+        "Strikeout rate 29.3% (top 12% of regulars)"
+      ],
+      "signals": [
+        "Put-away pitch: Changeup (35% usage) gets 38% whiffs, .309 xwOBA, top 19% for the pitch type"
+      ],
+      "risk": "One-inning relief role caps his innings and visibility",
+      "bar": "Needs elite relief: ~3.16 ERA/xERA with 20%+ K-BB over 50+ IP, or a move into the rotation. Was 4.14 / 3.76, 17.7% K-BB.",
+      "comp": {
+        "playerId": 682254,
+        "name": "Mason Montgomery",
+        "season": 2025,
+        "before": "17.2% K-BB, 4.58 xERA in 46 IP",
+        "after": "2.88 ERA, 105 K in 68.2 IP"
+      }
+    },
+    {
+      "rank": 21,
+      "playerId": 674841,
+      "name": "Andrew Alvarez",
+      "teamId": 120,
+      "role": "SP",
+      "throws": "L",
+      "age": 28,
+      "probability": 0.125,
+      "stats": {
+        "ip": "112.2",
+        "era": 3.43,
+        "xera": 4.21,
+        "fip": 3.32,
+        "xfip": 3.63,
+        "kPct": 24.1,
+        "bbPct": 10.8,
+        "kbbPct": 13.3,
+        "whiffPct": 26.4,
+        "xwoba": 0.315,
+        "fbVelo": 92.1,
+        "fbIvb": 11.0,
+        "k": 114
+      },
+      "drivers": [
+        "xFIP 3.63 (top 23% of regulars)",
+        "Ground-ball rate 49.8% (top 17% of regulars)",
+        "Strikeout rate 24.1% (top 39% of regulars)"
+      ],
+      "signals": [
+        "Second-half jump: 2.97 ERA, 23% K after the break (vs 4.04, 25% before)"
+      ],
+      "risk": "Zone rate 44.5% (bottom 13% of regulars)",
+      "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 3.43 ERA / 4.21 xERA.",
+      "comp": {
+        "playerId": 666157,
+        "name": "Nick Lodolo",
+        "season": 2024,
+        "before": "17.2% K-BB, 3.67 xERA in 115.1 IP",
+        "after": "3.33 ERA, 156 K in 156.2 IP"
+      }
+    },
+    {
+      "rank": 22,
       "playerId": 801403,
       "name": "Chase Dollander",
       "teamId": 115,
       "role": "SP",
       "throws": "R",
       "age": 25,
-      "probability": 0.131,
+      "probability": 0.125,
       "stats": {
         "ip": "44",
         "era": 3.89,
         "xera": 3.98,
+        "fip": 4.16,
+        "xfip": 3.94,
         "kPct": 24.9,
         "bbPct": 9.5,
         "kbbPct": 15.4,
@@ -4953,8 +5274,8 @@
       },
       "drivers": [
         "Fastball velo 98.6 mph (top 4% of regulars)",
-        "Ground-ball rate 49.6% (top 17% of regulars)",
-        "Strikeout rate 24.9% (top 33% of regulars)"
+        "xFIP 3.94 (top 37% of regulars)",
+        "Whiff rate 28.0% (top 28% of regulars)"
       ],
       "signals": [],
       "risk": "Fastball ride (IVB) 10.3 in (bottom 28% of regulars)",
@@ -4968,55 +5289,20 @@
       }
     },
     {
-      "rank": 17,
-      "playerId": 701542,
-      "name": "Will Warren",
-      "teamId": 147,
-      "role": "SP",
-      "throws": "R",
-      "age": 28,
-      "probability": 0.129,
-      "stats": {
-        "ip": "156",
-        "era": 3.92,
-        "xera": 4.35,
-        "kPct": 23.3,
-        "bbPct": 8.0,
-        "kbbPct": 15.3,
-        "whiffPct": 22.7,
-        "xwoba": 0.32,
-        "fbVelo": 93.6,
-        "fbIvb": 11.4,
-        "k": 158
-      },
-      "drivers": [
-        "K-BB% 15.3% (top 38% of regulars)",
-        "Ground-ball rate 45.5% (top 32% of regulars)"
-      ],
-      "signals": [],
-      "risk": "Zone rate 46.2% (bottom 31% of regulars)",
-      "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 3.92 ERA / 4.35 xERA.",
-      "comp": {
-        "playerId": 671737,
-        "name": "Taj Bradley",
-        "season": 2025,
-        "before": "11.7% K-BB, 4.10 xERA in 142.2 IP",
-        "after": "3.73 ERA, 205 K in 178.1 IP"
-      }
-    },
-    {
-      "rank": 18,
+      "rank": 23,
       "playerId": 666171,
       "name": "Ryan Zeferjahn",
       "teamId": 112,
       "role": "RP",
       "throws": "R",
       "age": 29,
-      "probability": 0.127,
+      "probability": 0.122,
       "stats": {
         "ip": "69.2",
         "era": 3.88,
         "xera": 3.1,
+        "fip": 3.77,
+        "xfip": 3.73,
         "kPct": 31.0,
         "bbPct": 12.9,
         "kbbPct": 18.1,
@@ -5027,9 +5313,9 @@
         "k": 94
       },
       "drivers": [
-        "Strikeout rate 31.0% (top 6% of regulars)",
         "Whiff rate 32.0% (top 9% of regulars)",
-        "Fastball velo 97.1 mph (top 12% of regulars)"
+        "xFIP 3.73 (top 26% of regulars)",
+        "Strikeout rate 31.0% (top 6% of regulars)"
       ],
       "signals": [
         "Put-away pitch: Sweeper (40% usage) gets 38% whiffs, .246 xwOBA, top 18% for the pitch type",
@@ -5046,94 +5332,20 @@
       }
     },
     {
-      "rank": 19,
-      "playerId": 680570,
-      "name": "Grayson Rodriguez",
-      "teamId": 108,
-      "role": "SP",
-      "throws": "R",
-      "age": 27,
-      "probability": 0.126,
-      "stats": {
-        "ip": "98.2",
-        "era": 6.02,
-        "xera": 5.69,
-        "kPct": 19.1,
-        "bbPct": 9.7,
-        "kbbPct": 9.4,
-        "whiffPct": 23.9,
-        "xwoba": 0.36,
-        "fbVelo": 96.1,
-        "fbIvb": 15.4,
-        "k": 85
-      },
-      "drivers": [
-        "Fastball velo 96.1 mph (top 22% of regulars)",
-        "Zone rate 50.2% (top 18% of regulars)",
-        "Fastball ride (IVB) 15.4 in (top 26% of regulars)"
-      ],
-      "signals": [],
-      "risk": "Ground-ball rate 39.8% (bottom 35% of regulars)",
-      "bar": "Needs ERA and xERA around 3.56 across 100+ IP (had 98.2) or 200 K. Was 6.02 ERA / 5.69 xERA.",
-      "comp": {
-        "playerId": 663554,
-        "name": "Casey Mize",
-        "season": 2024,
-        "before": "10.9% K-BB, 4.74 xERA in 102.1 IP",
-        "after": "3.87 ERA, 139 K in 149 IP"
-      }
-    },
-    {
-      "rank": 20,
-      "playerId": 681035,
-      "name": "Christian Scott",
-      "teamId": 121,
-      "role": "SP",
-      "throws": "R",
-      "age": 28,
-      "probability": 0.125,
-      "stats": {
-        "ip": "110",
-        "era": 3.85,
-        "xera": 3.7,
-        "kPct": 28.3,
-        "bbPct": 9.9,
-        "kbbPct": 18.4,
-        "whiffPct": 27.0,
-        "xwoba": 0.297,
-        "fbVelo": 93.8,
-        "fbIvb": 12.8,
-        "k": 134
-      },
-      "drivers": [
-        "Strikeout rate 28.3% (top 15% of regulars)",
-        "Whiff rate 27.0% (top 37% of regulars)",
-        "Barrel rate allowed 6.3% (top 28% of regulars)"
-      ],
-      "signals": [],
-      "risk": "Ground-ball rate 32.7% (bottom 6% of regulars)",
-      "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 3.85 ERA / 3.70 xERA.",
-      "comp": {
-        "playerId": 676710,
-        "name": "Kutter Crawford",
-        "season": 2022,
-        "before": "14.4% K-BB, 4.68 xERA in 77.1 IP",
-        "after": "4.04 ERA, 135 K in 129.1 IP"
-      }
-    },
-    {
-      "rank": 21,
+      "rank": 24,
       "playerId": 695549,
       "name": "Jackson Jobe",
       "teamId": 116,
       "role": "SP",
       "throws": "R",
       "age": 24,
-      "probability": 0.124,
+      "probability": 0.122,
       "stats": {
         "ip": "46",
         "era": 3.91,
         "xera": 3.84,
+        "fip": 4.16,
+        "xfip": 3.63,
         "kPct": 26.4,
         "bbPct": 8.3,
         "kbbPct": 18.1,
@@ -5144,9 +5356,9 @@
         "k": 51
       },
       "drivers": [
-        "Strikeout rate 26.4% (top 24% of regulars)",
+        "xFIP 3.63 (top 22% of regulars)",
         "Fastball velo 96.7 mph (top 15% of regulars)",
-        "Ground-ball rate 47.5% (top 23% of regulars)"
+        "Strikeout rate 26.4% (top 24% of regulars)"
       ],
       "signals": [],
       "risk": "Zone rate 45.3% (bottom 21% of regulars)",
@@ -5160,116 +5372,79 @@
       }
     },
     {
-      "rank": 22,
-      "playerId": 676962,
-      "name": "Ben Brown",
-      "teamId": 112,
+      "rank": 25,
+      "playerId": 807739,
+      "name": "Kade Anderson",
+      "teamId": 136,
       "role": "SP",
-      "throws": "R",
-      "age": 27,
-      "probability": 0.118,
-      "stats": {
-        "ip": "68",
-        "era": 1.85,
-        "xera": 3.25,
-        "kPct": 24.5,
-        "bbPct": 7.2,
-        "kbbPct": 17.3,
-        "whiffPct": 27.3,
-        "xwoba": 0.279,
-        "fbVelo": 96.4,
-        "fbIvb": 14.8,
-        "k": 65
-      },
-      "drivers": [
-        "K-BB% 17.3% (top 26% of regulars)",
-        "Fastball velo 96.4 mph (top 19% of regulars)",
-        "Whiff rate 27.3% (top 34% of regulars)"
-      ],
-      "signals": [
-        "Put-away pitch: Curveball (36% usage) gets 44% whiffs, .222 xwOBA, top 5% for the pitch type",
-        "New weapon: added a sinker in 2026 (21% usage, 13% whiffs)"
-      ],
-      "risk": null,
-      "bar": "Needs ERA and xERA around 3.56 across 100+ IP (had 68) or 200 K. Was 1.85 ERA / 3.25 xERA.",
-      "comp": {
-        "playerId": 628452,
-        "name": "Raisel Iglesias",
-        "season": 2016,
-        "before": "17.5% K-BB, 3.02 xERA in 78.1 IP",
-        "after": "2.49 ERA, 92 K in 76 IP"
-      }
-    },
-    {
-      "rank": 23,
-      "playerId": 663687,
-      "name": "Hogan Harris",
-      "teamId": 133,
-      "role": "RP",
       "throws": "L",
-      "age": 30,
-      "probability": 0.116,
+      "age": 22,
+      "probability": 0.122,
       "stats": {
-        "ip": "70.1",
-        "era": 3.33,
-        "xera": 3.73,
-        "kPct": 28.3,
-        "bbPct": 13.5,
-        "kbbPct": 14.8,
-        "whiffPct": 25.3,
-        "xwoba": 0.298,
-        "fbVelo": 95.2,
-        "fbIvb": 17.8,
-        "k": 88
+        "ip": "35.2",
+        "era": 3.79,
+        "xera": 3.89,
+        "fip": 3.51,
+        "xfip": 3.68,
+        "kPct": 21.9,
+        "bbPct": 6.2,
+        "kbbPct": 15.7,
+        "whiffPct": 24.4,
+        "xwoba": 0.304,
+        "fbVelo": 93.5,
+        "fbIvb": 15.8,
+        "k": 32
       },
       "drivers": [
-        "Strikeout rate 28.3% (top 15% of regulars)",
-        "Fastball ride (IVB) 17.8 in (top 6% of regulars)",
-        "Ground-ball rate 48.6% (top 19% of regulars)"
+        "xFIP 3.68 (top 25% of regulars)",
+        "Zone rate 52.5% (top 5% of regulars)",
+        "Fastball ride (IVB) 15.8 in (top 21% of regulars)"
       ],
       "signals": [],
-      "risk": "One-inning relief role caps his innings and visibility",
-      "bar": "Needs elite relief: ~3.16 ERA/xERA with 20%+ K-BB over 50+ IP, or a move into the rotation. Was 3.33 / 3.73, 14.8% K-BB.",
+      "risk": "Only 35.2 IP in 2026: needs a bigger role to get there",
+      "bar": "Needs ERA and xERA around 3.56 across 100+ IP (had 35.2) or 200 K. Was 3.79 ERA / 3.89 xERA.",
       "comp": {
-        "playerId": 548389,
-        "name": "Ross Stripling",
-        "season": 2017,
-        "before": "18.0% K-BB, 3.32 xERA in 74.1 IP",
-        "after": "3.02 ERA, 136 K in 122 IP"
+        "playerId": 800048,
+        "name": "Parker Messick",
+        "season": 2025,
+        "before": "19.4% K-BB, 3.07 xERA in 39.2 IP",
+        "after": "2.56 ERA, 193 K in 186.1 IP"
       }
     },
     {
-      "rank": 24,
-      "playerId": 673380,
-      "name": "Dedniel N\u00fa\u00f1ez",
-      "teamId": 121,
+      "rank": 26,
+      "playerId": 696519,
+      "name": "Samy Natera Jr.",
+      "teamId": 108,
       "role": "RP",
-      "throws": "R",
-      "age": 31,
-      "probability": 0.115,
+      "throws": "L",
+      "age": 27,
+      "probability": 0.122,
       "stats": {
-        "ip": "19",
-        "era": 3.32,
-        "xera": 3.6,
-        "kPct": 27.8,
-        "bbPct": 0.0,
-        "kbbPct": 27.8,
-        "whiffPct": 36.6,
-        "xwoba": 0.293,
-        "fbVelo": 96.6,
-        "fbIvb": 15.6,
-        "k": 20
+        "ip": "31.2",
+        "era": 3.13,
+        "xera": 2.51,
+        "fip": 1.89,
+        "xfip": 3.2,
+        "kPct": 36.6,
+        "bbPct": 9.9,
+        "kbbPct": 26.7,
+        "whiffPct": 35.7,
+        "xwoba": 0.246,
+        "fbVelo": 94.9,
+        "fbIvb": 19.5,
+        "k": 48
       },
       "drivers": [
-        "K-BB% 27.8% (top 1% of regulars)",
-        "Whiff rate 36.6% (top 1% of regulars)",
-        "Chase rate induced 49.1% (top 1% of regulars)"
+        "Whiff rate 35.7% (top 2% of regulars)",
+        "xFIP 3.20 (top 10% of regulars)",
+        "Strikeout rate 36.6% (top 1% of regulars)"
       ],
       "signals": [
-        "Put-away pitch: Slider (45% usage) gets 59% whiffs, .236 xwOBA, top 1% for the pitch type"
+        "Put-away pitch: Slider (19% usage) gets 56% whiffs, .177 xwOBA, top 1% for the pitch type"
       ],
-      "risk": "Age 31 in 2027: only 4% of eligible pitchers 28+ broke out",
-      "bar": "Needs elite relief: ~3.16 ERA/xERA with 20%+ K-BB over 50+ IP, or a move into the rotation. Was 3.32 / 3.60, 27.8% K-BB.",
+      "risk": "Ground-ball rate 22.1% (bottom 1% of regulars)",
+      "bar": "Needs elite relief: ~3.16 ERA/xERA with 20%+ K-BB over 50+ IP, or a move into the rotation. Was 3.13 / 2.51, 26.7% K-BB.",
       "comp": {
         "playerId": 687396,
         "name": "Brent Headrick",
@@ -5279,136 +5454,20 @@
       }
     },
     {
-      "rank": 25,
-      "playerId": 669165,
-      "name": "Kyle Hurt",
-      "teamId": 119,
-      "role": "RP",
-      "throws": "R",
-      "age": 29,
-      "probability": 0.114,
-      "stats": {
-        "ip": "45.2",
-        "era": 4.14,
-        "xera": 3.76,
-        "kPct": 29.3,
-        "bbPct": 11.6,
-        "kbbPct": 17.7,
-        "whiffPct": 34.6,
-        "xwoba": 0.299,
-        "fbVelo": 96.6,
-        "fbIvb": 16.5,
-        "k": 58
-      },
-      "drivers": [
-        "Whiff rate 34.6% (top 3% of regulars)",
-        "Strikeout rate 29.3% (top 12% of regulars)",
-        "Fastball velo 96.6 mph (top 17% of regulars)"
-      ],
-      "signals": [
-        "Put-away pitch: Changeup (35% usage) gets 38% whiffs, .309 xwOBA, top 19% for the pitch type"
-      ],
-      "risk": "One-inning relief role caps his innings and visibility",
-      "bar": "Needs elite relief: ~3.16 ERA/xERA with 20%+ K-BB over 50+ IP, or a move into the rotation. Was 4.14 / 3.76, 17.7% K-BB.",
-      "comp": {
-        "playerId": 682254,
-        "name": "Mason Montgomery",
-        "season": 2025,
-        "before": "17.2% K-BB, 4.58 xERA in 46 IP",
-        "after": "2.88 ERA, 105 K in 68.2 IP"
-      }
-    },
-    {
-      "rank": 26,
-      "playerId": 676263,
-      "name": "Jack Dreyer",
-      "teamId": 119,
-      "role": "RP",
-      "throws": "L",
-      "age": 28,
-      "probability": 0.113,
-      "stats": {
-        "ip": "64.2",
-        "era": 3.2,
-        "xera": 3.52,
-        "kPct": 28.0,
-        "bbPct": 8.8,
-        "kbbPct": 19.2,
-        "whiffPct": 28.0,
-        "xwoba": 0.29,
-        "fbVelo": 94.0,
-        "fbIvb": 19.5,
-        "k": 73
-      },
-      "drivers": [
-        "Strikeout rate 28.0% (top 17% of regulars)",
-        "Fastball ride (IVB) 19.5 in (top 1% of regulars)",
-        "Whiff rate 28.0% (top 28% of regulars)"
-      ],
-      "signals": [],
-      "risk": "One-inning relief role caps his innings and visibility",
-      "bar": "Needs elite relief: ~3.16 ERA/xERA with 20%+ K-BB over 50+ IP, or a move into the rotation. Was 3.20 / 3.52, 19.2% K-BB.",
-      "comp": {
-        "playerId": 548389,
-        "name": "Ross Stripling",
-        "season": 2017,
-        "before": "18.0% K-BB, 3.32 xERA in 74.1 IP",
-        "after": "3.02 ERA, 136 K in 122 IP"
-      }
-    },
-    {
       "rank": 27,
-      "playerId": 676106,
-      "name": "Emerson Hancock",
-      "teamId": 136,
-      "role": "SP",
-      "throws": "R",
-      "age": 28,
-      "probability": 0.111,
-      "stats": {
-        "ip": "138.2",
-        "era": 3.57,
-        "xera": 4.01,
-        "kPct": 22.3,
-        "bbPct": 5.7,
-        "kbbPct": 16.6,
-        "whiffPct": 23.7,
-        "xwoba": 0.308,
-        "fbVelo": 93.7,
-        "fbIvb": 5.4,
-        "k": 126
-      },
-      "drivers": [
-        "K-BB% 16.6% (top 30% of regulars)",
-        "Zone rate 51.6% (top 8% of regulars)"
-      ],
-      "signals": [
-        "Put-away pitch: Sweeper (16% usage) gets 37% whiffs, .163 xwOBA, top 21% for the pitch type",
-        "New weapon: added a cutter in 2026 (12% usage, 34% whiffs)"
-      ],
-      "risk": "Fastball ride (IVB) 5.4 in (bottom 6% of regulars)",
-      "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 3.57 ERA / 4.01 xERA.",
-      "comp": {
-        "playerId": 622491,
-        "name": "Luis Castillo",
-        "season": 2018,
-        "before": "16.4% K-BB, 4.30 xERA in 169.2 IP",
-        "after": "3.40 ERA, 226 K in 190.2 IP"
-      }
-    },
-    {
-      "rank": 28,
       "playerId": 665152,
       "name": "Dean Kremer",
       "teamId": 142,
       "role": "SP",
       "throws": "R",
       "age": 31,
-      "probability": 0.111,
+      "probability": 0.121,
       "stats": {
         "ip": "90.1",
         "era": 4.68,
         "xera": 4.15,
+        "fip": 4.78,
+        "xfip": 4.05,
         "kPct": 23.6,
         "bbPct": 8.0,
         "kbbPct": 15.6,
@@ -5420,33 +5479,116 @@
       },
       "drivers": [
         "Whiff rate 28.4% (top 25% of regulars)",
-        "K-BB% 15.6% (top 35% of regulars)",
-        "Fastball ride (IVB) 16.2 in (top 16% of regulars)"
+        "Fastball ride (IVB) 16.2 in (top 16% of regulars)",
+        "K-BB% 15.6% (top 35% of regulars)"
       ],
       "signals": [],
       "risk": "Age 31 in 2027: only 4% of eligible pitchers 28+ broke out",
       "bar": "Needs ERA and xERA around 3.56 across 100+ IP (had 90.1) or 200 K. Was 4.68 ERA / 4.15 xERA.",
       "comp": {
-        "playerId": 593958,
-        "name": "Eduardo Rodriguez",
-        "season": 2018,
-        "before": "18.3% K-BB, 3.76 xERA in 129.2 IP",
-        "after": "3.81 ERA, 213 K in 203.1 IP"
+        "playerId": 547179,
+        "name": "Michael Lorenzen",
+        "season": 2022,
+        "before": "10.0% K-BB, 3.86 xERA in 97.2 IP",
+        "after": "4.18 ERA, 111 K in 153 IP"
+      }
+    },
+    {
+      "rank": 28,
+      "playerId": 681517,
+      "name": "Kyle Leahy",
+      "teamId": 138,
+      "role": "SP",
+      "throws": "R",
+      "age": 30,
+      "probability": 0.12,
+      "stats": {
+        "ip": "140",
+        "era": 3.66,
+        "xera": 4.89,
+        "fip": 3.59,
+        "xfip": 3.62,
+        "kPct": 22.1,
+        "bbPct": 6.9,
+        "kbbPct": 15.2,
+        "whiffPct": 22.7,
+        "xwoba": 0.337,
+        "fbVelo": 94.2,
+        "fbIvb": 13.2,
+        "k": 132
+      },
+      "drivers": [
+        "xFIP 3.62 (top 22% of regulars)",
+        "FIP 3.59 (top 28% of regulars)",
+        "K-BB% 15.2% (top 38% of regulars)"
+      ],
+      "signals": [
+        "Second-half jump: 3.55 ERA, 27% K after the break (vs 3.73, 19% before)"
+      ],
+      "risk": "Age 30 in 2027: only 4% of eligible pitchers 28+ broke out",
+      "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 3.66 ERA / 4.89 xERA.",
+      "comp": {
+        "playerId": 657006,
+        "name": "Justin Steele",
+        "season": 2022,
+        "before": "14.8% K-BB, 3.59 xERA in 119 IP",
+        "after": "3.06 ERA, 176 K in 173.1 IP"
       }
     },
     {
       "rank": 29,
+      "playerId": 805673,
+      "name": "Zebby Matthews",
+      "teamId": 142,
+      "role": "SP",
+      "throws": "R",
+      "age": 27,
+      "probability": 0.118,
+      "stats": {
+        "ip": "130.1",
+        "era": 4.9,
+        "xera": 4.38,
+        "fip": 4.7,
+        "xfip": 3.95,
+        "kPct": 21.3,
+        "bbPct": 7.2,
+        "kbbPct": 14.1,
+        "whiffPct": 22.7,
+        "xwoba": 0.321,
+        "fbVelo": 94.2,
+        "fbIvb": 14.1,
+        "k": 116
+      },
+      "drivers": [
+        "xFIP 3.95 (top 39% of regulars)",
+        "Fastball ride (IVB) 14.1 in (top 36% of regulars)"
+      ],
+      "signals": [],
+      "risk": "Fastball down 1.0 mph from 2025",
+      "bar": "Needs ERA and xERA around 3.56 or 200 K. Was 4.90 ERA / 4.38 xERA.",
+      "comp": {
+        "playerId": 680694,
+        "name": "Kyle Bradish",
+        "season": 2022,
+        "before": "12.8% K-BB, 4.58 xERA in 117.2 IP",
+        "after": "2.83 ERA, 168 K in 168.2 IP"
+      }
+    },
+    {
+      "rank": 30,
       "playerId": 702056,
       "name": "Trey Yesavage",
       "teamId": 141,
       "role": "SP",
       "throws": "R",
       "age": 23,
-      "probability": 0.109,
+      "probability": 0.116,
       "stats": {
         "ip": "97.2",
         "era": 3.69,
         "xera": 3.37,
+        "fip": 4.21,
+        "xfip": 4.41,
         "kPct": 24.2,
         "bbPct": 11.7,
         "kbbPct": 12.5,
@@ -5467,49 +5609,11 @@
       "risk": "Zone rate 43.9% (bottom 9% of regulars)",
       "bar": "Needs ERA and xERA around 3.56 across 100+ IP (had 97.2) or 200 K. Was 3.69 ERA / 3.37 xERA.",
       "comp": {
-        "playerId": 680686,
-        "name": "Josiah Gray",
-        "season": 2022,
-        "before": "13.5% K-BB, 4.31 xERA in 148.2 IP",
-        "after": "3.91 ERA, 143 K in 159 IP"
-      }
-    },
-    {
-      "rank": 30,
-      "playerId": 807739,
-      "name": "Kade Anderson",
-      "teamId": 136,
-      "role": "SP",
-      "throws": "L",
-      "age": 22,
-      "probability": 0.109,
-      "stats": {
-        "ip": "35.2",
-        "era": 3.79,
-        "xera": 3.89,
-        "kPct": 21.9,
-        "bbPct": 6.2,
-        "kbbPct": 15.7,
-        "whiffPct": 24.4,
-        "xwoba": 0.304,
-        "fbVelo": 93.5,
-        "fbIvb": 15.8,
-        "k": 32
-      },
-      "drivers": [
-        "Zone rate 52.5% (top 5% of regulars)",
-        "K-BB% 15.7% (top 34% of regulars)",
-        "Fastball ride (IVB) 15.8 in (top 21% of regulars)"
-      ],
-      "signals": [],
-      "risk": "Only 35.2 IP in 2026: needs a bigger role to get there",
-      "bar": "Needs ERA and xERA around 3.56 across 100+ IP (had 35.2) or 200 K. Was 3.79 ERA / 3.89 xERA.",
-      "comp": {
-        "playerId": 800048,
-        "name": "Parker Messick",
-        "season": 2025,
-        "before": "19.4% K-BB, 3.07 xERA in 39.2 IP",
-        "after": "2.56 ERA, 193 K in 186.1 IP"
+        "playerId": 605483,
+        "name": "Blake Snell",
+        "season": 2017,
+        "before": "11.0% K-BB, 4.01 xERA in 129.1 IP",
+        "after": "1.89 ERA, 221 K in 180.2 IP"
       }
     }
   ]
