@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import {
+  addPoseDelta,
   blendTime,
   copyPose,
   lerpPose,
@@ -11,7 +12,9 @@ import {
   poseInto,
   sample1,
   solveRig,
+  subPose,
   tab1,
+  cycleLen,
   type ActorDraw,
   type ActorKind,
 } from "@/components/game/scene/rig";
@@ -40,6 +43,43 @@ describe("keyframe splines", () => {
 });
 
 describe("poses", () => {
+  it("carry a pose difference across a change of clip and let it die away to nothing", () => {
+    const from = poseInto(newPose(), actor("fielder", "field", 0.38), "field", newPoseCtx());
+    const to = poseInto(newPose(), actor("fielder", "throw", 0), "throw", newPoseCtx());
+    const off = subPose(newPose(), from, to);
+    const zero = newPose();
+    subPose(zero, zero, zero);
+    // Full offset: exactly the old pose. No offset: exactly the new one.
+    const p = addPoseDelta(copyPose(newPose(), to), off, 1, zero, 0);
+    expect(p.hipH).toBeCloseTo(from.hipH, 6);
+    expect(p.handL.distanceTo(from.handL)).toBeLessThan(1e-6);
+    expect(p.footR.distanceTo(from.footR)).toBeLessThan(1e-6);
+    const q = addPoseDelta(copyPose(newPose(), to), off, 0, zero, 0);
+    expect(q.lean).toBeCloseTo(to.lean, 6);
+    expect(q.handR.distanceTo(to.handR)).toBeLessThan(1e-6);
+  });
+
+  it("a planted foot travels back exactly as fast as the runner goes forward", () => {
+    const TAU = Math.PI * 2;
+    for (const speed of [8, 16, 24, 30]) {
+      const c = newPoseCtx();
+      c.speed = speed;
+      const a = actor("runner", "run", 0);
+      a.state.speed = speed;
+      const cyc = cycleLen(speed);
+      // Mid-stance for the left foot, one small step of travel apart.
+      const ds = 0.05;
+      c.phase = 0.2 * TAU * 0.5;
+      const z0 = poseInto(newPose(), a, "loco", c).footL.z;
+      const y0 = poseInto(newPose(), a, "loco", c).footL.y;
+      c.phase += (ds / cyc) * TAU;
+      const p1 = poseInto(newPose(), a, "loco", c);
+      expect(y0).toBeLessThan(0.2);
+      expect(p1.footL.y).toBeLessThan(0.2);
+      expect(z0 - p1.footL.z).toBeCloseTo(ds, 2);
+    }
+  });
+
   it("blend linearly between two poses and land exactly on the target", () => {
     const ctx = newPoseCtx();
     const a = poseInto(newPose(), actor("fielder", "ready", 0), "loco", ctx);

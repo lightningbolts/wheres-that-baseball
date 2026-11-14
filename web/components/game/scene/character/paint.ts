@@ -18,6 +18,8 @@ export interface Look {
   skin: number;
   name: string;
   num: string;
+  /** Club nickname for the chest wordmark, or "". */
+  team: string;
 }
 
 type RGB = [number, number, number];
@@ -93,6 +95,141 @@ function label(ctx: Ctx, text: string, x: number, y: number, px: number, maxW: n
   ctx.fillStyle = fill;
   ctx.fillText(text, 0, 0);
   ctx.restore();
+}
+
+const SCRIPT_FONT = '"Snell Roundhand", "Brush Script MT", "Segoe Script", "Lucida Handwriting", "Apple Chancery", cursive';
+
+/** The club's name in script across the chest, climbing a little, with a tail swept back under it. */
+function wordmark(ctx: Ctx, text: string, cx: number, cy: number, maxW: number, fill: string, outline: string | null) {
+  let px = 58;
+  ctx.font = `italic bold ${px}px ${SCRIPT_FONT}`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  let w = ctx.measureText(text).width;
+  if (w > maxW) {
+    px = Math.max(26, (px * maxW) / w);
+    ctx.font = `italic bold ${px}px ${SCRIPT_FONT}`;
+    w = Math.min(maxW, ctx.measureText(text).width);
+  }
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(-0.1);
+  const tail = () => {
+    ctx.beginPath();
+    ctx.moveTo(w / 2 + 2, px * 0.1);
+    ctx.quadraticCurveTo(w * 0.1, px * 0.44, -w * 0.42, px * 0.2);
+    ctx.quadraticCurveTo(w * 0.05, px * 0.3, w / 2 + 2, px * 0.1);
+    ctx.closePath();
+  };
+  ctx.lineJoin = "round";
+  if (outline) {
+    ctx.lineWidth = Math.max(3, px * 0.1);
+    ctx.strokeStyle = outline;
+    ctx.strokeText(text, 0, 0, maxW);
+    tail();
+    ctx.stroke();
+  }
+  ctx.fillStyle = fill;
+  ctx.strokeStyle = fill;
+  // A hairline stroke fattens thin script faces so the word still reads from the stands.
+  ctx.lineWidth = px * 0.035;
+  ctx.strokeText(text, 0, 0, maxW);
+  ctx.fillText(text, 0, 0, maxW);
+  tail();
+  ctx.fill();
+  ctx.restore();
+}
+
+/** A fielder's glove: back (left half) and pocket (right half); fingertips at the top, heel at the bottom. */
+function gloveLeather(ctx: Ctx, w: number, h: number, leather: RGB, seed: number) {
+  const hw = w / 2;
+  const dark = css(mix(leather, BLACK, 0.45));
+  const lace = css(mix(leather, [226, 200, 150], hash01(seed, 61) < 0.5 ? 0.75 : 0.1));
+  ctx.fillStyle = css(leather);
+  ctx.fillRect(0, 0, hw, h);
+  ctx.fillStyle = css(mix(leather, BLACK, 0.24));
+  ctx.fillRect(hw, 0, hw, h);
+  // Back: seams between the finger stalls, welting, the wrist strap and the opening above it.
+  ctx.lineCap = "round";
+  for (const sx of [0.2, 0.385, 0.575, 0.8]) {
+    const x = hw * (0.04 + 0.92 * sx);
+    ctx.strokeStyle = dark;
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(x, 6);
+    ctx.lineTo(x + (sx - 0.5) * 3, h * 0.6);
+    ctx.stroke();
+    ctx.strokeStyle = css(mix(leather, WHITE, 0.22), 0.7);
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(x + 1.8, 7);
+    ctx.lineTo(x + 1.8 + (sx - 0.5) * 3, h * 0.58);
+    ctx.stroke();
+  }
+  ctx.fillStyle = dark;
+  ctx.beginPath();
+  ctx.ellipse(hw * 0.5, h * 0.74, hw * 0.3, h * 0.07, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = css(mix(leather, BLACK, 0.2));
+  ctx.fillRect(0, h * 0.84, hw, h * 0.1);
+  ctx.fillStyle = css(mix(leather, WHITE, 0.5));
+  ctx.fillRect(hw * 0.42, h * 0.855, hw * 0.16, h * 0.07);
+  ctx.strokeStyle = lace;
+  ctx.lineWidth = 1;
+  ctx.setLineDash([2, 2.2]);
+  ctx.beginPath();
+  ctx.moveTo(1, h * 0.83);
+  ctx.lineTo(hw - 1, h * 0.83);
+  ctx.moveTo(1, h * 0.95);
+  ctx.lineTo(hw - 1, h * 0.95);
+  ctx.stroke();
+  // Pocket: worn hollow, creases from the heel, the laced web by the thumb, lacing round the edge.
+  const g = ctx.createRadialGradient(hw * 1.42, h * 0.56, 1, hw * 1.42, h * 0.56, hw * 0.5);
+  g.addColorStop(0, "rgba(0,0,0,0.5)");
+  g.addColorStop(0.55, "rgba(0,0,0,0.22)");
+  g.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(hw, 0, hw, h);
+  ctx.setLineDash([]);
+  ctx.strokeStyle = "rgba(0,0,0,0.35)";
+  ctx.lineWidth = 1.2;
+  for (const k of [-1, 0, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(hw * (1.42 + 0.1 * k), h * 0.9);
+    ctx.quadraticCurveTo(hw * (1.4 + 0.2 * k), h * 0.6, hw * (1.36 + 0.3 * k), h * 0.26);
+    ctx.stroke();
+  }
+  // Web lattice.
+  const wx = hw * 1.62;
+  const ww = hw * 0.36;
+  ctx.fillStyle = css(mix(leather, BLACK, 0.12));
+  ctx.fillRect(wx, 2, ww, h * 0.46);
+  ctx.strokeStyle = dark;
+  ctx.lineWidth = 1.6;
+  for (let k = 1; k < 4; k++) {
+    ctx.beginPath();
+    ctx.moveTo(wx + (ww * k) / 4, 2);
+    ctx.lineTo(wx + (ww * k) / 4, h * 0.48);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = lace;
+  ctx.lineWidth = 1.3;
+  for (let k = 0; k < 5; k++) {
+    const y = 5 + k * h * 0.09;
+    ctx.beginPath();
+    ctx.moveTo(wx, y);
+    ctx.lineTo(wx + ww, y + (k % 2 ? -2.5 : 2.5));
+    ctx.stroke();
+  }
+  ctx.setLineDash([2.4, 2.4]);
+  ctx.lineWidth = 1.1;
+  ctx.strokeRect(hw + 2.5, 2.5, hw - 5, h - 5);
+  ctx.setLineDash([]);
+  // Leather grain.
+  for (let k = 0; k < 70; k++) {
+    ctx.fillStyle = hash01(seed, 200 + k) < 0.5 ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.05)";
+    ctx.fillRect(hash01(seed, 300 + k) * w, hash01(seed, 400 + k) * h, 2.5, 1.2);
+  }
 }
 
 /** Lettering on a shallow arc, as sewn across the shoulders. */
@@ -383,6 +520,10 @@ export function paintLook(ctx: Ctx, look: Look): void {
       ctx.strokeStyle = css(mix(jersey, WHITE, 0.16));
       ctx.lineWidth = 1.5;
       ctx.strokeRect(162, 78, 34, 36);
+    } else if (look.team && player) {
+      // Club wordmark across the chest with the number under it on the wearer's left.
+      wordmark(ctx, look.team, cx, 104, 168, css(ink), outline);
+      if (look.num) label(ctx, look.num, 180, 152, 36, 44, css(ink), outline);
     } else if (look.num) {
       // Number on the wearer's left chest.
       label(ctx, look.num, 178, 98, 40, 46, css(ink), outline);
@@ -467,6 +608,7 @@ export function paintLook(ctx: Ctx, look: Look): void {
       ctx.fillRect(0, h - 6, w, 3);
     }
   });
+  inPanel(ctx, PANEL.glove, () => gloveLeather(ctx, PANEL.glove.w, PANEL.glove.h, leather, seed));
   inPanel(ctx, PANEL.shoe, () => {
     // Side view: u runs from the toe (0) to the heel (1), v from the collar (0) to the sole (1).
     const { w, h } = PANEL.shoe;

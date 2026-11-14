@@ -688,8 +688,13 @@ function hand(b: MeshBuilder, side: number, o: Outfit, lod: Lod) {
 
 function glove(b: MeshBuilder, side: number, hx: number, hy: number, mitt: boolean, lod: Lod, skin: SkinFn) {
   // Fingers along −Y, pocket facing +Z, thumb on the `side` edge.
-  const c: V3 = [hx, hy - 0.13, 0.03];
-  const r: V3 = mitt ? [0.31, 0.33, 0.15] : [0.26, 0.345, 0.12];
+  const fingers = !mitt && lod === 0;
+  const c: V3 = [hx, hy - (fingers ? 0.1 : 0.13), 0.03];
+  const r: V3 = mitt ? [0.31, 0.33, 0.15] : fingers ? [0.25, 0.285, 0.12] : [0.26, 0.345, 0.12];
+  const G = PANEL.glove;
+  // The leather is painted: the back on the left half of the panel, the pocket on the right;
+  // across runs from the little finger to the thumb, down from the fingertips to the heel.
+  const paint = (v: VOut, dx: number, dy: number, half: number) => panelUV(v, G, half + 0.02 + 0.46 * (0.5 + 0.5 * dx * side), fingers ? 0.63 - 0.33 * dy : 0.5 - 0.5 * dy);
   const shape = (v: VOut, dx: number, dy: number, dz: number) => {
     // The pocket is a dish; the thumb is a separate lobe set a little higher; the heel narrows to the wrist.
     if (dz > 0) v.z -= (mitt ? 0.2 : 0.17) * dz * dz;
@@ -697,17 +702,31 @@ function glove(b: MeshBuilder, side: number, hx: number, hy: number, mitt: boole
     v.x += side * 0.04 * th;
     v.y += 0.09 * th;
     if (dy > 0.3) v.x = c[0] + (v.x - c[0]) * (1 - 0.45 * smoothstep(0.3, 1, dy));
-    if (!mitt && dy < -0.2) {
+    if (!mitt && !fingers && dy < -0.2) {
       // Finger stalls.
       const k = Math.abs(Math.cos((dx * side + 0.15) * 5.2));
       v.y += 0.035 * (1 - k) * smoothstep(-0.2, -0.8, dy);
       v.ao = 0.72 + 0.28 * k;
-    } else v.ao = 0.9;
+    } else v.ao = 0.92;
   };
   const seg = pick(lod, 10, 8, 5);
   const rows = pick(lod, 10, 8, 5);
+  const none: UVFn = () => {};
   // Back of the glove, then the pocket side.
-  blob(b, { c, r, seg, rows, theta0: PI, arc: PI, uv: U.glove, skin, deform: shape });
+  blob(b, {
+    c,
+    r,
+    seg,
+    rows,
+    theta0: PI,
+    arc: PI,
+    uv: none,
+    skin,
+    deform: (v, dx, dy, dz) => {
+      shape(v, dx, dy, dz);
+      paint(v, dx, dy, 0);
+    },
+  });
   blob(b, {
     c,
     r,
@@ -715,12 +734,54 @@ function glove(b: MeshBuilder, side: number, hx: number, hy: number, mitt: boole
     rows,
     theta0: 0,
     arc: PI,
-    uv: U.gloveDark,
+    uv: none,
     skin,
     deform: (v, dx, dy, dz) => {
       shape(v, dx, dy, dz);
-      v.ao = 0.6 + 0.4 * (1 - dz * dz);
+      paint(v, dx, dy, 0.5);
+      v.ao = 0.72 + 0.28 * (1 - dz * dz);
     },
+  });
+  if (!fingers) return;
+  // Four finger stalls curling round the pocket, the thumb, and the laced web between thumb and forefinger.
+  const stall = (t: number): UVFn => (o) => panelUV(o, G, 0.02 + 0.46 * t, 0.06);
+  const xs = [0.085, -0.01, -0.105, -0.19];
+  const len = [0.94, 1, 0.95, 0.8];
+  for (let i = 0; i < 4; i += 1) {
+    const x = hx + side * xs[i];
+    const l = len[i];
+    tube(
+      b,
+      [
+        [x, hy - 0.2, 0.028],
+        [x + side * 0.004 * (1.5 - i), hy - 0.2 - 0.17 * l, 0.036],
+        [x + side * 0.008 * (1.5 - i), hy - 0.2 - 0.3 * l, 0.066],
+      ],
+      [0.058, 0.054, 0.044],
+      6,
+      stall(0.5 + (0.5 * xs[i]) / 0.25),
+      skin,
+    );
+  }
+  tube(
+    b,
+    [
+      [hx + side * 0.2, hy - 0.02, 0.03],
+      [hx + side * 0.268, hy - 0.16, 0.04],
+      [hx + side * 0.278, hy - 0.33, 0.07],
+    ],
+    [0.066, 0.062, 0.048],
+    6,
+    stall(0.97),
+    skin,
+  );
+  blob(b, {
+    c: [hx + side * 0.2, hy - 0.3, 0.05],
+    r: [0.085, 0.13, 0.02],
+    seg: 6,
+    rows: 4,
+    uv: (o, t, sv) => panelUV(o, G, 0.5 + 0.02 + 0.46 * (0.66 + 0.3 * Math.abs(2 * t - 1)), 0.05 + 0.4 * sv),
+    skin,
   });
 }
 

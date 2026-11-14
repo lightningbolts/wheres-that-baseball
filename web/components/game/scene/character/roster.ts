@@ -4,12 +4,16 @@
  * until it arrives players get a number derived from their id and no name.
  */
 
+import { getTeamById } from "@/lib/mlb/teams";
+
 export interface Identity {
   /** Last name as lettered on the jersey (upper case), or "". */
   name: string;
   num: string;
   /** Build: scales the girth of the trunk and limbs (1 = average). */
   girth: number;
+  /** Club nickname for the chest wordmark ("Red Sox"), or "" when unknown. */
+  team: string;
 }
 
 interface RosterPlayer {
@@ -45,9 +49,19 @@ export function girthOf(heightIn: number | null | undefined, weight: number | nu
   return Math.min(1.14, Math.max(0.9, k));
 }
 
-export function identityOf(p: RosterPlayer): Identity {
+const TWO_WORD = /(Red Sox|White Sox|Blue Jays)$/;
+
+/** "Boston Red Sox" → "Red Sox", "Arizona Diamondbacks" → "Diamondbacks". */
+export function nickname(full: string): string {
+  const two = TWO_WORD.exec(full);
+  if (two) return two[1];
+  const parts = full.trim().split(/\s+/);
+  return parts[parts.length - 1] ?? "";
+}
+
+export function identityOf(p: RosterPlayer, team = ""): Identity {
   const num = p.num != null && String(p.num).trim() !== "" ? String(p.num).trim().slice(0, 2) : fallbackNumber(p.id);
-  return { name: p.name ? jerseyName(p.name) : "", num, girth: girthOf(p.heightIn, p.weight) };
+  return { name: p.name ? jerseyName(p.name) : "", num, girth: girthOf(p.heightIn, p.weight), team };
 }
 
 const table = new Map<number, Identity>();
@@ -64,11 +78,13 @@ export function loadRoster(): void {
     .then((mod) => {
       const file = (mod as { default?: unknown }).default ?? mod;
       const teams = (file as { teams?: Record<string, Record<string, unknown>> }).teams ?? {};
-      for (const team of Object.values(teams)) {
+      for (const [key, team] of Object.entries(teams)) {
+        const club = getTeamById(Number(team.teamId ?? key));
+        const word = club ? nickname(club.name) : "";
         for (const group of Object.values(team)) {
           if (!Array.isArray(group)) continue;
           for (const p of group as RosterPlayer[]) {
-            if (p && typeof p.id === "number") table.set(p.id, identityOf(p));
+            if (p && typeof p.id === "number") table.set(p.id, identityOf(p, word));
           }
         }
       }
@@ -87,7 +103,7 @@ export function identity(id: number): Identity {
   let f = fallbacks.get(id);
   if (!f) {
     if (fallbacks.size > 500) fallbacks.clear();
-    f = { name: "", num: fallbackNumber(id), girth: 1 };
+    f = { name: "", num: fallbackNumber(id), girth: 1, team: "" };
     fallbacks.set(id, f);
   }
   return f;

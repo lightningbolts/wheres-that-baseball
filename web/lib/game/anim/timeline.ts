@@ -343,6 +343,29 @@ export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Ti
   const gather = play?.caught ? holds[0] : holds[holds.length - 1];
   const throws = events.filter((e) => e.type === "throw" && e.from && e.to && e.arriveT != null);
   const homeRun = !!path?.homeRun;
+  // The sim takes a fly the moment it is catchable (up to ~9.5 ft); on screen the ball is let fall a
+  // few hundredths more to a natural glove height, so a routine catch isn't a leap.
+  let gatherT = gather?.t ?? 0;
+  let gatherP = gather?.to ? add(gather.to, v3(0, 3, 0)) : v3(0, 3, 0);
+  let gatherLead = v3(0, 0, 0);
+  if (gather && path && play?.caught && gather.type !== "dive") {
+    const landT = path.firstLanding?.t ?? path.endT;
+    const s0 = sampleAt(path, Math.min(gather.t, path.endT));
+    gatherP = s0.p;
+    for (const s of path.samples) {
+      if (s.t <= gather.t) continue;
+      if (s.t >= landT || s.t > gather.t + 0.3 || s.phase !== "air") break;
+      gatherT = s.t;
+      gatherP = s.p;
+      if (s.p.y <= 6.5) break;
+    }
+    const prev = sampleAt(path, Math.max(0, gatherT - 0.1));
+    const dx = gatherP.x - prev.p.x;
+    const dz = gatherP.z - prev.p.z;
+    const n = Math.hypot(dx, dz);
+    // He stands a step short of the ball's line and takes it out in front.
+    if (n > 1e-3) gatherLead = v3((-dx / n) * 1.1, 0, (-dz / n) * 1.1);
+  }
   const receiver = new Map<PlayEvent, FieldPos | null>();
   throws.forEach((th, i) => {
     const pos = i === 0 ? coverFor(th.base ?? 1, th.pos) : coverFor(th.base ?? 1, undefined);
@@ -351,12 +374,12 @@ export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Ti
 
   const ballInPlay = (u: number): BallState => {
     if (!path) return { p: mittP, visible: false, held: false, holder: null };
-    if (!gather || u < gather.t) {
+    if (!gather || u < gatherT) {
       const s = sampleAt(path, Math.min(u, path.endT));
       const gone = (homeRun || path.outOfPlayFoul) && u > path.endT + 0.6;
       return { p: s.p, visible: !gone, held: false, holder: null };
     }
-    let p = add(gather.to!, v3(0, 3, 0));
+    let p = gatherP;
     let holder: FieldPos | null = gather.pos ?? null;
     for (const th of throws) {
       if (u < th.t) break;
@@ -457,10 +480,10 @@ export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Ti
           tr.pts.push({ t: toFlight(h.t), p: v3(h.to!.x, 0, h.to!.z) });
           tr.actions.push({ t: toFlight(h.t) - 0.25, dur: 0.9, action: "dive" });
         }
-        const gp = v3(gather.to!.x, 0, gather.to!.z);
-        tr.pts.push({ t: Math.max(toFlight(gather.t) - 0.05, tr.pts[tr.pts.length - 1].t + 0.05), p: gp });
+        const gp = play?.caught && gather.type !== "dive" ? v3(gatherP.x + gatherLead.x, 0, gatherP.z + gatherLead.z) : v3(gather.to!.x, 0, gather.to!.z);
+        tr.pts.push({ t: Math.max(toFlight(gatherT) - 0.05, tr.pts[tr.pts.length - 1].t + 0.05), p: gp });
         if (gather.type === "dive") tr.actions.push({ t: toFlight(gather.t) - 0.28, dur: 1.0, action: "dive" });
-        else if (play?.caught) tr.actions.push({ t: toFlight(gather.t) - 0.7, dur: 1.15, action: "catch" });
+        else if (play?.caught) tr.actions.push({ t: toFlight(gatherT) - 0.7, dur: 1.15, action: "catch" });
         else tr.actions.push({ t: toFlight(gather.t) - 0.4, dur: 0.75, action: "field" });
         const myThrow = throws.find((th) => th.pos === f.pos);
         if (myThrow) {
@@ -541,6 +564,9 @@ export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Ti
       if (tStart < minStart) {
         tStart = minStart;
         tEnd = Math.max(tEnd, tStart + d / 32);
+      } else if (ro.from === 0 && !homeRun && tStart - minStart < 0.9 && d / (tEnd - minStart) > v * 0.75) {
+        // The batter-runner breaks out of the box on contact rather than standing to watch.
+        tStart = minStart;
       }
       const pts: Waypoint[] = ro.from === 0 ? [{ t: -10, p: batterBox }] : leadPts(ro.from).filter((w) => w.t < tStart);
       if (ro.from === 0) pts.push({ t: tStart, p: batterBox });

@@ -8,7 +8,7 @@
  *   back panel   | front panel        (jersey, wrapped half-way round the torso each)
  *   face | pants strip / lower-leg panel   (legs unwrap by angle; the outseam is u = 0.5)
  *   swatches: flat colour cells, sampled at their centres
- *   shoe | chest protector | sleeve    (small detail panels)
+ *   shoe | glove | chest protector | sleeve    (small detail panels)
  */
 import type { VOut } from "@/components/game/scene/character/mesh";
 
@@ -29,6 +29,8 @@ export const PANEL = {
   lower: { x: 128, y: 288, w: 384, h: 96 },
   /** Side of a shoe: toe at the left, heel at the right, sole edge at the bottom. */
   shoe: { x: 0, y: 448, w: 128, h: 64 },
+  /** Fielder's glove: the back (finger stalls, wrist strap) on the left half, the pocket and web on the right. */
+  glove: { x: 128, y: 448, w: 96, h: 64 },
   /** Catcher's chest protector, wrapped across the front. */
   chest: { x: 224, y: 448, w: 128, h: 64 },
   /** Sleeve: wraps the upper arm, shoulder at the top, hem at the bottom. */
@@ -102,6 +104,7 @@ export const PANEL_FINISH: Record<keyof typeof PANEL, [number, number]> = {
   pants: [0.9, 0],
   lower: [0.88, 0],
   shoe: [0.45, 0],
+  glove: [0.58, 0],
   chest: [0.55, 0],
   sleeve: [0.92, 0],
 };

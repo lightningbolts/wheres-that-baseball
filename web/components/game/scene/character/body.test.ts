@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { buildBody, outfitFor, outfitKey } from "@/components/game/scene/character/body";
 import { BONE, BONE_COUNT, DIM, REST, SKIN_COUNT, writeSkinMatrices } from "@/components/game/scene/character/skeleton";
-import { jerseyName, girthOf, fallbackNumber } from "@/components/game/scene/character/roster";
+import { jerseyName, girthOf, fallbackNumber, nickname } from "@/components/game/scene/character/roster";
 import type { ActorKind } from "@/components/game/scene/rig";
 
 const KINDS: ActorKind[] = ["fielder", "pitcher", "catcher", "batter", "runner", "umpire", "coach"];
@@ -171,6 +171,9 @@ describe("character mesh", () => {
 
 describe("jersey lettering", () => {
   it("uses the surname, keeping particles and suffixes", () => {
+    expect(nickname("Boston Red Sox")).toBe("Red Sox");
+    expect(nickname("Toronto Blue Jays")).toBe("Blue Jays");
+    expect(nickname("Arizona Diamondbacks")).toBe("Diamondbacks");
     expect(jerseyName("Aaron Judge")).toBe("JUDGE");
     expect(jerseyName("Bobby Witt Jr.")).toBe("WITT JR.");
     expect(jerseyName("Michael Harris II")).toBe("HARRIS II");

@@ -111,7 +111,7 @@ export class Person {
   private material: THREE.MeshStandardMaterial;
   private texture: THREE.CanvasTexture;
   private ctx: CanvasRenderingContext2D;
-  private look: Look = { kind: "fielder", id: -1, seed: 0, jersey: -1, accent: -1, skin: -1, name: "", num: "" };
+  private look: Look = { kind: "fielder", id: -1, seed: 0, jersey: -1, accent: -1, skin: -1, name: "", num: "", team: "" };
   private painted = false;
   private version = -1;
   private outfit = "";
@@ -171,14 +171,17 @@ export class Person {
     if (a.kind === "umpire") {
       l.name = "";
       l.num = "";
+      l.team = "";
       this.girth = 1.08;
     } else if (l.id) {
       const who = identity(l.id);
       l.name = who.name;
       l.num = who.num;
+      l.team = who.team;
       this.girth = who.girth;
     } else {
       l.name = "";
+      l.team = "";
       l.num = String(40 + Math.floor(hash01(l.seed, 9) * 50));
       this.girth = 1.07;
     }

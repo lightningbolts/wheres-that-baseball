@@ -54,6 +54,15 @@ export interface Pose {
   headPitch: number;
   /** How far the glove's fingers are cocked up from the forearm toward the body's "up" (negative: down). */
   gloveUp: number;
+  /** Trunk only (hands and feet stay where they are aimed): sideways lean, + toward the actor's left, and sideways hip shift (ft). */
+  roll: number;
+  sway: number;
+  /** 0..1: the elbow is carried up and out (a cocked throwing arm) instead of hanging down. */
+  elbowL: number;
+  elbowR: number;
+  /** Extra heel lift (rad) for a foot that pivots on its toes. */
+  toeL: number;
+  toeR: number;
 }
 
 /** Pose families; a change of family is cross-faded by the renderer. */
@@ -82,12 +91,29 @@ export interface PoseCtx {
   hold: number;
   /** Swing: seconds from launch to contact. */
   swingDur: number;
-  /** Umpire: strike-call gesture 0..1. */
-  call: number;
+  /** Umpire: seconds since he began a strike call (negative: none). */
+  callT: number;
+  /** 0..1, fixed per actor: de-synchronises idle motion and varies mannerisms. */
+  seed: number;
+  /** Forward acceleration (ft/s²) and banking lean (rad, + left) of a runner. */
+  accel: number;
+  bank: number;
+  /** How far (ft) a fielder must leave the ground to reach the ball he is about to catch. */
+  jump: number;
+  /** Seconds since the pitch was released (very negative: no pitch on the way). */
+  pitchTau: number;
+  /** Where the ball is (world), and how much the head should follow it. */
+  bx: number;
+  by: number;
+  bz: number;
+  ballW: number;
 }
 
 export function newPoseCtx(): PoseCtx {
-  return { time: 0, phase: 0, speed: 0, x: 0, z: 0, yaw: 0, groundY: 0, hasTarget: false, tx: 0, ty: 0, tz: 0, targetW: 0, hold: 0, swingDur: 0.15, call: 0 };
+  return {
+    time: 0, phase: 0, speed: 0, x: 0, z: 0, yaw: 0, groundY: 0, hasTarget: false, tx: 0, ty: 0, tz: 0, targetW: 0, hold: 0, swingDur: 0.15,
+    callT: -1, seed: 0, accel: 0, bank: 0, jump: 0, pitchTau: -99, bx: 0, by: 0, bz: 0, ballW: 0,
+  };
 }
 
 const clamp01 = (t: number) => Math.min(1, Math.max(0, t));
@@ -96,6 +122,9 @@ export const smooth = (t: number) => {
   const c = clamp01(t);
   return c * c * (3 - 2 * c);
 };
+
+const SCALARS = ["hipH", "lean", "twist", "rootPitch", "rootY", "rootZ", "headYaw", "headPitch", "gloveUp", "roll", "sway", "elbowL", "elbowR", "toeL", "toeR"] as const;
+const VECTORS = ["handL", "handR", "footL", "footR"] as const;
 
 export function newPose(): Pose {
   return {
@@ -116,46 +145,30 @@ export function newPose(): Pose {
     headYaw: 0,
     headPitch: 0,
     gloveUp: 0.3,
+    roll: 0,
+    sway: 0,
+    elbowL: 0,
+    elbowR: 0,
+    toeL: 0,
+    toeR: 0,
   };
 }
 
 export function copyPose(dst: Pose, src: Pose): Pose {
-  dst.hipH = src.hipH;
-  dst.lean = src.lean;
-  dst.twist = src.twist;
-  dst.rootPitch = src.rootPitch;
-  dst.rootY = src.rootY;
-  dst.rootZ = src.rootZ;
-  dst.handL.copy(src.handL);
-  dst.handR.copy(src.handR);
-  dst.footL.copy(src.footL);
-  dst.footR.copy(src.footR);
+  for (const k of SCALARS) dst[k] = src[k];
+  for (const k of VECTORS) dst[k].copy(src[k]);
   dst.hasBat = src.hasBat;
   dst.batAt.copy(src.batAt);
   dst.batDir.copy(src.batDir);
   dst.hidden = src.hidden;
-  dst.headYaw = src.headYaw;
-  dst.headPitch = src.headPitch;
-  dst.gloveUp = src.gloveUp;
   return dst;
 }
 
 /** out = a → b at t. `out` may alias either input. The bat belongs to the target pose. */
 export function lerpPose(out: Pose, a: Pose, b: Pose, t: number): Pose {
   const bothBat = a.hasBat && b.hasBat;
-  out.hipH = lerp(a.hipH, b.hipH, t);
-  out.lean = lerp(a.lean, b.lean, t);
-  out.twist = lerp(a.twist, b.twist, t);
-  out.rootPitch = lerp(a.rootPitch, b.rootPitch, t);
-  out.rootY = lerp(a.rootY, b.rootY, t);
-  out.rootZ = lerp(a.rootZ, b.rootZ, t);
-  out.headYaw = lerp(a.headYaw, b.headYaw, t);
-  out.headPitch = lerp(a.headPitch, b.headPitch, t);
-  out.gloveUp = lerp(a.gloveUp, b.gloveUp, t);
-  out.handL.lerpVectors(a.handL, b.handL, t);
-  out.handR.lerpVectors(a.handR, b.handR, t);
-  out.footL.lerpVectors(a.footL, b.footL, t);
-  out.footR.lerpVectors(a.footR, b.footR, t);
+  for (const k of SCALARS) out[k] = lerp(a[k], b[k], t);
+  for (const k of VECTORS) out[k].lerpVectors(a[k], b[k], t);
   if (bothBat) {
     out.batAt.lerpVectors(a.batAt, b.batAt, t);
     out.batDir.lerpVectors(a.batDir, b.batDir, t);
@@ -168,6 +181,53 @@ export function lerpPose(out: Pose, a: Pose, b: Pose, t: number): Pose {
   out.hasBat = b.hasBat;
   out.hidden = b.hidden;
   return out;
+}
+
+/** out = a − b, channel by channel (the bat only when both hold one). Flags come from `a`. */
+export function subPose(out: Pose, a: Pose, b: Pose): Pose {
+  const bothBat = a.hasBat && b.hasBat;
+  for (const k of SCALARS) out[k] = a[k] - b[k];
+  for (const k of VECTORS) out[k].subVectors(a[k], b[k]);
+  if (bothBat) {
+    out.batAt.subVectors(a.batAt, b.batAt);
+    out.batDir.subVectors(a.batDir, b.batDir);
+  } else {
+    out.batAt.set(0, 0, 0);
+    out.batDir.set(0, 0, 0);
+  }
+  out.hasBat = bothBat;
+  out.hidden = a.hidden;
+  return out;
+}
+
+/** p += k0·off + k1·vel (two pose deltas made by subPose); p keeps its own flags. */
+export function addPoseDelta(p: Pose, off: Pose, k0: number, vel: Pose, k1: number): Pose {
+  for (const k of SCALARS) p[k] += off[k] * k0 + vel[k] * k1;
+  for (const k of VECTORS) p[k].addScaledVector(off[k], k0).addScaledVector(vel[k], k1);
+  if (p.hasBat && off.hasBat) {
+    p.batAt.addScaledVector(off.batAt, k0).addScaledVector(vel.batAt, k1);
+    p.batDir.addScaledVector(off.batDir, k0).addScaledVector(vel.batDir, k1);
+    if (p.batDir.lengthSq() > 1e-6) p.batDir.normalize();
+    else p.batDir.set(0, 1, 0);
+  }
+  return p;
+}
+
+/** Scale a pose delta in place, limiting how fast any one channel may be said to move. */
+export function scalePoseDelta(p: Pose, k: number, maxScalar: number, maxVec: number): Pose {
+  for (const key of SCALARS) p[key] = Math.max(-maxScalar, Math.min(maxScalar, p[key] * k));
+  for (const key of VECTORS) {
+    const v = p[key].multiplyScalar(k);
+    const l = v.length();
+    if (l > maxVec) v.multiplyScalar(maxVec / l);
+  }
+  p.batAt.multiplyScalar(k);
+  p.batDir.multiplyScalar(k);
+  const l = p.batAt.length();
+  if (l > maxVec) p.batAt.multiplyScalar(maxVec / l);
+  const d = p.batDir.length();
+  if (d > maxScalar) p.batDir.multiplyScalar(maxScalar / d);
+  return p;
 }
 
 // ---------- Keyframe splines ----------
@@ -252,7 +312,7 @@ export function blendTime(from: PoseClass, to: PoseClass): number {
 }
 
 /** Ground covered by one full run cycle (two steps) at a given speed. */
-export const cycleLen = (speed: number) => 4.5 + 0.3 * Math.min(32, Math.max(0, speed));
+export const cycleLen = (speed: number) => 3.7 + 0.33 * Math.min(32, Math.max(0, speed));
 
 const GROUND = 0.12;
 const BAT_SWEET = 1.9;
@@ -274,16 +334,26 @@ export const PITCH_RELEASE_AT = 1.1;
 const PITCH_REL_HAND = sample3(new THREE.Vector3(), PITCH.handR, PITCH_RELEASE_AT);
 const PITCH_REL_ROOTZ = sample1(PITCH.rootZ, PITCH_RELEASE_AT);
 
-// Throw: 0 gather · 0.18 cocked · 0.3 release · 0.8 recovered.
+// Throw: 0 gather · 0.18 cocked · 0.3 release · 0.8 recovered. He rocks back, strides and comes over the front leg.
 const THROW = {
-  hipH: tab1([[0, 2.7], [0.18, 2.6], [0.3, 2.55], [0.5, 2.5], [0.8, 2.55]]),
-  lean: tab1([[0, 0.12], [0.18, -0.02], [0.3, 0.42], [0.5, 0.55], [0.8, 0.35]]),
-  twist: tab1([[0, -0.3], [0.18, -0.95], [0.3, 0.45], [0.5, 0.8], [0.8, 0.1]]),
-  footL: tab3([[0, 0.45, GROUND, 0.1], [0.16, 0.4, 0.55, 1.1], [0.26, 0.4, GROUND, 1.9], [0.8, 0.4, GROUND, 1.9]]),
-  footR: tab3([[0, -0.45, GROUND, -0.3], [0.3, -0.45, GROUND, -0.4], [0.5, -0.6, 0.5, 0.3], [0.7, -0.8, GROUND, 0.9], [0.8, -0.8, GROUND, 0.9]]),
-  handR: tab3([[0, -0.2, 4.1, 0.8], [0.18, -1.35, 4.9, -1.0], [0.3, -0.5, 5.9, 1.5], [0.46, 0.65, 2.9, 1.6], [0.8, -0.4, 2.8, 1.1]]),
-  handL: tab3([[0, 0.2, 4.1, 0.85], [0.18, 1.0, 4.6, 1.2], [0.32, 0.85, 3.5, 0.3], [0.8, 0.5, 2.8, 1.0]]),
+  rootZ: tab1([[0, 0], [0.18, -0.45], [0.3, -0.25], [0.5, 0.35], [0.8, 0.3]]),
+  sway: tab1([[0, 0], [0.18, -0.2], [0.3, 0.25], [0.5, 0.3], [0.8, 0.1]]),
+  roll: tab1([[0, 0], [0.18, -0.12], [0.3, 0.3], [0.5, 0.25], [0.8, 0.05]]),
+  hipH: tab1([[0, 2.7], [0.18, 2.55], [0.3, 2.5], [0.5, 2.35], [0.8, 2.6]]),
+  lean: tab1([[0, 0.15], [0.18, -0.08], [0.3, 0.45], [0.5, 0.75], [0.8, 0.35]]),
+  twist: tab1([[0, -0.3], [0.18, -1.15], [0.3, 0.5], [0.5, 1.0], [0.8, 0.15]]),
+  // Feet are keyed relative to the track position.
+  footL: tab3([[0, 0.45, GROUND, 0.1], [0.16, 0.4, 0.6, 1.2], [0.27, 0.4, GROUND, 2.3], [0.8, 0.4, GROUND, 2.3]]),
+  footR: tab3([[0, -0.45, GROUND, -0.3], [0.3, -0.45, GROUND, -0.4], [0.5, -0.6, 0.7, 0.6], [0.7, -0.7, GROUND, 1.5], [0.8, -0.7, GROUND, 1.5]]),
+  handR: tab3([[0, -0.2, 4.0, 0.8], [0.1, -0.9, 4.0, -0.3], [0.18, -1.45, 5.0, -1.1], [0.3, -0.6, 5.75, 1.45], [0.44, 0.75, 2.6, 1.7], [0.8, -0.4, 2.8, 1.1]]),
+  handL: tab3([[0, 0.2, 4.0, 0.85], [0.18, 0.9, 4.7, 1.5], [0.32, 0.75, 3.6, 0.4], [0.8, 0.5, 2.8, 1.0]]),
+  elbowR: tab1([[0, 0], [0.12, 1], [0.3, 0.8], [0.45, 0], [0.8, 0]]),
 };
+export const THROW_RELEASE_AT = 0.3;
+/** Seconds into the catch clip at which the ball arrives. */
+export const CATCH_AT = 0.7;
+const THROW_REL_HAND = sample3(new THREE.Vector3(), THROW.handR, THROW_RELEASE_AT);
+const THROW_REL_ROOTZ = sample1(THROW.rootZ, THROW_RELEASE_AT);
 
 // Fielding a grounder: 0 approach · 0.38 glove down · 0.75 up with the ball.
 const FIELD = {
@@ -297,7 +367,18 @@ const DIVE = {
   hipH: tab1([[0, 2.4], [0.2, 1.7], [0.42, 0.5], [1, 0.5]]),
   pitch: tab1([[0, 0.25], [0.26, 1.4], [1, 1.45]]),
 };
-const SLIDE_K = tab1([[0, 0], [0.22, 1], [0.6, 1], [0.95, 0]]);
+// Feet-first slide: 0 running · 0.26 down · 0.62 on the bag · 0.95 back on his feet.
+const SLIDE_K = tab1([[0, 0], [0.26, 1], [0.62, 1], [0.95, 0]]);
+const SLIDE_PITCH = -1.15;
+
+// Umpire's strike call, in seconds: up out of the crouch, cock the fist, punch it out, hold, settle.
+const UMP_CALL = {
+  up: tab1([[0, 0], [0.24, 1], [1.0, 1], [1.5, 0]]),
+  twist: tab1([[0, 0], [0.26, 0.22], [0.44, -0.7], [0.98, -0.7], [1.5, 0]]),
+  handR: tab3([[0, -0.5, 2.3, 0.75], [0.26, -0.5, 4.5, 0.3], [0.44, -1.8, 4.75, 0.95], [0.98, -1.8, 4.75, 0.95], [1.5, -0.5, 2.3, 0.75]]),
+  elbow: tab1([[0, 0], [0.26, 0.8], [0.44, 0.5], [0.98, 0.5], [1.5, 0]]),
+};
+export const UMP_CALL_S = 1.5;
 
 // Swing (RHB), keyed on progress: 0 loaded · 0.5 contact · 1 finish. `handle` is the bat's handle.
 const SWING = {
@@ -308,6 +389,10 @@ const SWING = {
   handle: tab3([[0, -0.8, 4.25, 0.35], [0.3, -0.5, 3.75, 0.8], [0.5, 0.25, 3.1, 1.4], [0.75, 1.0, 3.6, 0.9], [1, 0.85, 4.7, -0.35]]),
   az: tab1([[0, -2.5], [0.3, -2.0], [0.5, 0.15], [0.75, 1.7], [1, 3.5]]),
   el: tab1([[0, 1.0], [0.3, 0.45], [0.5, -0.12], [0.75, 0.2], [1, 0.55]]),
+  // Weight goes from the back side onto a firm front leg; the back foot spins up onto its toes.
+  sway: tab1([[0, -0.14], [0.5, 0.2], [1, 0.3]]),
+  roll: tab1([[0, 0.05], [0.5, -0.12], [1, -0.05]]),
+  toeR: tab1([[0, 0], [0.5, 0.75], [1, 0.95]]),
 };
 const SWING_FOLLOW_S = 0.38;
 
@@ -351,6 +436,12 @@ function standing(p: Pose) {
   p.headYaw = 0;
   p.headPitch = 0;
   p.gloveUp = 0.3;
+  p.roll = 0;
+  p.sway = 0;
+  p.elbowL = 0;
+  p.elbowR = 0;
+  p.toeL = 0;
+  p.toeR = 0;
 }
 
 /** World reach target → the actor's root frame (x flipped for a mirrored lefty). */
@@ -366,17 +457,30 @@ function footCycle(out: THREE.Vector3, side: number, u: number, stance: number, 
   if (u < stance) {
     out.set(side * 0.33, GROUND, amp * (1 - (2 * u) / stance));
   } else {
+    // Recovery: the heel kicks up behind, then the knee drives the foot through low and forward.
     const v = (u - stance) / (1 - stance);
-    out.set(side * 0.33, GROUND + lift * Math.sin(Math.PI * v), -amp * Math.cos(Math.PI * v));
+    const e = v * v * (3 - 2 * v);
+    out.set(side * 0.33, GROUND + lift * Math.pow(Math.sin(Math.PI * Math.pow(v, 0.8)), 1.2), -amp * Math.cos(Math.PI * e));
   }
 }
 
-/** Turn the head toward a point given in the root frame (eyes are about 5.4 ft up). */
+/** Turn the head toward a point given in the root frame, by weight w. */
 function lookAt(p: Pose, t: THREE.Vector3, w: number) {
   const flat = Math.hypot(t.x, t.z);
-  if (flat < 0.5) return;
-  p.headYaw = Math.max(-1.2, Math.min(1.2, Math.atan2(t.x, t.z))) * w;
-  p.headPitch = Math.max(-0.7, Math.min(0.8, -Math.atan2(t.y - 5.4, flat))) * w;
+  if (flat < 0.5 || w <= 0) return;
+  p.headYaw = lerp(p.headYaw, Math.max(-1.35, Math.min(1.35, Math.atan2(t.x, t.z))), w);
+  p.headPitch = lerp(p.headPitch, Math.max(-0.7, Math.min(0.8, -Math.atan2(t.y - (p.hipH + 2.5), flat))), w);
+}
+
+/**
+ * A point given in the upright root frame (y above the ground) → the frame the solver uses
+ * when the whole body is pitched by `th` about the hips (slides, dives).
+ */
+function pitched(out: THREE.Vector3, x: number, y: number, z: number, hipH: number, th: number): THREE.Vector3 {
+  const c = Math.cos(th);
+  const s = Math.sin(th);
+  const dy = y - hipH;
+  return out.set(x, hipH + dy * c + z * s, -dy * s + z * c);
 }
 
 const TAU = Math.PI * 2;
@@ -385,41 +489,71 @@ const frac = (x: number) => x - Math.floor(x);
 /** Standing ↔ walking ↔ sprinting, blended continuously by speed. */
 function locoPose(p: Pose, a: ActorDraw, c: PoseCtx) {
   const athletic = a.kind === "fielder" || a.kind === "catcher";
-  const bob = Math.sin(c.time * 2.1 + a.key.length * 1.7) * 0.03;
-  // Standing base.
+  const sd = c.seed;
+  const breath = Math.sin(c.time * (1.5 + 0.5 * sd) + sd * 40);
+  const shift = Math.sin(c.time * (0.31 + 0.22 * sd) + sd * 17);
   if (athletic) {
-    p.hipH = 2.45 + bob;
-    p.lean = 0.42;
-    p.footL.set(0.95, GROUND, 0);
-    p.footR.set(-0.95, GROUND, 0);
-    p.handL.set(0.5, 2.6, 1.15);
-    p.handR.set(-0.5, 2.6, 1.15);
+    // Between pitches he stands easy; he sinks into the ready position as the pitcher
+    // delivers and takes a little hop as the pitch reaches the plate, landing set to move.
+    const tau = c.pitchTau;
+    const set = smooth((tau + 1.0 + 0.25 * sd) / 0.6) * (1 - smooth((tau - 1.7) / 0.9));
+    const hk = (tau - 0.13 - 0.06 * sd) / 0.27;
+    const hop = hk > 0 && hk < 1 ? Math.sin(Math.PI * hk) : 0;
+    const landed = smooth(hk) * (1 - smooth((tau - 1.1) / 0.6));
+    const easy = 1 - set;
+    p.hipH = lerp(2.74, 2.44, set) - 0.12 * landed + 0.06 * hop + breath * 0.014 * easy;
+    p.rootY = 0.17 * hop;
+    p.lean = lerp(0.2, 0.44, set) + 0.07 * landed;
+    p.sway = shift * 0.16 * easy;
+    p.roll = -shift * 0.04 * easy;
+    const wide = lerp(0.72, 0.98, set) + 0.08 * landed;
+    p.footL.set(wide, GROUND, 0.05 * set);
+    p.footR.set(-wide, GROUND, -0.05 * set);
+    p.handL.set(lerp(0.78, 0.5, set), lerp(2.75, 2.35, set) - 0.15 * landed, lerp(0.35, 1.2, set));
+    p.handR.set(lerp(-0.78, -0.5, set), lerp(2.75, 2.35, set) - 0.15 * landed, lerp(0.35, 1.2, set));
+    p.headYaw = Math.sin(c.time * 0.4 + sd * 31) * 0.2 * easy;
   } else {
-    p.hipH = 2.75 + bob * 0.6;
-    p.lean = 0.18;
+    p.hipH = 2.78 + breath * 0.012;
+    p.lean = 0.16;
+    p.sway = shift * 0.12;
+    p.roll = -shift * 0.03;
     p.footL.set(0.6, GROUND, 0);
     p.footR.set(-0.6, GROUND, 0);
-    p.handL.set(0.75, 2.75, 0.45);
-    p.handR.set(-0.75, 2.75, 0.45);
+    p.handL.set(0.78, 2.75, 0.4);
+    p.handR.set(-0.78, 2.75, 0.4);
   }
   const w = smooth((c.speed - 0.6) / 5.4);
   if (w <= 0) return;
   const sp = Math.min(32, c.speed);
-  const stance = 0.6 - 0.22 * clamp01(sp / 24);
-  const amp = Math.min(1.75, (stance * cycleLen(sp)) / 2);
-  const lift = Math.min(1.25, 0.3 + 0.04 * sp);
+  const cyc = cycleLen(sp);
+  // A planted foot covers exactly the ground the body does; the legs can reach about ±1.3 ft.
+  const stance = Math.min(0.58, 2.6 / cyc);
+  const amp = (stance * cyc) / 2;
+  const fast = clamp01(sp / 26);
+  const lift = 0.3 + 1.15 * fast;
   const u = frac(c.phase / TAU);
   const cs = Math.cos(c.phase);
-  const armA = Math.min(1.0, 0.3 + 0.03 * sp);
-  p.hipH = lerp(p.hipH, 2.8 + 0.06 * Math.cos(2 * c.phase), w);
-  p.lean = lerp(p.lean, 0.1 + Math.min(0.24, sp * 0.009), w);
-  p.twist = 0.2 * cs * w;
+  const sn = Math.sin(c.phase);
+  const armA = 0.35 + 0.75 * fast;
+  // Drive: he leans into acceleration and sits back when he pulls up.
+  const drive = Math.max(-0.22, Math.min(0.3, c.accel * 0.011));
+  p.hipH = lerp(p.hipH, 2.72 - 0.1 * fast + (0.05 + 0.05 * fast) * Math.cos(2 * c.phase + 0.5), w);
+  p.rootY *= 1 - w;
+  p.lean = lerp(p.lean, 0.1 + 0.26 * fast + drive, w);
+  p.twist = (0.16 + 0.14 * fast) * cs * w;
+  p.sway = lerp(p.sway, 0.07 * sn, w);
+  p.roll = lerp(p.roll, c.bank - 0.04 * sn, w);
+  p.headYaw *= 1 - w;
   footCycle(_t, 1, u, stance, amp, lift);
   p.footL.lerp(_t, w);
   footCycle(_t, -1, frac(u + 0.5), stance, amp, lift);
   p.footR.lerp(_t, w);
-  p.handL.lerp(_t.set(0.72, 3.8 - 0.35 * cs, 0.35 - armA * cs), w);
-  p.handR.lerp(_t.set(-0.72, 3.8 + 0.35 * cs, 0.35 + armA * cs), w);
+  // Arms pump opposite the legs: the forward hand comes up toward the chin, the back one past the hip.
+  const fl = Math.max(0, -cs);
+  const fr = Math.max(0, cs);
+  p.handL.lerp(_t.set(0.78 - 0.3 * fl, 3.45 - (0.25 + 0.75 * fast) * cs * 0.9 + 0.2 * fast, 0.3 - armA * cs), w);
+  p.handR.lerp(_t.set(-0.78 + 0.3 * fr, 3.45 + (0.25 + 0.75 * fast) * cs * 0.9 + 0.2 * fast, 0.3 + armA * cs), w);
+  p.gloveUp = lerp(p.gloveUp, 0.1, w);
 }
 
 function stanceInto(p: Pose, tau: number, time: number) {
@@ -430,6 +564,7 @@ function stanceInto(p: Pose, tau: number, time: number) {
   p.hipH = 2.7 - 0.04 * L + Math.sin(time * 1.7) * 0.02 * still;
   p.lean = 0.3;
   p.twist = -0.3 - 0.15 * L;
+  p.sway = -0.04 - 0.1 * L + Math.sin(time * 0.9) * 0.05 * still;
   // Chin on the front shoulder, eyes on the pitcher.
   p.headYaw = 1.3;
   p.footL.set(1.15 + 0.35 * L, GROUND + 0.3 * Math.sin(Math.PI * L), 0.05 * L);
@@ -455,6 +590,9 @@ function swingInto(p: Pose, t: number, c: PoseCtx, flip: number, time: number) {
   p.hipH = sample1(SWING.hipH, prog);
   p.lean = sample1(SWING.lean, prog);
   p.twist = sample1(SWING.twist, prog);
+  p.sway = sample1(SWING.sway, prog);
+  p.roll = sample1(SWING.roll, prog);
+  p.toeR = sample1(SWING.toeR, prog);
   // Head stays on the ball through contact, then follows the swing round.
   p.headYaw = prog < 0.5 ? lerp(1.3, 0.95, prog * 2) : lerp(0.95, 0.7, prog * 2 - 1);
   p.headPitch = 0.3 * Math.sin(Math.PI * prog);
@@ -490,6 +628,14 @@ function swingInto(p: Pose, t: number, c: PoseCtx, flip: number, time: number) {
 function mirror(p: Pose) {
   p.twist = -p.twist;
   p.headYaw = -p.headYaw;
+  p.roll = -p.roll;
+  p.sway = -p.sway;
+  let e = p.elbowL;
+  p.elbowL = p.elbowR;
+  p.elbowR = e;
+  e = p.toeL;
+  p.toeL = p.toeR;
+  p.toeR = e;
   _t.copy(p.handL);
   p.handL.set(-p.handR.x, p.handR.y, p.handR.z);
   p.handR.set(-_t.x, _t.y, _t.z);
@@ -506,6 +652,8 @@ export function poseInto(p: Pose, a: ActorDraw, cls: PoseClass, c: PoseCtx): Pos
   const t = cls === "pitch" && a.state.action !== "pitch" ? 0 : a.state.actionT;
   const lefty = a.hand === "L";
   const flip = lefty ? -1 : 1;
+  const sd = c.seed;
+  let look = 0;
   standing(p);
   switch (cls) {
     case "gone":
@@ -513,20 +661,32 @@ export function poseInto(p: Pose, a: ActorDraw, cls: PoseClass, c: PoseCtx): Pos
       return p;
     case "loco":
       locoPose(p, a, c);
+      look = a.kind === "runner" || a.kind === "batter" ? 0 : 1 - 0.35 * smooth((c.speed - 8) / 12);
       break;
     case "crouch": {
       p.footL.set(0.95, GROUND, 0.25);
       p.footR.set(-0.95, GROUND, 0.25);
+      look = 1;
       if (a.kind === "umpire") {
-        const k = c.call;
-        p.hipH = lerp(2.1, 2.9, k);
-        p.lean = lerp(0.55, 0.08, k);
-        p.twist = 0.3 * k;
-        p.handL.set(0.5, lerp(2.3, 2.9, k), 0.75);
-        p.handR.set(lerp(-0.5, -1.0, k), lerp(2.3, 5.4, k), lerp(0.75, 0.6, k));
+        const ct = c.callT;
+        const k = ct < 0 ? 0 : sample1(UMP_CALL.up, ct);
+        p.hipH = lerp(2.1, 2.9, k) + Math.sin(c.time * 1.4) * 0.012;
+        p.lean = lerp(0.55, 0.06, k);
+        p.handL.set(0.5, lerp(2.3, 2.9, k), lerp(0.75, 0.4, k));
+        p.handR.set(-0.5, 2.3, 0.75);
+        if (ct >= 0) {
+          p.twist = sample1(UMP_CALL.twist, ct);
+          sample3(p.handR, UMP_CALL.handR, ct);
+          p.elbowR = sample1(UMP_CALL.elbow, ct);
+          p.sway = -0.15 * k;
+          look = 1 - k;
+          p.headYaw = -0.35 * k;
+        }
       } else {
-        p.hipH = 1.35;
+        const br = Math.sin(c.time * 1.6 + sd * 9);
+        p.hipH = 1.35 + br * 0.012;
         p.lean = 0.3;
+        p.sway = Math.sin(c.time * 0.5 + sd * 5) * 0.05;
         p.gloveUp = 0.9;
         p.handL.set(0.3, 2.4, 1.5);
         p.handR.set(-0.6, 1.6, 0.3);
@@ -534,6 +694,9 @@ export function poseInto(p: Pose, a: ActorDraw, cls: PoseClass, c: PoseCtx): Pos
           localTarget(_t, c, 0, flip);
           p.handL.lerp(_t, c.targetW);
           p.hipH += 0.25 * c.targetW * clamp01((_t.y - 3) / 2);
+          // He shifts behind the pitch and turns the glove over for a low one.
+          p.sway += 0.35 * c.targetW * Math.max(-1, Math.min(1, _t.x));
+          p.gloveUp = lerp(0.9, lerp(0.9, 0.1, clamp01((2.0 - _t.y) / 1.2)), c.targetW);
         }
       }
       break;
@@ -548,6 +711,16 @@ export function poseInto(p: Pose, a: ActorDraw, cls: PoseClass, c: PoseCtx): Pos
       sample3(p.footR, PITCH.footR, t).z -= z;
       sample3(p.handR, PITCH.handR, t);
       sample3(p.handL, PITCH.handL, t);
+      // Arm cocked with the elbow up through foot strike; he falls off toward the glove side after release.
+      p.elbowR = smooth((t - 0.7) / 0.2) * (1 - smooth((t - 1.12) / 0.14));
+      p.roll = 0.28 * smooth((t - 1.08) / 0.25) * (1 - smooth((t - 1.5) / 0.5));
+      p.toeR = 0.8 * smooth((t - 0.95) / 0.15) * (1 - smooth((t - 1.5) / 0.2));
+      if (t <= 0) {
+        // On the rubber: breathing, looking in for the sign.
+        p.hipH += Math.sin(c.time * 1.5 + sd * 7) * 0.012;
+        p.sway = Math.sin(c.time * 0.45 + sd * 3) * 0.04;
+      }
+      p.headPitch = 0.12 + 0.25 * smooth((t - 1.0) / 0.3) * (1 - smooth((t - 1.5) / 0.4));
       if (c.hasTarget) {
         // Bring the hand through the real release point of this pitch.
         const w = t < PITCH_RELEASE_AT ? smooth((t - 0.85) / 0.25) : 1 - smooth((t - PITCH_RELEASE_AT) / 0.18);
@@ -561,33 +734,67 @@ export function poseInto(p: Pose, a: ActorDraw, cls: PoseClass, c: PoseCtx): Pos
       break;
     }
     case "throw": {
+      const z = sample1(THROW.rootZ, t);
+      p.rootZ = z;
+      p.sway = sample1(THROW.sway, t);
+      p.roll = sample1(THROW.roll, t);
       p.hipH = sample1(THROW.hipH, t);
       p.lean = sample1(THROW.lean, t);
       p.twist = sample1(THROW.twist, t);
-      sample3(p.footL, THROW.footL, t);
-      sample3(p.footR, THROW.footR, t);
+      sample3(p.footL, THROW.footL, t).z -= z;
+      sample3(p.footR, THROW.footR, t).z -= z;
       sample3(p.handR, THROW.handR, t);
       sample3(p.handL, THROW.handL, t);
+      p.elbowR = sample1(THROW.elbowR, t);
+      p.toeR = 0.7 * smooth((t - 0.24) / 0.12) * (1 - smooth((t - 0.6) / 0.15));
+      p.headPitch = 0.1;
+      if (c.hasTarget) {
+        // The hand comes through the point the ball actually leaves from.
+        const w = t < THROW_RELEASE_AT ? smooth((t - 0.14) / 0.16) : 1 - smooth((t - THROW_RELEASE_AT) / 0.14);
+        if (w > 0) {
+          localTarget(_t, c, THROW_REL_ROOTZ, flip).sub(THROW_REL_HAND);
+          const l = _t.length();
+          if (l > 1.6) _t.multiplyScalar(1.6 / l);
+          p.handR.addScaledVector(_t, w);
+        }
+      }
       break;
     }
     case "catch": {
       const hold = c.hold;
-      p.hipH = 2.8;
-      p.lean = 0.06;
-      p.footL.set(0.55, GROUND, 0.3);
-      p.footR.set(-0.55, GROUND, -0.2);
-      p.handL.set(lerp(0.45, 0.2, hold), lerp(4.7, 3.9, hold), lerp(1.3, 0.85, hold));
-      p.handR.set(lerp(-0.2, -0.1, hold), lerp(4.3, 3.8, hold), lerp(1.15, 0.9, hold));
+      p.hipH = 2.8 - 0.12 * hold;
+      p.lean = 0.06 + 0.1 * hold;
+      p.footL.set(0.6, GROUND, 0.35);
+      p.footR.set(-0.6, GROUND, -0.25);
+      p.handL.set(lerp(0.45, 0.2, hold), lerp(4.5, 3.7, hold), lerp(1.2, 0.8, hold));
+      p.handR.set(lerp(-0.3, -0.1, hold), lerp(4.0, 3.6, hold), lerp(1.05, 0.85, hold));
       const w = c.hasTarget ? c.targetW * (1 - hold) : 0;
       p.gloveUp = 0.9;
+      look = 1;
+      if (c.jump > 0) {
+        // A ball over his reach: he gathers, goes up for it (peaking as it arrives) and lands soft.
+        const up = Math.sin(Math.PI * clamp01((t - CATCH_AT + 0.28) / 0.56));
+        const load = Math.sin(Math.PI * clamp01((t - CATCH_AT + 0.5) / 0.3)) + 0.7 * Math.sin(Math.PI * clamp01((t - CATCH_AT - 0.24) / 0.3));
+        const k = c.jump / 2.4;
+        p.rootY = c.jump * up;
+        p.hipH -= 0.4 * k * load;
+        p.lean += 0.14 * k * load;
+        p.toeL = 0.9 * up;
+        p.toeR = 0.9 * up;
+        p.footL.y += 0.25 * k * up;
+        p.footR.y += 0.5 * k * up;
+      }
       if (w > 0) {
         localTarget(_t, c, 0, flip);
+        _t.y -= p.rootY;
         const low = clamp01((3.2 - _t.y) / 2.5) * w;
-        p.hipH -= 0.55 * low;
-        p.lean += 0.4 * low;
-        // Fingers up for a ball above the belt, down for one below it; eyes on the ball.
+        const high = clamp01((_t.y - 5.6) / 2) * w;
+        p.hipH += 0.14 * high - 0.55 * low;
+        p.lean += 0.4 * low - 0.1 * high;
+        p.sway = 0.3 * w * Math.max(-1, Math.min(1, _t.x * 0.6));
+        p.toeR = Math.max(p.toeR, 0.5 * high);
+        // Fingers up for a ball above the belt, down for one below it.
         p.gloveUp = lerp(0.9, -0.3, low);
-        lookAt(p, _t, w);
         p.handL.lerp(_t, w);
         p.handR.lerp(_t.add(_d.set(-0.4, -0.25, -0.15)), w * 0.6);
       }
@@ -603,11 +810,17 @@ export function poseInto(p: Pose, a: ActorDraw, cls: PoseClass, c: PoseCtx): Pos
       const w = c.hasTarget ? c.targetW * (1 - c.hold) : 0;
       // Glove fingers down while he is bent over the ball, eyes on it.
       const down = clamp01((2.4 - p.hipH) / 0.6);
-      p.gloveUp = lerp(0.3, -0.25, down);
+      p.gloveUp = lerp(0.3, -0.9, down);
       p.headPitch = 0.55 * down;
+      look = 1 - c.hold;
       if (w > 0) {
         localTarget(_t, c, 0, flip);
+        // A ball on the grass: he gets his backside down and his glove on the ground.
+        const low = clamp01((1.3 - _t.y) / 1.1) * w * clamp01((2.6 - p.hipH) / 0.6);
+        p.hipH -= 0.42 * low;
+        p.lean += 0.16 * low;
         _t.y = Math.max(0.2, _t.y);
+        p.sway = 0.3 * w * Math.max(-1, Math.min(1, _t.x * 0.6));
         p.handL.lerp(_t, w);
         p.handR.lerp(_t.add(_d.set(-0.35, 0.2, -0.1)), w * 0.7);
       }
@@ -626,33 +839,58 @@ export function poseInto(p: Pose, a: ActorDraw, cls: PoseClass, c: PoseCtx): Pos
       break;
     }
     case "slide": {
+      // Feet first: lead leg out at the bag, the other folded under it, sitting back on one hand.
       const k = sample1(SLIDE_K, t);
-      p.rootPitch = -1.25 * k;
-      p.headPitch = 0.6 * k;
-      p.hipH = lerp(2.7, 0.85, k);
-      p.lean = lerp(0.2, 0.55, k);
-      p.footL.lerp(_t.set(0.3, p.hipH - 2.8, 0.1), k);
-      p.footR.lerp(_t.set(-0.3, p.hipH - 1.9, 0.9), k);
-      p.handL.lerp(_t.set(0.9, p.hipH + 2.6, 0.9), k);
-      p.handR.lerp(_t.set(-0.9, p.hipH + 2.9, 0.7), k);
+      const th = SLIDE_PITCH * k;
+      p.rootPitch = th;
+      p.hipH = lerp(2.7, 0.62, k);
+      p.lean = lerp(0.2, 0.5, k);
+      p.twist = 0.25 * k;
+      p.roll = 0.12 * k;
+      p.headPitch = 0.9 * k;
+      const h = p.hipH;
+      p.footR.lerp(pitched(_t, -0.3, 0.3, 2.75, h, th), k);
+      p.footL.lerp(pitched(_t, 0.55, 0.22, 1.05, h, th), k);
+      p.handL.lerp(pitched(_t, 1.0, 0.35, -1.0, h, th), k);
+      p.handR.lerp(pitched(_t, -1.1, h + 2.1, 0.5, h, th), k);
+      p.elbowR = 0.6 * k;
       break;
     }
     case "bat":
-      stanceInto(p, t, c.time);
+      stanceInto(p, t, c.time + sd * 5);
+      look = t < 0.6 ? 0.85 : 0;
       break;
     case "swing":
-      swingInto(p, t, c, flip, c.time);
+      swingInto(p, t, c, flip, c.time + sd * 5);
       break;
     case "idle":
     default: {
-      p.hipH = 3.0 + Math.sin(c.time * 1.3 + a.key.length) * 0.015;
-      p.headYaw = Math.sin(c.time * 0.37 + a.key.length * 2.3) * 0.28;
+      const shift = Math.sin(c.time * (0.3 + 0.25 * sd) + sd * 23);
+      p.hipH = 3.0 + Math.sin(c.time * (1.3 + 0.4 * sd) + sd * 11) * 0.015 - 0.03 * Math.abs(shift);
+      p.sway = shift * 0.18;
+      p.roll = -shift * 0.05;
+      p.headYaw = Math.sin(c.time * 0.37 + sd * 29) * 0.28;
+      look = 0.8;
       if (a.kind === "coach") {
-        p.handL.set(0.62, 3.25, 0.1);
-        p.handR.set(-0.62, 3.25, 0.1);
+        // Hands on hips, or arms folded low, by temperament.
+        if (sd > 0.5) {
+          p.handL.set(0.72, 3.3, 0.12);
+          p.handR.set(-0.72, 3.3, 0.12);
+        } else {
+          p.handL.set(0.25, 3.7, 0.75);
+          p.handR.set(-0.3, 3.55, 0.8);
+        }
       }
       break;
     }
+  }
+  if (look > 0 && c.ballW > 0) {
+    const dx = c.bx - c.x;
+    const dz = c.bz - c.z;
+    const s = Math.sin(c.yaw);
+    const co = Math.cos(c.yaw);
+    _t.set((dx * co - dz * s) * flip, c.by - c.groundY, dx * s + dz * co - p.rootZ);
+    lookAt(p, _t, look * c.ballW);
   }
   if (lefty) mirror(p);
   return p;
@@ -677,6 +915,7 @@ export interface RigOut {
   hasBat: boolean;
   hidden: boolean;
   /** World positions of the glove hand and the throwing hand (centre of the palm). */
+  /** World positions of the glove's pocket and of the throwing hand's palm. */
   gloveHand: THREE.Vector3;
   throwHand: THREE.Vector3;
   /** World position of the pelvis (for bounds). */
@@ -784,6 +1023,10 @@ const LEG = [BONE.thighL, BONE.thighR];
 /** The head turns at most this far (rad) from where the chest points. */
 const NECK_LIMIT = 1.25;
 
+/** The glove's pocket, from the wrist: along the fingers and out of the palm (ft). */
+export const GLOVE_POCKET_Y = 0.34;
+export const GLOVE_POCKET_Z = 0.1;
+
 export function hideRig(out: RigOut): void {
   out.hidden = true;
   out.hasBat = false;
@@ -812,7 +1055,9 @@ export function solveRig(a: ActorDraw, pose: Pose, x: number, z: number, yaw: nu
   }
   tmp.rootQ.setFromRotationMatrix(R);
   // The trunk turns and bends progressively from the pelvis up to the chest.
-  const P = tmp.pelvis.copy(R).multiply(_m.makeTranslation(0, pose.hipH, 0));
+  // Sideways shift and lean move the trunk only: hands and feet stay on their targets.
+  const P = tmp.pelvis.copy(R).multiply(_m.makeTranslation(pose.sway, pose.hipH, 0));
+  if (pose.roll) P.multiply(_m.makeRotationZ(-pose.roll));
   const pelvis = B[BONE.pelvis].copy(P).multiply(_m.makeRotationY(pose.twist * PELVIS_TWIST)).multiply(_m2.makeRotationX(pose.lean * PELVIS_LEAN));
   B[BONE.spine].copy(P).multiply(_m.makeRotationY(pose.twist * SPINE_TWIST)).multiply(_m2.makeRotationX(pose.lean * SPINE_LEAN));
   const T = tmp.torso.copy(P).multiply(_m.makeRotationY(pose.twist)).multiply(_m2.makeRotationX(pose.lean));
@@ -839,19 +1084,20 @@ export function solveRig(a: ActorDraw, pose: Pose, x: number, z: number, yaw: nu
     const side = SIDES[i];
     const sh = tmp.sh.set(side * DIM.shoulderX, DIM.shoulderY, 0).applyMatrix4(T);
     tmp.target.copy(i === 0 ? pose.handL : pose.handR).applyMatrix4(R);
-    // Elbows point down, out and back.
-    tmp.pole.set(side * 0.6, -1, -0.8).transformDirection(T);
+    // Elbows point down, out and back; a cocked arm carries its elbow up and out.
+    const up = i === 0 ? pose.elbowL : pose.elbowR;
+    tmp.pole.set(side * (0.6 + 0.5 * up), -1 + 2.1 * up, -0.8).transformDirection(T);
     ik(sh, tmp.target, DIM.upperArm, DIM.foreArm, tmp.pole, -1, tmp.mid, tmp.end, tmp.axis);
     limbFrame(B[ARM[i]], sh, tmp.mid, tmp.axis);
     limbFrame(B[ARM[i] + 1], tmp.mid, tmp.end, tmp.axis);
     const y = tmp.y.subVectors(tmp.mid, tmp.end).normalize();
     const hand = B[ARM[i] + 2];
     if (gloved && i === gloveSide) {
-      out.gloveHand.copy(tmp.end);
       // The glove's fingers cock up from the forearm; its pocket faces forward and a little inward.
       y.addScaledVector(tmp.ty, -Math.max(-0.9, Math.min(0.9, pose.gloveUp))).normalize();
       tmp.ref.copy(tmp.tz).addScaledVector(tmp.tx, -0.5 * side);
       handFrame(hand, tmp.end, y, tmp.ref);
+      out.gloveHand.copy(tmp.end).addScaledVector(y, -GLOVE_POCKET_Y).addScaledVector(_fz, GLOVE_POCKET_Z);
     } else {
       if (i !== gloveSide) out.throwHand.copy(tmp.end);
       else out.gloveHand.copy(tmp.end);
@@ -886,7 +1132,7 @@ export function solveRig(a: ActorDraw, pose: Pose, x: number, z: number, yaw: nu
     ik(hip, tmp.target, DIM.thigh, DIM.shin, tmp.pole, 1, tmp.mid, tmp.end, tmp.axis);
     limbFrame(B[LEG[i]], hip, tmp.mid, tmp.axis);
     limbFrame(B[LEG[i] + 1], tmp.mid, tmp.end, tmp.axis);
-    const toes = Math.max(0, Math.min(0.95, (foot.y - GROUND) * 0.6)) * flat;
+    const toes = Math.min(1.2, Math.max(0, Math.min(0.95, (foot.y - GROUND) * 0.6)) * flat + (i === 0 ? pose.toeL : pose.toeR));
     _q.copy(tmp.rootQ).multiply(_q2.setFromAxisAngle(_up, side * 0.16));
     if (toes > 0) _q.multiply(_q2.setFromAxisAngle(_right, toes));
     B[LEG[i] + 2].compose(tmp.end, _q, _one);
