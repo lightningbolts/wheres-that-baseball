@@ -1,11 +1,13 @@
 /**
  * Park geometry in the game's world frame (feet): fence distance & wall height by
  * spray angle, playing surfaces, foul territory, and elevation (for air density).
- * Fence distances come from the MLB fieldInfo already shipped in data/ballparks.
+ * The fence follows each park's real wall outline (data/ballparks), calibrated to the
+ * published MLB fieldInfo distances — see parkOutline.ts.
  */
 import ballparkIndex from "@/data/ballparks/index.json";
 import { makeAir, type Air } from "@/lib/game/physics/ballFlight";
 import { clamp, horizDist, sprayAngleDeg, type V3 } from "@/lib/game/math";
+import { buildOutline, FIELD_INFO_ANGLES, sampleFence, type FenceMarker, type ParkOutline } from "@/lib/game/physics/parkOutline";
 import type { BallparkIndex } from "@/types/ballpark";
 
 const index = ballparkIndex as BallparkIndex;
@@ -28,18 +30,45 @@ export const SURFACES: Record<Surface, SurfaceProps> = {
   turf: { e: 0.48, keep: 0.8, roll: 6 },
 };
 
-/** Hand-authored wall heights (ft) where they differ from a standard ~8 ft fence. */
-const WALL_OVERRIDES: Record<number, (spray: number) => number> = {
-  3: (a) => (a < -12 ? 37 : a > 30 ? 5 : 17), // Fenway: Monster, Pesky's pole, bullpens
-  2395: (a) => (a > 20 ? 25 : 8), // Oracle Park: RF brick wall
-  2392: (a) => (a < -20 ? 19 : 9), // Houston: LF short porch wall
-  31: (a) => (a > 25 ? 21 : 6), // PNC Park: Clemente Wall
-  3312: (a) => (a > 20 ? 23 : 8), // Target Field: RF overhang wall
-  17: () => 11.5, // Wrigley: brick & ivy
-  19: () => 13, // Coors
-  2: (a) => (a < -20 ? 13 : 7), // Camden Yards: raised LF wall
-  22: () => 8, // Dodger Stadium
+/**
+ * Wall heights (ft) by spray angle: `[fromDeg, height]` steps, each running from its angle
+ * toward right field until the next step. Parks not listed have a standard 8 ft fence.
+ */
+const WALL_STEPS: Record<number, Array<[number, number]>> = {
+  1: [[-45, 8], [22, 18]], // Angel Stadium: tall RF scoreboard wall
+  2: [[-45, 11], [-20, 7], [22, 21]], // Camden Yards: raised LF wall, RF scoreboard
+  3: [[-45, 37], [-9.5, 17], [12, 5]], // Fenway: Green Monster, CF wall, bullpens & Pesky's Pole
+  5: [[-45, 19], [-12, 9]], // Progressive Field: 19 ft LF wall
+  7: [[-45, 9]], // Kauffman
+  14: [[-45, 10]], // Rogers Centre
+  15: [[-45, 7.5], [-5, 25], [5, 7.5]], // Chase Field: 25 ft CF batter's-eye wall
+  17: [[-45, 15], [-41, 11.5], [41, 15]], // Wrigley: brick & ivy, taller in the corners
+  19: [[-45, 13], [-33, 8], [20, 17]], // Coors: RF out-of-town scoreboard
+  22: [[-45, 8]], // Dodger Stadium
+  31: [[-45, 6], [-22, 10], [8, 21]], // PNC Park: 21 ft Clemente Wall
+  2392: [[-45, 21], [-12, 9], [20, 7]], // Daikin Park: Crawford Boxes scoreboard wall
+  2395: [[-45, 8], [18.5, 24]], // Oracle Park: 24 ft brick arcade in RF
+  2602: [[-45, 12], [-20, 8]], // Great American: LF wall
+  2680: [[-45, 8], [26, 10]], // Petco
+  2681: [[-45, 10.5], [-12, 6], [18, 13]], // Citizens Bank: RF scoreboard wall
+  3309: [[-45, 8], [20, 14]], // Nationals Park: RF scoreboard wall
+  3312: [[-45, 8], [20, 23]], // Target Field: RF overhang wall
+  4169: [[-45, 8], [-8, 11.5], [8, 8]], // loanDepot: taller CF
+  4705: [[-45, 8.5], [14, 16]], // Truist Park: RF brick wall
+  5325: [[-45, 14], [-25, 8]], // Globe Life: LF wall
 };
+const DEFAULT_WALL: Array<[number, number]> = [[-45, 8]];
+
+function wallFrom(steps: Array<[number, number]>): (spray: number) => number {
+  return (spray: number) => {
+    let h = steps[0][1];
+    for (let i = 1; i < steps.length; i += 1) {
+      if (spray >= steps[i][0]) h = steps[i][1];
+      else break;
+    }
+    return h;
+  };
+}
 
 /** Approximate field elevations (ft); default near sea level. */
 const ELEVATION_FT: Record<number, number> = {
@@ -53,17 +82,6 @@ const ELEVATION_FT: Record<number, number> = {
   31: 730, // PNC
   4169: 10, // loanDepot
 };
-
-/** Stats API fieldInfo label → spray angle (deg, + toward RF). */
-const FIELD_INFO_ANGLES: Array<[keyof FenceInfo, number]> = [
-  ["leftLine", -45],
-  ["left", -32],
-  ["leftCenter", -18],
-  ["center", 0],
-  ["rightCenter", 18],
-  ["right", 32],
-  ["rightLine", 45],
-];
 
 interface FenceInfo {
   leftLine: number;
@@ -96,6 +114,12 @@ export interface Park {
   /** Fence distance (ft) at a spray angle in degrees (±45 = foul poles). */
   fence(sprayDeg: number): number;
   wallHeight(sprayDeg: number): number;
+  /** Spray angles where the wall height steps (for crisp rendered edges). */
+  wallBreaks: number[];
+  /** Published distances and where they sit on the wall (painted signs). */
+  fenceMarkers: FenceMarker[];
+  /** Seating capacity (drives crowd size). */
+  capacity: number;
   /** Perpendicular distance from each foul line to the stands, ft. */
   foulSpace: number;
   /** Distance from home plate to the backstop, ft. */
@@ -129,6 +153,16 @@ function fenceFrom(info: FenceInfo): (spray: number) => number {
   };
 }
 
+const outlineCache = new Map<number, ParkOutline | null>();
+function outlineFor(id: number, data: BallparkIndex["parks"][string]): ParkOutline | null {
+  let o = outlineCache.get(id);
+  if (o === undefined) {
+    o = buildOutline(data);
+    outlineCache.set(id, o);
+  }
+  return o;
+}
+
 export function buildPark(venueId: number | null | undefined, tempF = 72): Park {
   const data = venueId != null ? index.parks[String(venueId)] : undefined;
   const fi = data?.fieldInfo;
@@ -142,8 +176,11 @@ export function buildPark(venueId: number | null | undefined, tempF = 72): Park 
     rightLine: fi?.rightLine ?? DEFAULT_FENCE.rightLine,
   };
   const id = data?.venueId ?? venueId ?? 0;
-  const fence = fenceFrom(info);
-  const wall = WALL_OVERRIDES[id] ?? (() => 8);
+  const outline = data ? outlineFor(id, data) : null;
+  const table = outline?.fence;
+  const fence = table ? (spray: number) => sampleFence(table, spray) : fenceFrom(info);
+  const steps = WALL_STEPS[id] ?? DEFAULT_WALL;
+  const wall = wallFrom(steps);
   const turf = /turf|artificial/i.test(fi?.turfType ?? "");
   const elevationFt = ELEVATION_FT[id] ?? 300;
   const roof = fi?.roofType ?? null;
@@ -175,8 +212,13 @@ export function buildPark(venueId: number | null | undefined, tempF = 72): Park 
     air: makeAir(elevationFt, roof && /dome|closed/i.test(roof) ? 72 : tempF),
     fence,
     wallHeight: wall,
-    foulSpace: 45,
-    backstop: 60,
+    wallBreaks: steps.slice(1).map((st) => st[0]),
+    fenceMarkers:
+      outline?.markers ??
+      FIELD_INFO_ANGLES.filter(([k]) => fi?.[k] != null || !data).map(([k, a]) => ({ deg: a, ft: info[k] })),
+    capacity: fi?.capacity ?? 40000,
+    foulSpace: outline?.foulSpace ?? 45,
+    backstop: outline?.backstop ?? 60,
     surfaceAt,
   };
 }
