@@ -1,8 +1,8 @@
 /**
  * Procedural humanoid rig. A pose is authored as hand/foot targets in the actor's
  * root frame (origin on the ground, +Z forward, +X = the actor's left); two-bone
- * IK turns that into limb segments. Every body part is one InstancedMesh, so the
- * whole cast of ~18 players costs a dozen draw calls.
+ * IK turns that into the world matrices of a 17-bone skeleton (character/skeleton.ts)
+ * which drives one smooth-skinned mesh per person.
  *
  * Poses are written into caller-owned objects (nothing is allocated per frame),
  * keyframes are interpolated with monotone cubic splines (no stop-and-go at every
@@ -11,6 +11,7 @@
 import * as THREE from "three";
 import type { ActorState } from "@/lib/game/anim/timeline";
 import type { FieldPos } from "@/lib/game/types";
+import { BONE, BONE_COUNT, DIM, PELVIS_LEAN, PELVIS_TWIST, SPINE_LEAN, SPINE_TWIST } from "@/components/game/scene/character/skeleton";
 
 export type ActorKind = "fielder" | "catcher" | "pitcher" | "batter" | "runner" | "umpire" | "coach";
 
@@ -27,6 +28,8 @@ export interface ActorDraw {
   helmet: boolean;
   /** Fielding position, for fielders. */
   pos: FieldPos | null;
+  /** MLB player id (name, number and looks); 0 or absent for umpires and coaches. */
+  id?: number;
 }
 
 export interface Pose {
@@ -46,6 +49,11 @@ export interface Pose {
   batAt: THREE.Vector3;
   batDir: THREE.Vector3;
   hidden: boolean;
+  /** Where the head looks: yaw / pitch (rad) in the root frame; + yaw is toward the actor's left, + pitch is down. */
+  headYaw: number;
+  headPitch: number;
+  /** How far the glove's fingers are cocked up from the forearm toward the body's "up" (negative: down). */
+  gloveUp: number;
 }
 
 /** Pose families; a change of family is cross-faded by the renderer. */
@@ -105,6 +113,9 @@ export function newPose(): Pose {
     batAt: new THREE.Vector3(),
     batDir: new THREE.Vector3(0, 1, 0),
     hidden: false,
+    headYaw: 0,
+    headPitch: 0,
+    gloveUp: 0.3,
   };
 }
 
@@ -123,6 +134,9 @@ export function copyPose(dst: Pose, src: Pose): Pose {
   dst.batAt.copy(src.batAt);
   dst.batDir.copy(src.batDir);
   dst.hidden = src.hidden;
+  dst.headYaw = src.headYaw;
+  dst.headPitch = src.headPitch;
+  dst.gloveUp = src.gloveUp;
   return dst;
 }
 
@@ -135,6 +149,9 @@ export function lerpPose(out: Pose, a: Pose, b: Pose, t: number): Pose {
   out.rootPitch = lerp(a.rootPitch, b.rootPitch, t);
   out.rootY = lerp(a.rootY, b.rootY, t);
   out.rootZ = lerp(a.rootZ, b.rootZ, t);
+  out.headYaw = lerp(a.headYaw, b.headYaw, t);
+  out.headPitch = lerp(a.headPitch, b.headPitch, t);
+  out.gloveUp = lerp(a.gloveUp, b.gloveUp, t);
   out.handL.lerpVectors(a.handL, b.handL, t);
   out.handR.lerpVectors(a.handR, b.handR, t);
   out.footL.lerpVectors(a.footL, b.footL, t);
@@ -331,6 +348,9 @@ function standing(p: Pose) {
   p.footR.set(-0.42, GROUND, 0);
   p.hasBat = false;
   p.hidden = false;
+  p.headYaw = 0;
+  p.headPitch = 0;
+  p.gloveUp = 0.3;
 }
 
 /** World reach target → the actor's root frame (x flipped for a mirrored lefty). */
@@ -349,6 +369,14 @@ function footCycle(out: THREE.Vector3, side: number, u: number, stance: number, 
     const v = (u - stance) / (1 - stance);
     out.set(side * 0.33, GROUND + lift * Math.sin(Math.PI * v), -amp * Math.cos(Math.PI * v));
   }
+}
+
+/** Turn the head toward a point given in the root frame (eyes are about 5.4 ft up). */
+function lookAt(p: Pose, t: THREE.Vector3, w: number) {
+  const flat = Math.hypot(t.x, t.z);
+  if (flat < 0.5) return;
+  p.headYaw = Math.max(-1.2, Math.min(1.2, Math.atan2(t.x, t.z))) * w;
+  p.headPitch = Math.max(-0.7, Math.min(0.8, -Math.atan2(t.y - 5.4, flat))) * w;
 }
 
 const TAU = Math.PI * 2;
@@ -402,6 +430,8 @@ function stanceInto(p: Pose, tau: number, time: number) {
   p.hipH = 2.7 - 0.04 * L + Math.sin(time * 1.7) * 0.02 * still;
   p.lean = 0.3;
   p.twist = -0.3 - 0.15 * L;
+  // Chin on the front shoulder, eyes on the pitcher.
+  p.headYaw = 1.3;
   p.footL.set(1.15 + 0.35 * L, GROUND + 0.3 * Math.sin(Math.PI * L), 0.05 * L);
   p.footR.set(-1.05, GROUND, 0);
   const waggle = Math.sin(time * 2.4) * 0.12 * still;
@@ -425,6 +455,9 @@ function swingInto(p: Pose, t: number, c: PoseCtx, flip: number, time: number) {
   p.hipH = sample1(SWING.hipH, prog);
   p.lean = sample1(SWING.lean, prog);
   p.twist = sample1(SWING.twist, prog);
+  // Head stays on the ball through contact, then follows the swing round.
+  p.headYaw = prog < 0.5 ? lerp(1.3, 0.95, prog * 2) : lerp(0.95, 0.7, prog * 2 - 1);
+  p.headPitch = 0.3 * Math.sin(Math.PI * prog);
   p.footL.set(1.5, GROUND, 0.05);
   sample3(p.footR, SWING.footR, prog);
   sample3(_h, SWING.handle, prog);
@@ -456,6 +489,7 @@ function swingInto(p: Pose, t: number, c: PoseCtx, flip: number, time: number) {
 
 function mirror(p: Pose) {
   p.twist = -p.twist;
+  p.headYaw = -p.headYaw;
   _t.copy(p.handL);
   p.handL.set(-p.handR.x, p.handR.y, p.handR.z);
   p.handR.set(-_t.x, _t.y, _t.z);
@@ -493,6 +527,7 @@ export function poseInto(p: Pose, a: ActorDraw, cls: PoseClass, c: PoseCtx): Pos
       } else {
         p.hipH = 1.35;
         p.lean = 0.3;
+        p.gloveUp = 0.9;
         p.handL.set(0.3, 2.4, 1.5);
         p.handR.set(-0.6, 1.6, 0.3);
         if (c.hasTarget && c.targetW > 0) {
@@ -544,11 +579,15 @@ export function poseInto(p: Pose, a: ActorDraw, cls: PoseClass, c: PoseCtx): Pos
       p.handL.set(lerp(0.45, 0.2, hold), lerp(4.7, 3.9, hold), lerp(1.3, 0.85, hold));
       p.handR.set(lerp(-0.2, -0.1, hold), lerp(4.3, 3.8, hold), lerp(1.15, 0.9, hold));
       const w = c.hasTarget ? c.targetW * (1 - hold) : 0;
+      p.gloveUp = 0.9;
       if (w > 0) {
         localTarget(_t, c, 0, flip);
         const low = clamp01((3.2 - _t.y) / 2.5) * w;
         p.hipH -= 0.55 * low;
         p.lean += 0.4 * low;
+        // Fingers up for a ball above the belt, down for one below it; eyes on the ball.
+        p.gloveUp = lerp(0.9, -0.3, low);
+        lookAt(p, _t, w);
         p.handL.lerp(_t, w);
         p.handR.lerp(_t.add(_d.set(-0.4, -0.25, -0.15)), w * 0.6);
       }
@@ -562,6 +601,10 @@ export function poseInto(p: Pose, a: ActorDraw, cls: PoseClass, c: PoseCtx): Pos
       sample3(p.handL, FIELD.handL, t);
       sample3(p.handR, FIELD.handR, t);
       const w = c.hasTarget ? c.targetW * (1 - c.hold) : 0;
+      // Glove fingers down while he is bent over the ball, eyes on it.
+      const down = clamp01((2.4 - p.hipH) / 0.6);
+      p.gloveUp = lerp(0.3, -0.25, down);
+      p.headPitch = 0.55 * down;
       if (w > 0) {
         localTarget(_t, c, 0, flip);
         _t.y = Math.max(0.2, _t.y);
@@ -574,6 +617,8 @@ export function poseInto(p: Pose, a: ActorDraw, cls: PoseClass, c: PoseCtx): Pos
       p.hipH = sample1(DIVE.hipH, t);
       p.rootPitch = sample1(DIVE.pitch, t);
       p.lean = 0;
+      p.headPitch = -0.55 * p.rootPitch;
+      p.gloveUp = 0;
       p.handL.set(0.3, p.hipH + 3.75, 0.25);
       p.handR.set(-0.4, p.hipH + 3.2, 0.3);
       p.footL.set(0.35, p.hipH - 2.75, -0.25);
@@ -583,6 +628,7 @@ export function poseInto(p: Pose, a: ActorDraw, cls: PoseClass, c: PoseCtx): Pos
     case "slide": {
       const k = sample1(SLIDE_K, t);
       p.rootPitch = -1.25 * k;
+      p.headPitch = 0.6 * k;
       p.hipH = lerp(2.7, 0.85, k);
       p.lean = lerp(0.2, 0.55, k);
       p.footL.lerp(_t.set(0.3, p.hipH - 2.8, 0.1), k);
@@ -600,6 +646,7 @@ export function poseInto(p: Pose, a: ActorDraw, cls: PoseClass, c: PoseCtx): Pos
     case "idle":
     default: {
       p.hipH = 3.0 + Math.sin(c.time * 1.3 + a.key.length) * 0.015;
+      p.headYaw = Math.sin(c.time * 0.37 + a.key.length * 2.3) * 0.28;
       if (a.kind === "coach") {
         p.handL.set(0.62, 3.25, 0.1);
         p.handR.set(-0.62, 3.25, 0.1);
@@ -611,71 +658,61 @@ export function poseInto(p: Pose, a: ActorDraw, cls: PoseClass, c: PoseCtx): Pos
   return p;
 }
 
-// ---------- Matrices ----------
+// ---------- Skeleton ----------
 
-export const PART_LEN = { upperArm: 1.0, foreArm: 0.98, thigh: 1.48, shin: 1.45 };
-const SHOULDER_Y = 1.62;
-const SHOULDER_X = 0.66;
-const HIP_X = 0.3;
-const TORSO_H = 1.85;
+export const PART_LEN = { upperArm: DIM.upperArm, foreArm: DIM.foreArm, thigh: DIM.thigh, shin: DIM.shin };
 
 const _m = new THREE.Matrix4();
 const _m2 = new THREE.Matrix4();
 const _q = new THREE.Quaternion();
-const _v = new THREE.Vector3();
+const _q2 = new THREE.Quaternion();
 const _up = new THREE.Vector3(0, 1, 0);
+const _right = new THREE.Vector3(1, 0, 0);
 const _one = new THREE.Vector3(1, 1, 1);
 
 export interface RigOut {
-  torso: THREE.Matrix4;
-  pelvis: THREE.Matrix4;
-  head: THREE.Matrix4;
-  upperArm: [THREE.Matrix4, THREE.Matrix4];
-  foreArm: [THREE.Matrix4, THREE.Matrix4];
-  thigh: [THREE.Matrix4, THREE.Matrix4];
-  shin: [THREE.Matrix4, THREE.Matrix4];
-  foot: [THREE.Matrix4, THREE.Matrix4];
-  glove: THREE.Matrix4;
+  /** World matrix of every bone, indexed by BONE (character/skeleton.ts). */
+  bones: THREE.Matrix4[];
   bat: THREE.Matrix4;
   hasBat: boolean;
-  /** World positions of the glove hand and the throwing hand. */
+  hidden: boolean;
+  /** World positions of the glove hand and the throwing hand (centre of the palm). */
   gloveHand: THREE.Vector3;
   throwHand: THREE.Vector3;
+  /** World position of the pelvis (for bounds). */
+  center: THREE.Vector3;
 }
 
 export function newRigOut(): RigOut {
-  const M = () => new THREE.Matrix4();
   return {
-    torso: M(),
-    pelvis: M(),
-    head: M(),
-    upperArm: [M(), M()],
-    foreArm: [M(), M()],
-    thigh: [M(), M()],
-    shin: [M(), M()],
-    foot: [M(), M()],
-    glove: M(),
-    bat: M(),
+    bones: Array.from({ length: BONE_COUNT }, () => new THREE.Matrix4()),
+    bat: new THREE.Matrix4(),
     hasBat: false,
+    hidden: false,
     gloveHand: new THREE.Vector3(),
     throwHand: new THREE.Vector3(),
+    center: new THREE.Vector3(),
   };
-}
-
-/** Segment matrix: a Y-aligned unit-centered mesh stretched from A to B (length fixed by geometry). */
-function segment(out: THREE.Matrix4, a: THREE.Vector3, b: THREE.Vector3) {
-  _v.subVectors(b, a);
-  const l = _v.length() || 1;
-  _q.setFromUnitVectors(_up, _v.multiplyScalar(1 / l));
-  _v.addVectors(a, b).multiplyScalar(0.5);
-  out.compose(_v, _q, _one);
 }
 
 const _ikD = new THREE.Vector3();
 const _ikP = new THREE.Vector3();
 
-/** Two-bone IK: writes the elbow/knee and the (reach-clamped) end position. */
-function ik(s: THREE.Vector3, target: THREE.Vector3, a: number, b: number, pole: THREE.Vector3, outMid: THREE.Vector3, outEnd: THREE.Vector3) {
+/**
+ * Two-bone IK: writes the elbow/knee, the (reach-clamped) end position and the hinge
+ * axis of the joint (unit, perpendicular to both segments; `sign` picks its sense).
+ */
+function ik(
+  s: THREE.Vector3,
+  target: THREE.Vector3,
+  a: number,
+  b: number,
+  pole: THREE.Vector3,
+  sign: number,
+  outMid: THREE.Vector3,
+  outEnd: THREE.Vector3,
+  outAxis: THREE.Vector3,
+) {
   const d = _ikD.subVectors(target, s);
   let dist = d.length();
   if (dist < 1e-4) {
@@ -687,47 +724,73 @@ function ik(s: THREE.Vector3, target: THREE.Vector3, a: number, b: number, pole:
   const cosA = Math.min(1, Math.max(-1, (a * a + dist * dist - b * b) / (2 * a * dist)));
   const sinA = Math.sqrt(1 - cosA * cosA);
   const perp = _ikP.copy(pole).addScaledVector(d, -pole.dot(d));
-  if (perp.lengthSq() < 1e-6) perp.set(0, 0, 1);
+  if (perp.lengthSq() < 1e-6) perp.set(0, 0, 1).addScaledVector(d, -d.z);
+  if (perp.lengthSq() < 1e-6) perp.set(1, 0, 0);
   perp.normalize();
   outMid.copy(s).addScaledVector(d, a * cosA).addScaledVector(perp, a * sinA);
   outEnd.copy(s).addScaledVector(d, dist);
+  outAxis.crossVectors(perp, d).multiplyScalar(sign);
+}
+
+const _fx = new THREE.Vector3();
+const _fy = new THREE.Vector3();
+const _fz = new THREE.Vector3();
+
+/** Limb bone: origin at its joint, +Y back along the bone (it hangs down at rest), X the hinge axis. */
+function limbFrame(out: THREE.Matrix4, origin: THREE.Vector3, child: THREE.Vector3, axis: THREE.Vector3) {
+  _fy.subVectors(origin, child).normalize();
+  _fx.copy(axis).addScaledVector(_fy, -axis.dot(_fy));
+  if (_fx.lengthSq() < 1e-8) _fx.set(1, 0, 0).addScaledVector(_fy, -_fy.x);
+  _fx.normalize();
+  _fz.crossVectors(_fx, _fy);
+  out.makeBasis(_fx, _fy, _fz).setPosition(origin);
+}
+
+/** Hand bone: +Y toward the wrist (fingers along −Y), +Z out of the palm, as close to `palm` as it can face. */
+function handFrame(out: THREE.Matrix4, origin: THREE.Vector3, y: THREE.Vector3, palm: THREE.Vector3) {
+  _fz.copy(palm).addScaledVector(y, -palm.dot(y));
+  if (_fz.lengthSq() < 1e-6) _fz.set(y.y, y.z, y.x).addScaledVector(y, -(y.x * y.y + y.y * y.z + y.z * y.x));
+  _fz.normalize();
+  _fx.crossVectors(y, _fz);
+  out.makeBasis(_fx, y, _fz).setPosition(origin);
 }
 
 const tmp = {
   root: new THREE.Matrix4(),
   pelvis: new THREE.Matrix4(),
   torso: new THREE.Matrix4(),
-  sh: [new THREE.Vector3(), new THREE.Vector3()],
-  hip: [new THREE.Vector3(), new THREE.Vector3()],
+  sh: new THREE.Vector3(),
+  hip: new THREE.Vector3(),
   mid: new THREE.Vector3(),
   end: new THREE.Vector3(),
+  axis: new THREE.Vector3(),
   target: new THREE.Vector3(),
   pole: new THREE.Vector3(),
   rootQ: new THREE.Quaternion(),
+  chestQ: new THREE.Quaternion(),
+  headQ: new THREE.Quaternion(),
+  tx: new THREE.Vector3(),
+  ty: new THREE.Vector3(),
+  tz: new THREE.Vector3(),
+  y: new THREE.Vector3(),
+  ref: new THREE.Vector3(),
   at: new THREE.Vector3(),
   dir: new THREE.Vector3(),
 };
 
-const HIDE = new THREE.Matrix4().makeScale(0, 0, 0);
 const SIDES = [1, -1];
+const ARM = [BONE.armL, BONE.armR];
+const LEG = [BONE.thighL, BONE.thighR];
+/** The head turns at most this far (rad) from where the chest points. */
+const NECK_LIMIT = 1.25;
 
 export function hideRig(out: RigOut): void {
-  out.torso.copy(HIDE);
-  out.pelvis.copy(HIDE);
-  out.head.copy(HIDE);
-  out.glove.copy(HIDE);
-  for (let i = 0; i < 2; i += 1) {
-    out.upperArm[i].copy(HIDE);
-    out.foreArm[i].copy(HIDE);
-    out.thigh[i].copy(HIDE);
-    out.shin[i].copy(HIDE);
-    out.foot[i].copy(HIDE);
-  }
+  out.hidden = true;
   out.hasBat = false;
 }
 
 /**
- * Pose → world matrices, with the actor standing at (x, groundY, z) facing `yaw`
+ * Pose → bone world matrices, with the actor standing at (x, groundY, z) facing `yaw`
  * (the renderer's smoothed transform, not necessarily the raw timeline state).
  */
 export function solveRig(a: ActorDraw, pose: Pose, x: number, z: number, yaw: number, groundY: number, out: RigOut): void {
@@ -735,6 +798,8 @@ export function solveRig(a: ActorDraw, pose: Pose, x: number, z: number, yaw: nu
     hideRig(out);
     return;
   }
+  out.hidden = false;
+  const B = out.bones;
   // Root: position, yaw, stride offset, then whole-body pitch about the hips (dives, slides).
   const R = tmp.root;
   R.makeTranslation(x, groundY + pose.rootY, z);
@@ -745,41 +810,90 @@ export function solveRig(a: ActorDraw, pose: Pose, x: number, z: number, yaw: nu
     R.multiply(_m.makeRotationX(pose.rootPitch));
     R.multiply(_m.makeTranslation(0, -pose.hipH, 0));
   }
+  tmp.rootQ.setFromRotationMatrix(R);
+  // The trunk turns and bends progressively from the pelvis up to the chest.
   const P = tmp.pelvis.copy(R).multiply(_m.makeTranslation(0, pose.hipH, 0));
-  out.pelvis.copy(P).multiply(_m.makeTranslation(0, 0.1, 0));
+  const pelvis = B[BONE.pelvis].copy(P).multiply(_m.makeRotationY(pose.twist * PELVIS_TWIST)).multiply(_m2.makeRotationX(pose.lean * PELVIS_LEAN));
+  B[BONE.spine].copy(P).multiply(_m.makeRotationY(pose.twist * SPINE_TWIST)).multiply(_m2.makeRotationX(pose.lean * SPINE_LEAN));
   const T = tmp.torso.copy(P).multiply(_m.makeRotationY(pose.twist)).multiply(_m2.makeRotationX(pose.lean));
-  out.torso.copy(T).multiply(_m.makeTranslation(0, TORSO_H / 2 + 0.2, 0));
-  out.head.copy(T).multiply(_m.makeTranslation(0, TORSO_H + 0.62, 0.02));
+  B[BONE.chest].copy(T);
+  out.center.setFromMatrixPosition(P);
+  T.extractBasis(tmp.tx, tmp.ty, tmp.tz);
+
+  // Head: looks where the pose says (root frame), as far as the neck allows.
+  tmp.chestQ.setFromRotationMatrix(T);
+  tmp.headQ.copy(tmp.rootQ).multiply(_q.setFromAxisAngle(_up, pose.headYaw)).multiply(_q2.setFromAxisAngle(_right, pose.headPitch));
+  const turn = tmp.chestQ.angleTo(tmp.headQ);
+  _q.copy(tmp.chestQ).slerp(tmp.headQ, turn > NECK_LIMIT ? NECK_LIMIT / turn : 1);
+  tmp.at.set(0, DIM.headY, 0).applyMatrix4(T);
+  B[BONE.head].compose(tmp.at, _q, _one);
+  _q2.copy(tmp.chestQ).slerp(_q, 0.5);
+  tmp.at.set(0, DIM.neckY, DIM.neckZ).applyMatrix4(T);
+  B[BONE.neck].compose(tmp.at, _q2, _one);
 
   // Arms (index 0 = left, 1 = right).
+  const gloved = a.kind === "fielder" || a.kind === "pitcher" || a.kind === "catcher";
   const gloveSide = a.hand === "R" ? 0 : 1;
+  if (pose.hasBat) tmp.dir.copy(pose.batDir).transformDirection(R);
   for (let i = 0; i < 2; i += 1) {
-    const sh = tmp.sh[i].set(SIDES[i] * SHOULDER_X, SHOULDER_Y + 0.2, 0).applyMatrix4(T);
+    const side = SIDES[i];
+    const sh = tmp.sh.set(side * DIM.shoulderX, DIM.shoulderY, 0).applyMatrix4(T);
     tmp.target.copy(i === 0 ? pose.handL : pose.handR).applyMatrix4(R);
     // Elbows point down, out and back.
-    tmp.pole.set(SIDES[i] * 0.6, -1, -0.8).transformDirection(T);
-    ik(sh, tmp.target, PART_LEN.upperArm, PART_LEN.foreArm, tmp.pole, tmp.mid, tmp.end);
-    segment(out.upperArm[i], sh, tmp.mid);
-    segment(out.foreArm[i], tmp.mid, tmp.end);
-    if (i === gloveSide) {
+    tmp.pole.set(side * 0.6, -1, -0.8).transformDirection(T);
+    ik(sh, tmp.target, DIM.upperArm, DIM.foreArm, tmp.pole, -1, tmp.mid, tmp.end, tmp.axis);
+    limbFrame(B[ARM[i]], sh, tmp.mid, tmp.axis);
+    limbFrame(B[ARM[i] + 1], tmp.mid, tmp.end, tmp.axis);
+    const y = tmp.y.subVectors(tmp.mid, tmp.end).normalize();
+    const hand = B[ARM[i] + 2];
+    if (gloved && i === gloveSide) {
       out.gloveHand.copy(tmp.end);
-      out.glove.compose(tmp.end, _q.setFromRotationMatrix(_m.extractRotation(T)), _one);
-    } else out.throwHand.copy(tmp.end);
+      // The glove's fingers cock up from the forearm; its pocket faces forward and a little inward.
+      y.addScaledVector(tmp.ty, -Math.max(-0.9, Math.min(0.9, pose.gloveUp))).normalize();
+      tmp.ref.copy(tmp.tz).addScaledVector(tmp.tx, -0.5 * side);
+      handFrame(hand, tmp.end, y, tmp.ref);
+    } else {
+      if (i !== gloveSide) out.throwHand.copy(tmp.end);
+      else out.gloveHand.copy(tmp.end);
+      // Palms face in toward the body.
+      tmp.ref.copy(tmp.tx).multiplyScalar(-side).addScaledVector(tmp.tz, 0.25);
+      if (pose.hasBat) {
+        // Fingers wrap the handle: the bat runs across the palm, along the hand's X axis.
+        _fx.copy(tmp.dir).addScaledVector(y, -tmp.dir.dot(y));
+        if (_fx.lengthSq() > 0.01) {
+          _fx.normalize();
+          _fz.crossVectors(_fx, y);
+          if (_fz.dot(tmp.ref) < 0) {
+            _fx.negate();
+            _fz.negate();
+          }
+          hand.makeBasis(_fx, y, _fz).setPosition(tmp.end);
+          continue;
+        }
+      }
+      handFrame(hand, tmp.end, y, tmp.ref);
+    }
   }
-  // Legs: knees point forward.
-  tmp.rootQ.setFromRotationMatrix(_m.extractRotation(R));
+
+  // Legs: knees point forward; a lifted foot points its toes down.
+  const flat = 1 - Math.min(1, Math.abs(pose.rootPitch) * 2);
   for (let i = 0; i < 2; i += 1) {
-    const hip = tmp.hip[i].set(SIDES[i] * HIP_X, -0.05, 0).applyMatrix4(P);
-    tmp.target.copy(i === 0 ? pose.footL : pose.footR).applyMatrix4(R);
-    tmp.pole.set(0, 0.2, 1).transformDirection(R);
-    ik(hip, tmp.target, PART_LEN.thigh, PART_LEN.shin, tmp.pole, tmp.mid, tmp.end);
-    segment(out.thigh[i], hip, tmp.mid);
-    segment(out.shin[i], tmp.mid, tmp.end);
-    out.foot[i].compose(tmp.end, tmp.rootQ, _one);
+    const side = SIDES[i];
+    const foot = i === 0 ? pose.footL : pose.footR;
+    const hip = tmp.hip.set(side * DIM.hipX, DIM.hipY, 0).applyMatrix4(pelvis);
+    tmp.target.copy(foot).applyMatrix4(R);
+    tmp.pole.set(side * 0.12, 0.2, 1).transformDirection(R);
+    ik(hip, tmp.target, DIM.thigh, DIM.shin, tmp.pole, 1, tmp.mid, tmp.end, tmp.axis);
+    limbFrame(B[LEG[i]], hip, tmp.mid, tmp.axis);
+    limbFrame(B[LEG[i] + 1], tmp.mid, tmp.end, tmp.axis);
+    const toes = Math.max(0, Math.min(0.95, (foot.y - GROUND) * 0.6)) * flat;
+    _q.copy(tmp.rootQ).multiply(_q2.setFromAxisAngle(_up, side * 0.16));
+    if (toes > 0) _q.multiply(_q2.setFromAxisAngle(_right, toes));
+    B[LEG[i] + 2].compose(tmp.end, _q, _one);
   }
+
   if (pose.hasBat) {
     tmp.at.copy(pose.batAt).applyMatrix4(R);
-    tmp.dir.copy(pose.batDir).transformDirection(R);
     _q.setFromUnitVectors(_up, tmp.dir);
     // Bat geometry has its handle at the origin and extends +Y.
     out.bat.compose(tmp.at, _q, _one);

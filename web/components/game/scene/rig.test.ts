@@ -15,6 +15,7 @@ import {
   type ActorDraw,
   type ActorKind,
 } from "@/components/game/scene/rig";
+import { BONE, BONE_COUNT } from "@/components/game/scene/character/skeleton";
 import type { Action } from "@/lib/game/anim/timeline";
 
 const WHITE = new THREE.Color(1, 1, 1);
@@ -181,5 +182,54 @@ describe("poses", () => {
     const after = tip(0.16).distanceTo(tip(0.15));
     expect(after / late).toBeGreaterThan(0.6);
     expect(after / late).toBeLessThan(1.6);
+  });
+});
+
+describe("skeleton", () => {
+  it("solves every pose to rigid, finite bone matrices with the hands on their wrists", () => {
+    const cases: Array<[ActorKind, Action, number, "L" | "R"]> = [
+      ["fielder", "ready", 0, "R"],
+      ["fielder", "throw", 0.3, "L"],
+      ["fielder", "dive", 0.6, "R"],
+      ["fielder", "field", 0.38, "R"],
+      ["pitcher", "pitch", 1.1, "R"],
+      ["pitcher", "pitch", 0.55, "L"],
+      ["catcher", "crouch", 0, "R"],
+      ["batter", "stance", 0.2, "L"],
+      ["batter", "swing", 0.14, "R"],
+      ["runner", "slide", 0.4, "R"],
+      ["umpire", "crouch", 0, "R"],
+      ["coach", "idle", 0, "R"],
+    ];
+    const ctx = newPoseCtx();
+    const out = newRigOut();
+    const cx = new THREE.Vector3();
+    const cy = new THREE.Vector3();
+    const cz = new THREE.Vector3();
+    const at = new THREE.Vector3();
+    for (const [kind, action, t, hand] of cases) {
+      const a = actor(kind, action, t, hand, 12, -7, 0.9);
+      const pose = poseInto(newPose(), a, poseClass(a), ctx);
+      solveRig(a, pose, 12, -7, 0.9, 0, out);
+      const label = `${kind}/${action}`;
+      expect(out.bones.length).toBe(BONE_COUNT);
+      for (let b = 0; b < BONE_COUNT; b += 1) {
+        const m = out.bones[b];
+        expect(m.elements.every(Number.isFinite), label).toBe(true);
+        m.extractBasis(cx, cy, cz);
+        expect(cx.length(), label).toBeCloseTo(1, 4);
+        expect(cy.length(), label).toBeCloseTo(1, 4);
+        expect(cz.length(), label).toBeCloseTo(1, 4);
+        expect(Math.abs(cx.dot(cy)) + Math.abs(cy.dot(cz)) + Math.abs(cz.dot(cx)), label).toBeLessThan(1e-3);
+        expect(m.determinant(), label).toBeGreaterThan(0.99);
+      }
+      // The glove is on the left hand of a right-hander, and the other way round.
+      const glove = hand === "R" ? BONE.handL : BONE.handR;
+      const bare = hand === "R" ? BONE.handR : BONE.handL;
+      expect(at.setFromMatrixPosition(out.bones[glove]).distanceTo(out.gloveHand), label).toBeLessThan(0.45);
+      expect(at.setFromMatrixPosition(out.bones[bare]).distanceTo(out.throwHand), label).toBeLessThan(0.45);
+      // Nobody is solved far from where he stands (a pitcher strides well down the mound).
+      expect(Math.hypot(out.center.x - 12, out.center.z + 7), label).toBeLessThan(6);
+    }
   });
 });
