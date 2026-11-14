@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { humanSwing, meterAt, meterToCommand, SWING_LEAD_S } from "@/lib/game/session/humanInput";
+import { contactScale, humanSwing, meterAt, meterToCommand, pciHalfSize, powerScale, SWING_LEAD_S } from "@/lib/game/session/humanInput";
 import { idealContactTime, resolveSwingPhase, throwPitchPhase } from "@/lib/game/engine/atBat";
 import { newGame } from "@/lib/game/__fixtures/teams";
 import { Rng } from "@/lib/game/math";
@@ -40,5 +40,25 @@ describe("human input mapping", () => {
       expect(late.swing).toBe(true);
       expect(resolveSwingPhase(ctx, decision, flight, late, rng).kind).toBe("swinging_strike");
     }
+  });
+});
+
+describe("per-batter plate coverage", () => {
+  const avg = { zContact: 0.83, oContact: 0.57, batSpeedMph: 71 };
+  const slap = { zContact: 0.93, oContact: 0.72, batSpeedMph: 64 };
+  const slugger = { zContact: 0.74, oContact: 0.45, batSpeedMph: 78 };
+
+  it("sizes the box by contact skill", () => {
+    const a = pciHalfSize(false, "pro", avg).w;
+    expect(pciHalfSize(false, "pro", slap).w).toBeGreaterThan(a * 1.15);
+    expect(pciHalfSize(false, "pro", slugger).w).toBeLessThan(a * 0.85);
+  });
+
+  it("lets big power give up less box on a power swing", () => {
+    const keep = (b: typeof avg) => pciHalfSize(true, "pro", b).w / pciHalfSize(false, "pro", b).w;
+    expect(keep(slugger)).toBeGreaterThan(keep(slap));
+    expect(powerScale(slugger)).toBe(1);
+    expect(powerScale(slap)).toBe(0);
+    expect(contactScale(undefined)).toBe(1);
   });
 });

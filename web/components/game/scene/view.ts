@@ -75,10 +75,13 @@ export interface PlateHud {
   /** pb.now when the newest mark landed (it pulses), −1 = never. */
   markAt: number;
   /**
-   * Approach ring on the zone plane (the incoming ball projected straight onto it):
-   * the fraction of the flight (0 = release, 1 = plate) at which it appears; null = off.
+   * Pitch-location ring on the zone plane, closing onto the spot where the pitch
+   * will cross: the fraction of the flight (0 = release, 1 = plate) at which it
+   * appears; null = off.
    */
   assistFrom: number | null;
+  /** Where the pitch now in the air crosses the plate (Statcast px / pz), or null. */
+  cross: { px: number; pz: number } | null;
 }
 
 const huds = new WeakMap<Playback, PlateHud>();
@@ -87,7 +90,7 @@ const huds = new WeakMap<Playback, PlateHud>();
 export function plateHud(pb: Playback): PlateHud {
   let h = huds.get(pb);
   if (!h) {
-    h = { marks: [], markAt: -1, assistFrom: null };
+    h = { marks: [], markAt: -1, assistFrom: null, cross: null };
     huds.set(pb, h);
   }
   return h;

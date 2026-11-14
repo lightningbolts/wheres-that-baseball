@@ -106,7 +106,7 @@ export function Ball({ pb }: { pb: Playback }) {
     const plateView = pb.cam === "batter" || pb.cam === "pitcher" || pb.cam === "broadcast";
     const pitching = !!tl && !held && plateView && pb.T >= tl.releaseT && pb.T < Math.min(tl.contactT ?? Infinity, tl.receive.t);
     // Keep the ball a minimum size on screen regardless of camera (radius in CSS px).
-    const minPx = pitching ? (pb.cam === "batter" ? 5 : 3.2) : 2.2;
+    const minPx = pitching ? (pb.cam === "batter" ? 3.4 : 2.8) : 2.2;
     const ftPerPx = (2 * d * Math.tan(((cam.fov ?? 45) * Math.PI) / 360)) / Math.max(240, size.height);
     const s = Math.max(1, (minPx * ftPerPx) / BALL_R);
     b.scale.setScalar(s);
@@ -509,8 +509,8 @@ export function PlateOverlay({
       num.map = numerals[(m.n - 1) % MAX_MARKS];
       num.opacity = newest ? 1 : 0.7;
     }
-    // Approach ring: the incoming ball projected straight onto the zone plane,
-    // closing in on the spot where it will cross.
+    // Pitch-location ring: appears on the zone plane partway through the flight and
+    // closes onto the exact spot where the pitch will cross (break included).
     const ap = approach.current;
     if (ap) {
       let on = false;
@@ -520,9 +520,10 @@ export function PlateOverlay({
         const span = Math.max(1, tl.releaseP.z - z);
         const frac = 1 - (p.z - z) / span;
         const alpha = smooth01((frac - hud.assistFrom) / 0.12);
-        if (p.z > z && alpha > 0.01) {
+        const c = hud.cross;
+        if (c && p.z > z && alpha > 0.01) {
           on = true;
-          ap.position.set(p.x, p.y, z);
+          ap.position.set(-c.px, c.pz, z);
           ap.quaternion.copy(cam.quaternion);
           ap.scale.setScalar(Math.max(BALL_R, 4 * ftPerPx) * (1 + 3.2 * (1 - frac)));
           (ap.material as THREE.MeshBasicMaterial).opacity = 0.85 * alpha;

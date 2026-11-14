@@ -91,7 +91,7 @@ type Board = Pick<
 
 const markKind = (k: string): MarkKind => (k === "foul_tip" ? "swinging_strike" : k in MARK_COLOR ? (k as MarkKind) : "ball");
 /** Approach ring on the zone: the whole flight for rookies, the last stretch on pro, off on all-star. */
-const ASSIST_FROM: Record<GameSetup["difficulty"], number | null> = { rookie: 0, pro: 0.45, allstar: null };
+const ASSIST_FROM: Record<GameSetup["difficulty"], number | null> = { rookie: 0, pro: 0.5, allstar: null };
 
 const PITCH_NAMES: Record<string, string> = {
   FF: "4-Seam",
@@ -279,10 +279,8 @@ export class GameController {
       a.kind = "pci";
       a.visible = true;
       this.applyPci();
-      // The pitcher comes set on his own; the action button calls for the pitch sooner.
-      this.later(this.turbo ? 350 : 1000, () => {
-        if (this.phase === "ready" && this.pitchSeq === seq) this.throwPitch({ steal: this.stealOn });
-      });
+      // The pitcher waits for the batter: the action button calls for the pitch, so
+      // there is time to set the aim, pick a power swing or send the runner.
     } else {
       this.setCam("broadcast");
       this.phase = "ready";
@@ -295,7 +293,7 @@ export class GameController {
   }
 
   private applyPci() {
-    const { w, h } = pciHalfSize(this.power, this.setup.difficulty);
+    const { w, h } = pciHalfSize(this.power, this.setup.difficulty, this.session.currentContext?.batter);
     this.pb.aim.w = w;
     this.pb.aim.h = h;
   }
@@ -321,6 +319,7 @@ export class GameController {
     const s = this.session;
     const flight = s.throw(input);
     this.flight = flight;
+    this.hud.cross = { px: flight.px, pz: flight.pz };
     this.readout = null;
     this.pb.aim.showZone = true;
     if (s.humanPitching) this.pb.aim.visible = false;
@@ -330,7 +329,9 @@ export class GameController {
       // The pitch always comes in at the difficulty's speed, fast-forward or not.
       this.pb.turbo = false;
       this.pb.T = tl.releaseT - (this.turbo ? 0.8 : 1.25);
-      this.pb.slow = { from: tl.releaseT, to: flight.cross.t + 0.2, rate: DIFFICULTY[this.setup.difficulty].timeScale };
+      // Ease into slow motion during the windup, so the ball flies at one constant
+      // speed from the hand to the plate instead of visibly decelerating mid-flight.
+      this.pb.slow = { from: tl.releaseT - 0.55, to: flight.cross.t + 0.2, rate: DIFFICULTY[this.setup.difficulty].timeScale };
       this.pb.cues = [
         { T: flight.cross.t, fn: () => this.markPitch(flight, "pending") },
         { T: flight.cross.t + 0.1, fn: () => this.swing(null) },
