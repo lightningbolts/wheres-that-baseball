@@ -4,193 +4,155 @@ import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import type { Park } from "@/lib/game/physics/park";
-import { BASES, MOUND } from "@/lib/game/physics/park";
+import { layoutFor } from "@/lib/game/data/parkLayouts";
+import { buildWallLoop, fieldGrass, fieldMarks, GROUND_Y, wallCaps, wallGeometry } from "@/components/game/scene/fieldGeometry";
+import { GeoBuilder } from "@/components/game/scene/parks/geo";
+import { buildStands } from "@/components/game/scene/parks/stands";
 import {
-  bowlGeometry,
-  chalkStrip,
-  dirXZ,
-  dirtCircle,
-  dirtTexture,
-  grassTexture,
-  infieldDirt,
-  moundGeometry,
-  wallGeometry,
-  wallPath,
-  warningTrack,
-} from "@/components/game/scene/fieldGeometry";
-
-const S2 = Math.SQRT1_2;
+  battersEye,
+  bullpens,
+  decalGeometry,
+  DUGOUT,
+  dugouts,
+  features,
+  foulPoles,
+  lightBanks,
+  netGeometry,
+  roof,
+  scoreboard,
+  type BoardPlacement,
+  type PropCtx,
+} from "@/components/game/scene/parks/props";
+import { applyWorldDetail, decalAtlas, detailTexture, mowTexture, netTexture, seatTexture, wallAtlas } from "@/components/game/scene/parks/textures";
+import { timeOfDay } from "@/components/game/scene/parks/tod";
 
 /** Shared excitement level (0..1) the crowd reacts to; set by the game view. */
 export const crowdState = { excite: 0 };
 
-function useDispose<T extends { dispose(): void }>(items: T[]) {
-  useEffect(() => () => items.forEach((i) => i.dispose()), [items]);
-}
+/** Most fans drawn at once (one instanced draw call). */
+const MAX_FANS = 26000;
 
+/**
+ * The whole ballpark for one venue: real wall outline, park-specific stands, landmarks and
+ * backdrop. Static geometry is merged into a handful of meshes (field, markings, wall,
+ * structure, seating, lights, net, decals) so a park costs about a dozen draw calls.
+ */
 export function Ballpark({ park, homeColor }: { park: Park; homeColor: string }) {
-  const geo = useMemo(() => {
-    const path = wallPath(park);
-    const walls = wallGeometry(path);
-    const bowl = bowlGeometry(path);
-    const lf = park.fence(-45);
-    const rf = park.fence(45);
-    const lines = [
-      chalkStrip(0, 0, rf * -S2, rf * S2, 0.3),
-      chalkStrip(0, 0, lf * S2, lf * S2, 0.3),
-      // Batter's boxes (4 × 6 ft, 6 in off the plate) and catcher's box lines.
-      ...[1, -1].flatMap((sx) => {
-        const x0 = sx * 0.71;
-        const x1 = sx * 4.71;
-        return [
-          chalkStrip(x0, -2.3, x0, 3.7, 0.25),
-          chalkStrip(x1, -2.3, x1, 3.7, 0.25),
-          chalkStrip(x0, 3.7, x1, 3.7, 0.25),
-          chalkStrip(x0, -2.3, x1, -2.3, 0.25),
-        ];
-      }),
-    ];
+  const tod = useMemo(() => timeOfDay(park.venueId), [park.venueId]);
+  const lit = tod !== "day";
+
+  const built = useMemo(() => {
+    const layout = layoutFor(park.venueId);
+    const loop = buildWallLoop(park);
+    const st = new GeoBuilder();
+    const glow = new GeoBuilder();
+    const seats = new GeoBuilder(true);
+    const stands = buildStands(layout, loop, st, seats, {
+      homeColor,
+      skip: (beta, off) => Math.abs(beta) > DUGOUT.from - 1.5 && Math.abs(beta) < DUGOUT.to + 1.5 && off < DUGOUT.depth + 1,
+    });
+    const ctx: PropCtx = { park, layout, loop, st, glow, reach: stands.reach, homeColor, lit };
+    wallCaps(loop, st, layout.trim);
+    foulPoles(ctx);
+    dugouts(ctx);
+    battersEye(ctx);
+    bullpens(ctx);
+    lightBanks(ctx);
+    const board = scoreboard(ctx);
+    roof(ctx);
+    features(ctx);
+    const net = netGeometry(ctx);
     return {
-      path,
-      walls,
-      bowl,
-      dirt: infieldDirt(),
-      home: dirtCircle(0, 0, 13, 0.04),
-      cutouts: [1, 2, 3].map((b) => {
-        const p = b === 1 ? BASES.first : b === 2 ? BASES.second : BASES.third;
-        return dirtCircle(p.x, p.z, 9, 0.035);
-      }),
-      mound: moundGeometry(),
-      track: warningTrack(park),
-      lines,
+      ctx,
+      layout,
+      board,
+      slots: stands.slots,
+      yaws: stands.yaws,
+      geo: {
+        grass: fieldGrass(loop),
+        marks: fieldMarks(park, loop),
+        wall: wallGeometry(loop, layout),
+        structure: st.build(),
+        seats: seats.build(),
+        glow: glow.build(),
+        net,
+      },
     };
-  }, [park]);
-  useDispose(
-    useMemo(
-      () => [geo.walls.wall, geo.walls.cap, geo.bowl.bowl, geo.dirt, geo.home, geo.mound, geo.track, ...geo.cutouts, ...geo.lines],
-      [geo],
-    ),
+  }, [park, homeColor, lit]);
+  useEffect(() => () => Object.values(built.geo).forEach((g) => g.dispose()), [built]);
+
+  const mats = useMemo(() => {
+    if (typeof document === "undefined") return null;
+    const detail = detailTexture();
+    const mow = mowTexture(built.layout.mow, park.turf);
+    const atlas = wallAtlas();
+    const seatTex = seatTexture();
+    const netTex = netTexture();
+    const decals = decalAtlas(
+      park.fenceMarkers.map((m) => m.ft),
+      built.layout.skins.some((s) => s[1] === "monster") || built.layout.wall === "#1c2f55" ? "#f4f1e6" : "#f1d44a",
+    );
+    const grass = new THREE.MeshStandardMaterial({ map: mow, roughness: 0.95 });
+    applyWorldDetail(grass, detail, 0.33);
+    const marks = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    applyWorldDetail(marks, detail, 0.21);
+    const textures = [detail, mow, atlas, seatTex, netTex, decals.texture];
+    const materials = {
+      grass,
+      marks,
+      wall: new THREE.MeshStandardMaterial({ map: atlas, vertexColors: true, roughness: 0.9, side: THREE.DoubleSide }),
+      structure: new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }),
+      seats: new THREE.MeshLambertMaterial({ map: seatTex, vertexColors: true, side: THREE.DoubleSide }),
+      glow: new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, toneMapped: false }),
+      net: new THREE.MeshBasicMaterial({ map: netTex, transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide }),
+      decal: new THREE.MeshLambertMaterial({ map: decals.texture, transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }),
+      outside: new THREE.MeshLambertMaterial({ color: "#5d625c" }),
+    };
+    return { materials, textures, decalGeo: decalGeometry(built.ctx, decals) };
+  }, [built, park]);
+  useEffect(
+    () => () => {
+      if (!mats) return;
+      Object.values(mats.materials).forEach((m) => m.dispose());
+      mats.textures.forEach((t) => t.dispose());
+      mats.decalGeo.dispose();
+    },
+    [mats],
   );
 
-  const tex = useMemo(() => {
-    const grass = grassTexture();
-    if (grass) {
-      grass.repeat.set(1600 / 36, 1600 / 36);
-      grass.rotation = Math.PI / 4;
-      grass.center.set(0.5, 0.5);
-    }
-    const dirt = dirtTexture();
-    dirt?.repeat.set(0.08, 0.08);
-    return { grass, dirt };
-  }, []);
-  useEffect(() => () => {
-    tex.grass?.dispose();
-    tex.dirt?.dispose();
-  }, [tex]);
-
-  const turf = park.turf;
-  const dirtMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: turf ? "#7d6a5a" : "#c08a5e", map: tex.dirt, roughness: 1 }),
-    [tex, turf],
-  );
-  // World-space dirt UVs: ShapeGeometry UVs are in feet already, so a small repeat tiles nicely.
-  useEffect(() => () => dirtMat.dispose(), [dirtMat]);
-
-  const poles = useMemo(
-    () =>
-      [-45, 45].map((a) => {
-        const [dx, dz] = dirXZ(a);
-        const f = park.fence(a);
-        return { x: dx * f, z: dz * f, h: park.wallHeight(a) + 75 };
-      }),
-    [park],
-  );
-
+  if (!mats) return null;
+  const { geo } = built;
+  const m = mats.materials;
   return (
     <group>
-      {/* Grass to the horizon (also the foul territory). */}
-      <mesh rotation-x={-Math.PI / 2} position={[0, 0, 200]} receiveShadow>
-        <planeGeometry args={[1600, 1600]} />
-        <meshStandardMaterial color={turf ? "#3b7a3a" : "#ffffff"} map={tex.grass} roughness={0.95} />
+      <mesh rotation-x={-Math.PI / 2} position={[0, GROUND_Y, 200]} material={m.outside}>
+        <planeGeometry args={[12000, 12000]} />
       </mesh>
-      <mesh geometry={geo.dirt} material={dirtMat} receiveShadow />
-      <mesh geometry={geo.home} material={dirtMat} receiveShadow />
-      {geo.cutouts.map((g, i) => (
-        <mesh key={i} geometry={g} material={dirtMat} receiveShadow />
-      ))}
-      <mesh geometry={geo.mound} material={dirtMat} receiveShadow />
-      <mesh geometry={geo.track} receiveShadow>
-        <meshStandardMaterial color="#8e6447" roughness={1} />
-      </mesh>
-      {geo.lines.map((g, i) => (
-        <mesh key={i} geometry={g}>
-          <meshBasicMaterial color="#f4f1ea" />
-        </mesh>
-      ))}
-      <Bases />
-      {/* Outfield + foul walls */}
-      <mesh geometry={geo.walls.wall} receiveShadow>
-        <meshStandardMaterial color="#2f5a44" emissive="#0e2018" roughness={0.9} side={THREE.DoubleSide} />
-      </mesh>
-      <mesh geometry={geo.walls.cap}>
-        <meshStandardMaterial color="#e7c23b" side={THREE.DoubleSide} roughness={0.6} />
-      </mesh>
-      <mesh geometry={geo.bowl.bowl}>
-        <meshLambertMaterial vertexColors side={THREE.DoubleSide} />
-      </mesh>
-      <Crowd seats={geo.bowl.seats} yaws={geo.bowl.seatYaw} accent={homeColor} />
-      {poles.map((p, i) => (
-        <mesh key={i} position={[p.x, p.h / 2, p.z]}>
-          <cylinderGeometry args={[0.6, 0.6, p.h, 8]} />
-          <meshStandardMaterial color="#f2d23a" emissive="#5a4a00" />
-        </mesh>
-      ))}
-      <LightTowers path={geo.path} />
-      <Scoreboard park={park} />
-    </group>
-  );
-}
-
-function Bases() {
-  return (
-    <group>
-      {[BASES.first, BASES.second, BASES.third].map((b, i) => (
-        <mesh key={i} position={[b.x, 0.12, b.z]} rotation-y={Math.PI / 4} castShadow>
-          <boxGeometry args={[1.5, 0.22, 1.5]} />
-          <meshStandardMaterial color="#fbfbf8" roughness={0.6} />
-        </mesh>
-      ))}
-      {/* Home plate: 17 in pentagon; the world origin is its back point. */}
-      <mesh rotation-x={-Math.PI / 2} position={[0, 0.07, 0]}>
-        <shapeGeometry
-          args={[
-            new THREE.Shape([
-              new THREE.Vector2(0, 0),
-              new THREE.Vector2(0.708, -0.708),
-              new THREE.Vector2(0.708, -1.417),
-              new THREE.Vector2(-0.708, -1.417),
-              new THREE.Vector2(-0.708, -0.708),
-            ]),
-          ]}
-        />
-        <meshStandardMaterial color="#fbfbf8" />
-      </mesh>
-      {/* Rubber */}
-      <mesh position={[MOUND.x, 0.88, MOUND.z]}>
-        <boxGeometry args={[2, 0.1, 0.5]} />
-        <meshStandardMaterial color="#fbfbf8" />
-      </mesh>
+      <mesh geometry={geo.grass} material={m.grass} receiveShadow />
+      <mesh geometry={geo.marks} material={m.marks} receiveShadow />
+      <mesh geometry={geo.wall} material={m.wall} castShadow receiveShadow />
+      <mesh geometry={mats.decalGeo} material={m.decal} />
+      <mesh geometry={geo.structure} material={m.structure} castShadow />
+      <mesh geometry={geo.seats} material={m.seats} />
+      <mesh geometry={geo.glow} material={m.glow} />
+      <Crowd seats={built.slots} yaws={built.yaws} accent={homeColor} capacity={park.capacity} />
+      <mesh geometry={geo.net} material={m.net} renderOrder={2} />
+      <Scoreboard at={built.board} />
     </group>
   );
 }
 
 /**
- * Instanced crowd: one draw call for ~15k fans. A vertex-shader bob driven by
+ * Instanced crowd: one draw call for up to ~26k fans. A vertex-shader bob driven by
  * `crowdState.excite` makes them stand and bounce on big moments.
  */
-function Crowd({ seats, yaws, accent }: { seats: Float32Array; yaws: Float32Array; accent: string }) {
+function Crowd({ seats, yaws, accent, capacity }: { seats: Float32Array; yaws: Float32Array; accent: string; capacity: number }) {
   const ref = useRef<THREE.InstancedMesh>(null);
-  const count = seats.length / 3;
+  const total = seats.length / 3;
+  // Attendance follows the park's capacity; big bowls are thinned to the instance budget.
+  const fill = Math.min(0.94, Math.max(0.6, 0.62 + capacity / 150000));
+  const keep = Math.min(fill, MAX_FANS / Math.max(1, total));
+  const count = Math.max(1, Math.min(total, Math.ceil(total * keep) + 64));
   const uniforms = useMemo(() => ({ uTime: { value: 0 }, uExcite: { value: 0 } }), []);
   const material = useMemo(() => {
     const m = new THREE.MeshLambertMaterial({ vertexColors: false });
@@ -227,45 +189,48 @@ function Crowd({ seats, yaws, accent }: { seats: Float32Array; yaws: Float32Arra
   }, [uniforms]);
   const geom = useMemo(() => {
     // A fan = one quad facing the field (2 triangles), shoulders-and-head height.
-    const g = new THREE.PlaneGeometry(1.6, 2.6);
+    const g = new THREE.PlaneGeometry(1.7, 2.7);
     g.translate(0, 1.15, 0);
     return g;
   }, []);
-  useEffect(() => () => {
-    geom.dispose();
-    material.dispose();
-  }, [geom, material]);
+  useEffect(
+    () => () => {
+      geom.dispose();
+      material.dispose();
+    },
+    [geom, material],
+  );
 
   useEffect(() => {
     const mesh = ref.current;
     if (!mesh) return;
-    const m = new THREE.Matrix4();
+    const mat = new THREE.Matrix4();
     const q = new THREE.Quaternion();
     const up = new THREE.Vector3(0, 1, 0);
+    const pos = new THREE.Vector3();
+    const scl = new THREE.Vector3();
     const c = new THREE.Color();
     const acc = new THREE.Color(accent);
     const palette = ["#d9d4c7", "#2b2f3a", "#7a2230", "#1f4f8a", "#e2e2e2", "#3a5a3a", "#b4552f", "#c9b26b"].map((x) => new THREE.Color(x));
     let s = 12345;
     const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
-    for (let i = 0; i < count; i += 1) {
+    let n = 0;
+    for (let i = 0; i < total && n < count; i += 1) {
+      if (rnd() > keep) continue;
       q.setFromAxisAngle(up, yaws[i] + (rnd() - 0.5) * 0.3);
       const sc = 0.85 + rnd() * 0.3;
-      m.compose(new THREE.Vector3(seats[i * 3] + (rnd() - 0.5), seats[i * 3 + 1], seats[i * 3 + 2] + (rnd() - 0.5)), q, new THREE.Vector3(sc, sc, sc));
-      mesh.setMatrixAt(i, m);
+      pos.set(seats[i * 3] + (rnd() - 0.5) * 0.8, seats[i * 3 + 1], seats[i * 3 + 2] + (rnd() - 0.5) * 0.8);
+      mesh.setMatrixAt(n, mat.compose(pos, q, scl.set(sc, sc, sc)));
       // A third of the crowd wears the home team's color.
       if (rnd() < 0.33) c.copy(acc).multiplyScalar(0.75 + rnd() * 0.4);
       else c.copy(palette[Math.floor(rnd() * palette.length)]).multiplyScalar(0.7 + rnd() * 0.4);
-      // Empty seats.
-      if (rnd() < 0.18) {
-        m.makeScale(0, 0, 0);
-        mesh.setMatrixAt(i, m);
-      }
-      mesh.setColorAt(i, c);
+      mesh.setColorAt(n, c);
+      n += 1;
     }
+    mesh.count = n;
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-    mesh.computeBoundingSphere();
-  }, [count, seats, yaws, accent]);
+  }, [count, total, keep, seats, yaws, accent]);
 
   useFrame((state, dt) => {
     uniforms.uTime.value = state.clock.elapsedTime;
@@ -274,39 +239,16 @@ function Crowd({ seats, yaws, accent }: { seats: Float32Array; yaws: Float32Arra
     crowdState.excite = Math.max(0, crowdState.excite - dt * 0.12);
   });
 
-  return <instancedMesh ref={ref} args={[geom, material, count]} frustumCulled={false} />;
+  return <instancedMesh key={count} ref={ref} args={[geom, material, count]} frustumCulled={false} />;
 }
 
-function LightTowers({ path }: { path: Array<{ x: number; z: number; h: number; nx: number; nz: number }> }) {
-  const towers = useMemo(() => {
-    const picks = [0.2, 0.36, 0.5, 0.64, 0.8].map((f) => path[Math.floor(f * (path.length - 1))]);
-    return picks.map((p) => ({ x: p.x + p.nx * 150, z: p.z + p.nz * 150, yaw: Math.atan2(-p.nx, -p.nz) }));
-  }, [path]);
-  return (
-    <group>
-      {towers.map((t, i) => (
-        <group key={i} position={[t.x, 0, t.z]} rotation-y={t.yaw}>
-          <mesh position={[0, 75, 0]}>
-            <boxGeometry args={[2.5, 150, 2.5]} />
-            <meshLambertMaterial color="#5d6168" />
-          </mesh>
-          <mesh position={[0, 152, 0]}>
-            <boxGeometry args={[34, 12, 2]} />
-            <meshBasicMaterial color="#fffbe8" />
-          </mesh>
-        </group>
-      ))}
-    </group>
-  );
-}
-
-/** Center-field scoreboard; its face is a canvas the game view draws into. */
+/** Scoreboard face: a canvas the game controller draws into. */
 export const scoreboardCanvas: { canvas: HTMLCanvasElement | null; texture: THREE.CanvasTexture | null } = {
   canvas: null,
   texture: null,
 };
 
-function Scoreboard({ park }: { park: Park }) {
+function Scoreboard({ at }: { at: BoardPlacement }) {
   const tex = useMemo(() => {
     if (typeof document === "undefined") return null;
     const c = document.createElement("canvas");
@@ -314,32 +256,24 @@ function Scoreboard({ park }: { park: Park }) {
     c.height = 192;
     const t = new THREE.CanvasTexture(c);
     t.colorSpace = THREE.SRGBColorSpace;
-    scoreboardCanvas.canvas = c;
-    scoreboardCanvas.texture = t;
+    t.anisotropy = 4;
     return t;
   }, []);
-  useEffect(() => () => {
-    tex?.dispose();
-    scoreboardCanvas.canvas = null;
-    scoreboardCanvas.texture = null;
+  // Published from an effect (not the memo) so it survives React's dev double-mount.
+  useEffect(() => {
+    if (!tex) return undefined;
+    scoreboardCanvas.canvas = tex.image as HTMLCanvasElement;
+    scoreboardCanvas.texture = tex;
+    return () => {
+      tex.dispose();
+      scoreboardCanvas.canvas = null;
+      scoreboardCanvas.texture = null;
+    };
   }, [tex]);
-  const f = park.fence(-8);
-  const [dx, dz] = dirXZ(-8);
-  const d = f + 130;
   return (
-    <group position={[dx * d, 0, dz * d]} rotation-y={Math.atan2(-dx, -dz)}>
-      <mesh position={[0, 60, 0]}>
-        <boxGeometry args={[4, 120, 4]} />
-        <meshLambertMaterial color="#333" />
-      </mesh>
-      <mesh position={[0, 100, 1.5]}>
-        <boxGeometry args={[92, 36, 2]} />
-        <meshLambertMaterial color="#111" />
-      </mesh>
-      <mesh position={[0, 100, 2.6]}>
-        <planeGeometry args={[88, 33]} />
-        <meshBasicMaterial map={tex} toneMapped={false} />
-      </mesh>
-    </group>
+    <mesh position={at.position} rotation-y={at.yaw}>
+      <planeGeometry args={[at.w, at.h]} />
+      <meshBasicMaterial map={tex} toneMapped={false} />
+    </mesh>
   );
 }
