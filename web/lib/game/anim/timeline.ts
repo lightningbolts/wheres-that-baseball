@@ -3,6 +3,10 @@
  * batter and pitcher. Time T is pitch-flight time (0 = ball 50 ft from the plate);
  * the play after contact runs on T − contactT. Everything is derived from the
  * physics results — the animation never invents an outcome.
+ *
+ * Movement is authored as timed waypoints, then box-filtered in time so every
+ * actor accelerates, decelerates and rounds corners instead of snapping between
+ * constant-velocity legs. The filter is symmetric, so arrival times stay honest.
  */
 import { add, clamp, horizDist, lerp3, scale, sub, v3, type V3 } from "@/lib/game/math";
 import { pitchStateAt } from "@/lib/game/physics/pitch";
@@ -30,6 +34,17 @@ export interface BallState {
   p: V3;
   visible: boolean;
   held: boolean;
+  /** Who has the ball while it is held (the scene snaps it to that player's hand). */
+  holder: FieldPos | null;
+}
+
+/** The batter's swing, for the pose solver: when it launches, when and where the barrel arrives. */
+export interface SwingInfo {
+  startT: number;
+  contactT: number;
+  /** World point the barrel passes through (the ball on contact; over/under it on a miss). */
+  aim: V3;
+  hit: boolean;
 }
 
 interface Waypoint {
@@ -41,15 +56,23 @@ interface Track {
   pts: Waypoint[];
   actions: Array<{ t: number; dur: number; action: Action }>;
   face?: V3;
+  /** Prefix integrals of x(t) / z(t) at each waypoint (built by finalize). */
+  ix?: Float64Array;
+  iz?: Float64Array;
 }
 
 export interface Timeline {
   /** Flight time the pitcher releases (negative: release is ~4 ft before the t=0 sample). */
   releaseT: number;
+  /** World release point of the pitch. */
+  releaseP: V3;
+  /** Where and when the catcher receives a pitch that is not put in play. */
+  receive: { t: number; p: V3 };
   /** Flight time of bat–ball contact (null = no contact). */
   contactT: number | null;
   /** Flight time of the swing (contact or miss), null for a take. */
   swingT: number | null;
+  swing: SwingInfo | null;
   /** End of the animation, in flight time. */
   endT: number;
   /** Ball in play (vs. pitch / foul-back). */
@@ -58,22 +81,48 @@ export interface Timeline {
   fielder(pos: FieldPos, T: number): ActorState;
   /** Runners and the batter-runner; ids from the play. */
   runnerIds: number[];
+  batterId: number;
   runner(id: number, T: number): ActorState | null;
   batter(T: number): ActorState | null;
   /** Where a follow camera should look. */
   focus(T: number): V3;
 }
 
+export interface TimelineOptions {
+  /** Flight time the swing launches (a human's button press); default is a fixed lead before contact. */
+  swingStartT?: number;
+}
+
 const RELEASE_LEAD_FT = 4.3;
-const MITT = v3(0, 2.4, -1.6);
+const MITT_Z = -1.7;
 const HOLD_TYPES = new Set(["catch", "field", "dive", "error"]);
 const LEADS: Record<number, number> = { 1: 12, 2: 15, 3: 10 };
 const BATTER_BOX = (side: "L" | "R") => v3(side === "R" ? 2.7 : -2.7, 0, 0.5);
+
+/** Half-width (s) of the box filter that turns waypoint legs into eased motion. */
+export const SMOOTH_H = 0.2;
+/** Fastest anybody is ever shown moving, ft/s. */
+export const MAX_RUN_FT_S = 32;
+/** Pitch delivery: seconds from first movement to release (matches the pitch pose). */
+export const PITCH_RELEASE_S = 1.1;
+/** Throw: seconds from the start of the throwing motion to release (matches the throw pose). */
+export const THROW_RELEASE_S = 0.3;
+/** Default launch-to-contact time of a swing. */
+export const SWING_LAUNCH_S = 0.15;
+/** The batter stays a batter (finishing the swing) this long after contact before running. */
+export const BATTER_HANDOFF_S = 0.3;
 
 function yawTo(from: V3, to: V3, fallback = 0): number {
   const dx = to.x - from.x;
   const dz = to.z - from.z;
   return Math.hypot(dx, dz) < 0.05 ? fallback : Math.atan2(dx, dz);
+}
+
+function lerpAngle(a: number, b: number, t: number): number {
+  let d = (b - a) % (Math.PI * 2);
+  if (d > Math.PI) d -= Math.PI * 2;
+  if (d < -Math.PI) d += Math.PI * 2;
+  return a + d * t;
 }
 
 /** Base-path distance → point (home → 1st → 2nd → 3rd → home). */
@@ -85,25 +134,138 @@ export function basePathPoint(s: number): V3 {
   return lerp3(a, b, f);
 }
 
-function trackAt(tr: Track, t: number, home: V3): ActorState {
-  const pts = tr.pts;
-  let p = pts[0].p;
-  let speed = 0;
-  let yaw = tr.face ? yawTo(pts[0].p, tr.face) : yawTo(home, v3(0, 0, 0)) + Math.PI;
-  if (t >= pts[pts.length - 1].t) p = pts[pts.length - 1].p;
-  for (let i = 1; i < pts.length; i += 1) {
-    const a = pts[i - 1];
-    const b = pts[i];
-    if (t >= a.t && t < b.t) {
-      const f = (t - a.t) / Math.max(1e-6, b.t - a.t);
-      p = lerp3(a.p, b.p, f);
-      const d = horizDist(sub(b.p, a.p));
-      speed = d / Math.max(1e-6, b.t - a.t);
-      if (d > 0.5) yaw = yawTo(a.p, b.p, yaw);
-      break;
+const DIAMOND_C = { x: 0, z: 63.64 };
+
+/** Unit normal of base-path leg `seg` pointing away from the infield. */
+function outward(seg: number): { x: number; z: number } {
+  const m = basePathPoint(seg * 90 + 45);
+  const dx = m.x - DIAMOND_C.x;
+  const dz = m.z - DIAMOND_C.z;
+  const l = Math.hypot(dx, dz) || 1;
+  return { x: dx / l, z: dz / l };
+}
+
+/**
+ * A runner's actual route from startS to endS: on the base line, but swinging wide
+ * before any base he rounds (the "banana" turn) and carrying a little wide after it.
+ */
+export function runPathPoint(s: number, startS: number, endS: number): V3 {
+  const p = basePathPoint(s);
+  for (const c of [90, 180, 270]) {
+    if (!(startS < c - 25 && endS > c + 25)) continue;
+    const d = s - c;
+    if (d > -45 && d <= 0) {
+      const u = (d + 45) / 45;
+      const k = 5.5 * 6.75 * u * u * (1 - u);
+      const n = outward(c / 90 - 1);
+      p.x += n.x * k;
+      p.z += n.z * k;
+    } else if (d > 0 && d < 36) {
+      const u = d / 36;
+      const k = 3.2 * 6.75 * u * (1 - u) * (1 - u);
+      const n = outward(c / 90);
+      p.x += n.x * k;
+      p.z += n.z * k;
     }
   }
-  if (speed < 1 && tr.face) yaw = yawTo(p, tr.face, yaw);
+  return p;
+}
+
+// ---------- Smoothed tracks ----------
+
+function finalize(tr: Track): Track {
+  const pts = tr.pts;
+  pts.sort((a, b) => a.t - b.t);
+  for (let i = 1; i < pts.length; i += 1) if (pts[i].t <= pts[i - 1].t) pts[i] = { t: pts[i - 1].t + 1e-3, p: pts[i].p };
+  // Nobody outruns a sprinter. Arrival times are what sync with the ball, so a leg that is
+  // too fast keeps its arrival and leaves earlier instead (a good jump, not a teleport).
+  for (let i = pts.length - 1; i >= 2; i -= 1) {
+    const need = Math.hypot(pts[i].p.x - pts[i - 1].p.x, pts[i].p.z - pts[i - 1].p.z) / MAX_RUN_FT_S;
+    if (pts[i].t - pts[i - 1].t < need) pts[i - 1] = { t: Math.max(pts[0].t + 1e-3 * (i - 1), pts[i].t - need), p: pts[i - 1].p };
+  }
+  const ix = new Float64Array(pts.length);
+  const iz = new Float64Array(pts.length);
+  for (let i = 1; i < pts.length; i += 1) {
+    const dt = pts[i].t - pts[i - 1].t;
+    ix[i] = ix[i - 1] + (dt * (pts[i - 1].p.x + pts[i].p.x)) / 2;
+    iz[i] = iz[i - 1] + (dt * (pts[i - 1].p.z + pts[i].p.z)) / 2;
+  }
+  tr.ix = ix;
+  tr.iz = iz;
+  return tr;
+}
+
+const _a = { x: 0, z: 0 };
+const _b = { x: 0, z: 0 };
+
+/** Raw (piecewise-linear) position at t; holds the end points outside the track. */
+function rawAt(pts: Waypoint[], t: number, out: { x: number; z: number }): void {
+  const n = pts.length;
+  if (t <= pts[0].t) {
+    out.x = pts[0].p.x;
+    out.z = pts[0].p.z;
+    return;
+  }
+  for (let i = 1; i < n; i += 1) {
+    if (t < pts[i].t) {
+      const a = pts[i - 1];
+      const b = pts[i];
+      const f = (t - a.t) / (b.t - a.t);
+      out.x = a.p.x + (b.p.x - a.p.x) * f;
+      out.z = a.p.z + (b.p.z - a.p.z) * f;
+      return;
+    }
+  }
+  out.x = pts[n - 1].p.x;
+  out.z = pts[n - 1].p.z;
+}
+
+/** ∫ position dt from the first waypoint to t. */
+function integralAt(tr: Track, t: number, out: { x: number; z: number }): void {
+  const pts = tr.pts;
+  const n = pts.length;
+  const ix = tr.ix!;
+  const iz = tr.iz!;
+  if (t <= pts[0].t) {
+    out.x = (t - pts[0].t) * pts[0].p.x;
+    out.z = (t - pts[0].t) * pts[0].p.z;
+    return;
+  }
+  for (let i = 1; i < n; i += 1) {
+    if (t < pts[i].t) {
+      const a = pts[i - 1];
+      const b = pts[i];
+      const dt = t - a.t;
+      const f = dt / (b.t - a.t);
+      out.x = ix[i - 1] + dt * (a.p.x + (b.p.x - a.p.x) * f * 0.5);
+      out.z = iz[i - 1] + dt * (a.p.z + (b.p.z - a.p.z) * f * 0.5);
+      return;
+    }
+  }
+  out.x = ix[n - 1] + (t - pts[n - 1].t) * pts[n - 1].p.x;
+  out.z = iz[n - 1] + (t - pts[n - 1].t) * pts[n - 1].p.z;
+}
+
+/**
+ * Sample a track: position is the waypoint polyline averaged over ±SMOOTH_H, so
+ * velocity is continuous (trapezoidal ramps), and its exact derivative gives speed
+ * and heading.
+ */
+export function trackAt(tr: Track, t: number): ActorState {
+  if (!tr.ix) finalize(tr);
+  const h = SMOOTH_H;
+  integralAt(tr, t + h, _a);
+  integralAt(tr, t - h, _b);
+  const p = v3((_a.x - _b.x) / (2 * h), 0, (_a.z - _b.z) / (2 * h));
+  rawAt(tr.pts, t + h, _a);
+  rawAt(tr.pts, t - h, _b);
+  const vx = (_a.x - _b.x) / (2 * h);
+  const vz = (_a.z - _b.z) / (2 * h);
+  const speed = Math.hypot(vx, vz);
+  // Default facing: toward the plate; a moving actor faces where he is going.
+  const faceYaw = tr.face ? yawTo(p, tr.face, Math.atan2(-p.x, -p.z)) : Math.atan2(-p.x, -p.z);
+  const w = clamp((speed - 1) / 4, 0, 1);
+  const yaw = w > 0 ? lerpAngle(faceYaw, Math.atan2(vx, vz), w * w * (3 - 2 * w)) : faceYaw;
   let action: Action = speed > 3 ? "run" : "ready";
   let actionT = 0;
   for (const a of tr.actions) {
@@ -122,7 +284,20 @@ function coverFor(base: number, thrower: FieldPos | undefined): FieldPos {
   return "C";
 }
 
-export function buildTimeline(c: CommittedPitch): Timeline {
+/** Route `tr` so the actor leaves in time to stand on `spot` at `arrive` (running ~24 ft/s). */
+function routeTo(tr: Track, spot: V3, arrive: number, earliest: number): void {
+  const last = tr.pts[tr.pts.length - 1];
+  rawAt(tr.pts, arrive, _a);
+  const d = Math.hypot(spot.x - _a.x, spot.z - _a.z);
+  const leave = Math.max(earliest, arrive - d / 24 - 0.2);
+  rawAt(tr.pts, leave, _a);
+  const from = v3(_a.x, 0, _a.z);
+  tr.pts = tr.pts.filter((w) => w.t < leave);
+  if (!tr.pts.length) tr.pts.push({ t: Math.min(last.t, leave - 1), p: from });
+  tr.pts.push({ t: leave, p: from }, { t: Math.max(arrive, leave + 0.05), p: spot });
+}
+
+export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Timeline {
   const { result, play, fielders, runners, battingSide } = c;
   const flight = result.flight;
   const v0 = flight.samples[0].v;
@@ -137,6 +312,30 @@ export function buildTimeline(c: CommittedPitch): Timeline {
   const lastSample = flight.samples[flight.samples.length - 1];
   const events: PlayEvent[] = play ? [...play.events].sort((a, b) => a.t - b.t) : [];
   const toFlight = (u: number) => (contactT ?? 0) + u;
+  const stealEvent = c.events.find((e) => e.kind === "stolen_base" || e.kind === "caught_stealing");
+
+  // ---- The pitch past the plate: straight on into the catcher's mitt ----
+  const pastZ = Math.max(1, Math.abs(lastSample.v.z));
+  const mittT = lastSample.p.z > MITT_Z ? lastSample.t + (lastSample.p.z - MITT_Z) / pastZ : lastSample.t;
+  const pitchAt = (T: number): V3 => {
+    if (T <= lastSample.t) return pitchStateAt(flight, T).p;
+    const dt = T - lastSample.t;
+    return v3(lastSample.p.x + lastSample.v.x * dt, lastSample.p.y + lastSample.v.y * dt, lastSample.p.z + lastSample.v.z * dt);
+  };
+  const mittRaw = pitchAt(mittT);
+  const mittP = v3(clamp(mittRaw.x, -2.6, 2.6), clamp(mittRaw.y, 0.45, 5.4), MITT_Z);
+
+  // ---- Swing ----
+  let swing: SwingInfo | null = null;
+  if (swingT != null) {
+    const at = pitchStateAt(flight, swingT).p;
+    const hit = contactT != null;
+    const miss = clamp(result.swing.verticalErrFt, -0.8, 0.8);
+    // A whiff launched too late still shows a full (late) swing rather than snapping to its finish.
+    const through = !hit && opts.swingStartT != null ? Math.max(swingT, opts.swingStartT + 0.07) : swingT;
+    const startT = clamp(opts.swingStartT ?? through - SWING_LAUNCH_S, through - 0.24, through - 0.06);
+    swing = { startT, contactT: through, aim: v3(at.x, at.y - (hit ? 0 : miss), at.z), hit };
+  }
 
   // ---- Ball after contact: gathered, then thrown around ----
   const firstThrow = events.find((e) => e.type === "throw");
@@ -144,53 +343,75 @@ export function buildTimeline(c: CommittedPitch): Timeline {
   const gather = play?.caught ? holds[0] : holds[holds.length - 1];
   const throws = events.filter((e) => e.type === "throw" && e.from && e.to && e.arriveT != null);
   const homeRun = !!path?.homeRun;
+  const receiver = new Map<PlayEvent, FieldPos | null>();
+  throws.forEach((th, i) => {
+    const pos = i === 0 ? coverFor(th.base ?? 1, th.pos) : coverFor(th.base ?? 1, undefined);
+    receiver.set(th, pos === th.pos ? null : pos);
+  });
 
   const ballInPlay = (u: number): BallState => {
-    if (!path) return { p: MITT, visible: false, held: false };
+    if (!path) return { p: mittP, visible: false, held: false, holder: null };
     if (!gather || u < gather.t) {
       const s = sampleAt(path, Math.min(u, path.endT));
       const gone = (homeRun || path.outOfPlayFoul) && u > path.endT + 0.6;
-      return { p: s.p, visible: !gone, held: false };
+      return { p: s.p, visible: !gone, held: false, holder: null };
     }
     let p = add(gather.to!, v3(0, 3, 0));
+    let holder: FieldPos | null = gather.pos ?? null;
     for (const th of throws) {
       if (u < th.t) break;
-      const from = add(th.from!, v3(0, 5, 0));
-      const to = add(th.to!, v3(0, 4.5, 0));
+      const from = add(th.from!, v3(0, 5.2, 0));
+      const to = add(th.to!, v3(0, 4.2, 0));
       if (u >= th.arriveT!) {
         p = to;
+        holder = receiver.get(th) ?? null;
         continue;
       }
       const f = (u - th.t) / Math.max(0.05, th.arriveT! - th.t);
       const d = horizDist(sub(th.to!, th.from!));
       const arc = 4 * f * (1 - f) * Math.min(28, d * 0.06);
       p = add(lerp3(from, to, f), v3(0, arc, 0));
-      return { p, visible: true, held: false };
+      return { p, visible: true, held: false, holder: null };
     }
-    return { p, visible: true, held: true };
+    return { p, visible: true, held: true, holder };
   };
 
-  // Foul back / foul tip: the batted path (or the mitt for a tip).
+  // Stolen-base attempt: the catcher comes up throwing to second.
+  const stealThrow = stealEvent && !inPlay && contactT == null ? { t: mittT + 0.72, arriveT: crossT + (stealEvent.kind === "stolen_base" ? 1.98 : 1.8) } : null;
+  const stealCover: FieldPos = battingSide === "R" ? "2B" : "SS";
+
   const ball = (T: number): BallState => {
-    if (T < releaseT) return { p: releaseP, visible: false, held: true };
+    if (T < releaseT) return { p: releaseP, visible: true, held: true, holder: "P" };
     if (contactT != null && T >= contactT) {
-      if (result.kind === "foul_tip") return { p: MITT, visible: true, held: true };
+      if (result.kind === "foul_tip") return { p: mittP, visible: true, held: true, holder: "C" };
       if (inPlay) return ballInPlay(T - contactT);
       if (path) {
         const u = T - contactT;
         const s = sampleAt(path, Math.min(u, path.endT));
-        return { p: s.p, visible: u < Math.min(path.endT + 0.4, 4), held: false };
+        return { p: s.p, visible: u < Math.min(path.endT + 0.4, 4), held: false, holder: null };
       }
     }
-    if (T < flight.samples[0].t) return { p: lerp3(releaseP, flight.samples[0].p, (T - releaseT) / -releaseT), visible: true, held: false };
-    if (T <= lastSample.t && !(T > crossT + 0.03 && result.kind !== "hbp")) return { p: pitchStateAt(flight, T).p, visible: true, held: false };
-    if (result.kind === "hbp") return { p: pitchStateAt(flight, Math.min(T, crossT)).p, visible: T < crossT + 0.5, held: false };
-    // Into the mitt.
-    const tIn = crossT + 0.03;
-    const at = pitchStateAt(flight, tIn).p;
-    const mitt = v3(at.x * 0.7, clamp(at.y, 0.6, 4.2), MITT.z);
-    if (T < tIn + 0.04) return { p: lerp3(at, mitt, (T - tIn) / 0.04), visible: true, held: false };
-    return { p: mitt, visible: true, held: true };
+    if (T < flight.samples[0].t) return { p: lerp3(releaseP, flight.samples[0].p, (T - releaseT) / -releaseT), visible: true, held: false, holder: null };
+    if (result.kind === "hbp") return { p: pitchAt(Math.min(T, crossT)), visible: T < crossT + 0.5, held: false, holder: null };
+    if (T < mittT) return { p: pitchAt(T), visible: true, held: false, holder: null };
+    if (stealThrow && T >= stealThrow.t) {
+      const from = v3(0, 5.2, -2.2);
+      const to = add(BASE_POS[2], v3(0, 2.2, -1));
+      if (T >= stealThrow.arriveT) return { p: to, visible: true, held: true, holder: stealCover };
+      const f = (T - stealThrow.t) / (stealThrow.arriveT - stealThrow.t);
+      return { p: add(lerp3(from, to, f), v3(0, 4 * f * (1 - f) * 5, 0)), visible: true, held: false, holder: null };
+    }
+    return { p: mittP, visible: true, held: true, holder: "C" };
+  };
+  // One ball lookup per frame is shared by every fielder's facing and the camera.
+  let memoT = NaN;
+  let memoBall: BallState | null = null;
+  const ballMemo = (T: number): BallState => {
+    if (T !== memoT || !memoBall) {
+      memoT = T;
+      memoBall = ball(T);
+    }
+    return memoBall;
   };
 
   // ---- Fielders ----
@@ -200,15 +421,27 @@ export function buildTimeline(c: CommittedPitch): Timeline {
     const start = f.p;
     const tr: Track = { pts: [{ t: -10, p: start }], actions: [], face: v3(0, 0, 0) };
     if (f.pos === "P") {
-      tr.face = v3(0, 0, 0);
-      tr.actions.push({ t: releaseT - 1.1, dur: 1.5, action: "pitch" });
-      tr.pts.push({ t: releaseT + 0.25, p: v3(start.x, 0, start.z - 5) });
+      tr.actions.push({ t: -10, dur: 10 + releaseT - PITCH_RELEASE_S, action: "idle" });
+      tr.actions.push({ t: releaseT - PITCH_RELEASE_S, dur: PITCH_RELEASE_S + 0.9, action: "pitch" });
     }
     if (f.pos === "C") {
       tr.face = v3(0, 0, 60.5);
-      tr.actions.push({ t: -10, dur: contactT != null && inPlay ? 10 + contactT + 0.4 : 30, action: "crouch" });
+      const upAt = contactT != null && inPlay ? contactT + 0.35 : stealThrow ? stealThrow.t - THROW_RELEASE_S : Infinity;
+      tr.actions.push({ t: -10, dur: upAt === Infinity ? 60 : 10 + upAt, action: "crouch" });
+      if (stealThrow) {
+        tr.actions.push({ t: stealThrow.t - THROW_RELEASE_S, dur: THROW_RELEASE_S + 0.5, action: "throw" });
+        tr.face = BASE_POS[2];
+      }
     }
     tracks.set(f.pos, tr);
+  }
+  if (stealThrow) {
+    const tr = tracks.get(stealCover);
+    if (tr) {
+      routeTo(tr, v3(BASE_POS[2].x, 0, BASE_POS[2].z - 1.5), stealThrow.arriveT - 0.3, releaseT + 0.1);
+      tr.actions.push({ t: stealThrow.arriveT - 0.5, dur: 1.1, action: "catch" });
+      tr.face = v3(0, 0, 0);
+    }
   }
   if (inPlay && contactT != null) {
     const fieldedBy = gather?.pos;
@@ -222,126 +455,154 @@ export function buildTimeline(c: CommittedPitch): Timeline {
       if (f.pos === fieldedBy && gather) {
         for (const h of myAttempts.filter((x) => x !== gather)) {
           tr.pts.push({ t: toFlight(h.t), p: v3(h.to!.x, 0, h.to!.z) });
-          tr.actions.push({ t: toFlight(h.t) - 0.2, dur: 0.7, action: "dive" });
+          tr.actions.push({ t: toFlight(h.t) - 0.25, dur: 0.9, action: "dive" });
         }
         const gp = v3(gather.to!.x, 0, gather.to!.z);
         tr.pts.push({ t: Math.max(toFlight(gather.t) - 0.05, tr.pts[tr.pts.length - 1].t + 0.05), p: gp });
-        tr.actions.push({ t: toFlight(gather.t) - 0.25, dur: 0.5, action: gather.type === "dive" ? "dive" : play?.caught ? "catch" : "field" });
+        if (gather.type === "dive") tr.actions.push({ t: toFlight(gather.t) - 0.28, dur: 1.0, action: "dive" });
+        else if (play?.caught) tr.actions.push({ t: toFlight(gather.t) - 0.7, dur: 1.15, action: "catch" });
+        else tr.actions.push({ t: toFlight(gather.t) - 0.4, dur: 0.75, action: "field" });
         const myThrow = throws.find((th) => th.pos === f.pos);
         if (myThrow) {
-          tr.actions.push({ t: toFlight(myThrow.t) - 0.15, dur: 0.55, action: "throw" });
+          tr.actions.push({ t: toFlight(myThrow.t) - THROW_RELEASE_S, dur: THROW_RELEASE_S + 0.5, action: "throw" });
           tr.face = myThrow.to;
         }
       } else if (myAttempts.length) {
         const h = myAttempts[0];
         tr.pts.push({ t: toFlight(h.t), p: v3(h.to!.x, 0, h.to!.z) });
-        tr.actions.push({ t: toFlight(h.t) - 0.2, dur: 0.8, action: "dive" });
+        tr.actions.push({ t: toFlight(h.t) - 0.25, dur: 1.0, action: "dive" });
       } else {
         // Back up the play: drift toward the ball, outfielders more.
         const k = f.pos === "LF" || f.pos === "CF" || f.pos === "RF" ? 0.35 : f.pos === "P" ? 0.15 : 0.08;
         const toward = lerp3(pStart, v3(landing.x, 0, landing.z), k);
-        tr.pts.push({ t: react + 2.2, p: toward });
+        tr.pts.push({ t: react + 2.6, p: toward });
       }
     }
     // Covers for each throw (a relay pivot covers the base it then throws from).
     for (const th of throws) {
+      const pos = receiver.get(th);
+      const tr = pos ? tracks.get(pos) : undefined;
+      if (!pos || !tr) continue;
       const base = th.base ?? 1;
-      const pos = th === throws[0] ? coverFor(base, th.pos) : coverFor(base, undefined);
-      const tr = tracks.get(pos);
-      if (!tr || pos === th.pos) continue;
       const bp = BASE_POS[base as 1 | 2 | 3 | 4];
       const spot = v3(bp.x * 0.98, 0, bp.z * 0.98 + (base === 4 ? 1.5 : 0));
-      const arrive = toFlight(th.arriveT!) - 0.25;
-      const last = tr.pts[tr.pts.length - 1];
-      tr.pts = tr.pts.filter((w) => w.t < arrive - 0.6);
-      if (!tr.pts.length) tr.pts.push(last);
-      tr.pts.push({ t: arrive, p: spot });
-      tr.actions.push({ t: toFlight(th.arriveT!) - 0.1, dur: 0.4, action: "catch" });
+      const f = fielders.find((x) => x.pos === pos);
+      routeTo(tr, spot, toFlight(th.arriveT!) - 0.3, toFlight(f?.reaction ?? 0.3));
+      tr.actions.push({ t: toFlight(th.arriveT!) - 0.55, dur: 1.0, action: "catch" });
       tr.face = th.from;
       const relay = throws.find((x) => x !== th && x.t > th.t && x.pos === pos);
-      if (relay) tr.actions.push({ t: toFlight(relay.t) - 0.12, dur: 0.5, action: "throw" });
+      if (relay) {
+        tr.actions.push({ t: toFlight(relay.t) - THROW_RELEASE_S, dur: THROW_RELEASE_S + 0.5, action: "throw" });
+      }
     }
   }
+  for (const tr of tracks.values()) finalize(tr);
   const fielder = (pos: FieldPos, T: number): ActorState => {
     const tr = tracks.get(pos);
     if (!tr) return { p: v3(0, 0, 0), yaw: 0, speed: 0, action: "gone", actionT: 0 };
-    return trackAt(tr, T, tr.pts[0].p);
+    const st = trackAt(tr, T);
+    // During a live play, idle fielders watch the ball.
+    if (inPlay && contactT != null && T > contactT && !tr.face && st.speed < 5) {
+      const b = ballMemo(T).p;
+      const w = 1 - clamp((st.speed - 1) / 4, 0, 1);
+      st.yaw = lerpAngle(st.yaw, yawTo(st.p, b, st.yaw), w);
+    }
+    return st;
   };
 
   // ---- Runners (and the batter-runner) ----
-  const runTracks = new Map<number, Track & { goneAt: number }>();
+  const runTracks = new Map<number, Track & { goneAt: number; from: number }>();
   const runnerIds: number[] = [];
   const sprintOf = new Map<number, number>();
   for (const r of runners) if (r) sprintOf.set(r.playerId, r.sprint);
   const batterId = c.ctx.batter.id;
   sprintOf.set(batterId, c.ctx.batter.sprint);
   const baseFace = (s: number) => basePathPoint(Math.min(360, s + 30));
-  const stealEvent = c.events.find((e) => e.kind === "stolen_base" || e.kind === "caught_stealing");
+  const batterBox = BATTER_BOX(battingSide);
+  const dugout = v3(battingSide === "R" ? 60 : -60, 0, -12);
+  /** Lead-off choreography shared by every pitch, so swapping timelines never moves a runner. */
+  const leadS = (base: number) => base * 90 + (LEADS[base] ?? 10) * 0.5;
+  const leadPts = (base: number): Waypoint[] => [
+    { t: -10, p: basePathPoint(base * 90) },
+    { t: releaseT - 1.2, p: basePathPoint(base * 90) },
+    { t: releaseT - 0.2, p: basePathPoint(leadS(base)) },
+    { t: crossT, p: basePathPoint(leadS(base) + 4) },
+  ];
   if (inPlay && play && contactT != null) {
     for (const ro of play.runners) {
       const sprint = sprintOf.get(ro.playerId) ?? 27;
-      const startS = ro.from === 0 ? 0 : ro.from * 90 + (LEADS[ro.from] ?? 10);
-      const endS = ro.to === ro.from ? ro.from * 90 : ro.out ? ro.to * 90 - 4 : ro.to * 90;
+      const startS = ro.from === 0 ? 0 : leadS(ro.from) + 4;
+      const endS = ro.to === ro.from ? ro.from * 90 : ro.out ? ro.to * 90 - 3 : ro.to * 90;
       const d = Math.abs(endS - startS);
       const v = homeRun ? 19 : sprint * 0.93;
       let tEnd = homeRun ? toFlight(1.2 + (ro.to * 90 - startS) / v + ro.from * 0.4) : toFlight(ro.t);
       let tStart = tEnd - d / v - 0.35;
-      const minStart = toFlight(ro.from === 0 ? 0.25 : 0.1);
+      const minStart = toFlight(ro.from === 0 ? BATTER_HANDOFF_S : 0.1);
       if (tStart < minStart) {
         tStart = minStart;
         tEnd = Math.max(tEnd, tStart + d / 32);
       }
-      const pts: Waypoint[] = [{ t: -10, p: ro.from === 0 ? BATTER_BOX(battingSide) : basePathPoint(startS) }];
-      if (ro.from === 0) pts.push({ t: minStart, p: BASE_POS[4] });
-      const steps = Math.max(2, Math.ceil(d / 15));
-      for (let i = 0; i <= steps; i += 1) {
+      const pts: Waypoint[] = ro.from === 0 ? [{ t: -10, p: batterBox }] : leadPts(ro.from).filter((w) => w.t < tStart);
+      if (ro.from === 0) pts.push({ t: tStart, p: batterBox });
+      else pts.push({ t: tStart, p: basePathPoint(startS) });
+      const steps = Math.max(2, Math.ceil(d / 7.5));
+      for (let i = 1; i <= steps; i += 1) {
         const f = i / steps;
-        pts.push({ t: tStart + (tEnd - tStart) * f, p: basePathPoint(startS + (endS - startS) * f) });
+        const s = startS + (endS - startS) * f;
+        pts.push({ t: tStart + (tEnd - tStart) * f, p: endS >= startS ? runPathPoint(s, startS, endS) : basePathPoint(s) });
       }
       const actions: Track["actions"] = [];
-      if (ro.out) actions.push({ t: tEnd - 0.2, dur: 0.5, action: "slide" });
-      const offAt = ro.out || ro.to === 4 ? tEnd + 1.6 : Infinity;
+      // Slide into any base where there is a play on the runner (never into first).
+      const playAtBase = throws.some((th) => th.base === ro.to);
+      if (!homeRun && d > 20 && ro.to !== 1 && (ro.out || playAtBase)) actions.push({ t: tEnd - 0.32, dur: 0.95, action: "slide" });
       if (ro.out || ro.to === 4) {
-        const dugout = v3(battingSide === "R" ? 60 : -60, 0, -5);
-        pts.push({ t: tEnd + 0.6, p: pts[pts.length - 1].p });
-        pts.push({ t: offAt, p: lerp3(pts[pts.length - 1].p, dugout, 0.25) });
+        // Jog off toward the dugout; he leaves the scene when the next pitch is set up.
+        const at = pts[pts.length - 1].p;
+        const dd = Math.max(1, Math.hypot(dugout.x - at.x, dugout.z - at.z));
+        const wait = ro.out ? 0.7 : 0.05;
+        const jog = Math.min(dd, 16);
+        pts.push({ t: tEnd + wait, p: at });
+        pts.push({ t: tEnd + wait + jog / 13, p: lerp3(at, dugout, jog / dd) });
       }
-      runTracks.set(ro.playerId, { pts, actions, face: baseFace(endS), goneAt: offAt });
+      runTracks.set(ro.playerId, { pts, actions, face: baseFace(endS), goneAt: Infinity, from: ro.from });
       runnerIds.push(ro.playerId);
     }
   } else {
     runners.forEach((r, i) => {
       if (!r) return;
       const base = i + 1;
-      const s0 = base * 90 + (LEADS[base] ?? 10) * 0.5;
-      const pts: Waypoint[] = [{ t: -10, p: basePathPoint(base * 90) }, { t: releaseT - 0.8, p: basePathPoint(s0) }];
+      const pts = leadPts(base);
       const actions: Track["actions"] = [];
       let goneAt = Infinity;
       if (stealEvent && base === 1) {
         const safe = stealEvent.kind === "stolen_base";
-        pts.push({ t: releaseT - 0.3, p: basePathPoint(s0 + 2) });
+        pts.length = 2;
+        pts.push({ t: releaseT - 0.35, p: basePathPoint(leadS(base) + 3) });
         pts.push({ t: crossT + 1.9, p: basePathPoint(safe ? 180 : 177) });
-        actions.push({ t: crossT + 1.6, dur: 0.6, action: "slide" });
+        actions.push({ t: crossT + 1.58, dur: 0.95, action: "slide" });
         if (!safe) goneAt = crossT + 3.6;
       } else {
-        pts.push({ t: crossT + 0.6, p: basePathPoint(s0 + 4) }, { t: crossT + 2.0, p: basePathPoint(base * 90) });
+        pts.push({ t: crossT + 1.15, p: basePathPoint(base * 90) });
       }
-      runTracks.set(r.playerId, { pts, actions, face: baseFace(base * 90), goneAt });
+      runTracks.set(r.playerId, { pts, actions, face: baseFace(base * 90), goneAt, from: base });
       runnerIds.push(r.playerId);
     });
   }
+  for (const tr of runTracks.values()) finalize(tr);
+  const handoffT = inPlay && contactT != null ? contactT + BATTER_HANDOFF_S : Infinity;
   const runner = (id: number, T: number): ActorState | null => {
     const tr = runTracks.get(id);
     if (!tr) return null;
     if (T > tr.goneAt) return null;
-    return trackAt(tr, T, tr.pts[0].p);
+    // The batter-runner only exists once the batter has finished his swing.
+    if (tr.from === 0 && T <= handoffT) return null;
+    return trackAt(tr, T);
   };
 
-  const batterBox = BATTER_BOX(battingSide);
   const batter = (T: number): ActorState | null => {
-    if (inPlay && contactT != null && T > contactT + 0.25) return null;
+    if (T > handoffT) return null;
     const yaw = battingSide === "R" ? -Math.PI / 2 : Math.PI / 2;
-    if (swingT != null && T >= swingT - 0.16) return { p: batterBox, yaw, speed: 0, action: "swing", actionT: T - (swingT - 0.16) };
+    if (swing && T >= swing.startT) return { p: batterBox, yaw, speed: 0, action: "swing", actionT: T - swing.startT };
     return { p: batterBox, yaw, speed: 0, action: "stance", actionT: T - releaseT };
   };
 
@@ -358,7 +619,7 @@ export function buildTimeline(c: CommittedPitch): Timeline {
   }
 
   const focus = (T: number): V3 => {
-    const b = ball(T);
+    const b = ballMemo(T);
     if (!inPlay || contactT == null) return b.p;
     if (!b.held) return b.p;
     // Ball held: frame the lead runner still moving, else the ball.
@@ -370,5 +631,21 @@ export function buildTimeline(c: CommittedPitch): Timeline {
     return lead ? lerp3(b.p, lead, 0.5) : b.p;
   };
 
-  return { releaseT, contactT, swingT, endT, inPlay, ball, fielder, runnerIds, runner, batter, focus };
+  return {
+    releaseT,
+    releaseP,
+    receive: { t: mittT, p: mittP },
+    contactT,
+    swingT,
+    swing,
+    endT,
+    inPlay,
+    ball: ballMemo,
+    fielder,
+    runnerIds,
+    batterId,
+    runner,
+    batter,
+    focus,
+  };
 }

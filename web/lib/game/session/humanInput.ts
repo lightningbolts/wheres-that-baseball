@@ -34,6 +34,15 @@ export function pciHalfSize(power: boolean, difficulty: Difficulty): { w: number
   return { w: 0.5 * k, h: 0.36 * k };
 }
 
+/**
+ * A swing is not instant: the bat needs this long (flight time) from the button
+ * press to reach the hitting zone, so the on-time press comes this far ahead of
+ * the ideal contact time and the swing animation can start on the press itself.
+ */
+export const SWING_LEAD_S = 0.085;
+/** Pressing with less than this much time before the latest possible contact is a late whiff. */
+const MIN_SWING_S = 0.035;
+
 export interface HumanSwingInput {
   /** Flight time (s) when the swing button was pressed; null = took the pitch. */
   pressT: number | null;
@@ -54,7 +63,12 @@ export function humanSwing(
   if (input.pressT == null) return { swing: false, timingErrMs: 0, verticalErrFt: 0, alongErrFt: 0 };
   const d = DIFFICULTY[difficulty];
   const { w, h } = pciHalfSize(input.power, difficulty);
-  const timingErrMs = (input.pressT - idealContactTime(flight)) * 1000 * d.timing + rng.gauss(0, batter.timingSdMs * 0.25);
+  const ideal = idealContactTime(flight);
+  const timingErrMs = (input.pressT + SWING_LEAD_S - ideal) * 1000 * d.timing + rng.gauss(0, batter.timingSdMs * 0.25);
+  // The ball is already by him: the bat can't get there, whatever the aim.
+  if (input.pressT > ideal + 0.045 - MIN_SWING_S) {
+    return { swing: true, timingErrMs: Math.max(timingErrMs, 45), verticalErrFt: -0.6, alongErrFt: 0 };
+  }
   const dx = flight.px - input.pciPx;
   const dz = flight.pz - input.pciPz;
   // Ball outside the barrel's coverage: a clean miss over or under it.

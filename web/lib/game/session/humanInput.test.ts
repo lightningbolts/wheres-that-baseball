@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { humanSwing, meterAt, meterToCommand } from "@/lib/game/session/humanInput";
+import { humanSwing, meterAt, meterToCommand, SWING_LEAD_S } from "@/lib/game/session/humanInput";
 import { idealContactTime, resolveSwingPhase, throwPitchPhase } from "@/lib/game/engine/atBat";
 import { newGame } from "@/lib/game/__fixtures/teams";
 import { Rng } from "@/lib/game/math";
@@ -19,13 +19,26 @@ describe("human input mapping", () => {
     let hardHit = 0, whiff = 0;
     for (let i = 0; i < 40; i++) {
       const flight = throwPitchPhase(ctx, { pitchIdx: 0, targetPx: 0, targetPz: 2.5, commandMult: 1 }, rng);
-      const good = humanSwing({ pressT: idealContactTime(flight), pciPx: flight.px, pciPz: flight.pz, power: false }, flight, ctx.batter, ctx.side, "pro", rng);
+      const good = humanSwing({ pressT: idealContactTime(flight) - SWING_LEAD_S, pciPx: flight.px, pciPz: flight.pz, power: false }, flight, ctx.batter, ctx.side, "pro", rng);
       const r = resolveSwingPhase(ctx, { pitchIdx: 0, targetPx: 0, targetPz: 2.5, commandMult: 1 }, flight, good, rng);
       if (r.contact?.contact && (r.contact.exitSpeedMph ?? 0) > 88) hardHit++;
-      const bad = humanSwing({ pressT: idealContactTime(flight), pciPx: flight.px + 1.5, pciPz: flight.pz, power: false }, flight, ctx.batter, ctx.side, "pro", rng);
+      const bad = humanSwing({ pressT: idealContactTime(flight) - SWING_LEAD_S, pciPx: flight.px + 1.5, pciPz: flight.pz, power: false }, flight, ctx.batter, ctx.side, "pro", rng);
       if (resolveSwingPhase(ctx, { pitchIdx: 0, targetPx: 0, targetPz: 2.5, commandMult: 1 }, flight, bad, rng).kind === "swinging_strike") whiff++;
     }
     expect(hardHit).toBeGreaterThan(20);
     expect(whiff).toBe(40);
+  });
+
+  it("a press after the ball is by the hitter is a late whiff", () => {
+    const g = newGame();
+    const ctx = g.pitchContext();
+    const rng = new Rng(5);
+    const decision = { pitchIdx: 0, targetPx: 0, targetPz: 2.5, commandMult: 1 };
+    for (let i = 0; i < 20; i++) {
+      const flight = throwPitchPhase(ctx, decision, rng);
+      const late = humanSwing({ pressT: idealContactTime(flight) + 0.03, pciPx: flight.px, pciPz: flight.pz, power: false }, flight, ctx.batter, ctx.side, "pro", rng);
+      expect(late.swing).toBe(true);
+      expect(resolveSwingPhase(ctx, decision, flight, late, rng).kind).toBe("swinging_strike");
+    }
   });
 });
