@@ -6,7 +6,7 @@ import { Canvas, useThree } from "@react-three/fiber";
 import type { Park } from "@/lib/game/physics/park";
 import { Ballpark } from "@/components/game/scene/Ballpark";
 import { Players } from "@/components/game/scene/Players";
-import { Ball, CameraRig, Director, PlateOverlay, SkyDome } from "@/components/game/scene/SceneParts";
+import { Ball, CameraRig, ContactFx, Director, PlateOverlay, SkyDome } from "@/components/game/scene/SceneParts";
 import type { Playback } from "@/components/game/scene/playback";
 
 function Lights() {
@@ -76,6 +76,7 @@ export default function GameScene({ park, pb, homeColor, onAim, onPrimary }: Gam
       <Ballpark park={park} homeColor={homeColor} />
       <Players pb={pb} />
       <Ball pb={pb} />
+      <ContactFx pb={pb} />
       <PlateOverlay pb={pb} onAim={onAim} onClick={onPrimary} />
       <CameraRig pb={pb} />
     </Canvas>
