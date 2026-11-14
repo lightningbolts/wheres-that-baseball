@@ -10,7 +10,7 @@
  *
  * A human defender can override the throw target via `chooseThrow` (return undefined → AI).
  */
-import { judgeFair, sampleAt, distanceToFoulLine, type BallSample, type BattedBallPath } from "@/lib/game/physics/battedBall";
+import { judgeFair, sampleAt, type BallSample, type BattedBallPath } from "@/lib/game/physics/battedBall";
 import type { Park } from "@/lib/game/physics/park";
 import { BASE_POS, runTime, throwTime } from "@/lib/game/play/movement";
 import { isInfielder, isOutfielder, type Fielder } from "@/lib/game/play/defense";
@@ -114,12 +114,15 @@ function slack(f: Fielder, s: BallSample, reach: number): number {
   return s.t - f.reaction - runTime(d, f.sprint);
 }
 
+/** A fielder has to stand on the field to make the play: never in or over the stands. */
+const WALL_BODY = 1.5;
 function inPlayableArea(s: BallSample, park: Park): boolean {
   const spray = sprayAngleDeg(s.p);
   const r = horizDist(s.p);
+  // At the outfield fence he can reach over to rob a home run.
   if (s.p.z > 0 && Math.abs(spray) <= 45) return r < park.fence(spray) + 1.5;
-  if (s.p.z < 0) return -s.p.z < park.backstop - 3;
-  return distanceToFoulLine(s.p) < park.foulSpace - 2;
+  // Foul ground: the ball must come down on the field side of the stands' wall.
+  return r < park.wallDist(spray) - WALL_BODY;
 }
 
 interface AirChance {

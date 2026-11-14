@@ -42,11 +42,13 @@ export function GameView({
 
   useEffect(() => {
     ctl.start();
+    // Dev-only handle for scripted visual QA (headless screenshots of specific plays).
+    if (process.env.NODE_ENV === "development") (window as unknown as { __playball?: unknown }).__playball = { ctl, pb };
     return () => {
       ctl.dispose();
       sfx.stopCrowd();
     };
-  }, [ctl]);
+  }, [ctl, pb]);
 
   // Keyboard controls.
   useEffect(() => {

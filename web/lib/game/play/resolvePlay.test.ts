@@ -1,3 +1,4 @@
+import ballparks from "@/data/ballparks/index.json";
 import { describe, expect, it } from "vitest";
 import { battedBallFromLaunch } from "@/lib/game/physics/batBall";
 import { simulateBattedBall } from "@/lib/game/physics/battedBall";
@@ -82,5 +83,51 @@ describe("resolvePlay scenarios", () => {
   it("a ball down the line in the gap goes for extra bases", () => {
     const r = play(104, 20, -38);
     expect(r.hit).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("fielders stay on the field", () => {
+  const venues = Object.values((ballparks as { parks: Record<string, { venueId: number; teamId: number | null }> }).parks)
+    .filter((p) => p.teamId != null)
+    .map((p) => p.venueId);
+  it.each(venues)("venue %i: no catch or pickup beyond the drawn wall", (venueId) => {
+    const pk = buildPark(venueId);
+    const g = newGame();
+    let caughtFoul = 0;
+    let seed = 1;
+    for (const side of [1, -1]) {
+      for (let spray = 46; spray <= 88; spray += 6) {
+        for (const la of [30, 45, 60, 72]) {
+          for (const ev of [60, 75, 90]) {
+            seed += 1;
+            const path = simulateBattedBall(battedBallFromLaunch(ev, la, side * spray, 2600), pk);
+            const r = resolvePlay({
+              path,
+              park: pk,
+              fielders: g.fielders(),
+              runners: [null, null, null],
+              batter: { ...R(99), bats: "R" },
+              outs: 0,
+              rng: new Rng(seed),
+              launch: { ev, la },
+            });
+            for (const e of r.events) {
+              if (!e.to || !e.pos || !["catch", "dive", "drop", "field", "error"].includes(e.type)) continue;
+              const bearing = (Math.atan2(-e.to.x, e.to.z) * 180) / Math.PI;
+              const fair = e.to.z > 0 && Math.abs(bearing) <= 45;
+              const limit = fair ? pk.fence(bearing) + 1.5 : pk.wallDist(bearing) - 1;
+              if (Math.hypot(e.to.x, e.to.z) > limit) {
+                throw new Error(`${e.type} by ${e.pos} at (${e.to.x.toFixed(1)}, ${e.to.z.toFixed(1)}) beyond the wall (${limit.toFixed(1)} ft) — ev ${ev} la ${la} spray ${side * spray}`);
+              }
+              if (e.type === "catch" && !fair) caughtFoul += 1;
+            }
+            // A ball that leaves play in foul ground is never also a hit or an out on the ground.
+            if (path.outOfPlayFoul && !r.caught) expect(r.foul).toBe(true);
+          }
+        }
+      }
+    }
+    // Foul pops near the field are still caught.
+    expect(caughtFoul).toBeGreaterThan(5);
   });
 });

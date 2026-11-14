@@ -101,8 +101,8 @@ export function simulateBattedBall(start: BallState, park: Park): BattedBallPath
 
     // Out of play in foul territory.
     if (!fairAngle) {
-      const perp = distanceToFoulLine(s.p);
-      if ((s.p.z < 0 && -s.p.z > park.backstop) || perp > park.foulSpace || (s.p.z < 0 && r > park.backstop)) {
+      // Past the stands' wall (the same loop that's drawn) and low enough to land in the seats.
+      if (r > park.wallDist(spray)) {
         if (s.p.y < 30 || touched) {
           foulOut = true;
           samples.push({ t, p: s.p, v: s.v, phase: "dead" });

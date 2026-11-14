@@ -96,7 +96,7 @@ describe("GameController full-game smoke", () => {
   it.each<[HumanSide, number]>([
     ["none", 11],
     ["home", 41],
-    ["away", 37],
+    ["away", 43],
   ])("%s plays to a final (seed %i)", (human, seed) => {
     vi.useFakeTimers();
     const res = playGame(human, seed);

@@ -9,6 +9,7 @@ import { makeAir, type Air } from "@/lib/game/physics/ballFlight";
 import { clamp, horizDist, sprayAngleDeg, type V3 } from "@/lib/game/math";
 import { buildOutline, FIELD_INFO_ANGLES, sampleFence, type FenceMarker, type ParkOutline } from "@/lib/game/physics/parkOutline";
 import type { BallparkIndex } from "@/types/ballpark";
+import { buildWallLoop, type WallLoop } from "@/lib/game/physics/wallLoop";
 
 const index = ballparkIndex as BallparkIndex;
 
@@ -124,6 +125,12 @@ export interface Park {
   foulSpace: number;
   /** Distance from home plate to the backstop, ft. */
   backstop: number;
+  /**
+   * Horizontal distance from home to the wall loop at a bearing (deg, 0 = CF, + toward
+   * RF, ±180 = straight back): the fence in fair ground, the stands' wall in foul ground
+   * and the backstop. The same loop the renderer draws.
+   */
+  wallDist(bearingDeg: number): number;
   surfaceAt(p: V3): Surface;
 }
 
@@ -202,7 +209,7 @@ export function buildPark(venueId: number | null | undefined, tempF = 72): Park 
     return turf ? "turf" : "grass";
   };
 
-  return {
+  const park: Park = {
     venueId: id,
     name: data?.venueName ?? "Generic Park",
     teamId: data?.teamId ?? null,
@@ -220,6 +227,25 @@ export function buildPark(venueId: number | null | undefined, tempF = 72): Park 
     foulSpace: outline?.foulSpace ?? 45,
     backstop: outline?.backstop ?? 60,
     surfaceAt,
+    wallDist: () => 0,
+  };
+  park.wallDist = wallDistTable(buildWallLoop(park));
+  return park;
+}
+
+const WALL_STEP = 0.5;
+function wallDistTable(loop: WallLoop): (bearingDeg: number) => number {
+  const n = Math.round(360 / WALL_STEP) + 1;
+  const t = new Float32Array(n);
+  for (let i = 0; i < n; i += 1) {
+    const w = loop.atBeta(-180 + i * WALL_STEP);
+    t[i] = Math.hypot(w.x, w.z);
+  }
+  return (b: number) => {
+    const u = (clamp(b, -180, 180) + 180) / WALL_STEP;
+    const i = Math.min(n - 2, Math.floor(u));
+    const f = u - i;
+    return t[i] + (t[i + 1] - t[i]) * f;
   };
 }
 
