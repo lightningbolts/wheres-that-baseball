@@ -59,7 +59,7 @@ export function PlayBall() {
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Play Ball</h1>
           <p className="mt-1 max-w-2xl text-sm text-secondary">
             Nine innings against the CPU with real rosters. Every pitch, swing and batted ball runs through the same physics: Statcast pitch movement,
-            bat-ball collisions, drag and lift, the park&apos;s real fences. You pitch, hit and pick throws; fielders run their routes on their own.
+            bat-ball collisions, drag and lift, the park&apos;s real fences. You pitch and hit; the defense fields and throws on its own.
           </p>
         </header>
         {error && <p className="text-sm text-red-500">{error}</p>}
@@ -241,8 +241,8 @@ function SetupForm({ rosters, onStart }: { rosters: RosterFile; onStart: (s: Gam
 function Controls() {
   const rows: Array<[string, string]> = [
     ["Pitching", "Pick a pitch (1–5), aim with the mouse or arrows, click or Space to set it, then stop the meter in the middle. A worse stop costs command."],
-    ["Hitting", "Move the plate-coverage box over the ball and swing with Space or a click. Shift switches between contact and power swings (power has a smaller sweet spot and more bat speed). S sends the runner from first."],
-    ["Fielding", "Fielders run to the ball on their own. When they field it you pick the throw (1–4 for the bases, H to hold), or let the AI choose."],
+    ["Hitting", "You see the pitch from the catcher's view. Move the yellow coverage box over the ball (mouse, arrows, or drag on a touch screen) and swing with Space, a click or the Swing button just before it arrives. Every pitch leaves a numbered marker where it crossed the zone. Shift switches between contact and power swings (power has a smaller sweet spot and more bat speed). S sends the runner from first."],
+    ["Fielding", "Fully automatic: fielders run to the ball and make the throws themselves, and the play never stops to wait for you."],
     ["Other", "T for fast-forward, Sim ½ to sim the rest of a half-inning. The game saves after every pitch."],
   ];
   return (

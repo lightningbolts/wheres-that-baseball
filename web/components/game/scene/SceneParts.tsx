@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { PLATE_FRONT_Z } from "@/lib/game/physics/pitch";
 import { MAX_FRAME_DT, advancePlayback, fielderKey, type Playback } from "@/components/game/scene/playback";
+import { MARK_COLOR, MAX_MARKS, plateCam, plateHud, zoneBox } from "@/components/game/scene/view";
 
 /** Advances playback time and fires cues. Mount first so it runs before readers. */
 export function Director({ pb }: { pb: Playback }) {
@@ -20,7 +21,8 @@ export function Ball({ pb }: { pb: Playback }) {
   const ball = useRef<THREE.Mesh>(null);
   const shadow = useRef<THREE.Mesh>(null);
   const trail = useRef<THREE.InstancedMesh>(null);
-  const { camera } = useThree();
+  const dot = useRef<THREE.Group>(null);
+  const { camera, size } = useThree();
   const st = useMemo(
     () => ({
       hist: Array.from({ length: TRAIL }, () => new THREE.Vector3()),
@@ -42,7 +44,8 @@ export function Ball({ pb }: { pb: Playback }) {
     const b = ball.current;
     const sh = shadow.current;
     const tr = trail.current;
-    if (!b || !sh || !tr) return;
+    const dt = dot.current;
+    if (!b || !sh || !tr || !dt) return;
     const tl = pb.timeline;
     const p = st.p;
     let visible = false;
@@ -65,11 +68,15 @@ export function Ball({ pb }: { pb: Playback }) {
       if (h && h.frame === pb.frame) {
         p.copy(h.ballP);
         visible = true;
+      } else if (tl && pb.cam === "batter" && mode === fielderKey("C")) {
+        // The catcher is not drawn from his own eye line, and neither is the ball in his mitt.
+        visible = false;
       }
     }
     b.visible = visible;
     if (!visible) {
       sh.visible = false;
+      dt.visible = false;
       tr.count = 0;
       st.count = 0;
       st.wasVisible = false;
@@ -94,10 +101,21 @@ export function Ball({ pb }: { pb: Playback }) {
     b.position.copy(p);
     const cam = camera as THREE.PerspectiveCamera;
     const d = cam.position.distanceTo(p);
-    // Keep the ball at least ~3.5 px tall regardless of camera.
-    const minR = (3.5 * d * Math.tan(((cam.fov ?? 45) * Math.PI) / 360)) / 420;
-    const s = Math.max(1, minR / BALL_R);
+    // A pitch on its way to the plate, seen from a plate camera: the one thing the
+    // player has to read, so it is drawn larger at range and on top of everything.
+    const plateView = pb.cam === "batter" || pb.cam === "pitcher" || pb.cam === "broadcast";
+    const pitching = !!tl && !held && plateView && pb.T >= tl.releaseT && pb.T < Math.min(tl.contactT ?? Infinity, tl.receive.t);
+    // Keep the ball a minimum size on screen regardless of camera (radius in CSS px).
+    const minPx = pitching ? (pb.cam === "batter" ? 5 : 3.2) : 2.2;
+    const ftPerPx = (2 * d * Math.tan(((cam.fov ?? 45) * Math.PI) / 360)) / Math.max(240, size.height);
+    const s = Math.max(1, (minPx * ftPerPx) / BALL_R);
     b.scale.setScalar(s);
+    dt.visible = pitching;
+    if (pitching) {
+      dt.position.copy(p);
+      dt.quaternion.copy(cam.quaternion);
+      dt.scale.setScalar(s);
+    }
     sh.visible = p.y > 0.3 && !held;
     sh.position.set(p.x, 0.07, p.z);
     const hs = Math.max(0.6, s * 0.9) * (1 + Math.min(1, p.y / 60));
@@ -134,6 +152,17 @@ export function Ball({ pb }: { pb: Playback }) {
         <circleGeometry args={[BALL_R * 1.4, 16]} />
         <meshBasicMaterial color="#000" transparent opacity={0.35} depthWrite={false} />
       </mesh>
+      {/* Camera-facing disc + dark rim over the pitched ball: never hidden, readable on any backdrop. */}
+      <group ref={dot} visible={false}>
+        <mesh renderOrder={30}>
+          <ringGeometry args={[BALL_R * 0.98, BALL_R * 1.3, 24]} />
+          <meshBasicMaterial color="#0a0f18" transparent opacity={0.75} depthTest={false} depthWrite={false} />
+        </mesh>
+        <mesh renderOrder={31}>
+          <circleGeometry args={[BALL_R, 24]} />
+          <meshBasicMaterial color="#fffdf2" transparent opacity={0.96} depthTest={false} depthWrite={false} />
+        </mesh>
+      </group>
       <instancedMesh ref={trail} args={[undefined, undefined, TRAIL]} frustumCulled={false}>
         <sphereGeometry args={[BALL_R, 8, 6]} />
         <meshBasicMaterial color="#ffffff" transparent opacity={0.26} depthWrite={false} />
@@ -201,6 +230,7 @@ function springTo(cur: THREE.Vector3, vel: THREE.Vector3, to: THREE.Vector3, smo
 export function CameraRig({ pb }: { pb: Playback }) {
   const { camera, size } = useThree();
   const narrow = size.width < size.height;
+  const aspect = size.width / Math.max(1, size.height);
   const st = useMemo(
     () => ({
       pos: new THREE.Vector3(9, 22, 340),
@@ -223,17 +253,17 @@ export function CameraRig({ pb }: { pb: Playback }) {
     const cam = camera as THREE.PerspectiveCamera;
     const wide = narrow ? 1.45 : 1;
     let fov: number;
+    let near = 0.3;
     switch (pb.cam) {
       case "batter":
-        st.toPos.set(0, 5.3, -13.5);
-        st.toLook.set(0, 3.0, 30);
-        fov = 38 * wide;
+      case "pitcher": {
+        const c = plateCam(pb.cam, aspect);
+        st.toPos.set(c.pos[0], c.pos[1], c.pos[2]);
+        st.toLook.set(c.look[0], c.look[1], c.look[2]);
+        fov = c.fov;
+        near = c.near;
         break;
-      case "pitcher":
-        st.toPos.set(0, 9.6, 80);
-        st.toLook.set(0, 2.6, 0);
-        fov = 19 * wide;
-        break;
+      }
       case "overview":
         st.toPos.set(-40, 230, -170);
         st.toLook.set(0, 0, 170);
@@ -296,17 +326,81 @@ export function CameraRig({ pb }: { pb: Playback }) {
       cam.rotateZ(shake * 0.012 * Math.sin(t * 61.7 + 0.4));
     }
     const f = st.fov * (1 - 0.045 * pb.fx.punch);
-    if (Math.abs(cam.fov - f) > 1e-4) {
+    if (Math.abs(cam.fov - f) > 1e-4 || cam.near !== near) {
       cam.fov = f;
+      cam.near = near;
       cam.updateProjectionMatrix();
     }
   });
   return null;
 }
 
+/** A rectangular outline with real thickness (WebGL lines are always 1 px): four quads. */
+function frameGeometry(): THREE.BufferGeometry {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(new Array(16 * 3).fill(0), 3));
+  const idx: number[] = [];
+  for (let q = 0; q < 4; q += 1) idx.push(q * 4, q * 4 + 1, q * 4 + 2, q * 4, q * 4 + 2, q * 4 + 3);
+  g.setIndex(idx);
+  return g;
+}
+
+function writeFrame(g: THREE.BufferGeometry, x0: number, y0: number, x1: number, y1: number, t: number, z: number) {
+  const pos = g.attributes.position as THREE.BufferAttribute;
+  const h = t / 2;
+  let i = 0;
+  const quad = (ax: number, ay: number, bx: number, by: number) => {
+    pos.setXYZ(i, ax, ay, z);
+    pos.setXYZ(i + 1, bx, ay, z);
+    pos.setXYZ(i + 2, bx, by, z);
+    pos.setXYZ(i + 3, ax, by, z);
+    i += 4;
+  };
+  quad(x0 - h, y0 - h, x1 + h, y0 + h);
+  quad(x0 - h, y1 - h, x1 + h, y1 + h);
+  quad(x0 - h, y0 + h, x0 + h, y1 - h);
+  quad(x1 - h, y0 + h, x1 + h, y1 - h);
+  pos.needsUpdate = true;
+}
+
+/** White numerals 1…n on transparent squares, for the pitch-sequence markers. */
+function numeralTextures(n: number): THREE.CanvasTexture[] {
+  const out: THREE.CanvasTexture[] = [];
+  for (let i = 0; i < n; i += 1) {
+    const c = document.createElement("canvas");
+    c.width = 64;
+    c.height = 64;
+    const x = c.getContext("2d");
+    if (x) {
+      x.font = "bold 44px ui-sans-serif, system-ui, sans-serif";
+      x.textAlign = "center";
+      x.textBaseline = "middle";
+      x.lineWidth = 6;
+      x.strokeStyle = "rgba(0,0,0,0.55)";
+      x.strokeText(String(i + 1), 32, 35);
+      x.fillStyle = "#fff";
+      x.fillText(String(i + 1), 32, 35);
+    }
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    out.push(t);
+  }
+  return out;
+}
+
+const MARK_COLORS = Object.fromEntries(Object.entries(MARK_COLOR).map(([k, v]) => [k, new THREE.Color(v)])) as Record<keyof typeof MARK_COLOR, THREE.Color>;
+const MARK_SLOTS = Array.from({ length: MAX_MARKS }, (_, i) => i);
+const smooth01 = (t: number) => {
+  const c = Math.min(1, Math.max(0, t));
+  return c * c * (3 - 2 * c);
+};
+
 /**
- * Strike zone, plate-coverage indicator / pitch target and a pointer plane at the
+ * Strike zone, plate-coverage indicator / pitch target, where each pitch of the
+ * at-bat crossed, the incoming pitch's approach ring, and a pointer plane at the
  * front of the plate. px/pz are Statcast plate coordinates (world x = −px).
+ * Everything is drawn over the scene and sized in screen pixels, so it reads the
+ * same from the catcher cam, from behind the mound and from center field.
  */
 export function PlateOverlay({
   pb,
@@ -317,121 +411,194 @@ export function PlateOverlay({
   onAim: (px: number, pz: number) => void;
   onClick: () => void;
 }) {
-  const zone = useRef<THREE.LineSegments>(null);
-  const pci = useRef<THREE.LineSegments>(null);
+  const { camera, size } = useThree();
+  const hud = useMemo(() => plateHud(pb), [pb]);
+  const zone = useRef<THREE.Mesh>(null);
+  const grid = useRef<THREE.LineSegments>(null);
+  const pci = useRef<THREE.Mesh>(null);
   const dot = useRef<THREE.Mesh>(null);
-  const last = useRef<THREE.Mesh>(null);
-  const zoneKey = useRef({ b: NaN, t: NaN });
-  const zoneGeo = useMemo(() => {
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.Float32BufferAttribute(new Array(8 * 3 + 12 * 3).fill(0), 3));
-    return g;
-  }, []);
-  const pciGeo = useMemo(() => {
+  const target = useRef<THREE.Mesh>(null);
+  const approach = useRef<THREE.Mesh>(null);
+  const marks = useRef<Array<THREE.Group | null>>([]);
+  const grab = useRef<{ x: number; y: number } | null>(null);
+  const zoneGeo = useMemo(() => frameGeometry(), []);
+  const pciGeo = useMemo(() => frameGeometry(), []);
+  const gridGeo = useMemo(() => {
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.Float32BufferAttribute(new Array(8 * 3).fill(0), 3));
     return g;
   }, []);
-  useEffect(() => () => {
-    zoneGeo.dispose();
-    pciGeo.dispose();
-  }, [zoneGeo, pciGeo]);
+  const numerals = useMemo(() => numeralTextures(MAX_MARKS), []);
+  useEffect(
+    () => () => {
+      zoneGeo.dispose();
+      pciGeo.dispose();
+      gridGeo.dispose();
+      numerals.forEach((t) => t.dispose());
+    },
+    [zoneGeo, pciGeo, gridGeo, numerals],
+  );
 
   useFrame(() => {
     const a = pb.aim;
     const z = PLATE_FRONT_Z;
-    if (zone.current) {
+    const cam = camera as THREE.PerspectiveCamera;
+    const dist = Math.hypot(cam.position.x, cam.position.y - 2.5, cam.position.z - z);
+    // Feet per CSS pixel at the plate: line weights and marker sizes are set in pixels.
+    const ftPerPx = (2 * dist * Math.tan(((cam.fov ?? 45) * Math.PI) / 360)) / Math.max(240, size.height);
+    const line = 2.6 * ftPerPx;
+    if (zone.current && grid.current) {
       zone.current.visible = a.showZone;
-      const k = zoneKey.current;
-      if (a.showZone && (k.b !== a.zoneBottom || k.t !== a.zoneTop)) {
-        k.b = a.zoneBottom;
-        k.t = a.zoneTop;
-        const pos = zoneGeo.attributes.position as THREE.BufferAttribute;
-        const x0 = -0.83;
-        const x1 = 0.83;
-        const y0 = a.zoneBottom;
-        const y1 = a.zoneTop;
+      grid.current.visible = a.showZone;
+      if (a.showZone) {
+        const { x0, x1, y0, y1 } = zoneBox(a.zoneBottom, a.zoneTop);
+        writeFrame(zoneGeo, x0, y0, x1, y1, line, z);
+        const pos = gridGeo.attributes.position as THREE.BufferAttribute;
         const xa = x0 + (x1 - x0) / 3;
         const xb = x0 + (2 * (x1 - x0)) / 3;
         const ya = y0 + (y1 - y0) / 3;
         const yb = y0 + (2 * (y1 - y0)) / 3;
-        let i = 0;
-        const seg = (ax: number, ay: number, bx: number, by: number) => {
-          pos.setXYZ(i, ax, ay, z);
-          pos.setXYZ(i + 1, bx, by, z);
-          i += 2;
-        };
-        seg(x0, y0, x1, y0);
-        seg(x1, y0, x1, y1);
-        seg(x1, y1, x0, y1);
-        seg(x0, y1, x0, y0);
-        // 3×3 grid
-        seg(xa, y0, xa, y1);
-        seg(xb, y0, xb, y1);
-        seg(x0, ya, x1, ya);
-        seg(x0, yb, x1, yb);
+        pos.setXYZ(0, xa, y0, z);
+        pos.setXYZ(1, xa, y1, z);
+        pos.setXYZ(2, xb, y0, z);
+        pos.setXYZ(3, xb, y1, z);
+        pos.setXYZ(4, x0, ya, z);
+        pos.setXYZ(5, x1, ya, z);
+        pos.setXYZ(6, x0, yb, z);
+        pos.setXYZ(7, x1, yb, z);
         pos.needsUpdate = true;
-        zoneGeo.setDrawRange(0, 16);
       }
     }
-    if (pci.current && dot.current) {
-      pci.current.visible = a.visible && a.kind === "pci";
+    if (pci.current && dot.current && target.current) {
+      const isPci = a.kind === "pci";
+      pci.current.visible = a.visible && isPci;
       dot.current.visible = a.visible;
+      target.current.visible = a.visible && !isPci;
       if (a.visible) {
         const x = -a.px;
         const y = a.pz;
-        const zz = z - 0.02;
-        const pos = pciGeo.attributes.position as THREE.BufferAttribute;
-        pos.setXYZ(0, x - a.w, y - a.h, zz);
-        pos.setXYZ(1, x + a.w, y - a.h, zz);
-        pos.setXYZ(2, x + a.w, y - a.h, zz);
-        pos.setXYZ(3, x + a.w, y + a.h, zz);
-        pos.setXYZ(4, x + a.w, y + a.h, zz);
-        pos.setXYZ(5, x - a.w, y + a.h, zz);
-        pos.setXYZ(6, x - a.w, y + a.h, zz);
-        pos.setXYZ(7, x - a.w, y - a.h, zz);
-        pos.needsUpdate = true;
-        dot.current.position.set(x, y, z - 0.03);
-        dot.current.scale.setScalar(a.kind === "target" ? 1.6 : 0.6);
+        if (isPci) writeFrame(pciGeo, x - a.w, y - a.h, x + a.w, y + a.h, line * 1.15, z);
+        dot.current.position.set(x, y, z);
+        dot.current.quaternion.copy(cam.quaternion);
+        dot.current.scale.setScalar(Math.max(0.03, 2.4 * ftPerPx));
+        target.current.position.set(x, y, z);
+        target.current.quaternion.copy(cam.quaternion);
+        target.current.scale.setScalar(Math.max(BALL_R * 1.5, 7 * ftPerPx));
       }
     }
-    if (last.current) {
-      const lp = pb.lastPitch;
-      last.current.visible = !!lp && a.showZone;
-      if (lp) {
-        last.current.position.set(-lp.px, lp.pz, z - 0.01);
-        (last.current.material as THREE.MeshBasicMaterial).color.set(lp.strike ? "#ff5a4f" : "#5ab0ff");
+    // Where each pitch of the at-bat crossed: numbered, colored by result, newest on top.
+    const list = hud.marks;
+    const first = Math.max(0, list.length - MAX_MARKS);
+    const r = Math.max(BALL_R, 4.5 * ftPerPx);
+    const age = hud.markAt < 0 ? 10 : pb.now - hud.markAt;
+    for (let i = 0; i < MAX_MARKS; i += 1) {
+      const g = marks.current[i];
+      if (!g) continue;
+      const m = list[first + i];
+      g.visible = a.showZone && !!m;
+      if (!g.visible || !m) continue;
+      const newest = first + i === list.length - 1;
+      g.position.set(-m.px, m.pz, z);
+      g.quaternion.copy(cam.quaternion);
+      g.scale.setScalar(r * (newest ? 1 + 0.9 * Math.exp(-age / 0.12) : 0.92));
+      const disc = (g.children[1] as THREE.Mesh).material as THREE.MeshBasicMaterial;
+      disc.color.copy(MARK_COLORS[m.kind]);
+      disc.opacity = newest ? 0.95 : 0.55;
+      ((g.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = newest ? 0.9 : 0.35;
+      const num = (g.children[2] as THREE.Mesh).material as THREE.MeshBasicMaterial;
+      num.map = numerals[(m.n - 1) % MAX_MARKS];
+      num.opacity = newest ? 1 : 0.7;
+    }
+    // Approach ring: the incoming ball projected straight onto the zone plane,
+    // closing in on the spot where it will cross.
+    const ap = approach.current;
+    if (ap) {
+      let on = false;
+      const tl = pb.timeline;
+      if (tl && hud.assistFrom != null && a.showZone && a.kind === "pci" && pb.cam === "batter" && pb.T >= tl.releaseT && pb.T < Math.min(tl.contactT ?? Infinity, tl.receive.t)) {
+        const p = tl.ball(pb.T).p;
+        const span = Math.max(1, tl.releaseP.z - z);
+        const frac = 1 - (p.z - z) / span;
+        const alpha = smooth01((frac - hud.assistFrom) / 0.12);
+        if (p.z > z && alpha > 0.01) {
+          on = true;
+          ap.position.set(p.x, p.y, z);
+          ap.quaternion.copy(cam.quaternion);
+          ap.scale.setScalar(Math.max(BALL_R, 4 * ftPerPx) * (1 + 3.2 * (1 - frac)));
+          (ap.material as THREE.MeshBasicMaterial).opacity = 0.85 * alpha;
+        }
       }
+      ap.visible = on;
     }
   });
 
-  const move = (e: ThreeEvent<PointerEvent>) => onAim(-e.point.x, e.point.y);
+  // Mouse: the marker follows the pointer and a press is the action button.
+  // Touch: drag anywhere to move the marker from where it is (the finger never
+  // hides it); the on-screen buttons act.
+  const move = (e: ThreeEvent<PointerEvent>) => {
+    if (e.nativeEvent.pointerType === "touch") {
+      const g = grab.current;
+      if (g) onAim(g.x - e.point.x, g.y + e.point.y);
+    } else onAim(-e.point.x, e.point.y);
+  };
+  const down = (e: ThreeEvent<PointerEvent>) => {
+    if (e.nativeEvent.pointerType === "touch") {
+      grab.current = { x: pb.aim.px + e.point.x, y: pb.aim.pz - e.point.y };
+      return;
+    }
+    move(e);
+    onClick();
+  };
+  const up = () => {
+    grab.current = null;
+  };
   return (
     <group>
-      <lineSegments ref={zone} geometry={zoneGeo}>
-        <lineBasicMaterial color="#ffffff" transparent opacity={0.55} depthTest={false} />
-      </lineSegments>
-      <lineSegments ref={pci} geometry={pciGeo}>
-        <lineBasicMaterial color="#ffe14d" depthTest={false} />
-      </lineSegments>
-      <mesh ref={dot} renderOrder={10}>
-        <circleGeometry args={[0.12, 20]} />
-        <meshBasicMaterial color="#ffe14d" transparent opacity={0.85} depthTest={false} />
+      <mesh ref={zone} geometry={zoneGeo} renderOrder={5} frustumCulled={false}>
+        <meshBasicMaterial color="#ffffff" transparent opacity={0.9} depthTest={false} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
-      <mesh ref={last} renderOrder={9}>
-        <circleGeometry args={[0.13, 20]} />
-        <meshBasicMaterial color="#ff5a4f" transparent opacity={0.9} depthTest={false} />
+      <lineSegments ref={grid} geometry={gridGeo} renderOrder={5} frustumCulled={false}>
+        <lineBasicMaterial color="#ffffff" transparent opacity={0.3} depthTest={false} depthWrite={false} />
+      </lineSegments>
+      {MARK_SLOTS.map((i) => (
+        <group
+          key={i}
+          visible={false}
+          ref={(g) => {
+            marks.current[i] = g;
+          }}
+        >
+          <mesh renderOrder={8}>
+            <ringGeometry args={[0.96, 1.22, 24]} />
+            <meshBasicMaterial color="#0a0f18" transparent opacity={0.6} depthTest={false} depthWrite={false} />
+          </mesh>
+          <mesh renderOrder={8}>
+            <circleGeometry args={[1, 24]} />
+            <meshBasicMaterial color="#ffffff" transparent opacity={0.9} depthTest={false} depthWrite={false} />
+          </mesh>
+          <mesh renderOrder={9}>
+            <planeGeometry args={[1.5, 1.5]} />
+            <meshBasicMaterial map={numerals[i]} transparent depthTest={false} depthWrite={false} />
+          </mesh>
+        </group>
+      ))}
+      <mesh ref={pci} geometry={pciGeo} renderOrder={10} frustumCulled={false}>
+        <meshBasicMaterial color="#ffe14d" transparent opacity={0.95} depthTest={false} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
-      <mesh
-        position={[0, 3, PLATE_FRONT_Z]}
-        rotation-y={Math.PI}
-        onPointerMove={move}
-        onPointerDown={(e) => {
-          move(e);
-          onClick();
-        }}
-      >
-        <planeGeometry args={[40, 24]} />
+      <mesh ref={target} renderOrder={10} visible={false}>
+        <ringGeometry args={[0.78, 1, 28]} />
+        <meshBasicMaterial color="#ffe14d" transparent opacity={0.95} depthTest={false} depthWrite={false} />
+      </mesh>
+      <mesh ref={dot} renderOrder={11} visible={false}>
+        <circleGeometry args={[1, 16]} />
+        <meshBasicMaterial color="#ffe14d" transparent opacity={0.95} depthTest={false} depthWrite={false} />
+      </mesh>
+      <mesh ref={approach} renderOrder={12} visible={false}>
+        <ringGeometry args={[0.82, 1, 32]} />
+        <meshBasicMaterial color="#ffffff" transparent opacity={0} depthTest={false} depthWrite={false} />
+      </mesh>
+      <mesh position={[0, 3, PLATE_FRONT_Z]} rotation-y={Math.PI} onPointerMove={move} onPointerDown={down} onPointerUp={up} onPointerLeave={up}>
+        <planeGeometry args={[60, 36]} />
         <meshBasicMaterial transparent opacity={0} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
     </group>

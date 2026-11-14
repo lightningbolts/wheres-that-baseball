@@ -9,6 +9,7 @@ import { getTeamColor } from "@/lib/mlb/teamColors";
 import { getTeamById } from "@/lib/mlb/teams";
 import { ordinal } from "@/lib/game/rules/game";
 import { GameController, pitchName, setAbbrevLookup, type HudSnapshot } from "@/components/game/controller";
+import { MARK_COLOR, zoneBox } from "@/components/game/scene/view";
 import { createPlayback } from "@/components/game/scene/playback";
 import { sfx } from "@/components/game/audio";
 import { BoxScore } from "@/components/game/BoxScore";
@@ -54,17 +55,15 @@ export function GameView({
       const k = e.key;
       if (k === " " || k === "Enter") {
         e.preventDefault();
-        if (ctl.getSnapshot().prompt) return;
+        // A held key must not lock the target and stop the meter (or swing) by itself.
+        if (e.repeat) return;
+        // A focused HUD button would also "click" on Space: the key belongs to the game.
+        if (document.activeElement instanceof HTMLButtonElement) document.activeElement.blur();
         ctl.primary();
       } else if (k === "Escape") ctl.cancelAim();
-      else if (/^[1-7]$/.test(k)) {
-        const s = ctl.getSnapshot();
-        const n = Number(k);
-        if (s.prompt) {
-          const opt = s.prompt.options.find((o) => o.base === n);
-          if (opt) ctl.chooseThrow(opt.base);
-        } else ctl.selectPitch(n - 1);
-      } else if (k === "Shift" || k === "p" || k === "P") ctl.togglePower();
+      else if (/^[1-7]$/.test(k)) ctl.selectPitch(Number(k) - 1);
+      else if (e.repeat && (k === "Shift" || /^[pstPST]$/.test(k))) return;
+      else if (k === "Shift" || k === "p" || k === "P") ctl.togglePower();
       else if (k === "s" || k === "S") ctl.toggleSteal();
       else if (k === "t" || k === "T") ctl.toggleTurbo();
       // px grows toward the 1B side: screen-right from behind the plate, screen-left from behind the mound.
@@ -72,19 +71,25 @@ export function GameView({
       else if (k === "ArrowRight" || k === "d") ctl.nudgeAim(ctl.getSnapshot().humanPitching ? -0.12 : 0.12, 0);
       else if (k === "ArrowUp" || k === "w") ctl.nudgeAim(0, 0.12);
       else if (k === "ArrowDown") ctl.nudgeAim(0, -0.12);
-      else if (k === "h" || k === "H") {
-        if (ctl.getSnapshot().prompt) ctl.chooseThrow(null);
-      }
+      else return;
+      if (k.startsWith("Arrow")) e.preventDefault();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [ctl]);
 
   const onAim = useCallback((px: number, pz: number) => ctl.setAim(px, pz), [ctl]);
-  const onPrimary = useCallback(() => {
-    if (ctl.getSnapshot().prompt) return;
-    ctl.primary();
-  }, [ctl]);
+  const onPrimary = useCallback(() => ctl.primary(), [ctl]);
+  // Phones and tablets get on-screen action buttons whatever the screen width.
+  const [touch, setTouch] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia?.("(pointer: coarse)");
+    if (!mq) return;
+    const on = () => setTouch(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
 
   const g = ctl.session.game;
   const awayId = setup.awayTeamId;
@@ -94,7 +99,10 @@ export function GameView({
     <div className="relative min-h-0 w-full flex-1 select-none overflow-hidden bg-[#0d1a12] text-white">
       <GameScene park={g.park} pb={pb} homeColor={getTeamColor(homeId)} onAim={onAim} onPrimary={onPrimary} />
 
-      <ScoreBug snap={snap} awayId={awayId} homeId={homeId} />
+      <div className="pointer-events-none absolute left-2 top-2 flex flex-col items-start gap-1.5 sm:left-3 sm:top-3">
+        <ScoreBug snap={snap} awayId={awayId} homeId={homeId} />
+        <PitchReadout snap={snap} />
+      </div>
 
       <div className="absolute right-2 top-2 flex flex-wrap items-center justify-end gap-1.5 sm:right-3 sm:top-3">
         <WinProb p={snap.winProbHome} awayId={awayId} homeId={homeId} />
@@ -127,7 +135,7 @@ export function GameView({
       <MatchupCard snap={snap} />
       <Banner snap={snap} />
       <Feedback snap={snap} />
-      <Controls snap={snap} ctl={ctl} />
+      <Controls snap={snap} ctl={ctl} touch={touch} />
 
       {showLog && <PlayLog snap={snap} onClose={() => setShowLog(false)} />}
       {(snap.final || showBox) && (
@@ -169,6 +177,8 @@ function HudButton({ children, onClick, active, title }: { children: React.React
       aria-label={title}
       onClick={(e) => {
         e.stopPropagation();
+        // Keep keyboard focus on the game, or the next Space would press this button again.
+        e.currentTarget.blur();
         sfx.unlock();
         onClick();
       }}
@@ -190,8 +200,16 @@ function ScoreBug({ snap, awayId, homeId }: { snap: HudSnapshot; awayId: number;
       {batting && <span className="text-[10px] text-amber-300">●</span>}
     </div>
   );
+  const pips = (label: string, n: number, max: number, on: string) => (
+    <div className="flex items-center gap-1">
+      <span className="w-2.5">{label}</span>
+      {Array.from({ length: max }, (_, i) => (
+        <span key={i} className={`h-2 w-2 rounded-full ${n > i ? on : "bg-white/20"}`} />
+      ))}
+    </div>
+  );
   return (
-    <div className="absolute left-2 top-2 flex items-stretch gap-3 rounded-lg border border-white/10 bg-black/55 px-3 py-2 text-sm shadow-lg backdrop-blur sm:left-3 sm:top-3">
+    <div className="flex items-stretch gap-3 rounded-lg border border-white/10 bg-black/55 px-3 py-2 text-sm shadow-lg backdrop-blur">
       <div className="flex flex-col justify-center gap-0.5">
         {row(awayId, snap.score.away, snap.top)}
         {row(homeId, snap.score.home, !snap.top)}
@@ -202,15 +220,10 @@ function ScoreBug({ snap, awayId, homeId }: { snap: HudSnapshot; awayId: number;
         </div>
         <Diamond bases={snap.bases} />
       </div>
-      <div className="flex flex-col items-center justify-center border-l border-white/10 pl-3 text-xs">
-        <div className="font-mono text-base font-bold tabular-nums">
-          {snap.balls}-{snap.strikes}
-        </div>
-        <div className="mt-0.5 flex gap-1" aria-label={`${snap.outs} outs`}>
-          {[0, 1].map((i) => (
-            <span key={i} className={`h-2 w-2 rounded-full ${snap.outs > i ? "bg-amber-300" : "bg-white/20"}`} />
-          ))}
-        </div>
+      <div className="flex flex-col justify-center gap-1 border-l border-white/10 pl-3 text-[10px] font-semibold text-white/60" aria-label={`Count ${snap.balls} and ${snap.strikes}, ${snap.outs} out`}>
+        {pips("B", snap.balls, 3, "bg-sky-400")}
+        {pips("S", snap.strikes, 2, "bg-rose-500")}
+        {pips("O", snap.outs, 2, "bg-amber-300")}
       </div>
     </div>
   );
@@ -244,24 +257,80 @@ function WinProb({ p, awayId, homeId }: { p: number; awayId: number; homeId: num
   );
 }
 
-function MatchupCard({ snap }: { snap: HudSnapshot }) {
+const RESULT_TONE: Record<string, string> = {
+  ball: "text-sky-300",
+  called_strike: "text-rose-300",
+  swinging_strike: "text-rose-300",
+  foul: "text-amber-300",
+  in_play: "text-emerald-300",
+  hbp: "text-violet-300",
+  pending: "text-white/70",
+};
+
+/** The pitch on its way (type and speed), then the call. */
+function PitchReadout({ snap }: { snap: HudSnapshot }) {
+  const r = snap.readout;
+  if (!r) return null;
   return (
-    <div className="pointer-events-none absolute bottom-2 left-2 max-w-[48vw] rounded-lg border border-white/10 bg-black/55 px-3 py-2 text-xs shadow-lg backdrop-blur sm:bottom-3 sm:left-3">
-      <div className="truncate">
-        <span className="text-white/55">AB </span>
-        <span className="font-semibold">{snap.batterName}</span>
-        <span className="text-white/55"> · {snap.batterLine}</span>
-      </div>
-      <div className="truncate">
-        <span className="text-white/55">P </span>
-        <span className="font-semibold">{snap.pitcherName}</span>
-        <span className="text-white/55"> · {snap.pitchCount} pitches</span>
-      </div>
-      {snap.lastPitch && (
-        <div className="truncate text-white/60">
-          Last: {pitchName(snap.lastPitch.type)} {snap.lastPitch.mph} mph · {snap.lastPitch.result}
+    <div key={r.id} className="animate-play_in rounded-lg border border-white/10 bg-black/60 px-3 py-1.5 text-sm shadow-lg backdrop-blur" aria-live="polite">
+      <span className="font-mono text-base font-bold tabular-nums">{r.mph}</span>
+      <span className="text-[10px] text-white/60"> mph </span>
+      <span className="font-semibold">{pitchName(r.type)}</span>
+      {r.result && <span className={`ml-2 font-bold ${RESULT_TONE[r.kind] ?? "text-white"}`}>{r.result}</span>}
+    </div>
+  );
+}
+
+/** px/pz (ft, catcher's view: +px to the right) → the mini zone diagrams' SVG units. */
+const ZX = (px: number) => 50 + px * 26;
+const ZY = (pz: number) => 118 - pz * 26;
+
+function ZoneFrame({ zone }: { zone: { bottom: number; top: number } }) {
+  const b = zoneBox(zone.bottom, zone.top);
+  return <rect x={ZX(b.x0)} y={ZY(b.y1)} width={ZX(b.x1) - ZX(b.x0)} height={ZY(b.y0) - ZY(b.y1)} fill="rgba(255,255,255,0.06)" stroke="#fff" strokeOpacity={0.85} strokeWidth={1.5} />;
+}
+
+/** This at-bat's pitches on a small strike zone (catcher's view). */
+function PitchChart({ snap }: { snap: HudSnapshot }) {
+  if (!snap.pitches.length) return null;
+  const last = snap.pitches.length - 1;
+  return (
+    <svg width={58} height={72} viewBox="4 6 92 116" className="shrink-0" role="img" aria-label={`Pitch locations this at-bat: ${snap.pitches.length}`}>
+      <ZoneFrame zone={snap.zone} />
+      {snap.pitches.map((m, i) => (
+        <g key={m.n} opacity={i === last ? 1 : 0.7}>
+          <circle cx={ZX(m.px)} cy={ZY(m.pz)} r={i === last ? 6.5 : 5.5} fill={MARK_COLOR[m.kind]} stroke="#0a0f18" strokeWidth={1} />
+          <text x={ZX(m.px)} y={ZY(m.pz) + 3} textAnchor="middle" fontSize={8.5} fontWeight={700} fill={m.kind === "pending" ? "#111" : "#fff"}>
+            {m.n}
+          </text>
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+function MatchupCard({ snap }: { snap: HudSnapshot }) {
+  const last = snap.pitches[snap.pitches.length - 1];
+  return (
+    <div className="pointer-events-none absolute bottom-2 left-2 flex max-w-[58vw] items-center gap-2.5 rounded-lg border border-white/10 bg-black/55 px-3 py-2 text-xs shadow-lg backdrop-blur sm:bottom-3 sm:left-3">
+      <PitchChart snap={snap} />
+      <div className="min-w-0">
+        <div className="truncate">
+          <span className="text-white/55">AB </span>
+          <span className="font-semibold">{snap.batterName}</span>
+          <span className="text-white/55"> · {snap.batterLine}</span>
         </div>
-      )}
+        <div className="truncate">
+          <span className="text-white/55">P </span>
+          <span className="font-semibold">{snap.pitcherName}</span>
+          <span className="text-white/55"> · {snap.pitchCount} pitches</span>
+        </div>
+        {last && last.kind !== "pending" && (
+          <div className="truncate text-white/60">
+            #{last.n}: {pitchName(last.type)} {last.mph} mph
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -280,16 +349,48 @@ function Banner({ snap }: { snap: HudSnapshot }) {
   );
 }
 
-/** Instant swing feedback: timing on the press, exit velocity / launch angle on contact. */
+/**
+ * Instant swing feedback: timing on the press, where the bat's coverage box was
+ * against where the ball crossed, then exit velocity / launch angle on contact.
+ * It sits beside the plate, so it stays readable when the camera leaves for the play.
+ */
 function Feedback({ snap }: { snap: HudSnapshot }) {
   const f = snap.feedback;
   if (!f) return null;
   const tone = f.tone === "good" ? "text-emerald-300" : f.tone === "bad" ? "text-amber-300" : "text-white";
+  const sw = f.swing;
+  const t = f.timingMs;
+  const covered = sw ? Math.abs(sw.ball.px - sw.pci.px) <= sw.pci.w && Math.abs(sw.ball.pz - sw.pci.pz) <= sw.pci.h : false;
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-[34%] flex justify-center px-4">
-      <div key={f.id} className="animate-play_in rounded-lg bg-black/45 px-3 py-1 text-center shadow-lg backdrop-blur">
-        <div className={`text-sm font-bold uppercase tracking-wide sm:text-base ${tone}`}>{f.text}</div>
-        {f.sub && <div className="font-mono text-[11px] text-white/80 sm:text-xs">{f.sub}</div>}
+    <div className="pointer-events-none absolute right-2 top-[26%] flex justify-end sm:right-[max(0.75rem,calc(50%-21rem))]">
+      <div key={f.id} className="flex animate-play_in items-center gap-2.5 rounded-lg border border-white/10 bg-black/60 px-3 py-2 shadow-lg backdrop-blur">
+        {sw && (
+          <svg width={62} height={77} viewBox="4 6 92 116" className="shrink-0" role="img" aria-label={covered ? "The ball was inside your coverage box" : "The ball was outside your coverage box"}>
+            <ZoneFrame zone={sw.zone} />
+            <rect x={ZX(sw.pci.px - sw.pci.w)} y={ZY(sw.pci.pz + sw.pci.h)} width={sw.pci.w * 52} height={sw.pci.h * 52} fill="rgba(255,225,77,0.18)" stroke="#ffe14d" strokeWidth={2} />
+            <circle cx={ZX(sw.ball.px)} cy={ZY(sw.ball.pz)} r={4.5} fill="#fff" stroke={covered ? "#39d98a" : "#ff4d43"} strokeWidth={2.5} />
+          </svg>
+        )}
+        <div className="min-w-[6.5rem]">
+          <div className={`text-sm font-bold uppercase tracking-wide sm:text-base ${tone}`}>{f.text}</div>
+          {t != null && (
+            <div className="mt-1" aria-label={`Swing timing ${Math.round(Math.abs(t))} milliseconds ${t < 0 ? "early" : "late"}`}>
+              <div className="relative h-1.5 w-full rounded-full bg-gradient-to-r from-amber-500/70 via-emerald-400 to-amber-500/70">
+                <div className="absolute top-1/2 h-3 w-1 -translate-x-1/2 -translate-y-1/2 rounded bg-white shadow" style={{ left: `${50 + Math.max(-50, Math.min(50, (t / 60) * 50))}%` }} />
+              </div>
+              <div className="mt-0.5 flex justify-between text-[9px] uppercase text-white/50">
+                <span>Early</span>
+                <span className="font-mono tabular-nums text-white/75">
+                  {t < 0 ? "−" : "+"}
+                  {Math.round(Math.abs(t))} ms
+                </span>
+                <span>Late</span>
+              </div>
+            </div>
+          )}
+          {sw && <div className="mt-0.5 text-[10px] text-white/65">{covered ? "Ball inside your box" : "Ball outside your box"}</div>}
+          {f.sub && <div className="font-mono text-[11px] text-white/85 sm:text-xs">{f.sub}</div>}
+        </div>
       </div>
     </div>
   );
@@ -314,44 +415,24 @@ function Meter({ start }: { start: number }) {
   );
 }
 
-function Controls({ snap, ctl }: { snap: HudSnapshot; ctl: GameController }) {
+function Controls({ snap, ctl, touch }: { snap: HudSnapshot; ctl: GameController; touch: boolean }) {
   const panel = "rounded-xl border border-white/10 bg-black/60 px-3 py-2 shadow-xl backdrop-blur";
-  const wrap = "absolute inset-x-0 bottom-2 flex justify-center px-2 sm:bottom-3";
-
-  if (snap.prompt) {
-    return (
-      <div className={wrap}>
-        <div className={`${panel} flex flex-col items-center gap-2`}>
-          <div className="text-xs text-white/70">Ball fielded by the {snap.prompt.fielded.pos} — throw to:</div>
-          <div className="flex flex-wrap justify-center gap-1.5">
-            {snap.prompt.options.map((o) => (
-              <button
-                key={o.base}
-                type="button"
-                onClick={() => ctl.chooseThrow(o.base)}
-                className={`rounded-md px-3 py-2 text-sm font-semibold ${o.margin > 0.05 ? "bg-emerald-500 text-black hover:bg-emerald-400" : o.margin > -0.15 ? "bg-amber-400 text-black hover:bg-amber-300" : "bg-white/15 hover:bg-white/25"}`}
-              >
-                {o.base === 4 ? "Home" : `${o.base}${["", "st", "nd", "rd"][o.base]}`}
-                <span className="ml-1 text-[10px] font-normal opacity-75">({o.base})</span>
-              </button>
-            ))}
-            <button type="button" onClick={() => ctl.chooseThrow(null)} className="rounded-md bg-white/15 px-3 py-2 text-sm hover:bg-white/25">
-              Hold (H)
-            </button>
-            <button type="button" onClick={() => ctl.chooseThrow(undefined)} className="rounded-md bg-white/15 px-3 py-2 text-sm hover:bg-white/25">
-              Auto
-            </button>
-          </div>
-          <div className="text-[10px] text-white/50">Green = likely out, amber = close play</div>
-        </div>
-      </div>
-    );
-  }
+  const wrap = "pointer-events-none absolute inset-x-0 bottom-2 flex justify-center px-2 sm:bottom-3";
+  // The big action button: always on touch devices, and on narrow screens.
+  const action = `rounded-md bg-emerald-500 px-6 py-2.5 text-sm font-bold text-black hover:bg-emerald-400 ${touch ? "" : "sm:hidden"}`;
+  const hint = `text-[11px] text-white/65 ${touch ? "hidden" : "hidden sm:block"}`;
+  const press = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    sfx.unlock();
+    ctl.primary();
+  };
 
   if (snap.humanPitching && (snap.phase === "aim" || snap.phase === "meter")) {
+    const metering = snap.phase === "meter" && snap.meterStart != null;
     return (
       <div className={wrap}>
-        <div className={`${panel} flex flex-col items-center gap-2`}>
+        <div className={`${panel} pointer-events-auto flex flex-col items-center gap-2`}>
           <div className="flex flex-wrap justify-center gap-1">
             {snap.arsenal.map((p, i) => (
               <button
@@ -359,6 +440,7 @@ function Controls({ snap, ctl }: { snap: HudSnapshot; ctl: GameController }) {
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
+                  e.currentTarget.blur();
                   ctl.selectPitch(i);
                 }}
                 className={`rounded-md px-2.5 py-1.5 text-xs font-semibold ${i === snap.pitchIdx ? "bg-amber-300 text-black" : "bg-white/10 hover:bg-white/25"}`}
@@ -367,27 +449,28 @@ function Controls({ snap, ctl }: { snap: HudSnapshot; ctl: GameController }) {
               </button>
             ))}
           </div>
-          {snap.phase === "meter" && snap.meterStart != null ? (
-            <>
-              <Meter start={snap.meterStart} />
-              <div className="text-[11px] text-white/65">Stop the needle in the middle — Space / click. Esc to re-aim.</div>
-            </>
-          ) : (
-            <div className="text-[11px] text-white/65">Aim with the mouse (or arrows), then click / Space to set the location.</div>
-          )}
+          {metering && <Meter start={snap.meterStart!} />}
+          <button type="button" onPointerDown={press} className={action}>
+            {metering ? "Throw" : "Set location"}
+          </button>
+          <div className={hint}>
+            {metering ? "Stop the needle in the middle — Space / click. Esc to re-aim." : "Aim with the mouse (or arrows), then click / Space to set the location."}
+          </div>
+          {touch && <div className="text-[11px] text-white/65">{metering ? "Stop the needle in the middle." : "Drag on the field to move the target."}</div>}
         </div>
       </div>
     );
   }
 
-  if (snap.humanBatting && !snap.final && snap.phase !== "between" && snap.phase !== "play") {
+  if (snap.humanBatting && !snap.final && (snap.phase === "ready" || snap.phase === "pitch")) {
     return (
       <div className={wrap}>
-        <div className={`${panel} flex flex-wrap items-center justify-center gap-2`}>
+        <div className={`${panel} pointer-events-auto flex flex-wrap items-center justify-center gap-2`}>
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
+              e.currentTarget.blur();
               ctl.togglePower();
             }}
             className={`rounded-md px-3 py-1.5 text-xs font-semibold ${snap.power ? "bg-rose-500 text-white" : "bg-white/10 hover:bg-white/25"}`}
@@ -400,6 +483,7 @@ function Controls({ snap, ctl }: { snap: HudSnapshot; ctl: GameController }) {
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
+                e.currentTarget.blur();
                 ctl.toggleSteal();
               }}
               className={`rounded-md px-3 py-1.5 text-xs font-semibold ${snap.stealOn ? "bg-amber-300 text-black" : "bg-white/10 hover:bg-white/25"}`}
@@ -407,17 +491,13 @@ function Controls({ snap, ctl }: { snap: HudSnapshot; ctl: GameController }) {
               {snap.stealOn ? "Runner going!" : "Steal 2nd (S)"}
             </button>
           )}
-          <button
-            type="button"
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              ctl.primary();
-            }}
-            className="rounded-md bg-emerald-500 px-5 py-1.5 text-sm font-bold text-black hover:bg-emerald-400 sm:hidden"
-          >
-            Swing
+          <button type="button" onPointerDown={press} className={action}>
+            {snap.phase === "ready" ? "Ready" : "Swing"}
           </button>
-          <div className="hidden text-[11px] text-white/65 sm:block">Move the box over the ball · Space / click to swing just before it arrives</div>
+          <div className={hint}>
+            {snap.phase === "ready" ? "Space / click when you are ready for the pitch" : "Move the box over the ball · Space / click to swing just before it arrives"}
+          </div>
+          {touch && <div className="text-[11px] text-white/65">Drag to move the box</div>}
         </div>
       </div>
     );
