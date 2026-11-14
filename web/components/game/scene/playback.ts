@@ -198,7 +198,7 @@ const list: ActorDraw[] = [];
 function draw(i: number): ActorDraw {
   let d = pool[i];
   if (!d) {
-    d = { key: "", state: UMP_STATE, kind: "fielder", jersey: UMP.jersey, accent: UMP.accent, skin: RUNNER_SKIN[0], hand: "R", helmet: false, pos: null };
+    d = { key: "", state: UMP_STATE, kind: "fielder", jersey: UMP.jersey, accent: UMP.accent, skin: RUNNER_SKIN[0], hand: "R", helmet: false, pos: null, id: 0 };
     pool[i] = d;
   }
   return d;
@@ -240,6 +240,7 @@ export function actorsAt(pb: Playback): ActorDraw[] {
     d.jersey = c.field.jersey;
     d.accent = c.field.accent;
     d.skin = skinFor(f.id);
+    d.id = f.id;
     d.hand = f.pos === "P" ? c.pitcherHand : "R";
     d.helmet = false;
     d.pos = f.pos;
@@ -258,6 +259,7 @@ export function actorsAt(pb: Playback): ActorDraw[] {
     d.jersey = c.bat.jersey;
     d.accent = c.bat.accent;
     d.skin = skinFor(c.batterId);
+    d.id = c.batterId;
     d.hand = bSide;
     d.helmet = true;
     d.pos = null;
@@ -276,6 +278,7 @@ export function actorsAt(pb: Playback): ActorDraw[] {
       d.jersey = c.bat.jersey;
       d.accent = c.bat.accent;
       d.skin = skinFor(id);
+      d.id = id;
       d.hand = "R";
       d.helmet = true;
       d.pos = null;
@@ -293,6 +296,7 @@ export function actorsAt(pb: Playback): ActorDraw[] {
       d.jersey = c.bat.jersey;
       d.accent = c.bat.accent;
       d.skin = skinFor(r.id);
+      d.id = r.id;
       d.hand = "R";
       d.helmet = true;
       d.pos = null;
@@ -308,6 +312,7 @@ export function actorsAt(pb: Playback): ActorDraw[] {
   u.jersey = UMP.jersey;
   u.accent = UMP.accent;
   u.skin = skinFor(3);
+  u.id = 0;
   u.hand = "R";
   u.helmet = false;
   u.pos = null;
@@ -321,6 +326,7 @@ export function actorsAt(pb: Playback): ActorDraw[] {
     d.jersey = c.bat.jersey;
     d.accent = c.bat.accent;
     d.skin = COACH_SKIN[i];
+    d.id = 0;
     d.hand = "R";
     d.helmet = false;
     d.pos = null;

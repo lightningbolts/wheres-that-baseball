@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import {
   blendTime,
   copyPose,
@@ -24,6 +23,9 @@ import {
   type RigOut,
 } from "@/components/game/scene/rig";
 import { MAX_FRAME_DT, actorsAt, type Playback } from "@/components/game/scene/playback";
+import { Person, Wardrobe } from "@/components/game/scene/character/person";
+import { hash01 } from "@/components/game/scene/character/paint";
+import { loadRoster } from "@/components/game/scene/character/roster";
 import type { BallState, Timeline } from "@/lib/game/anim/timeline";
 
 const MAX = 20;
@@ -98,69 +100,75 @@ function setTarget(a: ActorDraw, cls: PoseClass, tl: Timeline | null, ball: Ball
   ctx.tz = p.z;
 }
 
-type PartKey = "torso" | "pelvis" | "head" | "cap" | "upperArm" | "foreArm" | "thigh" | "shin" | "foot" | "glove" | "bat";
-const PAIRED = ["upperArm", "foreArm", "thigh", "shin", "foot"] as const;
-const isPaired = (k: PartKey) => (PAIRED as readonly string[]).includes(k);
-const PART_KEYS: PartKey[] = ["torso", "pelvis", "head", "cap", "upperArm", "foreArm", "thigh", "shin", "foot", "glove", "bat"];
-
-function buildGeometries(): Record<PartKey, THREE.BufferGeometry> {
-  const torso = new THREE.CylinderGeometry(0.64, 0.5, 1.85, 12, 1);
-  torso.scale(1, 1, 0.62);
-  const pelvis = new THREE.CylinderGeometry(0.52, 0.46, 0.6, 12, 1);
-  pelvis.scale(1, 1, 0.7);
-  const head = new THREE.SphereGeometry(0.36, 14, 10);
-  const dome = new THREE.SphereGeometry(0.39, 14, 7, 0, Math.PI * 2, 0, Math.PI / 2);
-  dome.translate(0, 0.04, 0);
-  const brim = new THREE.CylinderGeometry(0.3, 0.3, 0.04, 14, 1);
-  brim.scale(1, 1, 1.15);
-  brim.translate(0, 0.05, 0.3);
-  const cap = mergeGeometries([dome.toNonIndexed(), brim.toNonIndexed()]) ?? dome;
-  dome.dispose();
-  brim.dispose();
-  const upperArm = new THREE.CylinderGeometry(0.17, 0.14, 1.0, 8, 1);
-  const foreArm = new THREE.CylinderGeometry(0.13, 0.1, 0.98, 8, 1);
-  const thigh = new THREE.CylinderGeometry(0.25, 0.18, 1.48, 8, 1);
-  const shin = new THREE.CylinderGeometry(0.17, 0.12, 1.45, 8, 1);
-  const foot = new THREE.BoxGeometry(0.34, 0.2, 0.78);
-  foot.translate(0, -0.03, 0.2);
-  const glove = new THREE.SphereGeometry(0.3, 8, 6);
-  glove.scale(1, 1.2, 0.55);
-  const bat = new THREE.CylinderGeometry(0.11, 0.045, 2.8, 8, 1);
-  bat.translate(0, 1.0, 0);
-  return { torso, pelvis, head, cap, upperArm, foreArm, thigh, shin, foot, glove, bat };
+/** Bat: knob, handle, taper and barrel, with the handle at the origin and the barrel along +Y. */
+function batGeometry(): THREE.BufferGeometry {
+  const profile: Array<[number, number]> = [
+    [0, -0.2],
+    [0.075, -0.2],
+    [0.08, -0.17],
+    [0.05, -0.13],
+    [0.042, 0.1],
+    [0.045, 0.7],
+    [0.062, 1.2],
+    [0.092, 1.7],
+    [0.108, 2.1],
+    [0.108, 2.5],
+    [0.09, 2.6],
+    [0, 2.62],
+  ];
+  const g = new THREE.LatheGeometry(
+    profile.map(([x, y]) => new THREE.Vector2(x, y)),
+    10,
+  );
+  g.computeVertexNormals();
+  return g;
 }
 
-const SHOE = new THREE.Color("#141414");
-const GLOVE = new THREE.Color("#7a4a22");
-const BAT = new THREE.Color("#c9a26a");
-const PANTS_DARKEN = 0.92;
+const BAT_COLORS = ["#c9a26a", "#d8b98a", "#1b1b1d", "#6b3a20", "#b98a4e"].map((c) => new THREE.Color(c));
+/** Screen-height fractions at which a person switches to the close-up model and back. */
+const LOD_NEAR = 0.12;
+const LOD_FAR = 0.09;
+/** Uniform repaints per frame (each is a canvas redraw and a texture upload). */
+const PAINTS_PER_FRAME = 3;
 
 /**
- * Every on-field person, drawn as instanced body parts. One InstancedMesh per part
- * type (11 draw calls total, plus shadows).
+ * Every on-field person: one smooth-skinned mesh each (one draw call, plus its shadow),
+ * posed by the rig solver, and one instanced mesh for the bats.
  */
 export function Players({ pb }: { pb: Playback }) {
-  const geos = useMemo(() => buildGeometries(), []);
-  const mats = useMemo(() => {
-    const m = () => new THREE.MeshStandardMaterial({ roughness: 0.75, metalness: 0 });
-    return { body: m(), skin: m(), dark: m() };
+  const kit = useMemo(() => {
+    const wardrobe = new Wardrobe();
+    const people = Array.from({ length: MAX }, () => new Person(wardrobe));
+    const group = new THREE.Group();
+    for (const p of people) group.add(p.mesh);
+    const batGeo = batGeometry();
+    const batMat = new THREE.MeshStandardMaterial({ roughness: 0.42, metalness: 0 });
+    const bats = new THREE.InstancedMesh(batGeo, batMat, MAX);
+    bats.castShadow = true;
+    bats.frustumCulled = false;
+    bats.count = 0;
+    bats.setColorAt(0, BAT_COLORS[0]);
+    group.add(bats);
+    return { wardrobe, people, group, bats, batGeo, batMat };
   }, []);
-  useEffect(
-    () => () => {
-      Object.values(geos).forEach((g) => g.dispose());
-      Object.values(mats).forEach((m) => m.dispose());
-    },
-    [geos, mats],
-  );
+  useEffect(() => {
+    loadRoster();
+    return () => {
+      for (const p of kit.people) p.dispose();
+      kit.wardrobe.dispose();
+      kit.batGeo.dispose();
+      kit.batMat.dispose();
+      kit.bats.dispose();
+    };
+  }, [kit]);
 
-  const refs = useRef<Partial<Record<PartKey, THREE.InstancedMesh | null>>>({});
+  const slots = useRef(new Map<string, number>());
   const rigs = useMemo(() => Array.from({ length: MAX }, () => newRigOut()), []);
   const anims = useRef(new Map<string, Anim>());
   const lastCut = useRef(-1);
-  const color = useMemo(() => new THREE.Color(), []);
-  const hide = useMemo(() => new THREE.Matrix4().makeScale(0, 0, 0), []);
+  const slotOf = useMemo(() => new Int32Array(MAX), []);
 
-  useFrame((_, rawDt) => {
+  useFrame((state, rawDt) => {
     const tl = pb.timeline;
     // Animation clock: timeline time while a pitch is playing (so slow-mo, hit-stop and
     // pauses apply to bodies too), real time between pitches.
@@ -171,8 +179,30 @@ export function Players({ pb }: { pb: Playback }) {
     lastCut.current = pb.cutSeq;
     const frame = pb.frame;
     const map = anims.current;
-    const r = refs.current;
     const n = Math.min(MAX, actors.length);
+    const { people, bats } = kit;
+    const cam = state.camera;
+    const tanHalf = Math.tan((((cam as THREE.PerspectiveCamera).fov ?? 50) * Math.PI) / 360);
+    let paints = 0;
+    let nBats = 0;
+    // Slots: an actor keeps his mesh from frame to frame; newcomers take the longest-idle one.
+    const slotMap = slots.current;
+    for (let i = 0; i < n; i += 1) {
+      const s = slotMap.get(actors[i].key);
+      slotOf[i] = s ?? -1;
+      if (s !== undefined) people[s].seen = frame;
+    }
+    for (let i = 0; i < n; i += 1) {
+      if (slotOf[i] >= 0) continue;
+      let best = 0;
+      for (let k = 1; k < MAX; k += 1) if (people[k].seen < people[best].seen) best = k;
+      const p = people[best];
+      if (p.key) slotMap.delete(p.key);
+      p.key = actors[i].key;
+      p.seen = frame;
+      slotMap.set(p.key, best);
+      slotOf[i] = best;
+    }
     ctx.time = pb.now;
     const callAge = pb.fx.umpCallAt < 0 ? -1 : pb.now - pb.fx.umpCallAt;
     for (let i = 0; i < n; i += 1) {
@@ -267,73 +297,35 @@ export function Players({ pb }: { pb: Playback }) {
         h.ballP.lerpVectors(out.gloveHand, out.throwHand, an.toHand);
         h.frame = frame;
       }
-      r.torso?.setMatrixAt(i, out.torso);
-      r.pelvis?.setMatrixAt(i, out.pelvis);
-      r.head?.setMatrixAt(i, out.head);
-      r.cap?.setMatrixAt(i, out.head);
-      r.glove?.setMatrixAt(i, a.kind === "fielder" || a.kind === "pitcher" || a.kind === "catcher" ? out.glove : hide);
-      r.bat?.setMatrixAt(i, out.hasBat ? out.bat : hide);
-      for (const k of PAIRED) {
-        r[k]?.setMatrixAt(i * 2, out[k][0]);
-        r[k]?.setMatrixAt(i * 2 + 1, out[k][1]);
-      }
-      // Colors: jersey top, slightly darker pants, team-color socks & cap.
-      r.torso?.setColorAt(i, a.jersey);
-      r.pelvis?.setColorAt(i, color.copy(a.jersey).multiplyScalar(PANTS_DARKEN));
-      r.head?.setColorAt(i, a.skin);
-      r.cap?.setColorAt(i, a.accent);
-      r.glove?.setColorAt(i, GLOVE);
-      r.bat?.setColorAt(i, BAT);
-      for (let side = 0; side < 2; side += 1) {
-        r.upperArm?.setColorAt(i * 2 + side, a.jersey);
-        r.foreArm?.setColorAt(i * 2 + side, a.kind === "umpire" ? a.jersey : a.skin);
-        r.thigh?.setColorAt(i * 2 + side, color.copy(a.jersey).multiplyScalar(PANTS_DARKEN));
-        r.shin?.setColorAt(i * 2 + side, a.accent);
-        r.foot?.setColorAt(i * 2 + side, SHOE);
+      // Draw: the slot's mesh, dressed for the role, at the level of detail its size on screen calls for.
+      const person = people[slotOf[i]];
+      if (out.hidden) {
+        person.mesh.visible = false;
+      } else {
+        const frac = 6 / (2 * Math.max(1, cam.position.distanceTo(out.center)) * tanHalf);
+        const lod = frac > LOD_NEAR ? 0 : frac < LOD_FAR ? 1 : person.lod;
+        person.dress(a, lod);
+        if (person.stale(a) && paints < PAINTS_PER_FRAME) {
+          person.paint(a);
+          paints += 1;
+        }
+        // Never show a uniform that was painted for somebody else.
+        const ready = person.stale(a) !== 2;
+        person.mesh.visible = ready;
+        if (ready) person.pose(out);
+        if (ready && out.hasBat && nBats < MAX) {
+          bats.setMatrixAt(nBats, out.bat);
+          bats.setColorAt(nBats, BAT_COLORS[Math.floor(hash01(a.id ?? 0, 11) * BAT_COLORS.length)]);
+          nBats += 1;
+        }
       }
     }
+    for (let i = 0; i < MAX; i += 1) if (people[i].seen !== frame) people[i].mesh.visible = false;
     if (map.size > 120) for (const [k, an] of map) if (an.seen < frame - 600) map.delete(k);
-    for (const k of PART_KEYS) {
-      const mesh = r[k];
-      if (!mesh) continue;
-      const per = isPaired(k) ? 2 : 1;
-      mesh.count = n * per;
-      mesh.instanceMatrix.needsUpdate = true;
-      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-    }
+    bats.count = nBats;
+    bats.instanceMatrix.needsUpdate = true;
+    if (bats.instanceColor) bats.instanceColor.needsUpdate = true;
   });
 
-  const part = (k: PartKey, mat: THREE.Material, shadow = true) => {
-    const per = isPaired(k) ? 2 : 1;
-    return (
-      <instancedMesh
-        key={k}
-        ref={(m) => {
-          refs.current[k] = m;
-          if (m && !m.instanceColor) {
-            m.setColorAt(0, new THREE.Color(1, 1, 1));
-          }
-        }}
-        args={[geos[k], mat, MAX * per]}
-        castShadow={shadow}
-        frustumCulled={false}
-      />
-    );
-  };
-
-  return (
-    <group>
-      {part("torso", mats.body)}
-      {part("pelvis", mats.body)}
-      {part("upperArm", mats.body)}
-      {part("thigh", mats.body)}
-      {part("shin", mats.body)}
-      {part("head", mats.skin)}
-      {part("foreArm", mats.skin)}
-      {part("cap", mats.dark, false)}
-      {part("foot", mats.dark, false)}
-      {part("glove", mats.dark, false)}
-      {part("bat", mats.dark)}
-    </group>
-  );
+  return <primitive object={kit.group} />;
 }
