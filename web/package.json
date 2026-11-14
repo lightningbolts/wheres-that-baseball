@@ -20,7 +20,10 @@
     "slim-bip-json": "tsx scripts/slim-bip-json.ts",
     "daily-nerd-post": "tsx scripts/daily-nerd-social-post.ts",
     "brand:logo": "node scripts/generate-wtbb-logo.mjs --png",
-    "brand:monogram": "node scripts/generate-wtbb-logo.mjs --png"
+    "brand:monogram": "node scripts/generate-wtbb-logo.mjs --png",
+    "build-game-rosters": "cd ../ml-engine && ./venv/bin/python scripts/build_game_rosters.py",
+    "sim-season": "tsx scripts/sim-season.ts",
+    "test:sim": "GAME_SIM=1 vitest run lib/game/engine/season.test.ts"
   },
   "dependencies": {
     "@netlify/plugin-nextjs": "^5.15.13",
