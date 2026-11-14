@@ -93,6 +93,11 @@ export interface PlateHud {
   assistFrom: number | null;
   /** Where the pitch now in the air crosses the plate (Statcast px / pz), or null. */
   cross: { px: number; pz: number } | null;
+  /**
+   * Batting read on the coming pitch: a soft spot on the zone where the catcher set
+   * up (blurred by difficulty), shown through the windup (playback T from → to).
+   */
+  hint: { px: number; pz: number; r: number; from: number; to: number } | null;
 }
 
 const huds = new WeakMap<Playback, PlateHud>();
@@ -101,7 +106,7 @@ const huds = new WeakMap<Playback, PlateHud>();
 export function plateHud(pb: Playback): PlateHud {
   let h = huds.get(pb);
   if (!h) {
-    h = { marks: [], markAt: -1, assistFrom: null, cross: null };
+    h = { marks: [], markAt: -1, assistFrom: null, cross: null, hint: null };
     huds.set(pb, h);
   }
   return h;

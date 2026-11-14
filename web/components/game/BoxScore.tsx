@@ -11,7 +11,7 @@ export function BoxScore({ game, awayId, homeId }: { game: BaseballGame; awayId:
     { key: "away" as const, id: awayId, side: game.away },
     { key: "home" as const, id: homeId, side: game.home },
   ];
-  const hits = (s: (typeof sides)[number]) => s.side.lineup.reduce((n, b) => n + (game.bat.get(b.id)?.h ?? 0), 0);
+  const hits = (s: (typeof sides)[number]) => s.side.slots.flat().reduce((n, b) => n + (game.bat.get(b.id)?.h ?? 0), 0);
   const name = (id: number) => getTeamById(id)?.abbrev ?? String(id);
 
   return (
@@ -62,11 +62,11 @@ export function BoxScore({ game, awayId, homeId }: { game: BaseballGame; awayId:
                   </tr>
                 </thead>
                 <tbody>
-                  {s.side.lineup.map((b) => {
+                  {s.side.slots.flatMap((slot) => slot.map((b, j) => ({ b, sub: j > 0 }))).map(({ b, sub }) => {
                     const l = game.bat.get(b.id);
                     return (
-                      <tr key={b.id} className="border-t border-white/5">
-                        <td className="truncate py-0.5 pr-2">
+                      <tr key={b.id} className={sub ? "" : "border-t border-white/5"}>
+                        <td className={`truncate py-0.5 pr-2 ${sub ? "pl-3 text-white/80" : ""}`}>
                           {b.name} <span className="text-white/45">{b.pos}</span>
                         </td>
                         {[l?.ab, l?.r, l?.h, l?.rbi, l?.bb, l?.k, l?.hr].map((v, i) => (

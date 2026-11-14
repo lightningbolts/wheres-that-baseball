@@ -145,6 +145,7 @@ function SetupForm({ rosters, onStart }: { rosters: RosterFile; onStart: (s: Gam
       innings,
       difficulty,
       seed: Math.floor(Math.random() * 2 ** 31),
+      manager: true,
       awayStarter: homeIsMine ? oppStarter : myStarter,
       homeStarter: homeIsMine ? myStarter : oppStarter,
     });

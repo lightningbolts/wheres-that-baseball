@@ -16,7 +16,7 @@ import {
 } from "@/lib/game/engine/atBat";
 import { resolvePlay, type Base, type PlayResult, type ThrowOption } from "@/lib/game/play/resolvePlay";
 import type { Fielder } from "@/lib/game/play/defense";
-import { BaseballGame, type GameEvent, type Runner } from "@/lib/game/rules/game";
+import { BaseballGame, type GameEvent, type Runner, type Substitution } from "@/lib/game/rules/game";
 import { batSide, teamModel, type TeamModel } from "@/lib/game/ratings";
 import { buildPark, homeVenueForTeam } from "@/lib/game/physics/park";
 import { Rng } from "@/lib/game/math";
@@ -35,6 +35,12 @@ export interface GameSetup {
   awayStarter: number;
   homeStarter: number;
   tempF?: number;
+  /**
+   * Managers on: the human runs his own club's bullpen and bench, and the CPU makes
+   * late-game pinch-hit / pinch-run moves. Absent on games saved before substitutions
+   * existed, which keep the old rules so they replay unchanged.
+   */
+  manager?: boolean;
 }
 
 /** Everything a human decided on one pitch. `cpu` = that pitch was auto-played. */
@@ -45,6 +51,8 @@ export interface PitchInput {
   steal?: boolean;
   /** Human throw target (null = hold the ball); absent = let the AI throw. */
   throwBase?: Base | null;
+  /** Human substitutions made before this pitch, in order. */
+  subs?: Substitution[];
 }
 
 export interface ThrowPrompt {
@@ -112,6 +120,7 @@ export class GameSession {
     for (const input of inputs) {
       if (s.game.final) break;
       s.prepare(input.cpu);
+      for (const sub of input.subs ?? []) s.substitute(sub);
       s.throw(input);
       s.swing(input);
       s.commit(input.throwBase);
@@ -141,13 +150,43 @@ export class GameSession {
     return this.pending?.ctx ?? null;
   }
 
+  /** The pitch now thrown: type and intended target (where the catcher set up), or null. */
+  get currentDecision(): PitchDecision | null {
+    return this.pending?.flight ? (this.pending.decision ?? null) : null;
+  }
+
   /** Bullpen moves happen here, before the pitch. Idempotent until the pitch is committed. */
   prepare(auto = false): { ctx: PitchContext; events: GameEvent[] } {
     if (this.pending) return { ctx: this.pending.ctx, events: this.pending.pre };
-    const change = this.game.managePitching(this.rng);
+    const mgr = !!this.setup.manager;
+    const human = this.setup.human === "none" ? null : this.setup.human;
+    const pre: GameEvent[] = [];
+    const change = this.game.managePitching(this.rng, mgr ? human : null);
+    if (change) pre.push(change);
+    if (mgr) pre.push(...this.game.manageLineup(human === null ? "both" : human === "home" ? "away" : "home"));
     const ctx = this.game.pitchContext();
-    this.pending = { input: auto ? { cpu: true } : {}, ctx, pre: change ? [change] : [], steal: null };
+    this.pending = { input: auto ? { cpu: true } : {}, ctx, pre, steal: null };
     return { ctx, events: this.pending.pre };
+  }
+
+  /** Which side the human manages (null when the CPU plays both). */
+  get humanSide(): "away" | "home" | null {
+    return this.setup.human === "none" ? null : this.setup.human;
+  }
+
+  /**
+   * Make a substitution before the pitch (the human's managing moves). Recorded with
+   * the pitch so replays reproduce it. Returns the event, or null if not allowed now.
+   */
+  substitute(sub: Substitution): GameEvent | null {
+    if (this.pending?.flight) return null;
+    const p = this.pending ?? (this.prepare(), this.pending!);
+    const e = this.game.substitute(sub);
+    if (!e) return null;
+    p.ctx = this.game.pitchContext();
+    p.pre.push(e);
+    (p.input.subs ??= []).push(sub);
+    return e;
   }
 
   /** Release the pitch. Human pitchers pass their decision; CPU decides otherwise. */

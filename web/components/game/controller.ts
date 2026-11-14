@@ -9,8 +9,8 @@ import { GameSession, type CommittedPitch, type GameSetup, type PitchInput, type
 import { DIFFICULTY, humanPitch, humanSwing, meterAt, pciHalfSize } from "@/lib/game/session/humanInput";
 import { idealContactTime } from "@/lib/game/engine/atBat";
 import type { PitchFlight } from "@/lib/game/physics/pitch";
-import type { GameEvent } from "@/lib/game/rules/game";
-import type { TeamModel } from "@/lib/game/ratings";
+import type { GameEvent, Side, Substitution } from "@/lib/game/rules/game";
+import { batSide, type BatterModel, type PitcherModel, type TeamModel } from "@/lib/game/ratings";
 import { Rng, clamp } from "@/lib/game/math";
 import { homeWinProbability } from "@/lib/mlb/winExpectancy";
 import { getTeamColor } from "@/lib/mlb/teamColors";
@@ -54,6 +54,10 @@ export interface HudSnapshot {
   /** This at-bat's pitches (where each crossed the plate), oldest first. */
   pitches: PitchMark[];
   zone: { bottom: number; top: number };
+  /** The human may make a substitution now (between pitches, his own club). */
+  canManage: boolean;
+  /** The human's pitcher is past his usual workload. */
+  pitcherTired: boolean;
   /** Instant feedback on the human's swing (timing, bat vs ball) and on contact (exit velocity / launch angle). */
   feedback: {
     id: number;
@@ -92,6 +96,12 @@ type Board = Pick<
 const markKind = (k: string): MarkKind => (k === "foul_tip" ? "swinging_strike" : k in MARK_COLOR ? (k as MarkKind) : "ball");
 /** Approach ring on the zone: the whole flight for rookies, the last stretch on pro, off on all-star. */
 const ASSIST_FROM: Record<GameSetup["difficulty"], number | null> = { rookie: 0, pro: 0.5, allstar: null };
+/** Pre-pitch read on the catcher's setup: spot radius and how far its center may be off (ft). */
+const HINT: Record<GameSetup["difficulty"], { r: number; jitter: number }> = {
+  rookie: { r: 0.32, jitter: 0.06 },
+  pro: { r: 0.48, jitter: 0.16 },
+  allstar: { r: 0.62, jitter: 0.26 },
+};
 
 const PITCH_NAMES: Record<string, string> = {
   FF: "4-Seam",
@@ -120,6 +130,48 @@ const RESULT_TEXT: Record<string, string> = {
   hbp: "Hit by pitch",
   in_play: "In play",
 };
+
+/** A manager's move as the human makes it (his own side is implied). */
+export type SubMove = Substitution extends infer S ? (S extends Substitution ? Omit<S, "side"> : never) : never;
+
+export interface ManagerBat {
+  id: number;
+  name: string;
+  pos: string;
+  natural: string;
+  bats: "L" | "R" | "S";
+  /** Has the platoon edge on the pitcher now on the mound (batting side only). */
+  platoon: boolean | null;
+  hr: number | null;
+  pa: number;
+  kPct: number | null;
+  ev: number | null;
+  sprint: number;
+  glove: number;
+}
+
+export interface ManagerArm {
+  id: number;
+  name: string;
+  throws: "L" | "R";
+  kPct: number | null;
+  bbPct: number | null;
+  topMph: number;
+  pitches: string[];
+  stamina: number;
+}
+
+export interface ManagerView {
+  allowed: boolean;
+  /** The human's club is in the field (pitching changes / defense) or at bat (pinch hit / run). */
+  fielding: boolean;
+  pitcher: ManagerArm & { count: number; runs: number; tired: boolean };
+  bullpen: ManagerArm[];
+  bench: ManagerBat[];
+  lineup: ManagerBat[];
+  batterId: number | null;
+  runners: Array<{ base: 0 | 1 | 2; id: number; name: string }>;
+}
 
 export class GameController {
   readonly pb: Playback;
@@ -153,6 +205,8 @@ export class GameController {
   /** Fast-forward as the player set it; playback itself runs at normal speed while he is hitting. */
   private turbo = false;
   private pitchSeq = 0;
+  /** Manager moves already put on screen when they were made. */
+  private shown = new WeakSet<GameEvent>();
   private marked = false;
   private revealed = false;
 
@@ -239,7 +293,19 @@ export class GameController {
       this.emit();
       return;
     }
-    s.prepare();
+    const { events: pre } = s.prepare();
+    for (const e of pre) {
+      if (this.shown.has(e)) continue;
+      this.shown.add(e);
+      this.pushLog(e);
+      this.banner = { text: e.kind === "pitching_change" ? "Pitching change" : "Substitution", sub: e.text, tone: "neutral" };
+      this.later(2200, () => {
+        if (this.banner?.sub === e.text) {
+          this.banner = null;
+          this.emit();
+        }
+      });
+    }
     this.refreshCast();
     this.pb.timeline = null;
     this.pb.paused = false;
@@ -256,6 +322,7 @@ export class GameController {
     this.stealOn = false;
     // Last pitch's swing / contact readout is stale once the next pitch is set up.
     this.feedback = null;
+    this.hud.hint = null;
     if (scoreboardCanvas.canvas !== this.boardCanvas) this.drawScoreboard();
     this.board = this.readBoard();
     // A fresh count is a new at-bat: its pitch chart starts empty.
@@ -334,6 +401,15 @@ export class GameController {
       // The pitch always comes in at the difficulty's speed, fast-forward or not.
       this.pb.turbo = false;
       this.pb.T = tl.releaseT - (this.turbo ? 0.8 : 1.25);
+      // As the pitcher comes set, the batter reads where the catcher is setting up:
+      // the general direction of the pitch (its target, not where it will end up).
+      const d = s.currentDecision;
+      if (d) {
+        const h = HINT[this.setup.difficulty];
+        const ang = this.inputRng.range(0, Math.PI * 2);
+        const off = h.jitter * Math.sqrt(this.inputRng.next());
+        this.hud.hint = { px: d.targetPx + Math.cos(ang) * off, pz: d.targetPz + Math.sin(ang) * off, r: h.r, from: this.pb.T, to: tl.releaseT + 0.12 };
+      }
       // Ease into slow motion during the windup, so the ball flies at one constant
       // speed from the hand to the plate instead of visibly decelerating mid-flight.
       this.pb.slow = { from: tl.releaseT - 0.55, to: flight.cross.t + 0.2, rate: DIFFICULTY[this.setup.difficulty].timeScale };
@@ -518,7 +594,7 @@ export class GameController {
   private reveal(c: CommittedPitch) {
     if (this.revealed) return;
     this.revealed = true;
-    const important = c.events.filter((e) => e.kind !== "pitch");
+    const important = c.events.filter((e) => e.kind !== "pitch" && !this.shown.has(e));
     for (const e of important) this.pushLog(e);
     this.banner = this.bannerFor(c, important);
     if (c.play?.hit === 4) {
@@ -689,6 +765,103 @@ export class GameController {
     });
   }
 
+  // ---------- managing ----------
+  private mySide(): Side | null {
+    const h = this.session.humanSide;
+    return h ? this.session.game[h] : null;
+  }
+
+  private canManage(): boolean {
+    return !!this.mySide() && !this.session.game.final && (this.phase === "aim" || this.phase === "ready");
+  }
+
+  private pitcherTired(): boolean {
+    const side = this.mySide();
+    const g = this.session.game;
+    if (!side || side !== g.fielding || !this.setup.manager) return false;
+    return side.pitchCount >= side.pitcher.stamina - 5 || side.pitcherRuns >= 5;
+  }
+
+  /** What the manager panel shows: the human club's bullpen, bench, lineup and runners. */
+  managerView(): ManagerView | null {
+    const side = this.mySide();
+    if (!side) return null;
+    const g = this.session.game;
+    const fielding = side === g.fielding;
+    const oppHand = fielding ? null : g.fielding.pitcher.throws;
+    const bat = (b: BatterModel) => {
+      const r = b.raw.bat;
+      return {
+        id: b.id,
+        name: b.name,
+        pos: b.pos as string,
+        natural: b.raw.pos,
+        bats: b.bats,
+        platoon: oppHand ? batSide(b, oppHand) !== oppHand : null,
+        hr: r?.hr ?? null,
+        pa: r?.pa ?? 0,
+        kPct: r?.k != null && r.pa ? r.k / r.pa : null,
+        ev: r?.evMean ?? null,
+        sprint: b.sprint,
+        glove: b.glove,
+      };
+    };
+    const pit = (p: PitcherModel) => {
+      const r = p.raw.pitch;
+      return {
+        id: p.id,
+        name: p.name,
+        throws: p.throws,
+        kPct: r?.k != null && r.bf ? r.k / r.bf : null,
+        bbPct: r?.bb != null && r.bf ? r.bb / r.bf : null,
+        topMph: Math.round(Math.max(...p.arsenal.map((a) => a.speedMph ?? 0))),
+        pitches: p.arsenal.map((a) => a.type),
+        stamina: p.stamina,
+      };
+    };
+    return {
+      allowed: this.canManage(),
+      fielding,
+      pitcher: { ...pit(side.pitcher), count: side.pitchCount, runs: side.pitcherRuns, tired: this.pitcherTired() },
+      bullpen: side.available.map(pit),
+      bench: side.bench.map(bat),
+      lineup: side.lineup.map(bat),
+      batterId: fielding ? null : g.batter.id,
+      runners: fielding ? [] : g.bases.map((r, i) => (r ? { base: i as 0 | 1 | 2, id: r.playerId, name: g.name(r.playerId) } : null)).filter((x) => x !== null),
+    };
+  }
+
+  /** Make a manager's move for the human's club. */
+  substitute(sub: SubMove): boolean {
+    const side = this.session.humanSide;
+    if (!side || !this.canManage()) return false;
+    const e = this.session.substitute({ ...sub, side } as Substitution);
+    if (!e) return false;
+    this.shown.add(e);
+    this.pushLog(e);
+    sfx.unlock();
+    // New pitcher / batter / runner / fielder: rebuild who is on the field and the zone.
+    this.refreshCast();
+    const ctx = this.session.currentContext!;
+    const a = this.pb.aim;
+    a.zoneBottom = ctx.batter.zoneBottom;
+    a.zoneTop = ctx.batter.zoneTop;
+    if (this.session.humanBatting) this.applyPci();
+    if (this.session.humanPitching) this.pitchIdx = Math.min(this.pitchIdx, ctx.pitcher.arsenal.length - 1);
+    this.banner = { text: sub.kind === "pitcher" ? "Pitching change" : "Substitution", sub: e.text, tone: "neutral" };
+    const text = e.text;
+    this.later(2200, () => {
+      if (this.banner?.sub === text) {
+        this.banner = null;
+        this.emit();
+      }
+    });
+    this.board = this.readBoard();
+    this.drawScoreboard();
+    this.emit();
+    return true;
+  }
+
   private canSteal(): boolean {
     const g = this.session.game;
     return this.session.humanBatting && this.phase === "ready" && !!g.bases[0] && !g.bases[1] && g.outs < 3;
@@ -776,6 +949,8 @@ export class GameController {
       pitches: this.hud.marks.slice(),
       zone: { bottom: a.zoneBottom, top: a.zoneTop },
       feedback: this.feedback,
+      canManage: this.canManage(),
+      pitcherTired: this.pitcherTired(),
     };
   }
 

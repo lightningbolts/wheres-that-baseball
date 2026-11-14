@@ -8,7 +8,7 @@ import { meterAt } from "@/lib/game/session/humanInput";
 import { getTeamColor } from "@/lib/mlb/teamColors";
 import { getTeamById } from "@/lib/mlb/teams";
 import { ordinal } from "@/lib/game/rules/game";
-import { GameController, pitchName, setAbbrevLookup, type HudSnapshot } from "@/components/game/controller";
+import { GameController, pitchName, setAbbrevLookup, type HudSnapshot, type ManagerArm, type ManagerBat } from "@/components/game/controller";
 import { MARK_COLOR, zoneBox } from "@/components/game/scene/view";
 import { createPlayback } from "@/components/game/scene/playback";
 import { sfx } from "@/components/game/audio";
@@ -39,6 +39,7 @@ export function GameView({
   const [showLog, setShowLog] = useState(false);
   const [muted, setMuted] = useState(sfx.muted);
   const [showBox, setShowBox] = useState(false);
+  const [showMgr, setShowMgr] = useState(false);
 
   useEffect(() => {
     ctl.start();
@@ -68,6 +69,9 @@ export function GameView({
       else if (k === "Shift" || k === "p" || k === "P") ctl.togglePower();
       else if (k === "s" || k === "S") ctl.toggleSteal();
       else if (k === "t" || k === "T") ctl.toggleTurbo();
+      else if (k === "m" || k === "M") {
+        if (ctl.getSnapshot().canManage) setShowMgr((v) => !v);
+      }
       // px grows toward the 1B side: screen-right from behind the plate, screen-left from behind the mound.
       else if (k === "ArrowLeft" || k === "a") ctl.nudgeAim(ctl.getSnapshot().humanPitching ? 0.12 : -0.12, 0);
       else if (k === "ArrowRight" || k === "d") ctl.nudgeAim(ctl.getSnapshot().humanPitching ? -0.12 : 0.12, 0);
@@ -114,6 +118,11 @@ export function GameView({
         <HudButton onClick={() => ctl.simHalf()} title="Sim the rest of this half-inning">
           Sim ½
         </HudButton>
+        {setup.human !== "none" && (
+          <HudButton onClick={() => setShowMgr((v) => !v)} active={showMgr} pulse={snap.pitcherTired && !showMgr} title="Manage: bullpen, pinch hitters, pinch runners, defense (M)">
+            {snap.pitcherTired ? "Bullpen ⚠" : "Manage"}
+          </HudButton>
+        )}
         <HudButton onClick={() => setShowBox((v) => !v)} active={showBox} title="Box score">
           Box
         </HudButton>
@@ -140,6 +149,7 @@ export function GameView({
       <Controls snap={snap} ctl={ctl} touch={touch} />
 
       {showLog && <PlayLog snap={snap} onClose={() => setShowLog(false)} />}
+      {showMgr && !snap.final && <ManagerPanel ctl={ctl} snap={snap} onClose={() => setShowMgr(false)} />}
       {(snap.final || showBox) && (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/60 p-3">
           <div className="max-h-full w-full max-w-3xl overflow-auto rounded-xl border border-white/15 bg-[#10161d]/95 p-4 shadow-2xl">
@@ -171,7 +181,7 @@ export function GameView({
   );
 }
 
-function HudButton({ children, onClick, active, title }: { children: React.ReactNode; onClick: () => void; active?: boolean; title?: string }) {
+function HudButton({ children, onClick, active, title, pulse }: { children: React.ReactNode; onClick: () => void; active?: boolean; title?: string; pulse?: boolean }) {
   return (
     <button
       type="button"
@@ -185,7 +195,7 @@ function HudButton({ children, onClick, active, title }: { children: React.React
         onClick();
       }}
       className={`rounded-md border px-2 py-1 text-xs font-medium backdrop-blur transition-colors ${
-        active ? "border-amber-300/70 bg-amber-300/25 text-amber-100" : "border-white/15 bg-black/45 text-white/85 hover:bg-black/65"
+        active ? "border-amber-300/70 bg-amber-300/25 text-amber-100" : pulse ? "animate-pulse border-amber-300/80 bg-amber-500/30 text-amber-50" : "border-white/15 bg-black/45 text-white/85 hover:bg-black/65"
       }`}
     >
       {children}
@@ -527,3 +537,153 @@ function PlayLog({ snap, onClose }: { snap: HudSnapshot; onClose: () => void }) 
 }
 
 export type { HudSnapshot };
+
+const pct = (x: number | null) => (x == null ? "—" : `${Math.round(x * 100)}%`);
+
+/**
+ * The manager's card: bullpen when your club is in the field, pinch hitters and pinch
+ * runners when it bats, and defensive replacements. Moves happen between pitches.
+ */
+function ManagerPanel({ ctl, snap, onClose }: { ctl: GameController; snap: HudSnapshot; onClose: () => void }) {
+  // Re-read on every snapshot (the panel stays open across pitches).
+  const v = useMemo(() => ctl.managerView(), [ctl, snap]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [tab, setTab] = useState<"pen" | "ph" | "pr" | "def">(() => (v?.fielding ? "pen" : "ph"));
+  const [outId, setOutId] = useState<number | null>(null);
+  const [runBase, setRunBase] = useState<0 | 1 | 2 | null>(null);
+  if (!v) return null;
+  const tabs: Array<["pen" | "ph" | "pr" | "def", string, boolean]> = [
+    ["pen", "Bullpen", v.fielding],
+    ["ph", "Pinch hit", !v.fielding],
+    ["pr", "Pinch run", !v.fielding && v.runners.length > 0],
+    ["def", "Defense", true],
+  ];
+  const cur = tabs.find((t) => t[0] === tab && t[2]) ? tab : (tabs.find((t) => t[2])?.[0] ?? "def");
+  const act = (sub: Parameters<GameController["substitute"]>[0]) => {
+    if (ctl.substitute(sub)) onClose();
+  };
+  const row = "flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left text-xs hover:bg-white/10 disabled:opacity-40 disabled:hover:bg-transparent";
+  const arm = (p: ManagerArm) => (
+    <button key={p.id} className={row} disabled={!v.allowed} onClick={() => act({ kind: "pitcher", inId: p.id })}>
+      <span className="w-6 text-center font-mono text-white/60">{p.throws}HP</span>
+      <span className="min-w-0 flex-1 truncate font-semibold">{p.name}</span>
+      <span className="w-14 text-right tabular-nums text-white/70">{p.topMph} mph</span>
+      <span className="w-16 text-right tabular-nums">K {pct(p.kPct)}</span>
+      <span className="w-16 text-right tabular-nums text-white/70">BB {pct(p.bbPct)}</span>
+      <span className="hidden w-28 truncate text-right text-white/50 sm:block">{p.pitches.map(pitchName).join(", ")}</span>
+    </button>
+  );
+  const batRow = (b: ManagerBat, onPick: () => void, extra?: React.ReactNode) => (
+    <button key={b.id} className={row} disabled={!v.allowed} onClick={onPick}>
+      <span className="w-8 font-mono text-white/60">{b.natural}</span>
+      <span className="min-w-0 flex-1 truncate font-semibold">
+        {b.name}
+        {b.platoon && <span className="ml-1.5 rounded bg-emerald-500/25 px-1 text-[10px] text-emerald-200">platoon edge</span>}
+      </span>
+      <span className="w-6 text-center text-white/60">{b.bats}</span>
+      {extra ?? (
+        <>
+          <span className="w-14 text-right tabular-nums">{b.hr ?? "—"} HR</span>
+          <span className="w-14 text-right tabular-nums text-white/70">K {pct(b.kPct)}</span>
+          <span className="hidden w-16 text-right tabular-nums text-white/70 sm:block">{b.ev ? `${b.ev.toFixed(1)} EV` : "—"}</span>
+        </>
+      )}
+    </button>
+  );
+  const speed = (b: ManagerBat) => <span className="w-24 text-right tabular-nums">{b.sprint.toFixed(1)} ft/s</span>;
+  const glove = (b: ManagerBat) => <span className="w-24 text-right tabular-nums">glove {Math.round(b.glove * 100)}</span>;
+  return (
+    <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/55 p-3" onClick={onClose}>
+      <div className="max-h-full w-full max-w-2xl overflow-auto rounded-xl border border-white/15 bg-[#10161d]/95 p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <div className="text-xs uppercase tracking-widest text-white/50">Manager</div>
+            <div className="text-sm">
+              On the mound: <span className="font-semibold">{v.pitcher.name}</span>{" "}
+              <span className={v.pitcher.tired ? "font-semibold text-amber-300" : "text-white/60"}>
+                · {v.pitcher.count} pitches{v.pitcher.runs ? `, ${v.pitcher.runs} R` : ""}
+                {v.pitcher.tired ? " · tiring" : ""}
+              </span>
+            </div>
+          </div>
+          <button className="rounded-md bg-white/10 px-3 py-1.5 text-xs hover:bg-white/20" onClick={onClose}>
+            Close
+          </button>
+        </div>
+        <div className="mb-3 flex gap-1.5">
+          {tabs
+            .filter((t) => t[2])
+            .map(([k, label]) => (
+              <button
+                key={k}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium ${cur === k ? "bg-amber-300/25 text-amber-100" : "bg-white/5 text-white/75 hover:bg-white/10"}`}
+                onClick={() => setTab(k)}
+              >
+                {label}
+              </button>
+            ))}
+        </div>
+        {!v.allowed && <div className="mb-2 rounded-md bg-white/5 px-3 py-2 text-xs text-white/60">Moves can be made between pitches.</div>}
+        {cur === "pen" && (v.bullpen.length ? v.bullpen.map(arm) : <Empty>The bullpen is empty.</Empty>)}
+        {cur === "ph" &&
+          (v.bench.length ? (
+            <>
+              <div className="mb-1 px-2.5 text-[11px] text-white/50">Bat for {v.lineup.find((b) => b.id === v.batterId)?.name}:</div>
+              {v.bench.map((b) => batRow(b, () => act({ kind: "pinchHit", inId: b.id })))}
+            </>
+          ) : (
+            <Empty>No one left on the bench.</Empty>
+          ))}
+        {cur === "pr" && (
+          <>
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {v.runners.map((r) => (
+                <button
+                  key={r.base}
+                  className={`rounded-md px-2.5 py-1 text-xs ${runBase === r.base ? "bg-sky-400/30 text-sky-100" : "bg-white/5 hover:bg-white/10"}`}
+                  onClick={() => setRunBase(r.base)}
+                >
+                  {["1st", "2nd", "3rd"][r.base]}: {r.name}
+                </button>
+              ))}
+            </div>
+            {runBase == null ? (
+              <Empty>Pick the runner to replace.</Empty>
+            ) : v.bench.length ? (
+              [...v.bench].sort((a, b) => b.sprint - a.sprint).map((b) => batRow(b, () => act({ kind: "pinchRun", base: runBase, inId: b.id }), speed(b)))
+            ) : (
+              <Empty>No one left on the bench.</Empty>
+            )}
+          </>
+        )}
+        {cur === "def" && (
+          <>
+            <div className="mb-1 px-2.5 text-[11px] text-white/50">Take out:</div>
+            <div className="mb-3 grid grid-cols-1 gap-0.5 sm:grid-cols-2">
+              {v.lineup.map((b) => (
+                <button
+                  key={b.id}
+                  className={`flex items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs ${outId === b.id ? "bg-sky-400/25 text-sky-100" : "hover:bg-white/10"}`}
+                  onClick={() => setOutId(b.id)}
+                >
+                  <span className="w-8 font-mono text-white/60">{b.pos}</span>
+                  <span className="truncate">{b.name}</span>
+                </button>
+              ))}
+            </div>
+            {outId == null ? (
+              <Empty>Pick the player to replace; his sub takes the same spot in the order and the same position.</Empty>
+            ) : v.bench.length ? (
+              v.bench.map((b) => batRow(b, () => act({ kind: "defense", outId, inId: b.id }), glove(b)))
+            ) : (
+              <Empty>No one left on the bench.</Empty>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Empty({ children }: { children: React.ReactNode }) {
+  return <div className="px-2.5 py-3 text-xs text-white/55">{children}</div>;
+}

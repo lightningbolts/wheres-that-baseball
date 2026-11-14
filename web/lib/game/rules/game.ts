@@ -60,7 +60,20 @@ export interface Side {
   pitcherOuts: number;
   pitcherRuns: number;
   available: PitcherModel[];
+  /** Bench players still eligible (nobody re-enters once he is out of the game). */
+  bench: BatterModel[];
+  /** Everyone who has held each batting-order slot, starter first (box score). */
+  slots: BatterModel[][];
+  /** Pitchers used, in order (box score). */
+  staff: PitcherModel[];
 }
+
+/** A manager's move. `side` is the team making it. */
+export type Substitution =
+  | { kind: "pitcher"; side: "away" | "home"; inId: number }
+  | { kind: "pinchHit"; side: "away" | "home"; inId: number }
+  | { kind: "pinchRun"; side: "away" | "home"; base: 0 | 1 | 2; inId: number }
+  | { kind: "defense"; side: "away" | "home"; outId: number; inId: number };
 
 export type GameEventKind =
   | "pitch"
@@ -73,6 +86,7 @@ export type GameEventKind =
   | "in_play"
   | "inning_end"
   | "pitching_change"
+  | "substitution"
   | "game_over";
 
 export interface GameEvent {
@@ -131,6 +145,9 @@ export class BaseballGame {
       pitcherOuts: 0,
       pitcherRuns: 0,
       available: team.bullpen.filter((p) => p.id !== pitcher.id),
+      bench: [...team.bench],
+      slots: team.lineup.slice(0, 9).map((b) => [b]),
+      staff: [pitcher],
     };
   }
 
@@ -453,8 +470,10 @@ export class BaseballGame {
   }
 
   /** CPU manager: pull tired or shelled pitchers between batters. */
-  managePitching(rng: Rng): GameEvent | null {
+  managePitching(rng: Rng, manual: "away" | "home" | null = null): GameEvent | null {
     if (this.final) return null;
+    // The human runs his own bullpen.
+    if (manual && (manual === "home") === this.top) return null;
     const f = this.fielding;
     const p = f.pitcher;
     const isStarter = f.team.rotation.some((x) => x.id === p.id);
@@ -467,12 +486,107 @@ export class BaseballGame {
     const closerTime = this.inning >= this.regulation && lead > 0 && lead <= 3;
     const pool = closerTime ? f.available : f.available.length > 1 ? f.available.slice(1) : f.available;
     const next = closerTime ? pool[0] : pool[0];
+    return this.bringIn(f, next);
+  }
+
+  private bringIn(f: Side, next: PitcherModel): GameEvent {
+    const p = f.pitcher;
     f.available = f.available.filter((x) => x.id !== next.id);
     f.pitcher = next;
+    f.staff.push(next);
     f.pitchCount = 0;
     f.pitcherOuts = 0;
     f.pitcherRuns = 0;
     return this.emit({ kind: "pitching_change", text: `Pitching change: ${next.name} replaces ${p.name}.`, pitcherId: next.id });
+  }
+
+  /** Whether a substitution is legal right now (between pitches). */
+  canSubstitute(sub: Substitution): boolean {
+    if (this.final) return false;
+    const side = sub.side === "away" ? this.away : this.home;
+    switch (sub.kind) {
+      case "pitcher":
+        return side === this.fielding && side.available.some((p) => p.id === sub.inId);
+      case "pinchHit":
+        return side === this.batting && side.bench.some((b) => b.id === sub.inId);
+      case "pinchRun": {
+        const r = this.bases[sub.base];
+        return side === this.batting && !!r && side.bench.some((b) => b.id === sub.inId) && side.lineup.some((b) => b.id === r.playerId);
+      }
+      case "defense":
+        return side.bench.some((b) => b.id === sub.inId) && side.lineup.some((b) => b.id === sub.outId);
+    }
+  }
+
+  /** Make a substitution. The new man takes over the old one's batting slot and position. */
+  substitute(sub: Substitution): GameEvent | null {
+    if (!this.canSubstitute(sub)) return null;
+    const side = sub.side === "away" ? this.away : this.home;
+    if (sub.kind === "pitcher") return this.bringIn(side, side.available.find((p) => p.id === sub.inId)!);
+    const inc = side.bench.find((b) => b.id === sub.inId)!;
+    const outId = sub.kind === "pinchHit" ? this.batter.id : sub.kind === "pinchRun" ? this.bases[sub.base]!.playerId : sub.outId;
+    const slot = side.lineup.findIndex((b) => b.id === outId);
+    const out = side.lineup[slot];
+    const sub2: BatterModel = { ...inc, pos: out.pos };
+    side.lineup[slot] = sub2;
+    side.bench = side.bench.filter((b) => b.id !== inc.id);
+    side.slots[slot].push(sub2);
+    let text: string;
+    if (sub.kind === "pinchRun") {
+      const r = this.bases[sub.base]!;
+      this.bases[sub.base] = { ...r, playerId: inc.id, sprint: inc.sprint };
+      const charged = this.chargedFor.get(out.id);
+      if (charged != null) {
+        this.chargedFor.delete(out.id);
+        this.chargedFor.set(inc.id, charged);
+      }
+      text = `${inc.name} pinch-runs for ${out.name} at ${["first", "second", "third"][sub.base]}.`;
+    } else if (sub.kind === "pinchHit") text = `${inc.name} pinch-hits for ${out.name}.`;
+    else text = `Defensive change: ${inc.name} replaces ${out.name}${out.pos === "DH" ? "" : ` at ${out.pos}`}.`;
+    return this.emit({ kind: "substitution", text, batterId: inc.id });
+  }
+
+  /**
+   * CPU manager, offense: late and close, send up a better bat off the bench against
+   * this pitcher, and a faster runner for a slow one carrying the tying / winning run.
+   * Deterministic (no dice), so it never shifts the game's random stream.
+   */
+  manageLineup(cpuSide: "away" | "home" | "both"): GameEvent[] {
+    if (this.final) return [];
+    const side = this.batting;
+    const name = this.top ? "away" : "home";
+    if (cpuSide !== "both" && cpuSide !== name) return [];
+    const lead = this.top ? this.score.away - this.score.home : this.score.home - this.score.away;
+    if (this.inning < 7 || lead > 1 || lead < -3) return [];
+    const events: GameEvent[] = [];
+    // Pinch runner: slow runner who is the tying or winning run in scoring position.
+    for (const base of [2, 1] as const) {
+      const r = this.bases[base];
+      if (!r || r.sprint >= 26.5) continue;
+      const runsAhead = this.bases.slice(base + 1).filter(Boolean).length;
+      if (lead + runsAhead + 1 < 0 || lead + runsAhead + 1 > 1) continue;
+      const fast = [...side.bench].sort((a, b) => b.sprint - a.sprint)[0];
+      if (fast && fast.sprint >= r.sprint + 1.5) {
+        const e = this.substitute({ kind: "pinchRun", side: name, base, inId: fast.id });
+        if (e) events.push(e);
+      }
+    }
+    // Pinch hitter: a clearly better bat for this matchup (once per slot).
+    const cur = this.batter;
+    const slot = side.lineup.findIndex((b) => b.id === cur.id);
+    if (slot >= 0 && side.slots[slot].length === 1 && side.bench.length > 1) {
+      const hand = this.fielding.pitcher.throws;
+      const value = (b: BatterModel) => {
+        const plat = batSide(b, hand) !== hand ? 0.035 : 0;
+        return b.zContact * 0.6 + b.batSpeedMph / 100 + plat - b.oSwing * 0.3;
+      };
+      const best = [...side.bench].sort((a, b) => value(b) - value(a))[0];
+      if (best && value(best) > value(cur) + 0.06 && cur.pos !== "C") {
+        const e = this.substitute({ kind: "pinchHit", side: name, inId: best.id });
+        if (e) events.push(e);
+      }
+    }
+    return events;
   }
 }
 

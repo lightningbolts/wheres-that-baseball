@@ -242,6 +242,12 @@ export function CameraRig({ pb }: { pb: Playback }) {
       toPos: new THREE.Vector3(),
       toLook: new THREE.Vector3(),
       focus: new THREE.Vector3(0, 3, 30),
+      vFocus: new THREE.Vector3(),
+      aim: new THREE.Vector3(0, 3, 30),
+      focusInit: false,
+      speed: 0,
+      frameH: 0,
+      tl: null as Playback["timeline"],
       mode: "" as string,
       // Seconds since the camera started gliding into the follow view.
       glide: 10,
@@ -255,6 +261,14 @@ export function CameraRig({ pb }: { pb: Playback }) {
     const wide = narrow ? 1.45 : 1;
     let fov: number;
     let near = 0.3;
+    let cut = false;
+    if (st.mode !== pb.cam || st.tl !== pb.timeline) {
+      // New shot or new play: the follow state starts over.
+      st.focusInit = false;
+      st.frameH = 0;
+      st.speed = 0;
+      st.tl = pb.timeline;
+    }
     switch (pb.cam) {
       case "batter":
       case "pitcher": {
@@ -275,12 +289,21 @@ export function CameraRig({ pb }: { pb: Playback }) {
         if (tl) {
           // Lead the ball a little so it never outruns the frame.
           const ahead = tl.focus(pb.T + 0.3);
-          const ax = ahead.x;
-          const ay = ahead.y;
-          const az = ahead.z;
           const f = tl.focus(pb.T);
-          st.focus.set(f.x + (ax - f.x) * 0.55, Math.max(0, f.y + (ay - f.y) * 0.4), f.z + (az - f.z) * 0.55);
+          st.aim.set(f.x + (ahead.x - f.x) * 0.55, Math.max(0, f.y + (ahead.y - f.y) * 0.4), f.z + (ahead.z - f.z) * 0.55);
+          // Speed of the action, smoothed (the raw value jumps on every catch and throw).
+          const b = tl.focus(pb.T + 0.1);
+          const speed = Math.hypot(b.x - f.x, b.y - f.y, b.z - f.z) / 0.1;
+          st.speed += (speed - st.speed) * (1 - Math.exp(-dt / 0.35));
         }
+        // When the story moves somewhere else (ball gone into the seats, now the trot),
+        // cut to it like a TV director instead of whipping the camera across the park.
+        if (st.focusInit && st.aim.distanceTo(st.focus) > 90) cut = true;
+        if (!st.focusInit || cut) {
+          st.focus.copy(st.aim);
+          st.vFocus.set(0, 0, 0);
+          st.focusInit = true;
+        } else springTo(st.focus, st.vFocus, st.aim, 0.22, dt);
         const fx = st.focus.x;
         const fy = st.focus.y;
         const fz = Math.max(30, st.focus.z);
@@ -288,16 +311,13 @@ export function CameraRig({ pb }: { pb: Playback }) {
         st.toPos.set(fx * 0.22, 32 + dist * 0.16 + fy * 0.25, -38 + fz * 0.18);
         st.toLook.set(fx, fy * 0.7, st.focus.z);
         // Zoom like a TV camera: frame a patch of field around the play (wider while the
-        // ball is fast or high, so it never outruns the frame), not the whole park.
-        let speed = 0;
-        if (pb.timeline) {
-          const a = pb.timeline.focus(pb.T);
-          const b = pb.timeline.focus(pb.T + 0.1);
-          speed = Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z) / 0.1;
-        }
+        // ball is fast or high, so it never outruns the frame), not the whole park. Zoom
+        // out quickly when the play opens up, settle back in slowly.
         const camDist = Math.hypot(st.toLook.x - st.toPos.x, st.toLook.y - st.toPos.y, st.toLook.z - st.toPos.z);
-        const frameH = Math.min(150, Math.max(40, 0.2 * dist + 0.2 * speed + 0.5 * fy));
-        fov = Math.min(50, ((2 * Math.atan(frameH / 2 / Math.max(1, camDist))) / DEG) * wide);
+        const want = Math.min(150, Math.max(40, 0.2 * dist + 0.2 * st.speed + 0.5 * fy));
+        if (cut || st.frameH <= 0) st.frameH = want;
+        else st.frameH += (want - st.frameH) * (1 - Math.exp(-dt / (want > st.frameH ? 0.25 : 0.9)));
+        fov = Math.min(50, ((2 * Math.atan(st.frameH / 2 / Math.max(1, camDist))) / DEG) * wide);
         break;
       }
       case "broadcast":
@@ -305,6 +325,14 @@ export function CameraRig({ pb }: { pb: Playback }) {
         st.toPos.set(9, 22, 340);
         st.toLook.set(0, 3.4, 0);
         fov = 5.4 * wide;
+    }
+    if (cut && st.mode === pb.cam) {
+      st.pos.copy(st.toPos);
+      st.look.copy(st.toLook);
+      st.vPos.set(0, 0, 0);
+      st.vLook.set(0, 0, 0);
+      st.fov = fov;
+      pb.cutSeq += 1;
     }
     if (st.mode !== pb.cam) {
       // Broadcast-style hard cuts, except the crane up from the batter's view into the play.
@@ -406,6 +434,24 @@ const smooth01 = (t: number) => {
   return c * c * (3 - 2 * c);
 };
 
+/** Radial falloff for the pre-pitch read spot (null on the server). */
+function softSpotTexture(): THREE.Texture | null {
+  if (typeof document === "undefined") return null;
+  const c = document.createElement("canvas");
+  c.width = c.height = 128;
+  const g = c.getContext("2d")!;
+  const grd = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grd.addColorStop(0, "rgba(255,255,255,0.95)");
+  grd.addColorStop(0.45, "rgba(255,255,255,0.55)");
+  grd.addColorStop(0.75, "rgba(255,255,255,0.12)");
+  grd.addColorStop(1, "rgba(255,255,255,0)");
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 128, 128);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
 /**
  * Strike zone, plate-coverage indicator / pitch target, where each pitch of the
  * at-bat crossed, the incoming pitch's approach ring, and a pointer plane at the
@@ -430,6 +476,8 @@ export function PlateOverlay({
   const dot = useRef<THREE.Mesh>(null);
   const target = useRef<THREE.Mesh>(null);
   const approach = useRef<THREE.Mesh>(null);
+  const hint = useRef<THREE.Group>(null);
+  const hintTex = useMemo(() => softSpotTexture(), []);
   const marks = useRef<Array<THREE.Group | null>>([]);
   const grab = useRef<{ x: number; y: number } | null>(null);
   const zoneGeo = useMemo(() => frameGeometry(), []);
@@ -446,8 +494,9 @@ export function PlateOverlay({
       pciGeo.dispose();
       gridGeo.dispose();
       numerals.forEach((t) => t.dispose());
+      hintTex?.dispose();
     },
-    [zoneGeo, pciGeo, gridGeo, numerals],
+    [zoneGeo, pciGeo, gridGeo, numerals, hintTex],
   );
 
   useFrame(() => {
@@ -519,6 +568,25 @@ export function PlateOverlay({
       const num = (g.children[2] as THREE.Mesh).material as THREE.MeshBasicMaterial;
       num.map = numerals[(m.n - 1) % MAX_MARKS];
       num.opacity = newest ? 1 : 0.7;
+    }
+    // Pre-pitch read: a soft glow where the catcher set up, faded in as the pitcher
+    // comes set and gone as the ball leaves the hand.
+    const hg = hint.current;
+    if (hg) {
+      const h = hud.hint;
+      let alpha = 0;
+      if (h && pb.cam === "batter" && pb.timeline && a.showZone) {
+        alpha = smooth01((pb.T - h.from) / 0.3) * smooth01((h.to - pb.T) / 0.22);
+      }
+      hg.visible = alpha > 0.01;
+      if (h && hg.visible) {
+        hg.position.set(-h.px, h.pz, z);
+        hg.quaternion.copy(cam.quaternion);
+        const breathe = 1 + 0.06 * Math.sin(pb.now * 7);
+        hg.scale.setScalar(h.r * breathe);
+        ((hg.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = 0.85 * alpha;
+        ((hg.children[1] as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = 0.7 * alpha;
+      }
     }
     // Pitch-location ring: appears on the zone plane partway through the flight and
     // closes onto the exact spot where the pitch will cross (break included).
@@ -605,6 +673,16 @@ export function PlateOverlay({
         <circleGeometry args={[1, 16]} />
         <meshBasicMaterial color="#ffe14d" transparent opacity={0.95} depthTest={false} depthWrite={false} />
       </mesh>
+      <group ref={hint} visible={false}>
+        <mesh renderOrder={7}>
+          <planeGeometry args={[2.6, 2.6]} />
+          <meshBasicMaterial map={hintTex} color="#ffb347" transparent opacity={0} depthTest={false} depthWrite={false} blending={THREE.AdditiveBlending} />
+        </mesh>
+        <mesh renderOrder={7}>
+          <ringGeometry args={[0.94, 1, 40]} />
+          <meshBasicMaterial color="#ffd27a" transparent opacity={0} depthTest={false} depthWrite={false} />
+        </mesh>
+      </group>
       <mesh ref={approach} renderOrder={12} visible={false}>
         <ringGeometry args={[0.82, 1, 32]} />
         <meshBasicMaterial color="#ffffff" transparent opacity={0} depthTest={false} depthWrite={false} />
