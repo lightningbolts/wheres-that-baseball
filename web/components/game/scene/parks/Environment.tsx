@@ -31,11 +31,11 @@ const PRESETS: Record<TimeOfDay, Preset> = {
   day: {
     key: [170, 320, -90],
     keyColor: "#fff4e0",
-    keyPower: 2.3,
+    keyPower: 2.1,
     sky: "#d6e6ff",
     ground: "#5d7350",
-    hemi: 1.25,
-    fill: 0.3,
+    hemi: 1.4,
+    fill: 0.42,
     top: "#2f6fc4",
     horizon: "#cfe2f3",
     fog: ["#cfe2f3", 1500, 5400],
@@ -46,13 +46,13 @@ const PRESETS: Record<TimeOfDay, Preset> = {
     stars: 0,
   },
   dusk: {
-    key: [250, 120, -150],
-    keyColor: "#ffb774",
-    keyPower: 1.9,
-    sky: "#ecc9ba",
-    ground: "#5a6452",
-    hemi: 1.3,
-    fill: 0.55,
+    key: [250, 175, -150],
+    keyColor: "#ffc38c",
+    keyPower: 1.4,
+    sky: "#f0d3c6",
+    ground: "#6e7462",
+    hemi: 1.55,
+    fill: 0.8,
     top: "#2c3f86",
     horizon: "#f2ae82",
     fog: ["#deb09a", 1300, 4800],
@@ -161,8 +161,11 @@ export function Environment({ park }: { park: Park }) {
     c.far = 1700;
     l.shadow.bias = -0.0004;
     l.shadow.normalBias = 0.6;
+    // Softer, lighter shadows away from midday.
+    l.shadow.radius = tod === "day" ? 1.5 : 3;
+    l.shadow.intensity = tod === "day" ? 0.85 : 0.7;
     return l;
-  }, [p]);
+  }, [p, tod]);
   useEffect(() => () => light.dispose(), [light]);
 
   // One shadow map for the whole park is ~2 in per texel: jagged player shadows. Instead

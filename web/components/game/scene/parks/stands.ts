@@ -1,8 +1,11 @@
 /**
  * Seating decks swept along the wall loop. Each park's layout says which kind of stand
  * (three-deck grandstand, bleachers, porch, berm, Monster seats…) sits behind which stretch
- * of wall; this turns that into terraced seating (rows of seat backs, aisles with steps),
- * deck structure (fascia, ribbon boards, soffits, suites, canopies) and crowd positions.
+ * of wall; this turns that into terraced seating (rows of seat backs, aisles with steps, a
+ * cross-aisle), deck structure (fascia, ribbon boards, soffits, suites, canopies), the outer
+ * facade and plaza, and crowd positions. Upper decks can stop short of the lower bowl and
+ * taper toward their ends, and light is baked in: seats and soffits darken under overhangs,
+ * walls darken toward the ground.
  */
 import { STAND_PRESETS, type Deck, type ParkLayout, type StandSpec } from "@/lib/game/data/parkLayouts";
 import { GROUND_Y, type WallLoop, type WallSample } from "@/components/game/scene/fieldGeometry";
@@ -51,6 +54,8 @@ const AISLE = 1.7;
 /** Slab thickness of an upper deck, and its parapet height. */
 const SLAB = 4.5;
 const PARAPET = 2.6;
+/** Width of the paved apron around the outside of the stands. */
+const PLAZA = 58;
 
 function sampleSpec(loop: WallLoop, spec: StandSpec): Sample[] {
   const sA = loop.sOf(spec.from);
@@ -83,12 +88,18 @@ interface DeckInfo {
   off1: number;
   rows: number;
   lower: boolean;
+  /** Sample range this deck spans (segments i0 … i1 − 1). */
+  i0: number;
+  i1: number;
+  /** Rows built in each segment (fewer toward a tapered end). */
+  rowsAt: number[];
   /** Canopy: where its lip is (offset) and how high above the top row its back edge sits. */
   roof: { lip: number; h: number; drop: number } | null;
 }
 
 const at = (s: Sample, o: number, y: number): P3 => [s.x + s.ox * o, y, s.z + s.oz * o];
 const lerp3 = (a: P3, b: P3, t: number): P3 => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+const sameDeck = (a: Deck, b: Deck) => a.off === b.off && a.depth === b.depth && a.base === b.base && a.rise === b.rise && !!a.rel === !!b.rel && !!a.berm === !!b.berm;
 
 export function buildStands(layout: ParkLayout, loop: WallLoop, st: GeoBuilder, seats: GeoBuilder, opts: StandsOptions): StandsResult {
   const slots: number[] = [];
@@ -96,7 +107,9 @@ export function buildStands(layout: ParkLayout, loop: WallLoop, st: GeoBuilder, 
   const meta: number[] = [];
   const reaches: Array<{ from: number; to: number; out: number; top: number }> = [];
   const concrete = layout.concrete;
-  const slab = mix(concrete, "#b9bbbd", 0.5);
+  const facade = layout.facade ?? concrete;
+  const facadeMat = layout.facadeStyle === "plain" ? 1 : layout.facadeStyle === "glass" ? 4 : 3;
+  const slab = mix(concrete, "#c3c5c7", 0.6);
   const ribbon = rgb(mix("#ffffff", opts.homeColor, 0.3));
   const { led, glow } = opts;
   let seed = 1;
@@ -108,37 +121,74 @@ export function buildStands(layout: ParkLayout, loop: WallLoop, st: GeoBuilder, 
     const n = sm.length - 1;
     const presets = STAND_PRESETS[spec.key];
     const outer = Math.max(...presets.map((d) => d.off + d.depth));
+    /** Does a neighbouring section carry this deck on past our end? (then no end wall) */
+    const continues = (deck: Deck, end: number, bound: number): boolean =>
+      layout.stands.some((o) => {
+        if (o === spec || (o.back ?? 0) !== back) return false;
+        const meets = end < 0 ? Math.abs(o.to - bound) < 0.6 : Math.abs(o.from - bound) < 0.6;
+        if (!meets) return false;
+        const od = STAND_PRESETS[o.key];
+        const j = od.findIndex((d) => sameDeck(d, deck));
+        if (j < 0) return false;
+        const lowerJ = j === 0 || !!od[j].rel;
+        const r = lowerJ ? [o.from, o.to] : j === od.length - 1 && od.length >= 3 && o.top ? o.top : (o.up ?? [o.from, o.to]);
+        return end < 0 ? r[1] >= o.to - 0.6 : r[0] <= o.from + 0.6;
+      });
+    const idx = (beta: number): number => {
+      let best = 0;
+      for (let i = 1; i <= n; i += 1) if (Math.abs(sm[i].beta - beta) < Math.abs(sm[best].beta - beta)) best = i;
+      return best;
+    };
     const decks: DeckInfo[] = presets.map((deck, di) => {
       const lower = di === 0 || !!deck.rel;
       const outermost = deck.off + deck.depth >= outer - 0.01;
       let roof: DeckInfo["roof"] = null;
       if (deck.roof) roof = { lip: back + deck.off + deck.depth * 0.3, h: 17, drop: 4 };
-      else if (!lower && outermost && deck.rise >= 40) roof = { lip: back + deck.off + deck.depth * 0.52, h: 15, drop: -5 };
-      return { deck, off0: back + deck.off, off1: back + deck.off + deck.depth, rows: Math.max(1, Math.round(deck.depth / ROW)), lower, roof };
+      else if (!lower && outermost && deck.rise >= 40 && (spec.cover ?? (spec.from <= -50 || spec.to >= 50))) roof = { lip: back + deck.off + deck.depth * 0.52, h: 15, drop: -5 };
+      const range = lower ? null : di === presets.length - 1 && presets.length >= 3 && spec.top ? spec.top : (spec.up ?? null);
+      const i0 = range ? idx(Math.max(spec.from, range[0])) : 0;
+      const i1 = range ? idx(Math.min(spec.to, range[1])) : n;
+      const rows = Math.max(1, Math.round(deck.depth / ROW));
+      const rowsAt: number[] = [];
+      const taper = !lower && outermost ? (spec.taper ?? 0) : 0;
+      const openA = i0 > 0 || !continues(deck, -1, spec.from);
+      const openB = i1 < n || !continues(deck, 1, spec.to);
+      for (let i = 0; i < n; i += 1) {
+        let f = 1;
+        if (taper > 0) {
+          const dA = openA && spec.from > -179 ? sm[i].s - sm[i0].s + SEG * 0.5 : Infinity;
+          const dB = openB && spec.to < 179 ? sm[i1].s - sm[i + 1].s + SEG * 0.5 : Infinity;
+          f = Math.min(1, Math.max(0, Math.min(dA, dB) / taper));
+        }
+        rowsAt.push(Math.max(3, Math.round(rows * (0.3 + 0.7 * f))));
+      }
+      return { deck, off0: back + deck.off, off1: back + deck.off + deck.depth, rows, lower, roof, i0, i1, rowsAt };
     });
     const lowBack = decks[0].lower ? decks[0].off1 : back;
     const yF = (d: DeckInfo, p: Sample) => d.deck.base + (d.deck.rel ? p.h : 0);
+    const has = (d: DeckInfo, i: number) => i >= d.i0 && i < d.i1;
+    const offEnd = (d: DeckInfo, i: number) => d.off0 + (d.deck.depth * d.rowsAt[Math.min(n - 1, Math.max(0, i))]) / d.rows;
     const soffit = (d: DeckInfo, p: Sample, o: number) => yF(d, p) - SLAB + d.deck.rise * Math.min(1, Math.max(0, (o - d.off0) / d.deck.depth));
     /** Underside of whatever hangs over a spot (another deck or this deck's canopy). */
-    const ceiling = (self: DeckInfo, p: Sample, o: number, y: number): number => {
+    const ceiling = (self: DeckInfo, i: number, p: Sample, o: number, y: number): number => {
       let c = Infinity;
       for (const d of decks) {
-        if (d === self || d.lower || o < d.off0 - 0.5 || o > d.off1 + 0.5) continue;
+        if (d === self || d.lower || !has(d, i) || o < d.off0 - 0.5 || o > offEnd(d, i) + 0.5) continue;
         const sy = soffit(d, p, o);
         if (sy > y) c = Math.min(c, sy);
       }
-      if (self.roof && o > self.roof.lip) c = Math.min(c, yF(self, p) + self.deck.rise + self.roof.h - 1);
+      if (self.roof && o > self.roof.lip) c = Math.min(c, yF(self, p) + (self.deck.rise * self.rowsAt[Math.min(n - 1, i)]) / self.rows + self.roof.h - 1);
       return c;
     };
     /** Baked light at a seat: full in the open, dimmer the deeper it sits under cover. */
-    const light = (self: DeckInfo, p: Sample, o: number, y: number): number => {
+    const light = (self: DeckInfo, i: number, p: Sample, o: number, y: number): number => {
       let cover = 0;
       for (const d of decks) {
-        if (d === self || d.lower || o < d.off0 || o > d.off1 + 2) continue;
+        if (d === self || d.lower || !has(d, i) || o < d.off0 || o > offEnd(d, i) + 2) continue;
         if (soffit(d, p, o) > y) cover = Math.max(cover, o - d.off0);
       }
       if (self.roof && o > self.roof.lip) cover = Math.max(cover, (o - self.roof.lip) * 0.6);
-      return 1 - 0.42 * Math.min(1, cover / 22);
+      return 1 - 0.46 * Math.min(1, cover / 24);
     };
 
     let out = 0;
@@ -151,41 +201,47 @@ export function buildStands(layout: ParkLayout, loop: WallLoop, st: GeoBuilder, 
       for (let i = 0; i < n; i += 1) {
         const p = sm[i];
         const q = sm[i + 1];
-        st.quad(at(p, 0, 0.05), at(q, 0, 0.05), at(q, back + 4, 0.05), at(p, back + 4, 0.05), floor, 0.95);
+        st.quadG(at(p, back + 4, 0.05), at(q, back + 4, 0.05), at(q, 0, 0.05), at(p, 0, 0.05), floor, 0.74, 0.98);
       }
       st.mat = 0;
     }
 
     decks.forEach((d, di) => {
-      const { deck, off0, off1, rows, lower } = d;
+      const { deck, off0, rows, lower } = d;
       const outermost = deck.off + deck.depth >= outer - 0.01;
       const tint = layout.seats[deck.tint ?? 0];
       const dRow = deck.depth / rows;
       const hRow = deck.rise / rows;
       const bottom = lower ? (back > 4 ? 0 : GROUND_Y) : 0;
       const purple = layout.purpleRow && deck.tint === 2 && outermost ? Math.floor(rows * 0.63) : -1;
-      out = Math.max(out, off1);
+      // A cross-aisle splits a deep lower bowl into field boxes and terrace.
+      const walk = lower && !deck.berm && rows >= 22 ? Math.round(rows * 0.42) : -1;
+      if (d.i1 - d.i0 < 1) return;
 
-      for (let i = 0; i < n; i += 1) {
+      for (let i = d.i0; i < d.i1; i += 1) {
         const p = sm[i];
         const q = sm[i + 1];
+        const nR = d.rowsAt[i];
+        const off1 = off0 + nR * dRow;
+        const rise = nR * hRow;
         const yp = yF(d, p);
         const yq = yF(d, q);
-        const ypB = yp + deck.rise;
-        const yqB = yq + deck.rise;
+        const ypB = yp + rise;
+        const yqB = yq + rise;
+        out = Math.max(out, off1);
         top = Math.max(top, ypB + (d.roof ? d.roof.h : 4));
         const mid: Sample = i % 2 ? p : q;
 
         if (deck.berm) {
           st.mat = 2;
-          st.quad(at(p, off0, yp), at(q, off0, yq), at(q, off1, yqB), at(p, off1, ypB), "#4f9143", 0.95 + 0.08 * hash(i + di * 31));
+          st.quadG(at(p, off0, yp), at(q, off0, yq), at(q, off1, yqB), at(p, off1, ypB), "#4f9143", 0.86 + 0.06 * hash(i + di * 31), 1.04);
           st.mat = 0;
         } else {
-          for (let r = 0; r < rows; r += 1) {
+          for (let r = 0; r < nR; r += 1) {
             const o0 = off0 + r * dRow;
             const o1 = o0 + dRow;
-            const y0 = (r * deck.rise) / rows;
-            const sh = light(d, mid, o0 + dRow * 0.5, yF(d, mid) + y0);
+            const y0 = r * hRow;
+            const sh = light(d, i, mid, o0 + dRow * 0.5, yF(d, mid) + y0);
             const a0 = at(p, o0, yp + y0);
             const b0 = at(q, o0, yq + y0);
             const a1 = at(p, o1, yp + y0);
@@ -193,8 +249,12 @@ export function buildStands(layout: ParkLayout, loop: WallLoop, st: GeoBuilder, 
             const u0 = p.s / 7;
             const u1 = q.s / 7;
             seats.quadUv(a0, b0, b1, a1, [u0, SEAT_V.slab[1]], [u1, SEAT_V.slab[1]], [u1, SEAT_V.slab[0]], [u0, SEAT_V.slab[0]], slab, sh);
-            // Seat backs along the riser, broken by an aisle every third bay.
             const len = Math.hypot(b1[0] - a1[0], b1[2] - a1[2]);
+            if (r === walk) {
+              seats.quadUv(a1, b1, [b1[0], b1[1] + hRow, b1[2]], [a1[0], a1[1] + hRow, a1[2]], [0, 0.3], [0.3, 0.3], [0.3, 0.42], [0, 0.42], slab, sh * 0.8);
+              continue;
+            }
+            // Seat backs along the riser, broken by an aisle every third bay.
             const g0 = i % 3 === 0 ? AISLE / len : 0;
             const g1 = i % 3 === 2 ? 1 - AISLE / len : 1;
             const count = Math.max(1, Math.round((len * (g1 - g0)) / PITCH));
@@ -217,7 +277,7 @@ export function buildStands(layout: ParkLayout, loop: WallLoop, st: GeoBuilder, 
         st.mat = 1;
         if (lower) {
           // Front wall down to the floor, and a walkway back from the field wall.
-          st.quad(at(p, off0, bottom), at(q, off0, bottom), at(q, off0, yq), at(p, off0, yp), concrete, 0.86);
+          st.quadG(at(p, off0, bottom), at(q, off0, bottom), at(q, off0, yq), at(p, off0, yp), concrete, 0.66, 0.9);
           if (back <= 4) st.quad([p.x, p.h, p.z], [q.x, q.h, q.z], at(q, off0, yq), at(p, off0, yp), slab, 0.96);
         } else {
           // Fascia with a parapet, the sloped soffit, and (club level) a ribbon board.
@@ -225,8 +285,9 @@ export function buildStands(layout: ParkLayout, loop: WallLoop, st: GeoBuilder, 
           st.quad(at(p, off0, yp - SLAB), at(q, off0, yq - SLAB), at(q, off0, yq + PARAPET), at(p, off0, yp + PARAPET), layout.trim, 1.05);
           st.quad(at(p, off0 - 0.05, yp + PARAPET - 0.5), at(q, off0 - 0.05, yq + PARAPET - 0.5), at(q, off0 - 0.05, yq + PARAPET), at(p, off0 - 0.05, yp + PARAPET), "#d9dcdf");
           st.mat = 1;
-          st.quad(at(p, off0, yp - SLAB), at(q, off0, yq - SLAB), at(q, off1, yqB - SLAB), at(p, off1, ypB - SLAB), concrete, 0.6);
-          if (i % 3 === 0) st.beam(at(p, off0 + 1, yp - SLAB - 0.8), at(p, off1, ypB - SLAB - 0.8), 1.6, concrete, 0.5);
+          // Soffit: open air at the lip, deep shade at the back.
+          st.quadG(at(p, off0, yp - SLAB), at(q, off0, yq - SLAB), at(q, off1, yqB - SLAB), at(p, off1, ypB - SLAB), concrete, 0.8, 0.36);
+          if (i % 3 === 0) st.beam(at(p, off0 + 1, yp - SLAB - 0.8), at(p, off1, ypB - SLAB - 0.8), 1.6, concrete, 0.46);
           if (led && di === 1) {
             const r = LED_ROW.ribbon;
             led.quadUv(at(p, off0 - 0.2, yp - SLAB + 0.7), at(q, off0 - 0.2, yq - SLAB + 0.7), at(q, off0 - 0.2, yq + PARAPET - 0.9), at(p, off0 - 0.2, yp + PARAPET - 0.9), [p.s / r.ft, r.v[0]], [q.s / r.ft, r.v[0]], [q.s / r.ft, r.v[1]], [p.s / r.ft, r.v[1]], ribbon);
@@ -235,13 +296,23 @@ export function buildStands(layout: ParkLayout, loop: WallLoop, st: GeoBuilder, 
 
         // Back wall: up to whatever hangs over it (a concourse or suite level), else a
         // parapet; the outermost deck's is the stadium facade.
-        const cp = ceiling(d, p, off1 + 0.4, ypB);
-        const cq = ceiling(d, q, off1 + 0.4, yqB);
+        const cp = ceiling(d, i, p, off1 + 0.4, ypB);
+        const cq = ceiling(d, i, q, off1 + 0.4, yqB);
         const open = !Number.isFinite(cp) || !Number.isFinite(cq);
         const tp = open ? ypB + 3.5 : cp;
         const tq = open ? yqB + 3.5 : cq;
         if (outermost) {
-          st.quad(at(p, off1, GROUND_Y), at(q, off1, GROUND_Y), at(q, off1, tq), at(p, off1, tp), concrete, 0.8);
+          const tall = Math.max(tp, tq) - GROUND_Y > 34;
+          st.mat = tall ? facadeMat : 1;
+          st.aux = Math.max(tp, tq);
+          st.quadG(at(p, off1, GROUND_Y), at(q, off1, GROUND_Y), at(q, off1, tq), at(p, off1, tp), facade, tall ? 0.74 : 0.7, tall ? 1.02 : 0.9);
+          st.aux = 0;
+          st.mat = 0;
+          // Cornice and the plaza around the park.
+          st.quad(at(p, off1 + 0.5, tp - 2.6), at(q, off1 + 0.5, tq - 2.6), at(q, off1 + 0.5, tq + 0.4), at(p, off1 + 0.5, tp + 0.4), mix(facade, "#f2efe6", 0.55), 0.98);
+          st.quad(at(p, off1 + 0.5, tp + 0.4), at(q, off1 + 0.5, tq + 0.4), at(q, off1 - 1.2, tq + 0.4), at(p, off1 - 1.2, tp + 0.4), mix(facade, "#f2efe6", 0.4), 0.9);
+          st.mat = 1;
+          st.quadG(at(p, off1, GROUND_Y + 0.12), at(q, off1, GROUND_Y + 0.12), at(q, off1 + PLAZA, GROUND_Y + 0.12), at(p, off1 + PLAZA, GROUND_Y + 0.12), "#8e8d87", 0.6, 0.86);
         } else if (open || tp - ypB < 9) {
           st.quad(at(p, off1, ypB - (lower ? 6 : SLAB)), at(q, off1, yqB - (lower ? 6 : SLAB)), at(q, off1, tq), at(p, off1, tp), open ? concrete : "#2b2724", open ? 0.8 : 1);
         } else {
@@ -257,17 +328,29 @@ export function buildStands(layout: ParkLayout, loop: WallLoop, st: GeoBuilder, 
             }
           } else st.quad(at(p, off1, ypB + 3.4), at(q, off1, yqB + 3.4), at(q, off1, tq), at(p, off1, tp), "#2b2724");
         }
+        st.mat = 1;
+
+        // Where a tapering deck steps down, close the gap to the taller neighbour.
+        if (i + 1 < d.i1 && d.rowsAt[i + 1] !== nR) {
+          const o2 = off0 + d.rowsAt[i + 1] * dRow;
+          const [oa, ob] = o2 > off1 ? [off1, o2] : [o2, off1];
+          const ya = yq + (deck.rise * (oa - off0)) / deck.depth;
+          const yb = yq + (deck.rise * (ob - off0)) / deck.depth;
+          st.quad(at(q, oa, lower ? bottom : ya - SLAB), at(q, ob, outermost ? GROUND_Y : yb - SLAB), at(q, ob, yb + 3.5), at(q, oa, ya + 3.5), concrete, 0.74);
+        }
 
         if (d.roof) {
-          const { lip, h, drop } = d.roof;
+          const { h, drop } = d.roof;
+          const lip = Math.min(d.roof.lip, off1 - 6);
           const yl = (yb: number) => yb + h - drop;
           const face = layout.frieze ? 5.5 : 2.2;
+          st.mat = 5;
+          st.quad(at(p, off1 + 1, ypB + h), at(q, off1 + 1, yqB + h), at(q, lip, yl(yqB)), at(p, lip, yl(ypB)), layout.canopy ?? layout.trim, 0.98);
           st.mat = 0;
-          st.quad(at(p, off1 + 1, ypB + h), at(q, off1 + 1, yqB + h), at(q, lip, yl(yqB)), at(p, lip, yl(ypB)), layout.trim, 0.95);
-          st.quad(at(p, off1 + 1, ypB + h - 1.4), at(q, off1 + 1, yqB + h - 1.4), at(q, lip, yl(yqB) - 1.4), at(p, lip, yl(ypB) - 1.4), mix(layout.trim, "#9aa0a6", 0.35), 0.75);
-          st.quad(at(p, lip, yl(ypB) + 0.3), at(q, lip, yl(yqB) + 0.3), at(q, lip, yl(yqB) - face), at(p, lip, yl(ypB) - face), layout.frieze ? "#f4f2ea" : mix(layout.trim, "#ffffff", 0.12), 1.05);
+          st.quadG(at(p, lip, yl(ypB) - 1.4), at(q, lip, yl(yqB) - 1.4), at(q, off1 + 1, yqB + h - 1.4), at(p, off1 + 1, ypB + h - 1.4), mix(layout.canopy ?? layout.trim, "#9aa0a6", 0.35), 0.82, 0.5);
+          st.quad(at(p, lip, yl(ypB) + 0.3), at(q, lip, yl(yqB) + 0.3), at(q, lip, yl(yqB) - face), at(p, lip, yl(ypB) - face), layout.frieze ? "#f4f2ea" : mix(layout.canopy ?? layout.trim, "#ffffff", 0.12), 1.05);
           st.mat = 1;
-          st.quad(at(p, off1, ypB + 3.5), at(q, off1, yqB + 3.5), at(q, off1, yqB + h), at(p, off1, ypB + h), concrete, 0.66);
+          st.quad(at(p, off1, ypB + 3.5), at(q, off1, yqB + 3.5), at(q, off1, yqB + h), at(p, off1, ypB + h), facade, 0.7);
           st.mat = 0;
           if (i % 3 === 0) {
             st.beam(at(p, off1 - 1, ypB), at(p, off1 - 1, ypB + h - 1), 1.3, layout.trim, 0.8);
@@ -285,17 +368,18 @@ export function buildStands(layout: ParkLayout, loop: WallLoop, st: GeoBuilder, 
         // Crowd seats.
         if (deck.berm && deck.depth < 20) continue;
         const yaw = Math.atan2(-(p.ox + q.ox), -(p.oz + q.oz));
-        for (let r = 0; r < rows; r += 1) {
+        for (let r = 0; r < nR; r += 1) {
+          if (r === walk) continue;
           const o = off0 + (r + 0.6) * dRow;
-          const y0 = (r * deck.rise) / rows;
+          const y0 = r * hRow;
           const a = at(p, o, yp + y0);
           const b = at(q, o, yq + y0);
           const len = Math.hypot(b[0] - a[0], b[2] - a[2]);
           const g0 = !deck.berm && i % 3 === 0 ? AISLE / len : 0;
           const g1 = !deck.berm && i % 3 === 2 ? 1 - AISLE / len : 1;
           const perRow = Math.max(1, Math.round((len * (g1 - g0)) / PITCH));
-          if (!deck.berm && ceiling(d, mid, o, yF(d, mid) + y0) - (yF(d, mid) + y0) < 6.4) continue;
-          const sh = light(d, mid, o, yF(d, mid) + y0);
+          if (!deck.berm && ceiling(d, i, mid, o, yF(d, mid) + y0) - (yF(d, mid) + y0) < 6.4) continue;
+          const sh = light(d, i, mid, o, yF(d, mid) + y0);
           for (let k = 0; k < perRow; k += 1) {
             seed += 1;
             const g = g0 + ((g1 - g0) * (k + 0.5)) / perRow;
@@ -308,17 +392,25 @@ export function buildStands(layout: ParkLayout, loop: WallLoop, st: GeoBuilder, 
         }
       }
 
-      // Closed ends.
+      // Closed ends (unless the neighbouring section carries the deck on).
       st.mat = 1;
-      for (const p of [sm[0], sm[n]]) {
+      const ends: Array<[number, number, boolean]> = [
+        [d.i0, d.i0, d.i0 > 0 || !continues(deck, -1, spec.from)],
+        [d.i1, d.i1 - 1, d.i1 < n || !continues(deck, 1, spec.to)],
+      ];
+      for (const [pi, si, wall] of ends) {
+        if (!wall) continue;
+        const p = sm[pi];
         const y = yF(d, p);
-        if (lower) st.quad(at(p, off0, bottom), at(p, off1, bottom), at(p, off1, y + deck.rise + 3.5), at(p, off0, y + (deck.berm ? 0 : 2.6)), concrete, 0.78);
+        const o1 = offEnd(d, si);
+        const rise = (deck.rise * (o1 - off0)) / deck.depth;
+        if (lower) st.quadG(at(p, off0, bottom), at(p, o1, bottom), at(p, o1, y + rise + 3.5), at(p, off0, y + (deck.berm ? 0 : 2.6)), concrete, 0.62, 0.86);
         else {
-          st.quad(at(p, off0, y - SLAB), at(p, off1, y + deck.rise - SLAB), at(p, off1, y + deck.rise + 3.5), at(p, off0, y + PARAPET), concrete, 0.78);
+          st.quad(at(p, off0, y - SLAB), at(p, o1, y + rise - SLAB), at(p, o1, y + rise + 3.5), at(p, off0, y + PARAPET), concrete, 0.78);
           const c0 = Math.max(off0, lowBack);
-          if (c0 < off1 - 1) st.quad(at(p, c0, GROUND_Y), at(p, off1, GROUND_Y), at(p, off1, soffit(d, p, off1)), at(p, c0, soffit(d, p, c0)), concrete, 0.7);
+          if (c0 < o1 - 1) st.quadG(at(p, c0, GROUND_Y), at(p, o1, GROUND_Y), at(p, o1, soffit(d, p, o1)), at(p, c0, soffit(d, p, c0)), facade, 0.6, 0.8);
         }
-        if (d.roof) st.tri(at(p, off1, y + deck.rise + 3.5), at(p, off1, y + deck.rise + d.roof.h), at(p, d.roof.lip, y + deck.rise + d.roof.h - d.roof.drop), concrete, 0.66);
+        if (d.roof) st.tri(at(p, o1, y + rise + 3.5), at(p, o1, y + rise + d.roof.h), at(p, Math.min(d.roof.lip, o1 - 6), y + rise + d.roof.h - d.roof.drop), concrete, 0.66);
       }
       st.mat = 0;
     });

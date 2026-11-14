@@ -46,9 +46,12 @@ export class GeoBuilder {
   readonly nrm: number[] = [];
   /**
    * Surface kind written to uv.x of untextured triangles (builders with UVs only): the
-   * structure shader uses it to pick a finish (0 painted, 1 jointed concrete, 2 foliage).
+   * structure shader uses it to pick a finish (0 painted, 1 jointed concrete, 2 foliage,
+   * 3 arcaded facade, 4 glass curtain wall, 5 seamed roof metal, 6 water).
    */
   mat = 0;
+  /** Second per-triangle parameter (uv.y): for a facade, the height of its cornice. */
+  aux = 0;
   constructor(private readonly withUv = false) {}
 
   get triangles(): number {
@@ -77,7 +80,7 @@ export class GeoBuilder {
     this.pos.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
     this.col.push(k[0], k[1], k[2], k[0], k[1], k[2], k[0], k[1], k[2]);
     this.face(a, b, c);
-    if (this.withUv) this.uv.push(this.mat, 0, this.mat, 0, this.mat, 0);
+    if (this.withUv) this.uv.push(this.mat, this.aux, this.mat, this.aux, this.mat, this.aux);
   }
 
   /**
@@ -99,13 +102,26 @@ export class GeoBuilder {
     this.pos.push(a[0], a[1], a[2], q[0], q[1], q[2], r[0], r[1], r[2]);
     this.col.push(ca[0], ca[1], ca[2], cq[0], cq[1], cq[2], cr[0], cr[1], cr[2]);
     this.nrm.push(na[0], na[1], na[2], nq[0], nq[1], nq[2], nr[0], nr[1], nr[2]);
-    if (this.withUv) this.uv.push(this.mat, 0, this.mat, 0, this.mat, 0);
+    if (this.withUv) this.uv.push(this.mat, this.aux, this.mat, this.aux, this.mat, this.aux);
   }
 
   /** Quad a→b→c→d (perimeter order). */
   quad(a: P3, b: P3, c: P3, d: P3, color: string | RGB, shade = 1): void {
     this.tri(a, b, c, color, shade);
     this.tri(a, c, d, color, shade);
+  }
+
+  /**
+   * Quad with a baked light gradient: `s0` at the a–b edge, `s1` at the c–d edge (walls that
+   * darken toward the ground, soffits that darken toward the back).
+   */
+  quadG(a: P3, b: P3, c: P3, d: P3, color: string | RGB, s0: number, s1: number): void {
+    const k = rgb(color);
+    this.pos.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2], a[0], a[1], a[2], c[0], c[1], c[2], d[0], d[1], d[2]);
+    for (const s of [s0, s0, s1, s0, s1, s1]) this.col.push(k[0] * s, k[1] * s, k[2] * s);
+    this.face(a, b, c);
+    this.face(a, c, d);
+    if (this.withUv) for (let i = 0; i < 6; i += 1) this.uv.push(this.mat, this.aux);
   }
 
   /** Textured quad: uv per corner, same order as the points. */

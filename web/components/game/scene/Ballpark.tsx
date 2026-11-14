@@ -46,26 +46,29 @@ import { timeOfDay, type TimeOfDay } from "@/components/game/scene/parks/tod";
 export const crowdState = { excite: 0 };
 
 /** Most fans drawn at once (one instanced draw call of camera-facing sprites). */
-const MAX_FANS = 52000;
+const MAX_FANS = 44000;
 /** Fan sprite size in feet (waist-up, seated). */
 const FAN_W = 2.3;
 const FAN_H = 3.05;
 
 /**
- * Structure finish: `uv.x` of each triangle picks painted metal (0), jointed concrete (1)
- * or foliage (2); world-space noise keeps big flat faces from reading as plain blocks.
+ * Structure finish: `uv.x` of each triangle picks painted metal (0), jointed concrete (1),
+ * foliage (2), an arcaded facade (3: arches at street level, window bays above, up to the
+ * cornice height in `uv.y`), a glass curtain wall (4), seamed roof metal (5) or water (6).
+ * World-space noise keeps big flat faces from reading as plain blocks.
  */
-function applyStructureFinish(m: THREE.Material, detail: THREE.Texture): void {
+function applyStructureFinish(m: THREE.Material, detail: THREE.Texture, glass: THREE.Color): void {
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uDetail = { value: detail };
+    shader.uniforms.uGlass = { value: glass };
     shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vWp;\nvarying vec3 vWn;\nvarying float vMat;")
+      .replace("#include <common>", "#include <common>\nvarying vec3 vWp;\nvarying vec3 vWn;\nvarying vec2 vMat;")
       .replace(
         "#include <begin_vertex>",
-        "#include <begin_vertex>\nvWp = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvWn = normalize(mat3(modelMatrix) * normal);\nvMat = uv.x;",
+        "#include <begin_vertex>\nvWp = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvWn = normalize(mat3(modelMatrix) * normal);\nvMat = uv;",
       );
     shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vWp;\nvarying vec3 vWn;\nvarying float vMat;\nuniform sampler2D uDetail;")
+      .replace("#include <common>", "#include <common>\nvarying vec3 vWp;\nvarying vec3 vWn;\nvarying vec2 vMat;\nuniform sampler2D uDetail;\nuniform vec3 uGlass;")
       .replace(
         "#include <color_fragment>",
         `#include <color_fragment>
@@ -74,14 +77,55 @@ function applyStructureFinish(m: THREE.Material, detail: THREE.Texture): void {
           vec2 st = an.y > 0.6 ? vWp.xz : (an.x > an.z ? vWp.zy : vWp.xy);
           float n1 = texture2D(uDetail, st * 0.045).r;
           float n2 = texture2D(uDetail, st * 0.31).r;
-          if (vMat > 1.5) {
+          vec2 w = fwidth(st);
+          float far = clamp(1.6 - max(w.x, w.y) * 1.4, 0.0, 1.0);
+          float m = vMat.x;
+          if (m > 5.5) {
+            diffuseColor.rgb *= 0.9 + 0.2 * texture2D(uDetail, st * 0.012 + n1 * 0.05).r;
+          } else if (m > 4.5) {
+            float seam = 1.0 - smoothstep(0.1, 0.1 + w.x * 1.5, abs(fract(st.x / 6.0 + 0.5) - 0.5) * 6.0);
+            diffuseColor.rgb *= (0.95 + 0.08 * n1) * (1.0 - 0.16 * seam * far);
+          } else if (m > 3.5) {
+            vec2 cell = vec2(9.0, 13.0);
+            vec2 g = abs(fract(st / cell + 0.5) - 0.5) * cell;
+            vec2 ln = 1.0 - smoothstep(vec2(0.28), vec2(0.28) + w * 1.4, g);
+            float mull = max(ln.x, ln.y) * far;
+            float up = clamp(vWp.y / 150.0, 0.0, 1.0);
+            vec3 pane = mix(diffuseColor.rgb * 0.62, uGlass, 0.3 + 0.4 * up) * (0.86 + 0.2 * step(0.55, fract(floor(st.x / cell.x) * 0.37 + floor(st.y / cell.y) * 0.61)) * n1);
+            diffuseColor.rgb = mix(pane, diffuseColor.rgb * 0.5, mull);
+          } else if (m > 2.5) {
+            float top = vMat.y;
+            float y = vWp.y + 2.0;
+            float bay = 24.0;
+            float u = (fract(st.x / bay) - 0.5) * bay;
+            vec3 base = diffuseColor.rgb * (0.9 + 0.14 * n1 + 0.08 * n2);
+            vec3 hole = mix(diffuseColor.rgb * 0.16, uGlass * 0.3, 0.45);
+            float aa = max(w.x, 0.04) * 1.3;
+            // Street level: one tall arch per bay.
+            float archTop = 15.0 + sqrt(max(0.0, 56.0 - u * u));
+            float arch = (1.0 - smoothstep(7.4 - aa, 7.4 + aa, abs(u))) * (1.0 - smoothstep(archTop - aa, archTop + aa, y)) * step(0.5, y);
+            // Above: paired windows on each floor, between belt courses.
+            float fl = 15.0;
+            float fy = y - 27.0;
+            float fi = floor(fy / fl);
+            float v = fract(fy / fl) * fl;
+            float u2 = abs(abs(u) - 5.2);
+            float win = (1.0 - smoothstep(2.5 - aa, 2.5 + aa, u2)) * smoothstep(3.0 - aa, 3.0 + aa, v) * (1.0 - smoothstep(11.6 - aa, 11.6 + aa, v));
+            win *= step(0.0, fy) * step((fi + 1.0) * fl + 27.0, top - 5.0);
+            float belt = (1.0 - smoothstep(0.5, 0.5 + aa, abs(y - 25.0))) + (1.0 - smoothstep(0.35, 0.35 + aa, abs(v - 0.2))) * step(0.0, fy) * step(y, top - 6.0);
+            float pier = 1.0 - smoothstep(1.3 - aa, 1.3 + aa, abs(abs(u) - 12.0));
+            vec3 col = base * (1.0 + 0.1 * pier * far);
+            col = mix(col, base * 1.22, clamp(belt, 0.0, 1.0) * 0.5 * far);
+            float open = max(arch, win * far);
+            col = mix(col, hole, open);
+            diffuseColor.rgb = col;
+          } else if (m > 1.5) {
             diffuseColor.rgb *= 0.62 + 0.5 * n2 + 0.3 * n1;
-          } else if (vMat > 0.5) {
+          } else if (m > 0.5) {
             vec2 cell = an.y > 0.6 ? vec2(12.0, 12.0) : vec2(16.0, 7.0);
             vec2 d = abs(fract(st / cell + 0.5) - 0.5) * cell;
-            vec2 w = fwidth(st);
             vec2 ln = (1.0 - smoothstep(vec2(0.07), vec2(0.07) + w * 1.3, d)) * clamp(1.6 - w * 2.2, 0.0, 1.0);
-            diffuseColor.rgb *= (0.84 + 0.22 * n1 + 0.1 * n2) * (1.0 - 0.3 * max(ln.x, ln.y));
+            diffuseColor.rgb *= (0.88 + 0.16 * n1 + 0.08 * n2) * (1.0 - 0.16 * max(ln.x, ln.y));
           } else {
             diffuseColor.rgb *= 0.93 + 0.14 * n1;
           }
@@ -163,7 +207,7 @@ export function Ballpark({ park, homeColor }: { park: Park; homeColor: string })
     const ledTex = ledAtlas(lit);
     const cityTex = cityTexture(lit);
     const flareTex = flareTexture();
-    const blocksTex = blocksTexture();
+    const blocksTex = blocksTexture(tod === "night");
     blocksTex.repeat.set(12000 / BLOCKS_FT, 12000 / BLOCKS_FT);
     const decals = decalAtlas(
       park.fenceMarkers.map((m) => m.ft),
@@ -174,7 +218,7 @@ export function Ballpark({ park, homeColor }: { park: Park; homeColor: string })
     const marks = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
     applyWorldDetail(marks, detail, 0.21);
     const structure = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
-    applyStructureFinish(structure, detail);
+    applyStructureFinish(structure, detail, new THREE.Color(tod === "night" ? "#2b3a5c" : tod === "dusk" ? "#d9a98f" : "#bcd6ea"));
     const flareUniforms = { map: { value: flareTex }, uScale: { value: 400 }, uPower: { value: tod === "night" ? 0.85 : 0.5 } };
     const flares = new THREE.ShaderMaterial({
       uniforms: flareUniforms,
@@ -208,7 +252,7 @@ export function Ballpark({ park, homeColor }: { park: Park; homeColor: string })
       flares,
       net: new THREE.MeshBasicMaterial({ map: netTex, transparent: true, opacity: 0.34, depthWrite: false, side: THREE.DoubleSide }),
       decal: new THREE.MeshLambertMaterial({ map: decals.texture, transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }),
-      outside: new THREE.MeshLambertMaterial({ map: blocksTex, color: tod === "night" ? "#3a4252" : tod === "dusk" ? "#a08f88" : "#c6cabf" }),
+      outside: tod === "night" ? new THREE.MeshBasicMaterial({ map: blocksTex, color: "#8791a8" }) : new THREE.MeshLambertMaterial({ map: blocksTex, color: tod === "dusk" ? "#a89a92" : "#c6cabf" }),
     };
     return { materials, textures, flareUniforms, decalGeo: decalGeometry(built.ctx, decals) };
   }, [built, park, lit, tod]);

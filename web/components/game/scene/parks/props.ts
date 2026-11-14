@@ -111,7 +111,8 @@ export function dugouts(c: PropCtx): void {
       // A real recess: sunken floor, padded back wall, bench, and a roof slab whose
       // fascia carries the team color. Nothing in here is pure black.
       c.st.quad(at(p, 0.3, floor), at(q, 0.3, floor), at(q, D - 1, floor), at(p, D - 1, floor), "#6a5f52");
-      c.st.quad(at(p, D - 1, floor), at(q, D - 1, floor), at(q, D - 1, top), at(p, D - 1, top), mix(team, "#1c2026", 0.6), 0.8);
+      c.st.quadG(at(p, D - 1, floor), at(q, D - 1, floor), at(q, D - 1, top), at(p, D - 1, top), mix(team, "#3a3f47", 0.5), 1, 0.62);
+      c.st.quad(at(p, 0.3, floor), at(q, 0.3, floor), at(q, 0.3, p.h), at(p, 0.3, p.h), "#4f463c", 0.9);
       c.st.quad(at(p, D - 1.1, floor + 3.6), at(q, D - 1.1, floor + 3.6), at(q, D - 1.1, floor + 5.2), at(p, D - 1.1, floor + 5.2), mix(team, "#ffffff", 0.1));
       c.st.quad(at(p, D - 3.6, floor + 1.5), at(q, D - 3.6, floor + 1.5), at(q, D - 1.2, floor + 1.5), at(p, D - 1.2, floor + 1.5), "#8a6a48");
       c.st.quad(at(p, D - 3.6, floor), at(q, D - 3.6, floor), at(q, D - 3.6, floor + 1.5), at(p, D - 3.6, floor + 1.5), "#5d4733");
@@ -125,6 +126,11 @@ export function dugouts(c: PropCtx): void {
       if (i === 0 || i === n - 1) {
         const w = i === 0 ? p : q;
         c.st.quad(at(w, 0.3, floor), at(w, D, floor), at(w, D, top + 0.9), at(w, 0.3, top + 0.9), mix(team, "#1c2026", 0.55), 0.9);
+        // Camera well beside the dugout: a low padded pit with a rail.
+        const o = c.loop.at(w.s + (i === 0 ? -9 : 9));
+        c.st.quad(at(w, 0.3, w.h - 2.2), at(o, 0.3, o.h - 2.2), at(o, 7, o.h - 2.2), at(w, 7, w.h - 2.2), "#55524c");
+        c.st.quad(at(w, 7, w.h - 2.2), at(o, 7, o.h - 2.2), at(o, 7, o.h + 2.4), at(w, 7, w.h + 2.4), mix(c.layout.wall, "#22262b", 0.3), 0.85);
+        c.st.beam(at(w, 0.2, w.h + 1.1), at(o, 0.2, o.h + 1.1), 0.18, "#c9ccd0");
       }
     }
   }
@@ -169,33 +175,69 @@ export function netGeometry(c: PropCtx): THREE.BufferGeometry {
   return b.build();
 }
 
+/**
+ * Batter's eye: a planted bank rising from the wall to a tall dark screen with a capped
+ * top, side returns and a back wall — a structure, not a box. Grass eyes are one long lawn;
+ * tree eyes keep the screen low so the park's trees stand over it.
+ */
 export function battersEye(c: PropCtx): void {
   const e = c.layout.eye;
   const s0 = c.loop.sOf(e.from);
   const s1 = c.loop.sOf(e.to);
   const n = Math.max(2, Math.round((s1 - s0) / 12));
-  const color = e.style === "grass" ? "#3f7d3c" : e.style === "ivy" ? "#356f36" : "#2a6344";
+  const grass = e.style === "grass";
+  const screen = e.style === "ivy" ? "#2f6a35" : e.style === "black" ? "#16181b" : "#1f4a35";
   const h = e.style === "trees" ? e.h * 0.55 : e.h;
+  const bank = grass ? 58 : 16;
+  const yBank = grass ? h : Math.min(h * 0.3, 9);
+  const depth = grass ? 6 : 14;
+  const st = c.st;
   for (let i = 0; i < n; i += 1) {
     const p = c.loop.at(s0 + ((s1 - s0) * i) / n);
     const q = c.loop.at(s0 + ((s1 - s0) * (i + 1)) / n);
     const at = (w: typeof p, o: number, y: number): P3 => [w.x + w.nx * o, y, w.z + w.nz * o];
-    c.st.mat = e.style === "grass" || e.style === "ivy" ? 2 : 0;
-    if (e.style === "grass") {
-      c.st.quad(at(p, 3, p.h * 0.6), at(q, 3, q.h * 0.6), at(q, 58, h), at(p, 58, h), color, 0.95 + 0.08 * hash(i));
-      c.st.quad(at(p, 58, GROUND_Y), at(q, 58, GROUND_Y), at(q, 58, h), at(p, 58, h), "#2c5733", 0.7);
+    st.mat = 2;
+    if (grass) {
+      // Terraced lawn: three mown bands stepped by low retaining walls, with a clipped hedge on top.
+      const T = 3;
+      for (let k = 0; k < T; k += 1) {
+        const o0 = 2.5 + ((bank - 2.5) * k) / T;
+        const o1 = 2.5 + ((bank - 2.5) * (k + 1)) / T;
+        const yA = (w: typeof p): number => (k === 0 ? w.h * 0.7 : (yBank * k) / T + 1.6);
+        const yB = (yBank * (k + 1)) / T;
+        st.mat = 2;
+        st.quadG(at(p, o0, yA(p)), at(q, o0, yA(q)), at(q, o1, yB), at(p, o1, yB), (i + k) % 2 === 0 ? "#3f7d3c" : "#37733a", 0.84, 1.02);
+        st.mat = 1;
+        if (k < T - 1) st.quadG(at(p, o1, yB), at(q, o1, yB), at(q, o1, yB + 1.6), at(p, o1, yB + 1.6), "#8b8a7e", 0.7, 0.95);
+      }
+      st.mat = 2;
+      st.quadG(at(p, bank - 5, yBank), at(q, bank - 5, yBank), at(q, bank - 4, yBank + 7), at(p, bank - 4, yBank + 7), "#27592f", 0.7, 1);
+      st.quad(at(p, bank - 4, yBank + 7), at(q, bank - 4, yBank + 7), at(q, bank + depth, yBank + 7), at(p, bank + depth, yBank + 7), "#2c6233", 0.95);
     } else {
-      c.st.quad(at(p, 5, 0), at(q, 5, 0), at(q, 5, h), at(p, 5, h), color, 0.94 + 0.08 * hash(i));
-      c.st.quad(at(p, 5, h), at(q, 5, h), at(q, 16, h), at(p, 16, h), color, 0.7);
-      c.st.quad(at(p, 16, GROUND_Y), at(q, 16, GROUND_Y), at(q, 16, h), at(p, 16, h), color, 0.6);
+      st.quadG(at(p, 2.5, p.h * 0.7), at(q, 2.5, q.h * 0.7), at(q, bank, yBank), at(p, bank, yBank), "#2f6a38", 0.9 + 0.06 * hash(i), 0.8);
     }
+    if (!grass) {
+      st.mat = e.style === "ivy" ? 2 : 0;
+      st.quadG(at(p, bank, yBank), at(q, bank, yBank), at(q, bank, h), at(p, bank, h), screen, 0.72, 1.02);
+      if (i % 2 === 0 && e.style !== "ivy") st.beam(at(p, bank - 0.3, yBank), at(p, bank - 0.3, h), 0.5, screen, 0.8);
+    }
+    st.mat = 0;
+    // Cap, back wall and the gap behind the wall.
+    if (!grass) {
+      st.quad(at(p, bank - 1.5, h), at(q, bank - 1.5, h), at(q, bank + depth, h), at(p, bank + depth, h), screen, 0.82);
+      st.quad(at(p, bank - 1.5, h - 1.6), at(q, bank - 1.5, h - 1.6), at(q, bank - 1.5, h + 0.2), at(p, bank - 1.5, h + 0.2), mix(screen, "#6f8a78", 0.25));
+    }
+    const top = grass ? h + 7 : h;
+    st.mat = 1;
+    st.quadG(at(p, bank + depth, GROUND_Y), at(q, bank + depth, GROUND_Y), at(q, bank + depth, top), at(p, bank + depth, top), mix(c.layout.concrete, "#3a4a40", 0.5), 0.6, 0.85);
+    st.quad([p.x, p.h, p.z], [q.x, q.h, q.z], at(q, 2.5, q.h * 0.7), at(p, 2.5, p.h * 0.7), "#3a3d40");
     if (i === 0 || i === n - 1) {
       const w = i === 0 ? p : q;
-      const o = e.style === "grass" ? 58 : 16;
-      c.st.quad(at(w, 4, 0), at(w, o, 0), at(w, o, h), at(w, 4, e.style === "grass" ? w.h * 0.6 : h), color, 0.75);
+      st.quadG(at(w, 2.5, GROUND_Y), at(w, bank + depth, GROUND_Y), at(w, bank + depth, h), at(w, 2.5, w.h * 0.7), mix(screen, c.layout.concrete, 0.35), 0.62, 0.86);
+      if (!grass) st.quad(at(w, bank, yBank), at(w, bank + depth, yBank), at(w, bank + depth, h), at(w, bank, h), screen, 0.8);
     }
+    st.mat = 0;
   }
-  c.st.mat = 0;
 }
 
 export function bullpens(c: PropCtx): void {
@@ -307,8 +349,26 @@ export function scoreboard(c: PropCtx): BoardPlacement {
   const h = (w * 3) / 8;
   const frame = s.style === "green" ? "#1d4a35" : "#14161a";
   fbox(c.st, f, 0, s.y, -3, w + 8, h + 8, 6, frame);
-  const legBottom = GROUND_Y;
-  for (const lx of [-w * 0.34, w * 0.34]) fbox(c.st, f, lx, (s.y - h / 2 + legBottom) / 2, -3.5, 5, s.y - h / 2 - legBottom, 5, "#3a3d42");
+  // Carried on a braced steel frame (or sitting on the stand below it), not on sticks.
+  const under = c.reach(clampDeg(s.deg));
+  const foot = under.out > s.back - 6 ? Math.min(s.y - h / 2 - 8, under.top - 6) : GROUND_Y;
+  const bottom = s.y - h / 2 - 4;
+  const steel = "#4a4f56";
+  const cols = Math.max(3, Math.round(w / 34));
+  for (let k = 0; k <= cols; k += 1) {
+    const lx = -w / 2 + (w * k) / cols;
+    c.st.beam(loc(f, lx, foot, -5), loc(f, lx, s.y + h / 2, -5), 2.6, steel, 0.9);
+    c.st.beam(loc(f, lx, foot, -15), loc(f, lx, s.y + h * 0.2, -5.5), 1.8, steel, 0.8);
+    if (k < cols) {
+      const nx = -w / 2 + (w * (k + 1)) / cols;
+      for (let y = foot + 16; y < bottom - 6; y += 30) {
+        c.st.beam(loc(f, lx, y, -5), loc(f, nx, y + 15, -5), 1.1, steel, 0.8);
+        c.st.beam(loc(f, lx, y + 15, -5), loc(f, nx, y, -5), 1.1, steel, 0.8);
+      }
+      c.st.beam(loc(f, lx, bottom - 3, -5), loc(f, nx, bottom - 3, -5), 2, steel, 0.85);
+    }
+  }
+  fbox(c.st, f, 0, s.y, -7.5, w + 6, h + 6, 3, "#23262b", 0.8);
   if (s.style === "green") {
     // Wrigley: pitched cap and a clock.
     c.st.tri(loc(f, -w / 2 - 4, s.y + h / 2 + 4, 0), loc(f, w / 2 + 4, s.y + h / 2 + 4, 0), loc(f, 0, s.y + h / 2 + 16, 0), frame);
@@ -324,10 +384,15 @@ export function scoreboard(c: PropCtx): BoardPlacement {
   return { position: [p[0], p[1], p[2]], yaw: f.yaw, w, h };
 }
 
-/** Retractable roof, parked open: rails on trusses and the stacked panels at one end. */
+/**
+ * Retractable roof, parked open. Four kinds: panels that slide along rails to one end
+ * (Houston, Seattle, Miami, Arlington), split to both ends (Phoenix), fan open about a pivot
+ * behind the plate (Milwaukee), or nest as a dome over center field (Toronto).
+ */
 export function roof(c: PropCtx): void {
   const r = c.layout.roof;
   if (!r) return;
+  const st = c.st;
   const C = { x: 0, z: 185 };
   const half = 480;
   const [ax, az] = dirXZ(r.axis);
@@ -335,31 +400,101 @@ export function roof(c: PropCtx): void {
   const lz = -ax;
   const at = (t: number, l: number, y: number): P3 => [C.x + ax * t + lx * l, y, C.z + az * t + lz * l];
   const steel = "#8d939a";
+  const kind = r.kind ?? "slide";
+  /** A curved roof skin over a grid of points, seamed metal on top and ribbed underneath. */
+  const skin = (pt: (u: number, v: number) => P3, nu: number, nv: number, shade: number): void => {
+    for (let i = 0; i < nu; i += 1) {
+      for (let j = 0; j < nv; j += 1) {
+        const a = pt(i / nu, j / nv);
+        const b = pt((i + 1) / nu, j / nv);
+        const d = pt(i / nu, (j + 1) / nv);
+        const e = pt((i + 1) / nu, (j + 1) / nv);
+        const top = (a[1] + e[1]) / 2;
+        st.mat = 5;
+        st.quad(a, b, e, d, r.color, shade * (0.84 + 0.16 * Math.min(1, (top - r.h + 20) / 80)));
+      }
+    }
+    st.mat = 0;
+  };
+  if (kind === "dome") {
+    // Nested shells stacked over center field, the largest outermost.
+    for (let k = 0; k < 3; k += 1) {
+      const R = half + 22 - k * 20;
+      const wide = (78 - k * 14) * (Math.PI / 180);
+      const H = r.h + 70 - k * 14;
+      const el1 = (62 + k * 9) * (Math.PI / 180);
+      const pt = (u: number, v: number): P3 => {
+        const a = (r.axis * Math.PI) / 180 + (u * 2 - 1) * wide;
+        const el = 0.2 + v * (el1 - 0.2);
+        const rr = R * Math.cos(el);
+        return [C.x - Math.sin(a) * rr, GROUND_Y + H * Math.sin(el) * 1.02, C.z + Math.cos(a) * rr];
+      };
+      skin(pt, 14, 6, 1 - k * 0.05);
+      // Leading-edge arch truss.
+      for (let i = 0; i < 14; i += 1) {
+        const a = pt(i / 14, 1);
+        const b = pt((i + 1) / 14, 1);
+        st.quad([a[0], a[1] - 14, a[2]], [b[0], b[1] - 14, b[2]], b, a, steel, 0.8);
+      }
+    }
+    // The fixed ring the shells ride on.
+    for (let i = 0; i < 40; i += 1) {
+      const a0 = (i / 40) * Math.PI * 2;
+      const a1 = ((i + 1) / 40) * Math.PI * 2;
+      const R = half + 26;
+      st.beam([C.x + Math.cos(a0) * R, r.h * 0.42, C.z + Math.sin(a0) * R], [C.x + Math.cos(a1) * R, r.h * 0.42, C.z + Math.sin(a1) * R], 12, steel, 0.9);
+    }
+    return;
+  }
+  if (kind === "fan") {
+    // Wedge panels pivoting behind the plate, stacked over each baseline; a fixed spine
+    // of arched ribs frames the opening.
+    const P = { x: C.x - ax * (half + 40), z: C.z - az * (half + 40) };
+    const R = 2 * half + 60;
+    const base = (r.axis * Math.PI) / 180;
+    const pp = (ang: number, t: number, lift: number): P3 => {
+      const rr = 80 + (R - 80) * t;
+      return [P.x - Math.sin(base + ang) * rr, r.h + lift + 110 * Math.sin(Math.PI * Math.min(1, t * 1.04)) - 40 * t, P.z + Math.cos(base + ang) * rr];
+    };
+    for (const side of [-1, 1]) {
+      for (let k = 0; k < 3; k += 1) {
+        const a0 = side * (0.56 - k * 0.03);
+        const a1 = side * (0.56 + r.cover * 1.5 - k * 0.1);
+        skin((u, v) => pp(a0 + (a1 - a0) * u, v, (2 - k) * 14), 4, 10, 1 - k * 0.05);
+      }
+      for (let j = 0; j < 12; j += 1) st.beam(pp(side * 0.54, j / 12, 30), pp(side * 0.54, (j + 1) / 12, 30), 9, steel, 0.9);
+      const foot = pp(side * 0.54, 1, 30);
+      st.beam([foot[0], GROUND_Y, foot[2]], foot, 12, steel, 0.85);
+    }
+    return;
+  }
+  // Rails on trussed legs down both sides.
   for (const side of [-1, 1]) {
     const l = side * half;
-    c.st.beam(at(-half - 30, l, r.h - 6), at(half + 150, l, r.h - 6), 14, steel);
+    st.beam(at(-half - 30, l, r.h - 6), at(half + 150, l, r.h - 6), 14, steel);
     for (let t = -half; t <= half + 150; t += 157.5) {
-      c.st.beam(at(t, l, GROUND_Y), at(t, l, r.h - 12), 11, steel, 0.85);
-      c.st.beam(at(t, l, r.h * 0.45), at(t + 78, l, r.h - 12), 5, steel, 0.8);
+      st.beam(at(t, l, GROUND_Y), at(t, l, r.h - 12), 11, steel, 0.85);
+      st.beam(at(t, l, r.h * 0.45), at(t + 78, l, r.h - 12), 5, steel, 0.8);
+      st.beam(at(t, l, r.h * 0.45), at(t - 78, l, r.h - 12), 5, steel, 0.8);
     }
   }
   const span = 2 * half;
-  const t1 = half + 140;
-  const t0 = half - r.cover * span;
-  const panels = 3;
-  const seg = 10;
-  for (let k = 0; k < panels; k += 1) {
-    const a = t0 + ((t1 - t0) * k) / panels - (k ? 26 : 0);
-    const b = t0 + ((t1 - t0) * (k + 1)) / panels;
-    const lift = (panels - 1 - k) * 15;
-    const y = (u: number) => r.h + lift + 62 * Math.cos((u * Math.PI) / 2);
-    for (let i = 0; i < seg; i += 1) {
-      const u0 = -1 + (2 * i) / seg;
-      const u1 = -1 + (2 * (i + 1)) / seg;
-      const shade = 0.82 + 0.18 * Math.cos(((u0 + u1) / 2) * 1.3) - k * 0.04;
-      c.st.quad(at(a, u0 * half, y(u0)), at(b, u0 * half, y(u0)), at(b, u1 * half, y(u1)), at(a, u1 * half, y(u1)), r.color, shade);
-      // Leading-edge truss.
-      c.st.quad(at(a, u0 * half, y(u0) - 16), at(a, u1 * half, y(u1) - 16), at(a, u1 * half, y(u1)), at(a, u0 * half, y(u0)), steel, 0.8);
+  const stacks: Array<[number, number, number]> = kind === "split" ? [[half - (r.cover / 2) * span, half + 140, 1], [-half + (r.cover / 2) * span, -half - 140, 1]] : [[half - r.cover * span, half + 140, 1]];
+  const panels = kind === "split" ? 2 : 3;
+  for (const [t0, t1] of stacks) {
+    for (let k = 0; k < panels; k += 1) {
+      const a = t0 + ((t1 - t0) * k) / panels - (k ? Math.sign(t1 - t0) * 26 : 0);
+      const b = t0 + ((t1 - t0) * (k + 1)) / panels;
+      const lift = (panels - 1 - k) * 15;
+      const y = (u: number) => r.h + lift + 62 * Math.cos((u * Math.PI) / 2);
+      skin((u, v) => at(a + (b - a) * u, (v * 2 - 1) * half, y(v * 2 - 1)), 2, 14, 1 - k * 0.04);
+      // Leading-edge and rib trusses.
+      for (let i = 0; i < 14; i += 1) {
+        const u0 = -1 + (2 * i) / 14;
+        const u1 = -1 + (2 * (i + 1)) / 14;
+        st.quadG(at(a, u0 * half, y(u0) - 18), at(a, u1 * half, y(u1) - 18), at(a, u1 * half, y(u1)), at(a, u0 * half, y(u0)), steel, 0.6, 0.86);
+        st.quad(at((a + b) / 2, u0 * half, y(u0) - 9), at((a + b) / 2, u1 * half, y(u1) - 9), at((a + b) / 2, u1 * half, y(u1)), at((a + b) / 2, u0 * half, y(u0)), steel, 0.66);
+      }
     }
   }
 }
@@ -432,29 +567,44 @@ function tree(b: GeoBuilder, x: number, z: number, kind: "pine" | "palm" | "roun
     b.cyl(x, y, z, 1.2, 0.7, 12 * s, bark, 6, false);
     b.mat = 2;
     const dark = mix("#173d24", "#24552f", hash(k));
-    for (let t = 0; t < 4; t += 1) {
-      b.cyl(x, y + (7 + t * 8) * s, z, (10.5 - t * 2.3) * s, 0, (15 - t * 1.2) * s, mix(dark, "#3d7a44", t * 0.14), 8, false);
+    // Overlapping skirts, each lighter toward the tip, read as one soft conifer.
+    for (let t = 0; t < 5; t += 1) {
+      const r = (10.5 - t * 1.9) * s;
+      const y0 = y + (6 + t * 7.2) * s;
+      const hh = (13 - t * 1.1) * s;
+      const lo = mix(dark, "#0f2a19", 0.35);
+      const hi = mix(dark, "#4d8a4c", 0.18 + t * 0.1);
+      const seg = 12;
+      for (let i = 0; i < seg; i += 1) {
+        const a0 = (i / seg) * Math.PI * 2;
+        const a1 = ((i + 1) / seg) * Math.PI * 2;
+        const n0: P3 = [Math.cos(a0), 0.7, Math.sin(a0)];
+        const n1: P3 = [Math.cos(a1), 0.7, Math.sin(a1)];
+        b.triN([x + Math.cos(a0) * r, y0, z + Math.sin(a0) * r], [x + Math.cos(a1) * r, y0, z + Math.sin(a1) * r], [x, y0 + hh, z], n0, n1, [(n0[0] + n1[0]) / 2, 0.7, (n0[2] + n1[2]) / 2], lo, lo, hi);
+      }
     }
   } else if (kind === "palm") {
     const h = (38 + hash(k) * 16) * s;
     const lean = (hash(k * 1.3) - 0.5) * 5;
-    b.beam([x, y, z], [x + lean * 0.4, y + h * 0.5, z], 1.5, "#8a765e");
-    b.beam([x + lean * 0.4, y + h * 0.5, z], [x + lean, y + h, z], 1.2, "#8a765e");
+    b.cyl(x, y, z, 1.1, 0.8, h * 0.5, "#8a765e", 6, false);
+    b.beam([x, y + h * 0.5, z], [x + lean, y + h, z], 1.3, "#8a765e");
     b.mat = 2;
     const cx = x + lean;
-    b.sphere(cx, y + h, z, 2.2, "#4a7a38", 6, 0.8);
-    for (let i = 0; i < 9; i += 1) {
-      const a = (i / 9) * Math.PI * 2 + k;
+    b.sphere(cx, y + h, z, 2.2, "#4a7a38", 8, 0.8);
+    for (let i = 0; i < 11; i += 1) {
+      const a = (i / 11) * Math.PI * 2 + k;
       const col = mix("#2c6630", "#5a9a45", hash(k + i));
-      // Each frond arcs up, out and droops, in two segments.
-      const mx = cx + Math.cos(a) * 6.5;
-      const mz = z + Math.sin(a) * 6.5;
-      const ex = cx + Math.cos(a) * 13;
-      const ez = z + Math.sin(a) * 13;
-      const px = Math.sin(a) * 2.1;
-      const pz = -Math.cos(a) * 2.1;
-      b.tri([cx, y + h + 0.5, z], [mx + px, y + h + 3, mz + pz], [mx - px, y + h + 3, mz - pz], col);
-      b.tri([mx + px, y + h + 3, mz + pz], [ex, y + h - 5 - hash(i + k) * 3, ez], [mx - px, y + h + 3, mz - pz], col, 0.86);
+      // Each frond arcs up, out and droops, in three segments.
+      const pt = (t: number, side: number): P3 => {
+        const r = 14 * t;
+        const wd = 2.3 * Math.sin(Math.PI * Math.min(1, t * 1.1)) * side;
+        return [cx + Math.cos(a) * r + Math.sin(a) * wd, y + h + 0.5 + 7 * t - 13 * t * t - hash(i + k) * 2 * t, z + Math.sin(a) * r - Math.cos(a) * wd];
+      };
+      for (let j = 0; j < 3; j += 1) {
+        const t0 = j / 3;
+        const t1 = (j + 1) / 3;
+        b.quad(pt(t0, -1), pt(t0, 1), pt(t1, 1), pt(t1, -1), col, 1 - j * 0.1);
+      }
     }
   } else {
     const cherry = kind === "cherry";
@@ -464,12 +614,12 @@ function tree(b: GeoBuilder, x: number, z: number, kind: "pine" | "palm" | "roun
     const top = cherry ? mix("#f0b4cb", "#f8d5e2", hash(k)) : mix("#3c7f3a", "#5a9a48", hash(k));
     const bot = cherry ? mix("#b96d8c", "#cf8aa5", hash(k)) : mix("#1c4a26", "#27592d", hash(k));
     const cy = y + r * 1.5 + 3;
-    b.sphere(x, cy, z, r, top, 8, 0.86, bot, 0.3);
+    b.sphere(x, cy, z, r, top, 12, 0.88, bot, 0.1);
     // Satellite clumps make the canopy read as foliage rather than a ball.
     for (let i = 0; i < 4; i += 1) {
       const a = (i / 4) * Math.PI * 2 + hash(k * 2.1 + i) * 1.4;
-      const rr = r * (0.52 + 0.2 * hash(k + i * 3.7));
-      b.sphere(x + Math.cos(a) * r * 0.62, cy - r * 0.18 + (hash(k * 5 + i) - 0.3) * r * 0.5, z + Math.sin(a) * r * 0.62, rr, top, 6, 0.85, bot, 0.3);
+      const rr = r * (0.55 + 0.18 * hash(k + i * 3.7));
+      b.sphere(x + Math.cos(a) * r * 0.6, cy - r * 0.2 + (hash(k * 5 + i) - 0.3) * r * 0.45, z + Math.sin(a) * r * 0.6, rr, top, 10, 0.88, bot, 0.08);
     }
   }
   b.mat = 0;
@@ -542,6 +692,7 @@ function feature(c: PropCtx, f: Feature, fi: number): void {
     case "water": {
       const step = 4;
       const y = GROUND_Y + 0.7;
+      st.mat = 6;
       for (let deg = f.from; deg < f.to - 0.01; deg += step) {
         const d1 = Math.min(f.to, deg + step);
         const [ax, az] = dirXZ(deg);
@@ -554,9 +705,14 @@ function feature(c: PropCtx, f: Feature, fi: number): void {
           [1500, 3400, "#5a93b6"],
         ];
         for (const [o0, o1, col] of bands) {
-          st.quad([ax * (r0a + o0), y, az * (r0a + o0)], [bx * (r0b + o0), y, bz * (r0b + o0)], [bx * (r0b + o1), y, bz * (r0b + o1)], [ax * (r0a + o1), y, az * (r0a + o1)], col, 0.96 + 0.06 * hash(deg + o0));
+          st.quad([ax * (r0a + o0), y, az * (r0a + o0)], [bx * (r0b + o0), y, bz * (r0b + o0)], [bx * (r0b + o1), y, bz * (r0b + o1)], [ax * (r0a + o1), y, az * (r0a + o1)], col);
         }
+        // Quay wall and promenade along the near bank.
+        st.mat = 1;
+        st.quad([ax * (r0a - 14), GROUND_Y + 0.2, az * (r0a - 14)], [bx * (r0b - 14), GROUND_Y + 0.2, bz * (r0b - 14)], [bx * r0b, GROUND_Y + 0.2, bz * r0b], [ax * r0a, GROUND_Y + 0.2, az * r0a], "#b5b1a6");
+        st.mat = 6;
       }
+      st.mat = 0;
       break;
     }
     case "bridge": {
@@ -602,15 +758,16 @@ function feature(c: PropCtx, f: Feature, fi: number): void {
     }
     case "building": {
       const fr = behind(c, f.deg, f.back + f.d / 2);
+      st.mat = f.glass ? 4 : 3;
+      st.aux = f.h;
       fbox(st, fr, 0, GROUND_Y + (f.h - GROUND_Y) / 2, 0, f.w, f.h - GROUND_Y, f.d, f.color);
+      st.mat = 0;
+      st.aux = 0;
       if (f.trim) fbox(st, fr, 0, f.h + 1.5, 0, f.w + 3, 3, f.d + 3, f.trim);
-      const cols = Math.max(3, Math.round(f.w / 15));
-      const rows = Math.max(2, Math.round(f.h / 13));
-      for (let r = 0; r < rows; r += 1) {
-        for (let k = 0; k < cols; k += 1) {
-          const on = c.lit && hash(fi * 31 + r * 7 + k * 3) > 0.55;
-          panel(on ? glow : st, fr, ((k + 0.5) / cols - 0.5) * f.w, 6 + ((r + 0.5) * (f.h - 10)) / rows, f.d / 2 + 0.3, (f.w / cols) * 0.52, ((f.h - 10) / rows) * 0.6, on ? WINDOW : "#232a33", on ? 0.85 : 1);
-        }
+      if (c.lit) {
+        const cols = Math.max(3, Math.round(f.w / 24));
+        const rows = Math.max(1, Math.floor((f.h - 32) / 15));
+        for (let r = 0; r < rows; r += 1) for (let k = 0; k < cols; k += 1) if (hash(fi * 31 + r * 7 + k * 3) > 0.6) panel(glow, fr, ((k + 0.5) / cols - 0.5) * f.w, 32 + r * 15, f.d / 2 + 0.3, 9, 7, WINDOW, 0.8);
       }
       break;
     }
@@ -654,7 +811,7 @@ function feature(c: PropCtx, f: Feature, fi: number): void {
         st.quad(loc(fr, -f.w / 2, 1.2, 8), loc(fr, f.w / 2, 1.2, 8), loc(fr, f.w / 2, 1.2, -6), loc(fr, -f.w / 2, 1.2, -6), "#3d86b8");
         for (let i = 0; i < 5; i += 1) {
           const p = loc(fr, ((i + 0.5) / 5 - 0.5) * f.w * 0.8, 1.2, 0);
-          st.cyl(p[0], p[1], p[2], 1.1, 0.3, 16 + hash(i + fi) * 14, "#eef7ff", 5, false);
+          st.cyl(p[0], p[1], p[2], 2.2, 0.2, 6 + hash(i + fi) * 5, "#cfe3ee", 8, false);
         }
       }
       break;
@@ -669,7 +826,9 @@ function feature(c: PropCtx, f: Feature, fi: number): void {
         st.quad(loc(a, 0, 0, 0), loc(b, 0, 0, 0), loc(b, 0, y + 0.6, 0), loc(a, 0, y + 0.6, 0), "#2a3a44");
         for (const lz of [-7, -17]) {
           const p = loc(a, 0, y, lz);
-          st.cyl(p[0], p[1], p[2], 1, 0.25, 10 + hash(deg * 3 + lz) * 16, "#eef7ff", 5, false);
+          const jh = 8 + hash(deg * 3 + lz) * 9;
+          st.cyl(p[0], p[1], p[2], 2.4, 0.3, jh, "#d3e6f0", 8, false);
+          st.sphere(p[0], p[1] + jh * 0.2, p[2], 3.2, "#c2dcea", 8, 0.5);
         }
       }
       break;
@@ -680,11 +839,12 @@ function feature(c: PropCtx, f: Feature, fi: number): void {
         const a = behind(c, clampDeg(deg), f.back);
         const b = behind(c, clampDeg(Math.min(f.to, deg + step)), f.back);
         const sh = 0.9 + 0.14 * hash(deg * 1.3 + fi);
-        st.quad(loc(a, 0, GROUND_Y, 0), loc(b, 0, GROUND_Y, 0), loc(b, 0, f.h * 0.5, 0), loc(a, 0, f.h * 0.5, 0), "#6f8fa8", sh);
-        st.quad(loc(a, 0, f.h * 0.5, 0), loc(b, 0, f.h * 0.5, 0), loc(b, 0, f.h, 0), loc(a, 0, f.h, 0), "#a4c3d6", sh);
+        st.mat = 4;
+        st.quadG(loc(a, 0, GROUND_Y, 0), loc(b, 0, GROUND_Y, 0), loc(b, 0, f.h, 0), loc(a, 0, f.h, 0), "#8fb0c6", sh * 0.8, sh * 1.05);
+        st.mat = 0;
         st.beam(loc(a, 0, GROUND_Y, 0.4), loc(a, 0, f.h, 0.4), 1.6, "#59626b");
         st.beam(loc(a, 0, f.h, 0.4), loc(b, 0, f.h, 0.4), 2.4, "#59626b");
-        st.beam(loc(a, 0, f.h * 0.5, 0.4), loc(b, 0, f.h * 0.5, 0.4), 1.2, "#59626b");
+        st.beam(loc(a, 0, f.h * 0.5, 0.4), loc(b, 0, f.h * 0.5, 0.4), 1.6, "#59626b");
       }
       break;
     }

@@ -821,7 +821,7 @@ export function flareTexture(): THREE.CanvasTexture {
 export const BLOCKS_FT = 1280;
 
 /** City blocks seen from the upper deck: streets, roofs, lots and a few green squares. */
-export function blocksTexture(): THREE.CanvasTexture {
+export function blocksTexture(lit = false): THREE.CanvasTexture {
   const n = 8;
   const px = 32;
   const [c, g] = canvas(n * px, n * px);
@@ -866,6 +866,36 @@ export function blocksTexture(): THREE.CanvasTexture {
           g.fillStyle = "rgba(0,0,0,0.16)";
           g.fillRect(x + a * w + 0.5, y + (b + ch) * w - 2, cw * w - 1, 1.5);
         });
+      }
+    }
+  }
+  if (lit) {
+    // Night: the blocks sink into the dark, streets and lots glow with lamps, some roofs
+    // carry lit skylights.
+    g.fillStyle = "rgba(8,12,24,0.66)";
+    g.fillRect(0, 0, n * px, n * px);
+    for (let j = 0; j < n; j += 1) {
+      for (let i = 0; i < n; i += 1) {
+        const r = hash(i * 5.3 + j * 11.9 + 2);
+        for (let k = 0; k < 4; k += 1) {
+          for (const [x, y] of [[i * px + k * 8 + 4, j * px + 1.5], [i * px + 1.5, j * px + k * 8 + 4]]) {
+            const glow = g.createRadialGradient(x, y, 0, x, y, 3.2);
+            glow.addColorStop(0, "rgba(255,214,150,0.95)");
+            glow.addColorStop(1, "rgba(255,190,110,0)");
+            g.fillStyle = glow;
+            g.fillRect(x - 3.2, y - 3.2, 6.4, 6.4);
+          }
+        }
+        if (r >= 0.2 && r < 0.38) {
+          g.fillStyle = "rgba(255,236,200,0.2)";
+          g.fillRect(i * px + 3, j * px + 3, px - 6, px - 6);
+        } else if (r >= 0.38) {
+          for (let k = 0; k < 5; k += 1) {
+            if (hash(r * 91 + k * 7.7) < 0.5) continue;
+            g.fillStyle = hash(k + r * 13) < 0.5 ? "rgba(255,221,160,0.9)" : "rgba(190,215,255,0.8)";
+            g.fillRect(i * px + 5 + hash(k * 3.3 + r * 50) * (px - 12), j * px + 5 + hash(k * 5.9 + r * 70) * (px - 12), 1.6, 1.2);
+          }
+        }
       }
     }
   }
