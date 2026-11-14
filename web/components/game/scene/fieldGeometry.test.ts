@@ -5,7 +5,7 @@ import { layoutFor, PARK_LAYOUTS } from "@/lib/game/data/parkLayouts";
 import { buildWallLoop, fieldGrass, fieldMarks, wallGeometry } from "@/components/game/scene/fieldGeometry";
 import { GeoBuilder } from "@/components/game/scene/parks/geo";
 import { buildStands } from "@/components/game/scene/parks/stands";
-import { battersEye, bullpens, dugouts, features, foulPoles, lightBanks, netGeometry, roof, scoreboard, type PropCtx } from "@/components/game/scene/parks/props";
+import { backstop, battersEye, bullpens, dugouts, features, foulPoles, lightBanks, netGeometry, roof, scoreboard, type PropCtx } from "@/components/game/scene/parks/props";
 import type { BallparkIndex } from "@/types/ballpark";
 
 const venues = Object.values((ballparkIndex as unknown as BallparkIndex).parks);
@@ -49,10 +49,14 @@ describe("ballpark scene geometry", () => {
       const st = new GeoBuilder();
       const glow = new GeoBuilder();
       const seats = new GeoBuilder(true);
-      const stands = buildStands(layout, loop, st, seats, { homeColor: "#123456", skip: () => false });
-      const ctx: PropCtx = { park, layout, loop, st, glow, reach: stands.reach, homeColor: "#123456", lit: true };
+      const led = new GeoBuilder(true);
+      const city = new GeoBuilder(true);
+      const flares: number[] = [];
+      const stands = buildStands(layout, loop, st, seats, { homeColor: "#123456", led, glow, lit: true, skip: () => false });
+      const ctx: PropCtx = { park, layout, loop, st, glow, led, city, flares, reach: stands.reach, homeColor: "#123456", lit: true };
       foulPoles(ctx);
       dugouts(ctx);
+      backstop(ctx);
       battersEye(ctx);
       bullpens(ctx);
       lightBanks(ctx);
@@ -64,7 +68,9 @@ describe("ballpark scene geometry", () => {
       expect(board.position.every(Number.isFinite)).toBe(true);
       expect(stands.slots.length / 3).toBeGreaterThan(5000);
       expect(stands.yaws.length).toBe(stands.slots.length / 3);
-      for (const g of [st.build(), glow.build(), seats.build(), net, wallGeometry(loop, layout), fieldGrass(loop), fieldMarks(park, loop)]) {
+      expect(stands.meta.length).toBe((stands.slots.length / 3) * 2);
+      expect(flares.every(Number.isFinite)).toBe(true);
+      for (const g of [st.build(), glow.build(), seats.build(), led.build(), net, wallGeometry(loop, layout), fieldGrass(loop), fieldMarks(park, loop)]) {
         expect(g.getAttribute("position").array.length).toBeGreaterThan(0);
         expect(finite(g)).toBe(true);
       }

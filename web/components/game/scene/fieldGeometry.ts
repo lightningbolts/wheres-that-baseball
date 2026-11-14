@@ -54,13 +54,16 @@ export function wallGeometry(loop: WallLoop, layout: ParkLayout): THREE.BufferGe
     const v0 = 1 - (row + 1) / 8 + 0.008;
     const v1 = 1 - row / 8 - 0.008;
     const tint = skin === "pad" || skin === "monster" ? layout.wall : "#ffffff";
+    // Padding is painted dark; upright faces only catch a grazing key light, so lift the
+    // paint or the whole fence reads as a black band.
+    const lift = skin === "pad" || skin === "monster" ? 2.1 : 1.25;
     const bands = Math.max(1, Math.ceil(Math.max(p.h, q.h) / 10));
     const u0 = p.s / 64;
     const u1 = q.s / 64;
     for (let k = 0; k < bands; k += 1) {
       const f0 = k / bands;
       const f1 = (k + 1) / bands;
-      b.quadUv([p.x, p.h * f0, p.z], [q.x, q.h * f0, q.z], [q.x, q.h * f1, q.z], [p.x, p.h * f1, p.z], [u0, v0], [u1, v0], [u1, v1], [u0, v1], tint);
+      b.quadUv([p.x, p.h * f0, p.z], [q.x, q.h * f0, q.z], [q.x, q.h * f1, q.z], [p.x, p.h * f1, p.z], [u0, v0], [u1, v0], [u1, v1], [u0, v1], tint, lift);
     }
   }
   return b.build();

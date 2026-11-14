@@ -7,9 +7,9 @@ import * as THREE from "three";
 import type { Park } from "@/lib/game/physics/park";
 import type { Feature, ParkLayout } from "@/lib/game/data/parkLayouts";
 import { dirXZ, GROUND_Y, type WallLoop } from "@/components/game/scene/fieldGeometry";
-import { GeoBuilder, hash, mix, type P3, type RGB } from "@/components/game/scene/parks/geo";
+import { GeoBuilder, hash, mix, rgb, type P3, type RGB } from "@/components/game/scene/parks/geo";
 import type { StandReach } from "@/components/game/scene/parks/stands";
-import type { DecalAtlas } from "@/components/game/scene/parks/textures";
+import { CITY_CELL, LED_ROW, type DecalAtlas } from "@/components/game/scene/parks/textures";
 
 export interface PropCtx {
   park: Park;
@@ -19,6 +19,12 @@ export interface PropCtx {
   st: GeoBuilder;
   /** Unlit emissive surfaces (light banks, lit windows). */
   glow: GeoBuilder;
+  /** Self-lit textured signage and lamp racks (see `ledAtlas`). */
+  led: GeoBuilder;
+  /** Distant buildings with window-grid facades (see `cityTexture`). */
+  city: GeoBuilder;
+  /** Floodlight glare sprites: x, y, z, size quadruples (night only). */
+  flares: number[];
   reach(beta: number): StandReach;
   homeColor: string;
   /** Stadium lights and windows on (dusk and night games). */
@@ -70,7 +76,6 @@ function panel(b: GeoBuilder, f: Frame, lx: number, y: number, lz: number, w: nu
 }
 
 const LAMP_ON: RGB = [1, 0.98, 0.9];
-const LAMP_OFF: RGB = [0.72, 0.73, 0.72];
 const WINDOW: RGB = [1, 0.82, 0.48];
 
 export function foulPoles(c: PropCtx): void {
@@ -91,24 +96,54 @@ export function foulPoles(c: PropCtx): void {
 export const DUGOUT = { from: 78, to: 112, depth: 12 };
 
 export function dugouts(c: PropCtx): void {
+  const D = DUGOUT.depth;
   for (const sigma of [-1, 1]) {
     const s0 = c.loop.sOf(sigma > 0 ? DUGOUT.from : -DUGOUT.to);
     const s1 = c.loop.sOf(sigma > 0 ? DUGOUT.to : -DUGOUT.from);
     const n = Math.max(2, Math.round((s1 - s0) / 9));
-    const roof = sigma > 0 ? c.homeColor : c.layout.trim;
+    const team = sigma > 0 ? c.homeColor : mix(c.layout.trim, "#8a9099", 0.35);
     for (let i = 0; i < n; i += 1) {
       const p = c.loop.at(s0 + ((s1 - s0) * i) / n);
       const q = c.loop.at(s0 + ((s1 - s0) * (i + 1)) / n);
       const at = (w: typeof p, o: number, y: number): P3 => [w.x + w.nx * o, y, w.z + w.nz * o];
       const top = p.h + 4.8;
-      // Shadowed opening, bench, roof slab with a colored fascia, and a rail to lean on.
-      c.st.quad(at(p, 0.5, p.h - 3), at(q, 0.5, q.h - 3), at(q, 0.5, top), at(p, 0.5, top), "#0a0c0f");
-      c.st.quad(at(p, 0.4, p.h), at(q, 0.4, q.h), at(q, 0.4, p.h + 1.3), at(p, 0.4, p.h + 1.3), "#3a2f26");
-      c.st.quad(at(p, -1.5, top + 0.7), at(q, -1.5, top + 0.7), at(q, DUGOUT.depth, top + 0.7), at(p, DUGOUT.depth, top + 0.7), mix(c.layout.concrete, "#3b3e44", 0.5));
-      c.st.quad(at(p, -1.5, top - 0.3), at(q, -1.5, top - 0.3), at(q, -1.5, top + 0.7), at(p, -1.5, top + 0.7), roof);
+      const floor = p.h - 3;
+      // A real recess: sunken floor, padded back wall, bench, and a roof slab whose
+      // fascia carries the team color. Nothing in here is pure black.
+      c.st.quad(at(p, 0.3, floor), at(q, 0.3, floor), at(q, D - 1, floor), at(p, D - 1, floor), "#6a5f52");
+      c.st.quad(at(p, D - 1, floor), at(q, D - 1, floor), at(q, D - 1, top), at(p, D - 1, top), mix(team, "#1c2026", 0.6), 0.8);
+      c.st.quad(at(p, D - 1.1, floor + 3.6), at(q, D - 1.1, floor + 3.6), at(q, D - 1.1, floor + 5.2), at(p, D - 1.1, floor + 5.2), mix(team, "#ffffff", 0.1));
+      c.st.quad(at(p, D - 3.6, floor + 1.5), at(q, D - 3.6, floor + 1.5), at(q, D - 1.2, floor + 1.5), at(p, D - 1.2, floor + 1.5), "#8a6a48");
+      c.st.quad(at(p, D - 3.6, floor), at(q, D - 3.6, floor), at(q, D - 3.6, floor + 1.5), at(p, D - 3.6, floor + 1.5), "#5d4733");
+      c.st.quad(at(p, -1.5, top + 0.9), at(q, -1.5, top + 0.9), at(q, D, top + 0.9), at(p, D, top + 0.9), mix(c.layout.concrete, "#55595f", 0.5));
+      c.st.quad(at(p, -1.5, top), at(q, -1.5, top), at(q, D - 1, top), at(p, D - 1, top), "#3a3d42", 0.9);
+      c.st.quad(at(p, -1.5, top - 0.4), at(q, -1.5, top - 0.4), at(q, -1.5, top + 0.9), at(p, -1.5, top + 0.9), team);
+      c.st.quad(at(p, -1.55, top + 0.15), at(q, -1.55, top + 0.15), at(q, -1.55, top + 0.4), at(p, -1.55, top + 0.4), "#f1f1ee");
       c.st.beam(at(p, -0.3, p.h + 1), at(q, -0.3, q.h + 1), 0.18, "#c9ccd0");
       c.st.beam(at(p, -0.3, p.h - 0.2), at(p, -0.3, p.h + 1), 0.18, "#c9ccd0");
-      if (i % 3 === 0) c.st.beam(at(p, -1.2, p.h), at(p, -1.2, top), 0.35, "#2b2e33");
+      if (i % 3 === 0) c.st.beam(at(p, -1.2, p.h), at(p, -1.2, top), 0.35, "#3b3f45");
+      if (i === 0 || i === n - 1) {
+        const w = i === 0 ? p : q;
+        c.st.quad(at(w, 0.3, floor), at(w, D, floor), at(w, D, top + 0.9), at(w, 0.3, top + 0.9), mix(team, "#1c2026", 0.55), 0.9);
+      }
+    }
+  }
+}
+
+/** LED ad boards across the backstop and a padded rail cap, so the wall behind the plate reads. */
+export function backstop(c: PropCtx): void {
+  const r = LED_ROW.backstop;
+  const spans: Array<[number, number]> = [
+    [0, c.loop.sOf(-156)],
+    [c.loop.sOf(156), c.loop.length],
+  ];
+  for (const [s0, s1] of spans) {
+    const n = Math.max(2, Math.round((s1 - s0) / 9));
+    for (let i = 0; i < n; i += 1) {
+      const p = c.loop.at(s0 + ((s1 - s0) * i) / n);
+      const q = c.loop.at(s0 + ((s1 - s0) * (i + 1)) / n);
+      const at = (w: typeof p, y: number): P3 => [w.x - w.nx * 0.14, y, w.z - w.nz * 0.14];
+      c.led.quadUv(at(p, 0.9), at(q, 0.9), at(q, q.h - 0.7), at(p, p.h - 0.7), [p.s / r.ft, r.v[0]], [q.s / r.ft, r.v[0]], [q.s / r.ft, r.v[1]], [p.s / r.ft, r.v[1]], "#ffffff");
     }
   }
 }
@@ -126,9 +161,9 @@ export function netGeometry(c: PropCtx): THREE.BufferGeometry {
     for (let i = 0; i < n; i += 1) {
       const p = c.loop.at(s0 + ((s1 - s0) * i) / n);
       const q = c.loop.at(s0 + ((s1 - s0) * (i + 1)) / n);
-      b.quadUv([p.x, p.h, p.z], [q.x, q.h, q.z], [q.x, top, q.z], [p.x, top, p.z], [p.s / 2.5, p.h / 2.5], [q.s / 2.5, q.h / 2.5], [q.s / 2.5, top / 2.5], [p.s / 2.5, top / 2.5], "#ffffff");
-      c.st.beam([p.x, top, p.z], [q.x, top, q.z], 0.2, "#2a2c30");
-      if (i % 4 === 0) c.st.beam([p.x, p.h, p.z], [p.x, top, p.z], 0.3, "#2a2c30");
+      b.quadUv([p.x, p.h, p.z], [q.x, q.h, q.z], [q.x, top, q.z], [p.x, top, p.z], [p.s / 1.5, p.h / 1.5], [q.s / 1.5, q.h / 1.5], [q.s / 1.5, top / 1.5], [p.s / 1.5, top / 1.5], "#ffffff");
+      c.st.beam([p.x, top, p.z], [q.x, top, q.z], 0.2, "#3a3d42");
+      if (i % 6 === 0) c.st.beam([p.x, p.h, p.z], [p.x, top, p.z], 0.3, "#3a3d42");
     }
   }
   return b.build();
@@ -139,15 +174,16 @@ export function battersEye(c: PropCtx): void {
   const s0 = c.loop.sOf(e.from);
   const s1 = c.loop.sOf(e.to);
   const n = Math.max(2, Math.round((s1 - s0) / 12));
-  const color = e.style === "grass" ? "#2a5a2c" : e.style === "ivy" ? "#1e4a22" : "#11291c";
+  const color = e.style === "grass" ? "#3f7d3c" : e.style === "ivy" ? "#356f36" : "#2a6344";
   const h = e.style === "trees" ? e.h * 0.55 : e.h;
   for (let i = 0; i < n; i += 1) {
     const p = c.loop.at(s0 + ((s1 - s0) * i) / n);
     const q = c.loop.at(s0 + ((s1 - s0) * (i + 1)) / n);
     const at = (w: typeof p, o: number, y: number): P3 => [w.x + w.nx * o, y, w.z + w.nz * o];
+    c.st.mat = e.style === "grass" || e.style === "ivy" ? 2 : 0;
     if (e.style === "grass") {
       c.st.quad(at(p, 3, p.h * 0.6), at(q, 3, q.h * 0.6), at(q, 58, h), at(p, 58, h), color, 0.95 + 0.08 * hash(i));
-      c.st.quad(at(p, 58, GROUND_Y), at(q, 58, GROUND_Y), at(q, 58, h), at(p, 58, h), "#1c3a22", 0.7);
+      c.st.quad(at(p, 58, GROUND_Y), at(q, 58, GROUND_Y), at(q, 58, h), at(p, 58, h), "#2c5733", 0.7);
     } else {
       c.st.quad(at(p, 5, 0), at(q, 5, 0), at(q, 5, h), at(p, 5, h), color, 0.94 + 0.08 * hash(i));
       c.st.quad(at(p, 5, h), at(q, 5, h), at(q, 16, h), at(p, 16, h), color, 0.7);
@@ -159,6 +195,7 @@ export function battersEye(c: PropCtx): void {
       c.st.quad(at(w, 4, 0), at(w, o, 0), at(w, o, h), at(w, 4, e.style === "grass" ? w.h * 0.6 : h), color, 0.75);
     }
   }
+  c.st.mat = 0;
 }
 
 export function bullpens(c: PropCtx): void {
@@ -185,34 +222,72 @@ export function bullpens(c: PropCtx): void {
   }
 }
 
+/** Floodlight rack facing home: a dark frame, a grid of lamps and (at night) a glare sprite. */
+function lampRack(c: PropCtx, f: Frame, lx: number, y: number, lz: number, w: number, h: number, rows: number): void {
+  fbox(c.st, f, lx, y, lz - 1.3, w + 2.4, h + 2.4, 2, "#2c3035");
+  for (let k = 0; k <= 3; k += 1) c.st.beam(loc(f, lx - w / 2 + (w * k) / 3, y - h / 2 - 1.2, lz - 2.6), loc(f, lx - w / 2 + (w * k) / 3, y + h / 2 + 1.2, lz - 2.6), 0.7, "#565b62");
+  const rh = h / rows;
+  const r = LED_ROW.lamps;
+  const lamps = Math.max(1, Math.round(w / rh));
+  for (let k = 0; k < rows; k += 1) {
+    const y0 = y - h / 2 + k * rh;
+    c.led.quadUv(loc(f, lx - w / 2, y0, lz), loc(f, lx + w / 2, y0, lz), loc(f, lx + w / 2, y0 + rh, lz), loc(f, lx - w / 2, y0 + rh, lz), [0, r.v[0]], [lamps / 16, r.v[0]], [lamps / 16, r.v[1]], [0, r.v[1]], "#ffffff");
+  }
+  if (c.lit) {
+    const p = loc(f, lx, y, lz + 1.5);
+    c.flares.push(p[0], p[1], p[2], Math.max(w, h) * 2.6);
+  }
+}
+
 export function lightBanks(c: PropCtx): void {
-  const lamp = c.lit ? LAMP_ON : LAMP_OFF;
   const mode = c.layout.lights;
   const betas = mode === "rim" ? [-160, -138, -114, -90, -66, 66, 90, 114, 138, 160, -30, 30] : [-152, -112, -72, 72, 112, 152, -24, 24];
+  const steel = "#737980";
   for (const beta of betas) {
     const r = c.reach(beta);
     const of = Math.abs(beta) <= 45;
     if (mode === "rim" && r.out > 60 && !of) {
-      // Light bank along the roofline.
-      const f = behind(c, beta, r.out - 2);
-      fbox(c.st, f, 0, r.top + 5, 0, 1.2, 10, 1.2, "#555a61");
-      fbox(c.st, f, 0, r.top + 14, 0, 46, 9, 2, "#3b3f45");
-      panel(c.glow, f, 0, r.top + 14, 1.15, 44, 7.4, lamp);
+      // Light bank along the roofline, on a pair of raking struts.
+      const f = behind(c, beta, r.out - 3);
+      for (const lx of [-16, 16]) {
+        c.st.beam(loc(f, lx, r.top - 2, -4), loc(f, lx, r.top + 9, 0), 1.2, steel);
+        c.st.beam(loc(f, lx, r.top - 2, 6), loc(f, lx, r.top + 9, 0), 0.8, steel);
+      }
+      lampRack(c, f, 0, r.top + 14, 0.2, 46, 9, 3);
       continue;
     }
     const f = behind(c, beta, Math.max(40, r.out + 16));
     const h = Math.max(mode === "brush" ? 185 : 150, r.top + 62);
     if (mode === "brush") {
       // Progressive/PNC-style "toothbrush": a slim mast with a tall vertical bank.
-      fbox(c.st, f, 0, h / 2, 0, 3.2, h, 3.2, "#d7dadd");
-      fbox(c.st, f, 0, h - 26, 2.2, 13, 52, 2, "#3b3f45");
-      panel(c.glow, f, 0, h - 26, 3.3, 11, 48, lamp);
+      const base = loc(f, 0, GROUND_Y, 0);
+      c.st.cyl(base[0], base[1], base[2], 2.6, 1.7, h - GROUND_Y, "#dfe2e5", 10);
+      for (const y of [h - 50, h - 26, h - 3]) c.st.beam(loc(f, 0, y, 0), loc(f, 0, y, 2.4), 1, "#aeb3b8");
+      lampRack(c, f, 0, h - 26, 3.6, 12, 50, 12);
     } else {
-      c.st.beam(loc(f, -7, GROUND_Y, -5), loc(f, -2, h, 0), 1.6, "#62676e");
-      c.st.beam(loc(f, 7, GROUND_Y, -5), loc(f, 2, h, 0), 1.6, "#62676e");
-      for (let k = 1; k < 5; k += 1) c.st.beam(loc(f, -7 + k, (h * k) / 5, -5 + k), loc(f, 7 - k, (h * k) / 5, -5 + k), 0.9, "#62676e");
-      fbox(c.st, f, 0, h + 6, 0, 40, 16, 2.4, "#3b3f45");
-      panel(c.glow, f, 0, h + 6, 1.35, 38, 14, lamp);
+      // Lattice mast: four tapering legs with cross-bracing, a service platform and the rack.
+      const legs: Array<[number, number]> = [
+        [-1, -1],
+        [1, -1],
+        [1, 1],
+        [-1, 1],
+      ];
+      const leg = (k: number, t: number): P3 => {
+        const w = 8 - 5.6 * t;
+        return loc(f, legs[k][0] * w, GROUND_Y + (h - GROUND_Y) * t, -4 + legs[k][1] * w * 0.7);
+      };
+      const levels = 6;
+      for (let k = 0; k < 4; k += 1) {
+        c.st.beam(leg(k, 0), leg(k, 1), 1.3, steel);
+        for (let j = 0; j < levels; j += 1) {
+          const t0 = j / levels;
+          const t1 = (j + 1) / levels;
+          c.st.beam(leg(k, t0), leg((k + 1) % 4, t1), 0.55, steel, 0.9);
+          c.st.beam(leg(k, t1), leg((k + 1) % 4, t1), 0.55, steel, 0.85);
+        }
+      }
+      fbox(c.st, f, 0, h - 9, -3, 26, 0.8, 9, "#4a4f55");
+      lampRack(c, f, 0, h + 5, 0.6, 40, 17, 5);
     }
   }
 }
@@ -325,26 +400,79 @@ export function decalGeometry(c: PropCtx, atlas: DecalAtlas): THREE.BufferGeomet
   return b.build();
 }
 
+/** A building in the city mesh: four window-grid walls and a plain roof. */
+function cityBox(c: PropCtx, fr: Frame, lx: number, y0: number, w: number, h: number, d: number, color: RGB, k: number): void {
+  const n = CITY_CELL.n;
+  const uo = Math.floor(hash(k * 3.3) * n) / n;
+  const vo = Math.floor(hash(k * 5.1) * n) / n;
+  const corners: Array<[number, number]> = [
+    [-w / 2, d / 2],
+    [w / 2, d / 2],
+    [w / 2, -d / 2],
+    [-w / 2, -d / 2],
+  ];
+  const shades = [1, 0.78, 0.6, 0.86];
+  for (let i = 0; i < 4; i += 1) {
+    const a = corners[i];
+    const b = corners[(i + 1) % 4];
+    const cols = Math.max(1, Math.round((i % 2 ? d : w) / CITY_CELL.w));
+    const rows = Math.max(1, Math.round(h / CITY_CELL.h));
+    c.city.quadUv(loc(fr, lx + a[0], y0, a[1]), loc(fr, lx + b[0], y0, b[1]), loc(fr, lx + b[0], y0 + h, b[1]), loc(fr, lx + a[0], y0 + h, a[1]), [uo, vo], [uo + cols / n, vo], [uo + cols / n, vo + rows / n], [uo, vo + rows / n], color, shades[i]);
+  }
+  // Roof: a wall-colored texel (the mortar corner of a window cell).
+  const t = [0.5 / (n * 8), 1 - 0.5 / (n * 8)];
+  c.city.quadUv(loc(fr, lx + corners[0][0], y0 + h, corners[0][1]), loc(fr, lx + corners[1][0], y0 + h, corners[1][1]), loc(fr, lx + corners[2][0], y0 + h, corners[2][1]), loc(fr, lx + corners[3][0], y0 + h, corners[3][1]), t, t, t, t, color, 0.9);
+}
+
 function tree(b: GeoBuilder, x: number, z: number, kind: "pine" | "palm" | "round" | "cherry", k: number): void {
   const y = GROUND_Y;
   const s = 0.8 + hash(k * 3.3) * 0.5;
+  const bark = "#4f3d2e";
   if (kind === "pine") {
-    b.cyl(x, y, z, 1.1, 0.8, 8 * s, "#4a382a", 5, false);
-    b.cyl(x, y + 6 * s, z, 9 * s, 0, 34 * s, mix("#1c4a2a", "#2c6336", hash(k)), 6, false);
+    b.cyl(x, y, z, 1.2, 0.7, 12 * s, bark, 6, false);
+    b.mat = 2;
+    const dark = mix("#173d24", "#24552f", hash(k));
+    for (let t = 0; t < 4; t += 1) {
+      b.cyl(x, y + (7 + t * 8) * s, z, (10.5 - t * 2.3) * s, 0, (15 - t * 1.2) * s, mix(dark, "#3d7a44", t * 0.14), 8, false);
+    }
   } else if (kind === "palm") {
     const h = (38 + hash(k) * 16) * s;
-    b.cyl(x, y, z, 1, 0.7, h, "#7a6650", 5, false);
-    for (let i = 0; i < 7; i += 1) {
-      const a = (i / 7) * Math.PI * 2 + k;
-      const ex = x + Math.cos(a) * 11;
-      const ez = z + Math.sin(a) * 11;
-      b.tri([x, y + h + 1.5, z], [ex + Math.sin(a) * 2.2, y + h - 4, ez - Math.cos(a) * 2.2], [ex - Math.sin(a) * 2.2, y + h - 4, ez + Math.cos(a) * 2.2], mix("#2f6b33", "#4c8a3e", hash(k + i)));
+    const lean = (hash(k * 1.3) - 0.5) * 5;
+    b.beam([x, y, z], [x + lean * 0.4, y + h * 0.5, z], 1.5, "#8a765e");
+    b.beam([x + lean * 0.4, y + h * 0.5, z], [x + lean, y + h, z], 1.2, "#8a765e");
+    b.mat = 2;
+    const cx = x + lean;
+    b.sphere(cx, y + h, z, 2.2, "#4a7a38", 6, 0.8);
+    for (let i = 0; i < 9; i += 1) {
+      const a = (i / 9) * Math.PI * 2 + k;
+      const col = mix("#2c6630", "#5a9a45", hash(k + i));
+      // Each frond arcs up, out and droops, in two segments.
+      const mx = cx + Math.cos(a) * 6.5;
+      const mz = z + Math.sin(a) * 6.5;
+      const ex = cx + Math.cos(a) * 13;
+      const ez = z + Math.sin(a) * 13;
+      const px = Math.sin(a) * 2.1;
+      const pz = -Math.cos(a) * 2.1;
+      b.tri([cx, y + h + 0.5, z], [mx + px, y + h + 3, mz + pz], [mx - px, y + h + 3, mz - pz], col);
+      b.tri([mx + px, y + h + 3, mz + pz], [ex, y + h - 5 - hash(i + k) * 3, ez], [mx - px, y + h + 3, mz - pz], col, 0.86);
     }
   } else {
-    const r = (kind === "cherry" ? 8 : 12) * s;
-    b.cyl(x, y, z, 1, 0.8, r * 1.2 + 4, "#4a382a", 5, false);
-    b.sphere(x, y + r * 1.5 + 3, z, r, kind === "cherry" ? mix("#e9a9c4", "#f3c7d8", hash(k)) : mix("#2d6a30", "#3f8240", hash(k)), 6, 0.85);
+    const cherry = kind === "cherry";
+    const r = (cherry ? 8 : 12) * s;
+    b.cyl(x, y, z, 1.3, 0.8, r * 1.3 + 4, bark, 6, false);
+    b.mat = 2;
+    const top = cherry ? mix("#f0b4cb", "#f8d5e2", hash(k)) : mix("#3c7f3a", "#5a9a48", hash(k));
+    const bot = cherry ? mix("#b96d8c", "#cf8aa5", hash(k)) : mix("#1c4a26", "#27592d", hash(k));
+    const cy = y + r * 1.5 + 3;
+    b.sphere(x, cy, z, r, top, 8, 0.86, bot, 0.3);
+    // Satellite clumps make the canopy read as foliage rather than a ball.
+    for (let i = 0; i < 4; i += 1) {
+      const a = (i / 4) * Math.PI * 2 + hash(k * 2.1 + i) * 1.4;
+      const rr = r * (0.52 + 0.2 * hash(k + i * 3.7));
+      b.sphere(x + Math.cos(a) * r * 0.62, cy - r * 0.18 + (hash(k * 5 + i) - 0.3) * r * 0.5, z + Math.sin(a) * r * 0.62, rr, top, 6, 0.85, bot, 0.3);
+    }
   }
+  b.mat = 0;
 }
 
 function feature(c: PropCtx, f: Feature, fi: number): void {
@@ -353,26 +481,38 @@ function feature(c: PropCtx, f: Feature, fi: number): void {
   const fenceAt = (beta: number) => park.fence(clampDeg(beta));
   switch (f.k) {
     case "skyline": {
-      const towers: Array<[number, number, number]> = [];
-      for (let i = 0; i < f.n; i += 1) {
-        const t = hash(fi * 97 + i * 13.7);
-        towers.push([f.from + ((f.to - f.from) * (i + hash(i * 5.1 + fi))) / f.n, f.h * (0.28 + 0.72 * t * t), i]);
+      // Two hazy layers of towers with real window grids; tiers and the odd spire break
+      // up the boxes. Lit windows come from the night texture.
+      const towers: Array<[number, number, number, number]> = [];
+      for (let layer = 0; layer < 2; layer += 1) {
+        const n = layer ? Math.ceil(f.n * 0.8) : f.n;
+        for (let i = 0; i < n; i += 1) {
+          const k = i + layer * 400;
+          const t = hash(fi * 97 + k * 13.7);
+          towers.push([f.from + ((f.to - f.from) * (i + hash(k * 5.1 + fi))) / n, f.h * (layer ? 0.42 : 0.72) * (0.3 + 0.7 * t * t), k, layer]);
+        }
       }
-      for (const [deg, h] of f.tall ?? []) towers.push([deg, h, 1000 + deg]);
-      for (const [deg, h, k] of towers) {
-        const fr = far(deg, f.dist * (0.88 + 0.3 * hash(k * 1.9 + 2)));
-        const w = 60 + hash(k * 2.3) * 80 + (k >= 1000 ? 30 : 0);
+      for (const [deg, h] of f.tall ?? []) towers.push([deg, h * 0.8, 1000 + deg, 0]);
+      for (const [deg, h, k, layer] of towers) {
+        const fr = far(deg, f.dist * (layer ? 1.7 : 1.2 + 0.25 * hash(k * 1.9 + 2)));
+        const tall = k >= 1000;
+        const w = 62 + hash(k * 2.3) * 70 + (tall ? 26 : 0);
         const d = 60 + hash(k * 4.1) * 40;
-        const color = mix("#8794a3", "#4f5b6c", hash(k * 7.7));
-        fbox(st, fr, 0, GROUND_Y + h / 2, 0, w, h, d, color);
-        if (k >= 1000) fbox(st, fr, 0, GROUND_Y + h + h * 0.06, 0, w * 0.45, h * 0.12, d * 0.45, color, 0.9);
-        if (c.lit) {
-          const rows = Math.max(2, Math.floor(h / 26));
-          for (let r = 0; r < rows; r += 1) {
-            if (hash(k * 11 + r * 3.7) > 0.62) continue;
-            const ww = w * (0.3 + 0.5 * hash(k + r * 9.1));
-            panel(glow, fr, (hash(k * 5 + r) - 0.5) * (w - ww), GROUND_Y + ((r + 0.6) * h) / (rows + 0.4), d / 2 + 1, ww, 7, WINDOW, 0.75 + 0.25 * hash(r + k));
+        const warm = hash(k * 6.3) < 0.3;
+        const base = mix(warm ? "#b7a593" : "#9fb0c2", warm ? "#7d6a5d" : "#5d6c80", hash(k * 7.7));
+        const color: RGB = c.lit ? rgb("#ffffff", 0.75 + 0.35 * hash(k * 3.1)) : mix(base, "#cfe2f3", 0.45 + 0.25 * layer);
+        const tiers = tall || (h > f.h * 0.55 && hash(k * 8.9) < 0.6) ? 2 : 1;
+        const h0 = tiers > 1 ? h * (0.62 + 0.2 * hash(k * 2.7)) : h;
+        cityBox(c, fr, 0, GROUND_Y, w, h0, d, color, k);
+        if (tiers > 1) {
+          cityBox(c, fr, 0, GROUND_Y + h0, w * 0.66, h - h0, d * 0.66, color, k + 7);
+          if (tall || hash(k * 4.7) < 0.5) {
+            const p = loc(fr, 0, GROUND_Y + h, 0);
+            st.cyl(p[0], p[1], p[2], 2.4, 0.5, h * 0.2, c.lit ? "#3a4254" : mix("#8c97a6", "#cfe2f3", 0.4), 5, false);
           }
+        } else if (hash(k * 9.3) < 0.35) {
+          // Rooftop plant.
+          cityBox(c, fr, w * 0.12, GROUND_Y + h0, w * 0.4, 10, d * 0.4, color, k + 3);
         }
       }
       break;

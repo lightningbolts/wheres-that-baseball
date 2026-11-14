@@ -14,6 +14,8 @@ interface Preset {
   sky: string;
   ground: string;
   hemi: number;
+  /** Shadowless fill from the opposite side, so faces turned from the key never go black. */
+  fill: number;
   top: string;
   horizon: string;
   fog: [string, number, number];
@@ -29,10 +31,11 @@ const PRESETS: Record<TimeOfDay, Preset> = {
   day: {
     key: [170, 320, -90],
     keyColor: "#fff4e0",
-    keyPower: 2.4,
-    sky: "#cfe3ff",
-    ground: "#3c5a2c",
-    hemi: 0.95,
+    keyPower: 2.3,
+    sky: "#d6e6ff",
+    ground: "#5d7350",
+    hemi: 1.25,
+    fill: 0.3,
     top: "#2f6fc4",
     horizon: "#cfe2f3",
     fog: ["#cfe2f3", 1500, 5400],
@@ -45,10 +48,11 @@ const PRESETS: Record<TimeOfDay, Preset> = {
   dusk: {
     key: [250, 120, -150],
     keyColor: "#ffb774",
-    keyPower: 2.1,
-    sky: "#e6bfae",
-    ground: "#3a4a34",
-    hemi: 0.8,
+    keyPower: 1.9,
+    sky: "#ecc9ba",
+    ground: "#5a6452",
+    hemi: 1.3,
+    fill: 0.55,
     top: "#2c3f86",
     horizon: "#f2ae82",
     fog: ["#deb09a", 1300, 4800],
@@ -59,12 +63,13 @@ const PRESETS: Record<TimeOfDay, Preset> = {
     stars: 0.2,
   },
   night: {
-    key: [50, 420, -130],
+    key: [60, 340, -200],
     keyColor: "#eef3ff",
-    keyPower: 1.95,
-    sky: "#b3c3e3",
-    ground: "#2c3d28",
-    hemi: 0.85,
+    keyPower: 1.5,
+    sky: "#c3d0ea",
+    ground: "#5a6a58",
+    hemi: 1.45,
+    fill: 0.85,
     top: "#03050c",
     horizon: "#17233f",
     fog: ["#111a2d", 1000, 4000],
@@ -207,6 +212,7 @@ export function Environment({ park }: { park: Park }) {
         <sphereGeometry args={[5200, 32, 16]} />
       </mesh>
       <hemisphereLight args={[p.sky, p.ground, p.hemi]} />
+      <directionalLight args={[p.keyColor, p.fill]} position={[-p.key[0], p.key[1] * 0.45, -p.key[2]]} />
       <primitive object={light} />
       <primitive object={light.target} />
     </>

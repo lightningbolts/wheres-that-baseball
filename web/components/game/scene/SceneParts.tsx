@@ -296,7 +296,7 @@ export function CameraRig({ pb }: { pb: Playback }) {
           speed = Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z) / 0.1;
         }
         const camDist = Math.hypot(st.toLook.x - st.toPos.x, st.toLook.y - st.toPos.y, st.toLook.z - st.toPos.z);
-        const frameH = Math.min(170, Math.max(48, 0.26 * dist + 0.32 * speed + 0.5 * fy));
+        const frameH = Math.min(150, Math.max(40, 0.2 * dist + 0.2 * speed + 0.5 * fy));
         fov = Math.min(50, ((2 * Math.atan(frameH / 2 / Math.max(1, camDist))) / DEG) * wide);
         break;
       }

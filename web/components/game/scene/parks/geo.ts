@@ -43,17 +43,63 @@ export class GeoBuilder {
   readonly pos: number[] = [];
   readonly col: number[] = [];
   readonly uv: number[] = [];
+  readonly nrm: number[] = [];
+  /**
+   * Surface kind written to uv.x of untextured triangles (builders with UVs only): the
+   * structure shader uses it to pick a finish (0 painted, 1 jointed concrete, 2 foliage).
+   */
+  mat = 0;
   constructor(private readonly withUv = false) {}
 
   get triangles(): number {
     return this.pos.length / 9;
   }
 
+  private face(a: P3, b: P3, c: P3): void {
+    const ux = b[0] - a[0];
+    const uy = b[1] - a[1];
+    const uz = b[2] - a[2];
+    const vx = c[0] - a[0];
+    const vy = c[1] - a[1];
+    const vz = c[2] - a[2];
+    let nx = uy * vz - uz * vy;
+    let ny = uz * vx - ux * vz;
+    let nz = ux * vy - uy * vx;
+    const l = Math.hypot(nx, ny, nz) || 1;
+    nx /= l;
+    ny /= l;
+    nz /= l;
+    this.nrm.push(nx, ny, nz, nx, ny, nz, nx, ny, nz);
+  }
+
   tri(a: P3, b: P3, c: P3, color: string | RGB, shade = 1): void {
     const k = rgb(color, shade);
     this.pos.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
     this.col.push(k[0], k[1], k[2], k[0], k[1], k[2], k[0], k[1], k[2]);
-    if (this.withUv) this.uv.push(0, 0, 0, 0, 0, 0);
+    this.face(a, b, c);
+    if (this.withUv) this.uv.push(this.mat, 0, this.mat, 0, this.mat, 0);
+  }
+
+  /**
+   * Smooth-shaded triangle with a normal and a color per corner. The winding is fixed up to
+   * agree with the normals, so double-sided materials light it from the outside.
+   */
+  triN(a: P3, b: P3, c: P3, na: P3, nb: P3, nc: P3, ca: RGB, cb: RGB, cc: RGB): void {
+    const ux = b[0] - a[0];
+    const uy = b[1] - a[1];
+    const uz = b[2] - a[2];
+    const vx = c[0] - a[0];
+    const vy = c[1] - a[1];
+    const vz = c[2] - a[2];
+    const fx = uy * vz - uz * vy;
+    const fy = uz * vx - ux * vz;
+    const fz = ux * vy - uy * vx;
+    const flip = fx * (na[0] + nb[0] + nc[0]) + fy * (na[1] + nb[1] + nc[1]) + fz * (na[2] + nb[2] + nc[2]) < 0;
+    const [q, r, nq, nr, cq, cr] = flip ? [c, b, nc, nb, cc, cb] : [b, c, nb, nc, cb, cc];
+    this.pos.push(a[0], a[1], a[2], q[0], q[1], q[2], r[0], r[1], r[2]);
+    this.col.push(ca[0], ca[1], ca[2], cq[0], cq[1], cq[2], cr[0], cr[1], cr[2]);
+    this.nrm.push(na[0], na[1], na[2], nq[0], nq[1], nq[2], nr[0], nr[1], nr[2]);
+    if (this.withUv) this.uv.push(this.mat, 0, this.mat, 0, this.mat, 0);
   }
 
   /** Quad a→b→c→d (perimeter order). */
@@ -67,6 +113,8 @@ export class GeoBuilder {
     const k = rgb(color, shade);
     this.pos.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2], a[0], a[1], a[2], c[0], c[1], c[2], d[0], d[1], d[2]);
     for (let i = 0; i < 6; i += 1) this.col.push(k[0], k[1], k[2]);
+    this.face(a, b, c);
+    this.face(a, c, d);
     this.uv.push(ua[0], ua[1], ub[0], ub[1], uc[0], uc[1], ua[0], ua[1], uc[0], uc[1], ud[0], ud[1]);
   }
 
@@ -87,8 +135,10 @@ export class GeoBuilder {
     this.quad(v[2], v[1], v[5], v[6], color, shade * 0.84);
   }
 
-  /** Vertical cylinder / frustum from y0 up by h. */
+  /** Vertical cylinder / frustum from y0 up by h (smooth-shaded around). */
   cyl(cx: number, y0: number, cz: number, r0: number, r1: number, h: number, color: string | RGB, seg = 8, cap = true): void {
+    const k = rgb(color);
+    const slope = (r0 - r1) / (h || 1);
     for (let i = 0; i < seg; i += 1) {
       const a0 = (i / seg) * Math.PI * 2;
       const a1 = ((i + 1) / seg) * Math.PI * 2;
@@ -96,24 +146,52 @@ export class GeoBuilder {
       const s0 = Math.sin(a0);
       const c1 = Math.cos(a1);
       const s1 = Math.sin(a1);
-      const shade = 0.82 + 0.18 * Math.abs(Math.cos(a0 + 0.6));
-      this.quad([cx + c0 * r0, y0, cz + s0 * r0], [cx + c1 * r0, y0, cz + s1 * r0], [cx + c1 * r1, y0 + h, cz + s1 * r1], [cx + c0 * r1, y0 + h, cz + s0 * r1], color, shade);
-      if (cap && r1 > 0.01) this.tri([cx, y0 + h, cz], [cx + c0 * r1, y0 + h, cz + s0 * r1], [cx + c1 * r1, y0 + h, cz + s1 * r1], color);
+      const n0: P3 = [c0, slope, s0];
+      const n1: P3 = [c1, slope, s1];
+      const p00: P3 = [cx + c0 * r0, y0, cz + s0 * r0];
+      const p10: P3 = [cx + c1 * r0, y0, cz + s1 * r0];
+      const p11: P3 = [cx + c1 * r1, y0 + h, cz + s1 * r1];
+      const p01: P3 = [cx + c0 * r1, y0 + h, cz + s0 * r1];
+      this.triN(p00, p10, p11, n0, n1, n1, k, k, k);
+      if (r1 > 0.01) this.triN(p00, p11, p01, n0, n1, n0, k, k, k);
+      if (cap && r1 > 0.01) this.tri([cx, y0 + h, cz], [cx + c1 * r1, y0 + h, cz + s1 * r1], [cx + c0 * r1, y0 + h, cz + s0 * r1], color);
     }
   }
 
-  /** UV sphere (optionally squashed) centered at (cx, cy, cz). */
-  sphere(cx: number, cy: number, cz: number, r: number, color: string | RGB, seg = 8, sy = 1): void {
+  /**
+   * Smooth UV sphere (optionally squashed by `sy`) centered at (cx, cy, cz). `bottom` is the
+   * color at the underside (defaults to a darker shade of `color`) for a baked top-light.
+   * `lump` (0..1) pushes vertices in and out for an organic silhouette (tree canopies).
+   */
+  sphere(cx: number, cy: number, cz: number, r: number, color: string | RGB, seg = 8, sy = 1, bottom?: string | RGB, lump = 0): void {
     const rings = Math.max(3, Math.floor(seg / 2));
+    const top = rgb(color);
+    const bot = bottom ? rgb(bottom) : rgb(color, 0.72);
+    const key = Math.round(cx * 7.3 + cz * 3.1);
+    const vert = (j: number, i: number): [P3, P3, RGB] => {
+      const t = (j / rings) * Math.PI;
+      const a = ((i % seg) / seg) * Math.PI * 2;
+      const pole = j === 0 || j === rings;
+      const d = lump && !pole ? 1 + lump * (hash(key + j * 17.3 + (i % seg) * 5.9) - 0.5) : 1;
+      const nx = Math.sin(t) * Math.cos(a);
+      const ny = Math.cos(t);
+      const nz = Math.sin(t) * Math.sin(a);
+      const f = 0.5 + 0.5 * ny;
+      const l = Math.hypot(nx, ny / sy, nz) || 1;
+      return [
+        [cx + nx * r * d, cy + ny * r * sy * d, cz + nz * r * d],
+        [nx / l, ny / sy / l, nz / l],
+        [bot[0] + (top[0] - bot[0]) * f, bot[1] + (top[1] - bot[1]) * f, bot[2] + (top[2] - bot[2]) * f],
+      ];
+    };
     for (let j = 0; j < rings; j += 1) {
-      const t0 = (j / rings) * Math.PI;
-      const t1 = ((j + 1) / rings) * Math.PI;
       for (let i = 0; i < seg; i += 1) {
-        const a0 = (i / seg) * Math.PI * 2;
-        const a1 = ((i + 1) / seg) * Math.PI * 2;
-        const pt = (t: number, a: number): P3 => [cx + Math.sin(t) * Math.cos(a) * r, cy + Math.cos(t) * r * sy, cz + Math.sin(t) * Math.sin(a) * r];
-        const shade = 0.78 + 0.22 * Math.cos(t0 * 0.9);
-        this.quad(pt(t0, a0), pt(t0, a1), pt(t1, a1), pt(t1, a0), color, shade);
+        const [p00, n00, c00] = vert(j, i);
+        const [p01, n01, c01] = vert(j, i + 1);
+        const [p11, n11, c11] = vert(j + 1, i + 1);
+        const [p10, n10, c10] = vert(j + 1, i);
+        if (j > 0) this.triN(p00, p01, p11, n00, n01, n11, c00, c01, c11);
+        if (j < rings - 1) this.triN(p00, p11, p10, n00, n11, n10, c00, c11, c10);
       }
     }
   }
@@ -174,8 +252,8 @@ export class GeoBuilder {
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.Float32BufferAttribute(this.pos, 3));
     g.setAttribute("color", new THREE.Float32BufferAttribute(this.col, 3));
+    g.setAttribute("normal", new THREE.Float32BufferAttribute(this.nrm, 3));
     if (this.withUv) g.setAttribute("uv", new THREE.Float32BufferAttribute(this.uv, 2));
-    g.computeVertexNormals();
     return g;
   }
 }
