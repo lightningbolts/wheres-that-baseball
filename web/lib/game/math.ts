@@ -103,6 +103,14 @@ export class Rng {
     return items[items.length - 1];
   }
 
+  /** Independent copy that will produce the same sequence. */
+  clone(): Rng {
+    const r = new Rng(1);
+    r.s = this.s;
+    r.spare = this.spare;
+    return r;
+  }
+
   /** Serializable state, for save / resume. */
   get state(): number {
     return this.s;

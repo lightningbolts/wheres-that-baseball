@@ -70,6 +70,8 @@ export interface PitchResult {
   contact?: ContactResult;
   path?: BattedBallPath;
   inZone: boolean;
+  /** When the bat met the ball (s after the flight's start), for swings. */
+  contactT?: number;
   /** A taken ball the catcher couldn't handle (in the dirt / way wide): runners move up. */
   wildPitch?: boolean;
 }
@@ -79,6 +81,13 @@ const BODY_INNER_PX = 1.95;
 
 export function playPitch(ctx: PitchContext, pitching: Controller, batting: Controller, rng: Rng): PitchResult {
   const decision = pitching.choosePitch(ctx, rng);
+  const flight = throwPitchPhase(ctx, decision, rng);
+  const swing = batting.decideSwing(ctx, flight, rng);
+  return resolveSwingPhase(ctx, decision, flight, swing, rng);
+}
+
+/** Release the pitch: Magnus flight to the plate with fatigue applied. */
+export function throwPitchPhase(ctx: PitchContext, decision: PitchDecision, rng: Rng): PitchFlight {
   const pitch = ctx.pitcher.arsenal[decision.pitchIdx] ?? ctx.pitcher.arsenal[0];
   // Fatigue: past stamina, velocity fades and command loosens.
   const over = Math.max(0, ctx.pitchCount - ctx.pitcher.stamina);
@@ -93,12 +102,27 @@ export function playPitch(ctx: PitchContext, pitching: Controller, batting: Cont
     },
     rng,
   );
+  return flight;
+}
+
+/** Ideal bat–ball meeting time (s after the flight's start): ~1.6 ft in front of the plate. */
+export function idealContactTime(flight: PitchFlight): number {
+  return flight.cross.t - 1.6 / len(flight.cross.v);
+}
+
+/** Take or swing: umpire, HBP, bat–ball collision, batted-ball path. */
+export function resolveSwingPhase(
+  ctx: PitchContext,
+  decision: PitchDecision,
+  flight: PitchFlight,
+  swing: SwingDecision,
+  rng: Rng,
+): PitchResult {
   const inZone = isStrike(flight.px, flight.pz, ctx.batter.zoneBottom, ctx.batter.zoneTop);
 
   // Hit by pitch: the ball crosses where the batter's body is.
   const bodySide = ctx.side === "R" ? -1 : 1; // RHB stands on the catcher's left (−px)
   const inside = flight.px * bodySide;
-  const swing = batting.decideSwing(ctx, flight, rng);
   if (!swing.swing && inside > BODY_INNER_PX && flight.pz > 0.6 && flight.pz < 5.2 && rng.chance(0.55)) {
     return { kind: "hbp", flight, decision, swing, inZone };
   }
@@ -115,11 +139,9 @@ export function playPitch(ctx: PitchContext, pitching: Controller, batting: Cont
   }
 
   // Contact point: on time ≈ 1.6 ft in front of the plate; early meets it farther out.
-  const tCross = flight.cross.t;
-  const ballSpeed = len(flight.cross.v);
   // Way early/late swings still reach the ball's path at the edge of the hitting zone —
   // they produce dribblers and fouls, not whiffs (whiffs come from missing the plane).
-  const contactT = tCross - 1.6 / ballSpeed + clamp(swing.timingErrMs, -60, 45) / 1000;
+  const contactT = idealContactTime(flight) + clamp(swing.timingErrMs, -60, 45) / 1000;
   const at = pitchStateAt(flight, contactT);
   const b = ctx.batter;
   const pullDir = ctx.side === "R" ? -1 : 1;
@@ -133,16 +155,17 @@ export function playPitch(ctx: PitchContext, pitching: Controller, batting: Cont
     alongBarrelFt: clamp(swing.alongErrFt, -1.75, 0.42),
   });
   if (!contact.contact || !contact.ball) {
-    return { kind: "swinging_strike", flight, decision, swing, inZone, contact };
+    return { kind: "swinging_strike", flight, decision, swing, inZone, contact, contactT };
   }
   // Ball deflected backward: foul tip into the mitt (strike, catchable) or foul back.
   if (contact.ball.v.z < 0) {
     const nearPitchLine = (contact.exitSpeedMph ?? 0) > 50 && Math.abs(contact.launchAngleDeg ?? 0) < 20;
-    if (nearPitchLine && rng.chance(0.55)) return { kind: "foul_tip", flight, decision, swing, inZone, contact };
-    return { kind: "foul", flight, decision, swing, inZone, contact };
+    if (nearPitchLine && rng.chance(0.55)) return { kind: "foul_tip", flight, decision, swing, inZone, contact, contactT };
+    // Simulated anyway so the foul can be drawn flying back into the screen / stands.
+    return { kind: "foul", flight, decision, swing, inZone, contact, contactT, path: simulateBattedBall(contact.ball, ctx.park) };
   }
   const path = simulateBattedBall(contact.ball, ctx.park);
-  return { kind: "in_play", flight, decision, swing, inZone, contact, path };
+  return { kind: "in_play", flight, decision, swing, inZone, contact, contactT, path };
 }
 
 /** Zone-relative location helpers for AI and UI. */

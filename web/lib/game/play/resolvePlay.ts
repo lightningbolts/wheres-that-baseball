@@ -8,7 +8,7 @@
  * speed, leads, start delays, rounding bases). Outs, hits, double plays,
  * fielder's choices, tag-ups and errors fall out of those races.
  *
- * A human defender can override the throw target via `chooseThrow`.
+ * A human defender can override the throw target via `chooseThrow` (return undefined → AI).
  */
 import { judgeFair, sampleAt, distanceToFoulLine, type BallSample, type BattedBallPath } from "@/lib/game/physics/battedBall";
 import type { Park } from "@/lib/game/physics/park";
@@ -42,7 +42,7 @@ export interface PlayInput {
   outs: number;
   rng: Rng;
   /** Human throw decision; return null to hold the ball. Defaults to the AI. */
-  chooseThrow?: (options: ThrowOption[], fielded: { pos: FieldPos; t: number }) => Base | null;
+  chooseThrow?: (options: ThrowOption[], fielded: { pos: FieldPos; t: number }) => Base | null | undefined;
   launch: { ev: number; la: number };
 }
 
@@ -513,7 +513,8 @@ function resolveGroundOrHit(
     .filter((p) => p.target > (p.from || 0))
     .map((p) => ({ base: p.target, runnerId: p.playerId, margin: arrival(p, p.target) - throwArrive(p.target), force: false }));
   let target: Base | null = null;
-  if (input.chooseThrow) target = input.chooseThrow(options, { pos: f.pos, t: tField });
+  const human = input.chooseThrow?.(options, { pos: f.pos, t: tField });
+  if (human !== undefined) target = human;
   else {
     const best = [...options].sort((a, b) => b.margin - a.margin)[0];
     target = best && best.margin > -0.3 ? best.base : null;
@@ -591,7 +592,8 @@ function resolveInfieldGrounder(
     force: true,
   }));
   let target: Base | null;
-  if (input.chooseThrow) target = input.chooseThrow(options, { pos: f.pos, t: tField });
+  const human = input.chooseThrow?.(options, { pos: f.pos, t: tField });
+  if (human !== undefined) target = human;
   else {
     // Lead force if comfortably available, else the surest out; close plays at 1st still get thrown.
     // With fewer than two outs, go to second for the double play when it's there; an
