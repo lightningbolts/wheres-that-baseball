@@ -12,7 +12,7 @@
 import type { ActorKind } from "@/components/game/scene/rig";
 import { PANEL, panelUV, sw } from "@/components/game/scene/character/atlas";
 import { MeshBuilder, blob, loft, smoothstep, tube, type MeshData, type Ring, type SkinFn, type UVFn, type V3, type VOut } from "@/components/game/scene/character/mesh";
-import { BONE, DIM } from "@/components/game/scene/character/skeleton";
+import { BONE, DIM, HELPER } from "@/components/game/scene/character/skeleton";
 
 export interface Outfit {
   /** cap · helmet (no flap: base coaches) · flap (batting helmet) · catcher (helmet + cage) · umpire (cap + mask). */
@@ -53,8 +53,8 @@ export const outfitKey = (o: Outfit) => `${o.head}${o.flap}${o.glove}${o.mitt ? 
 export const JERSEY_TOP = 2.07;
 export const JERSEY_HEM = 0.4;
 /** Face panel: width and height (ft) of the area projected on the front of the head. */
-export const FACE_W = 0.54;
-export const FACE_H = 0.8;
+export const FACE_W = 0.578;
+export const FACE_H = 0.856;
 /** Lower-leg panel: runs from the knee to the ankle; the pants end this far down it (0..1). */
 export const CUFF_AT = 0.4 / DIM.shin;
 
@@ -96,6 +96,10 @@ const rigid =
     o.w = 0;
   };
 
+export type Lod = 0 | 1 | 2;
+/** A value per level of detail: close-up, mid-field, far. */
+const pick = <T>(lod: Lod, a: T, b: T, c: T): T => (lod === 0 ? a : lod === 1 ? b : c);
+
 /** Trunk: the pelvis hands over to the lumbar spine, and that to the chest. */
 const torsoSkin: SkinFn = (o) => {
   const y = o.y - Y0;
@@ -121,7 +125,17 @@ const neckSkin: SkinFn = (o) => {
     o.w = smoothstep(2.12, 2.26, y);
   }
 };
-const headSkin = rigid(BONE.head);
+/** The head is modelled life-size and then enlarged a touch about the top of the neck: it reads better at a distance. */
+const HEAD_K = 1.07;
+const HEAD_PIVOT = Y0 + 2.27;
+const HEAD_CY = HEAD_PIVOT + (HEAD[1] - HEAD_PIVOT) * HEAD_K;
+const headSkin: SkinFn = (o) => {
+  o.x *= HEAD_K;
+  o.y = HEAD_PIVOT + (o.y - HEAD_PIVOT) * HEAD_K;
+  o.z *= HEAD_K;
+  o.b0 = BONE.head;
+  o.w = 0;
+};
 
 /** [y (pelvis-relative), half-width, half-depth, centre z]. */
 type Row = [number, number, number, number?];
@@ -129,178 +143,318 @@ const rings = (rows: Row[], uv: UVFn, grow = 0): Ring[] =>
   rows.map((r, i) => ({ y: Y0 + r[0], rx: r[1] + grow, rz: r[2] + grow, cz: r[3] ?? 0, uv: i === 0 ? uv : undefined }));
 
 const JERSEY: Row[] = [
-  [JERSEY_TOP, 0.2, 0.19, -0.01],
-  [2.02, 0.4, 0.22, -0.01],
-  [1.95, 0.64, 0.265, -0.01],
-  [1.87, 0.76, 0.3, -0.005],
-  [1.75, 0.79, 0.325],
-  [1.6, 0.72, 0.36, 0.01],
-  [1.3, 0.63, 0.37, 0.02],
-  [0.95, 0.55, 0.33, 0.01],
-  [0.62, 0.505, 0.315],
-  [0.44, 0.51, 0.32],
-  [JERSEY_HEM, 0.495, 0.31],
+  [JERSEY_TOP, 0.21, 0.2, -0.01],
+  [2.03, 0.4, 0.225, -0.01],
+  [1.97, 0.62, 0.265, -0.01],
+  [1.9, 0.76, 0.3, -0.008],
+  [1.82, 0.815, 0.325, -0.004],
+  [1.72, 0.825, 0.35],
+  [1.58, 0.77, 0.378, 0.012],
+  [1.42, 0.71, 0.388, 0.02],
+  [1.24, 0.655, 0.375, 0.02],
+  [1.05, 0.605, 0.352, 0.014],
+  [0.86, 0.565, 0.335, 0.008],
+  [0.68, 0.535, 0.326],
+  [0.54, 0.528, 0.328],
+  [0.45, 0.52, 0.326],
+  [JERSEY_HEM, 0.498, 0.312],
 ];
-const HIPS: Row[] = [
-  [0.285, 0.49, 0.31],
-  [0.18, 0.51, 0.32],
-  [0.0, 0.53, 0.34, -0.01],
-  [-0.2, 0.5, 0.33, -0.02],
-  [-0.36, 0.36, 0.26, -0.01],
-  [-0.47, 0.1, 0.1],
-  [-0.49, 0, 0],
+/** Outline of the seat of the trousers, from under the belt down past the crotch. */
+const SEAT: Row[] = [
+  [0.285, 0.49, 0.31, 0],
+  [0.18, 0.51, 0.322, -0.002],
+  [0.0, 0.535, 0.348, -0.014],
+  [-0.2, 0.535, 0.356, -0.03],
+  [-0.4, 0.525, 0.335, -0.03],
+  [-0.7, 0.5, 0.3, -0.02],
 ];
+const SEAT_N = 2.5;
 
-function trunk(b: MeshBuilder, seg: number) {
+function trunk(b: MeshBuilder, lod: Lod) {
+  const seg = pick(lod, 32, 20, 12);
   const half = seg / 2;
   const span = JERSEY_TOP - JERSEY_HEM;
-  // Baked shade in the armpits and down the flanks.
-  const shade = (th: number, y: number) => 1 - 0.22 * smoothstep(0.7, 1, Math.abs(Math.cos(th))) * gauss(y - Y0 - 1.35, 0.4);
+  // Baked shade in the armpits and down the flanks, and under the chest.
+  const shade = (th: number, y: number) =>
+    1 - 0.24 * smoothstep(0.7, 1, Math.abs(Math.cos(th))) * gauss(y - Y0 - 1.35, 0.4) - 0.06 * gauss(y - Y0 - 0.5, 0.12);
   const panel =
     (r: (typeof PANEL)[keyof typeof PANEL]): UVFn =>
     (o, t) =>
       panelUV(o, r, 1 - t, (JERSEY_TOP - (o.y - Y0)) / span);
+  const rows = lod === 2 ? JERSEY.filter((_, i) => i % 2 === 0 || i === JERSEY.length - 1) : JERSEY;
   // The jersey is two half-wraps, so the front and the back each get a panel of their own.
-  loft(b, rings(JERSEY, panel(PANEL.front)), { seg: half, skin: torsoSkin, theta0: 0, arc: PI, n: 2.5, shade });
-  loft(b, rings(JERSEY, panel(PANEL.back)), { seg: half, skin: torsoSkin, theta0: PI, arc: PI, n: 2.5, shade });
+  loft(b, rings(rows, panel(PANEL.front)), { seg: half, skin: torsoSkin, theta0: 0, arc: PI, n: 2.5, shade });
+  loft(b, rings(rows, panel(PANEL.back)), { seg: half, skin: torsoSkin, theta0: PI, arc: PI, n: 2.5, shade });
   // Collar band and neck.
   loft(
     b,
     [
-      { y: Y0 + 2.115, rx: 0.2, rz: 0.19, cz: -0.01, uv: U.collar },
-      { y: Y0 + 2.115, rx: 0.215, rz: 0.205, cz: -0.01 },
-      { y: Y0 + 2.05, rx: 0.225, rz: 0.215, cz: -0.01 },
+      { y: Y0 + 2.125, rx: 0.205, rz: 0.195, cz: -0.01, uv: U.collar },
+      { y: Y0 + 2.125, rx: 0.226, rz: 0.214, cz: -0.01 },
+      { y: Y0 + 2.05, rx: 0.238, rz: 0.226, cz: -0.01 },
     ],
     { seg, skin: torsoSkin },
   );
   loft(
     b,
     [
-      { y: Y0 + 2.36, rx: 0.165, rz: 0.175, cz: 0.02, uv: U.skin, ao: 0.72 },
-      { y: Y0 + 2.2, rx: 0.165, rz: 0.17, cz: 0.0, ao: 0.8 },
-      { y: Y0 + 2.08, rx: 0.175, rz: 0.175, cz: -0.02, ao: 0.9 },
-      { y: Y0 + 1.98, rx: 0.19, rz: 0.18, cz: -0.02 },
+      { y: Y0 + 2.4, rx: 0.185, rz: 0.195, cz: 0.02, uv: U.skin, ao: 0.7 },
+      { y: Y0 + 2.28, rx: 0.183, rz: 0.19, cz: 0.008, ao: 0.78 },
+      { y: Y0 + 2.18, rx: 0.188, rz: 0.19, cz: -0.004, ao: 0.86 },
+      { y: Y0 + 2.08, rx: 0.2, rz: 0.195, cz: -0.02, ao: 0.92 },
+      { y: Y0 + 1.98, rx: 0.215, rz: 0.2, cz: -0.02 },
     ],
-    { seg: Math.max(6, half), skin: neckSkin },
+    { seg: Math.max(8, half), skin: neckSkin },
   );
-  // Belt (a touch proud of the trousers) and the hips.
+  // Belt, a touch proud of the trousers, with its loops and buckle.
   loft(
     b,
     [
       { y: Y0 + JERSEY_HEM, rx: 0.49, rz: 0.305, uv: U.belt },
-      { y: Y0 + JERSEY_HEM, rx: 0.507, rz: 0.322 },
-      { y: Y0 + 0.285, rx: 0.507, rz: 0.322 },
-      { y: Y0 + 0.285, rx: 0.49, rz: 0.31 },
+      { y: Y0 + JERSEY_HEM, rx: 0.51, rz: 0.325 },
+      { y: Y0 + 0.285, rx: 0.51, rz: 0.325 },
+      { y: Y0 + 0.285, rx: 0.488, rz: 0.308 },
     ],
     { seg, skin: torsoSkin, n: 2.5 },
   );
-  blob(b, { c: [0, Y0 + 0.342, 0.322], r: [0.055, 0.045, 0.018], seg: 6, rows: 4, uv: U.buckle, skin: torsoSkin });
-  loft(b, rings(HIPS, U.pants), { seg, skin: torsoSkin, n: 2.4, shade: (_th, y) => 1 - 0.3 * smoothstep(-0.3, -0.48, y - Y0) });
+  if (lod < 2) blob(b, { c: [0, Y0 + 0.342, 0.325], r: [0.058, 0.047, 0.018], seg: 6, rows: 4, uv: U.buckle, skin: torsoSkin });
+  if (lod === 0) {
+    for (const [x, z] of [
+      [0.2, 0.317],
+      [-0.2, 0.317],
+      [0.47, 0.12],
+      [-0.47, 0.12],
+      [0.3, -0.27],
+      [-0.3, -0.27],
+      [0, -0.325],
+    ]) {
+      blob(b, { c: [x, Y0 + 0.342, z], r: [Math.abs(z) > 0.2 ? 0.024 : 0.014, 0.07, Math.abs(z) > 0.2 ? 0.014 : 0.024], seg: 4, rows: 3, uv: U.pants, skin: torsoSkin, deform: (v) => void (v.ao = 0.9) });
+    }
+  }
 }
 
-function arm(b: MeshBuilder, side: number, seg: number) {
+function arm(b: MeshBuilder, side: number, lod: Lod) {
+  const seg = pick(lod, 14, 8, 6);
   const x0 = side * DIM.shoulderX;
   const ys = Y0 + DIM.shoulderY;
   const bone = side > 0 ? BONE.armL : BONE.armR;
+  const elbow = side > 0 ? HELPER.elbowL : HELPER.elbowR;
+  const E = DIM.upperArm;
   const skin: SkinFn = (o) => {
-    o.b0 = bone;
-    o.b1 = bone + 1;
-    o.w = smoothstep(0.84, 1.16, ys - o.y);
+    const d = ys - o.y;
+    if (d < E) {
+      o.b0 = bone;
+      o.b1 = elbow;
+      o.w = smoothstep(E - 0.26, E, d);
+    } else {
+      o.b0 = elbow;
+      o.b1 = bone + 1;
+      o.w = smoothstep(E, E + 0.26, d);
+    }
   };
-  const r = (d: number, rad: number, uv?: UVFn, ao?: number): Ring => ({ y: ys - d, rx: rad, rz: rad * 1.04, cx: x0, uv, ao });
-  loft(
-    b,
-    [
-      r(-0.165, 0, U.jersey),
-      r(-0.135, 0.095),
-      r(-0.06, 0.165),
-      r(0.08, 0.198),
-      r(0.3, 0.195),
-      r(0.5, 0.186, U.trim),
-      // Sleeve hem, then the arm (or undershirt) coming out of it.
-      r(0.6, 0.186, U.sleeve),
-      r(0.6, 0.152, undefined, 0.5),
-      r(0.68, 0.148, undefined, 0.8),
-      r(0.84, 0.138),
-      r(1.0, 0.128),
-      r(1.13, 0.136),
-      r(1.4, 0.116),
-      r(1.64, 0.094, U.wrist),
-      r(DIM.upperArm + DIM.wrist, 0.09, U.hand),
-      r(DIM.upperArm + DIM.wrist + 0.04, 0),
-    ],
-    { seg, skin },
-  );
+  const HEM = 0.62;
+  // The sleeve unwraps from the armpit, so the outside of the arm is the middle of its panel.
+  const sleeve: UVFn = (o, t) => panelUV(o, PANEL.sleeve, t, (ys - o.y + 0.17) / (HEM + 0.17));
+  const r = (d: number, rad: number, uv?: UVFn, ao?: number, cz = 0, keep = true): Ring & { keep: boolean } => ({ y: ys - d, rx: rad, rz: rad * 1.05, cx: x0, cz, uv, ao, keep });
+  const all = [
+    r(-0.17, 0, sleeve),
+    r(-0.145, 0.1),
+    r(-0.09, 0.165, undefined, undefined, 0, false),
+    r(-0.01, 0.203),
+    r(0.12, 0.214),
+    r(0.3, 0.21, undefined, undefined, 0, false),
+    r(0.48, 0.2),
+    // Sleeve hem, then the arm (or undershirt) coming out of it.
+    r(HEM, 0.198, U.sleeve),
+    r(HEM, 0.158, undefined, 0.5),
+    r(0.7, 0.156, undefined, 0.82, 0.004, false),
+    r(0.8, 0.148, undefined, 1, 0.004),
+    r(0.9, 0.14, undefined, 1, 0, false),
+    r(E, 0.136, undefined, 1, -0.006),
+    r(1.1, 0.143, undefined, 1, 0, false),
+    r(1.22, 0.147),
+    r(1.42, 0.126, undefined, 1, 0, false),
+    r(1.6, 0.103),
+    r(1.68, 0.098, U.wrist),
+    r(E + DIM.wrist, 0.094, U.hand),
+    r(E + DIM.wrist + 0.04, 0),
+  ];
+  loft(b, lod > 0 ? all.filter((x) => x.keep) : all, { seg, skin, theta0: side > 0 ? PI : 0 });
 }
 
-function leg(b: MeshBuilder, side: number, seg: number) {
+/** Depth of the crotch below the hip joints. */
+const CROTCH = 0.44;
+
+const _seat: [number, number, number] = [0, 0, 0];
+/** Seat outline at height y (pelvis-relative): half-width, half-depth, centre z. */
+function seatAt(y: number): [number, number, number] {
+  let i = 0;
+  while (i < SEAT.length - 2 && y < SEAT[i + 1][0]) i += 1;
+  const r0 = SEAT[i];
+  const r1 = SEAT[i + 1];
+  const f = Math.min(1, Math.max(0, (r0[0] - y) / (r0[0] - r1[0])));
+  _seat[0] = r0[1] + (r1[1] - r0[1]) * f;
+  _seat[1] = r0[2] + (r1[2] - r0[2]) * f;
+  _seat[2] = (r0[3] ?? 0) + ((r1[3] ?? 0) - (r0[3] ?? 0)) * f;
+  return _seat;
+}
+
+/** Distance from (x0, 0) along (c, s) to the seat outline at height y, or to the midline if that is nearer. */
+function seatReach(y: number, x0: number, c: number, s: number): number {
+  const [a, bz, cz] = seatAt(y);
+  let lo = 0;
+  let hi = 1.6;
+  for (let k = 0; k < 26; k += 1) {
+    const m = (lo + hi) / 2;
+    const x = x0 + m * c;
+    const z = m * s - cz;
+    if (Math.pow(Math.abs(x / a), SEAT_N) + Math.pow(Math.abs(z / bz), SEAT_N) < 1) lo = m;
+    else hi = m;
+  }
+  // The other leg starts at the midline.
+  const wall = x0 * c < 0 ? -x0 / c : Infinity;
+  return Math.min(lo, wall);
+}
+
+/**
+ * Trousers: each leg is one tube from the belt to the ankle. Above the crotch its section
+ * is half of the seat (out to the hip, in to the midline, where it meets the other leg);
+ * below, a round thigh. Hips and knees bend through their helper joints.
+ */
+function leg(b: MeshBuilder, side: number, lod: Lod) {
+  const seg = pick(lod, 20, 10, 8);
   const x0 = side * DIM.hipX;
   const yh = Y0 + DIM.hipY;
-  const bone = side > 0 ? BONE.thighL : BONE.thighR;
+  const thigh = side > 0 ? BONE.thighL : BONE.thighR;
+  const hip = side > 0 ? HELPER.hipL : HELPER.hipR;
+  const knee = side > 0 ? HELPER.kneeL : HELPER.kneeR;
+  const T = DIM.thigh;
+  const TOP = -0.335;
   const skin: SkinFn = (o) => {
-    o.b0 = bone;
-    o.b1 = bone + 1;
-    o.w = smoothstep(1.3, 1.66, yh - o.y);
+    const d = yh - o.y;
+    if (d < 0.95) {
+      // Seat → hip helper → thigh; the midline (fly and seam) stays with the pelvis.
+      const g = Math.max(smoothstep(0.02, 0.26, Math.abs(o.x)), smoothstep(CROTCH - 0.04, CROTCH + 0.14, d));
+      const q = (smoothstep(-0.1, 0.22, d) + smoothstep(0.22, 0.68, d)) * g;
+      if (q <= 0) torsoSkin(o);
+      else if (q <= 1) {
+        o.b0 = BONE.pelvis;
+        o.b1 = hip;
+        o.w = q;
+      } else {
+        o.b0 = hip;
+        o.b1 = thigh;
+        o.w = q - 1;
+      }
+    } else if (d < T) {
+      o.b0 = thigh;
+      o.b1 = knee;
+      o.w = smoothstep(T - 0.32, T, d);
+    } else {
+      o.b0 = knee;
+      o.b1 = thigh + 1;
+      o.w = smoothstep(T, T + 0.32, d);
+    }
   };
-  const strip: UVFn = (o, t) => panelUV(o, PANEL.pants, t, 0.5);
-  const lower: UVFn = (o, t) => panelUV(o, PANEL.lower, t, (yh - o.y - DIM.thigh) / DIM.shin);
-  const r = (d: number, rad: number, cz = 0, uv?: UVFn, ao?: number): Ring => ({ y: yh - d, rx: rad, rz: rad * 1.06, cx: x0, cz, uv, ao });
-  const cuff = DIM.thigh + CUFF_AT * DIM.shin;
-  loft(
-    b,
-    [
-      r(-0.3, 0, 0, strip),
-      r(-0.23, 0.17),
-      r(-0.06, 0.27),
-      r(0.15, 0.285, -0.01),
-      r(0.5, 0.262, -0.005),
-      r(0.9, 0.225),
-      r(1.25, 0.195),
-      r(DIM.thigh, 0.185, 0.01, lower),
-      r(1.7, 0.17),
-      // Trousers bloused over the top of the calf, then the sock.
-      r(cuff, 0.178),
-      r(cuff, 0.152, -0.01, undefined, 0.55),
-      r(2.12, 0.158, -0.025),
-      r(2.5, 0.118, -0.01),
-      r(2.85, 0.095),
-      r(DIM.thigh + DIM.shin, 0.09),
-    ],
+  const upper: UVFn = (o, t) => panelUV(o, PANEL.pants, t, (yh - o.y - TOP) / (T - TOP));
+  const lower: UVFn = (o, t) => panelUV(o, PANEL.lower, t, (yh - o.y - T) / DIM.shin);
+  const r = (d: number, rad: number, cz = 0, keep = true, uv?: UVFn, ao?: number): Ring & { keep: boolean } => ({ y: yh - d, rx: rad, rz: rad * 1.06, cx: x0, cz, uv, ao, keep });
+  const cuff = T + CUFF_AT * DIM.shin;
+  const all = [
+    r(TOP, 0.29, 0, true, upper),
+    r(-0.22, 0.29, 0, false),
+    r(-0.08, 0.29),
+    r(0.06, 0.29, 0, false),
+    r(0.2, 0.29),
+    r(0.33, 0.288, -0.005, false),
+    r(CROTCH, 0.284, -0.008),
+    r(0.6, 0.272, -0.008, false),
+    r(0.8, 0.25, -0.004),
+    r(1.0, 0.228, 0, false),
+    r(1.16, 0.213),
+    r(1.28, 0.204, 0.004, false),
+    r(1.38, 0.199, 0.01),
+    r(T, 0.196, 0.016, true, lower),
+    r(1.58, 0.187, 0.012),
+    r(1.68, 0.18, 0.004, false),
+    r(1.78, 0.18),
+    // Trousers bloused over the top of the calf, then the sock.
+    r(cuff, 0.184),
+    r(cuff, 0.153, -0.01, true, undefined, 0.55),
+    r(2.12, 0.164, -0.03),
+    r(2.3, 0.15, -0.024, false),
+    r(2.5, 0.124, -0.012),
+    r(2.7, 0.104, -0.004, false),
+    r(2.85, 0.096),
+    r(T + DIM.shin, 0.092),
+  ];
+  const dth = (2 * PI) / seg;
+  const inner = side > 0 ? PI : 0;
+  loft(b, lod > 0 ? all.filter((x) => x.keep) : all, {
+    seg,
+    skin,
     // The unwrap starts on the inseam, so the outseam (the piping) is the middle of the strip.
-    { seg, skin, theta0: side > 0 ? -PI : 0 },
-  );
+    theta0: side > 0 ? -PI : 0,
+    shade: (th, y) => 1 - 0.3 * Math.pow(Math.max(0, Math.cos(th - inner)), 2) * smoothstep(1.3, 0.3, yh - y),
+    shape: (o, ring, th0) => {
+      const d = yh - ring.y;
+      if (d > CROTCH - 1e-4) return;
+      const k = smoothstep(CROTCH, CROTCH - 0.3, d);
+      const y = ring.y - Y0;
+      let th = th0;
+      // Put a column exactly on the corners where the seat meets the midline, front and back.
+      const [, sb, scz] = seatAt(y);
+      for (let i = 0; i < 2; i += 1) {
+        const ac = Math.atan2(scz + (i === 0 ? sb : -sb), -x0);
+        if (dAng(th, ac) < dth / 2 + 1e-6) th = ac;
+      }
+      const c = Math.cos(th);
+      const s = Math.sin(th);
+      const rt = ring.rx;
+      const reach = seatReach(y, x0, c, s);
+      const R = rt + (reach - rt) * k;
+      o.x = x0 + R * c;
+      o.z = (ring.cz ?? 0) * (1 - k) + R * s * (1 + 0.06 * (1 - k));
+      if (Math.abs(o.x) < 2e-4) o.x = 0;
+    },
+  });
 }
 
-function shoe(b: MeshBuilder, side: number, lod: number) {
+function shoe(b: MeshBuilder, side: number, lod: Lod) {
   const bone = side > 0 ? BONE.footL : BONE.footR;
   const skin = rigid(bone);
   const x0 = side * DIM.hipX;
   const ya = Y0 + DIM.hipY - DIM.thigh - DIM.shin;
-  const c: V3 = [x0, ya - 0.005, 0.19];
-  const r: V3 = [0.165, 0.15, 0.42];
+  const c: V3 = [x0, ya - 0.005, 0.2];
+  const r: V3 = [0.17, 0.155, 0.45];
+  const top = ya + 0.16;
+  const bottom = ya - DIM.ankle;
+  const uv: UVFn = (o) => panelUV(o, PANEL.shoe, (c[2] + r[2] - o.z) / (2 * r[2]), (top - o.y) / (top - bottom));
+  const seg = pick(lod, 16, 10, 6);
   blob(b, {
     c,
     r,
-    seg: lod ? 8 : 12,
-    rows: lod ? 5 : 8,
-    uv: U.shoe,
+    seg,
+    rows: pick(lod, 10, 7, 4),
+    uv,
     skin,
     deform: (o, dx, dy, dz) => {
       // Low toe box, a collar round the ankle, a narrower heel; flat where it meets the sole.
-      if (dy > 0) o.y = c[1] + r[1] * dy * (dz > 0 ? 1 - 0.55 * dz * dz : 1 + 0.25 * dz * dz);
-      if (dz < 0) o.x = c[0] + r[0] * dx * (1 + 0.2 * dz);
+      if (dy > 0) o.y = c[1] + r[1] * dy * (dz > 0 ? 1 - 0.58 * dz * dz : 1 + 0.25 * dz * dz);
+      if (dz < 0) o.x = c[0] + r[0] * dx * (1 + 0.22 * dz);
+      else o.x = c[0] + r[0] * dx * (1 - 0.12 * dz * dz);
       o.y = Math.max(o.y, ya - 0.095);
-      o.ao = 0.75 + 0.25 * smoothstep(-0.6, 0.3, dy);
+      o.ao = 0.78 + 0.22 * smoothstep(-0.6, 0.3, dy);
     },
   });
   loft(
     b,
     [
-      { y: ya - 0.088, rx: 0.172, rz: 0.43, cx: x0, cz: 0.19, uv: U.sole },
-      { y: ya - DIM.ankle, rx: 0.165, rz: 0.42, cx: x0, cz: 0.19 },
-      { y: ya - DIM.ankle, rx: 0, rz: 0, cx: x0, cz: 0.19 },
+      { y: ya - 0.086, rx: 0.178, rz: 0.46, cx: x0, cz: 0.2, uv: U.sole },
+      { y: bottom, rx: 0.17, rz: 0.45, cx: x0, cz: 0.2 },
+      { y: bottom, rx: 0, rz: 0, cx: x0, cz: 0.2 },
     ],
-    { seg: lod ? 8 : 12, skin },
+    { seg, skin, n: 2.4 },
   );
 }
 
@@ -322,15 +476,15 @@ const scaled = (k: number): V3 => [HEAD_R[0] * k, HEAD_R[1] * k, HEAD_R[2] * k];
 /** Angular distance between two azimuths. */
 const dAng = (a: number, c: number) => Math.abs(((((a - c) % (2 * PI)) + 3 * PI) % (2 * PI)) - PI);
 
-function head(b: MeshBuilder, o: Outfit, lod: number) {
+function head(b: MeshBuilder, o: Outfit, lod: Lod) {
   const covered = o.head !== "cap" && o.head !== "umpire";
-  const faceUV: UVFn = (v) => panelUV(v, PANEL.face, 0.5 + v.x / FACE_W, 0.5 - (v.y - HEAD[1]) / FACE_H);
+  const faceUV: UVFn = (v) => panelUV(v, PANEL.face, 0.5 + v.x / FACE_W, 0.5 - (v.y - HEAD_CY) / FACE_H);
   // The front of the head takes the painted face; the brow is in the cap's shade.
   blob(b, {
     c: HEAD,
     r: HEAD_R,
-    seg: lod ? 8 : 16,
-    rows: lod ? 8 : 16,
+    seg: pick(lod, 24, 12, 8),
+    rows: pick(lod, 22, 12, 8),
     theta0: 0,
     arc: PI,
     uv: faceUV,
@@ -340,14 +494,14 @@ function head(b: MeshBuilder, o: Outfit, lod: number) {
       v.ao = 1 - 0.3 * smoothstep(0.1, 0.5, dy) - 0.25 * smoothstep(0.6, 0.95, -dy);
     },
   });
-  blob(b, { c: HEAD, r: HEAD_R, seg: lod ? 5 : 8, rows: lod ? 5 : 8, theta0: PI, arc: PI, uv: U.skin, skin: headSkin, deform: headDeform });
-  if (!lod) {
+  blob(b, { c: HEAD, r: HEAD_R, seg: pick(lod, 12, 8, 5), rows: pick(lod, 12, 8, 5), theta0: PI, arc: PI, uv: U.skin, skin: headSkin, deform: headDeform });
+  if (lod < 2) {
     // Nose.
     blob(b, {
       c: [0, HEAD[1] - 0.07, HEAD[2] + 0.315],
       r: [0.043, 0.09, 0.062],
-      seg: 6,
-      rows: 5,
+      seg: pick(lod, 8, 6, 6),
+      rows: pick(lod, 6, 5, 5),
       uv: U.skin,
       skin: headSkin,
       deform: (v, dx, dy) => {
@@ -361,7 +515,7 @@ function head(b: MeshBuilder, o: Outfit, lod: number) {
   }
   if (!covered) {
     for (const s of [1, -1]) {
-      blob(b, { c: [s * 0.25, HEAD[1] - 0.02, HEAD[2] - 0.03], r: [0.035, 0.085, 0.06], seg: lod ? 4 : 6, rows: lod ? 3 : 5, uv: U.skin, skin: headSkin, deform: (v) => void (v.ao = 0.88) });
+      blob(b, { c: [s * 0.25, HEAD[1] - 0.02, HEAD[2] - 0.03], r: [0.035, 0.085, 0.06], seg: pick(lod, 6, 6, 4), rows: pick(lod, 5, 4, 3), uv: U.skin, skin: headSkin, deform: (v) => void (v.ao = 0.88) });
     }
   }
   // Hair: over the top and down to the nape, with a hairline across the forehead.
@@ -369,8 +523,8 @@ function head(b: MeshBuilder, o: Outfit, lod: number) {
     blob(b, {
       c: HEAD,
       r: scaled(1.045),
-      seg: lod ? 10 : 20,
-      rows: lod ? 5 : 9,
+      seg: pick(lod, 20, 12, 8),
+      rows: pick(lod, 9, 6, 4),
       polar1: (th) => 1.62 - 0.62 * Math.sin(th),
       uv: U.hair,
       skin: headSkin,
@@ -381,8 +535,8 @@ function head(b: MeshBuilder, o: Outfit, lod: number) {
     });
   }
 
-  const seg = lod ? 10 : 20;
-  const rows = lod ? 5 : 9;
+  const seg = pick(lod, 20, 10, 8);
+  const rows = pick(lod, 9, 6, 4);
   const top = HEAD[1];
   if (o.head === "cap" || o.head === "umpire") {
     const k = 1.09;
@@ -402,6 +556,8 @@ function head(b: MeshBuilder, o: Outfit, lod: number) {
         v.ao = 0.82 + 0.18 * smoothstep(0.2, 0.8, dy);
       },
     });
+    // Button on the crown.
+    if (lod < 2) blob(b, { c: [0, HEAD[1] + HEAD_R[1] * k + 0.012, HEAD[2]], r: [0.03, 0.014, 0.03], seg: 6, rows: 3, uv: U.brim, skin: headSkin });
     const len = o.head === "umpire" ? 0.13 : 0.2;
     brim(b, top + 0.175, HEAD[2] + 0.24 + len, 0.235, len, U.brim, lod);
   } else {
@@ -430,12 +586,12 @@ function head(b: MeshBuilder, o: Outfit, lod: number) {
   if (o.head === "catcher" || o.head === "umpire") mask(b, lod);
 }
 
-function brim(b: MeshBuilder, y: number, z: number, rx: number, rz: number, uv: UVFn, lod: number) {
+function brim(b: MeshBuilder, y: number, z: number, rx: number, rz: number, uv: UVFn, lod: Lod) {
   blob(b, {
     c: [0, y, z],
     r: [rx, 0.016, rz],
-    seg: lod ? 8 : 12,
-    rows: lod ? 3 : 5,
+    seg: pick(lod, 12, 10, 8),
+    rows: pick(lod, 5, 4, 3),
     uv,
     skin: headSkin,
     deform: (v, dx, dy) => {
@@ -447,12 +603,12 @@ function brim(b: MeshBuilder, y: number, z: number, rx: number, rz: number, uv: 
 }
 
 /** Catcher's / umpire's mask: a padded frame and a cage of steel bars in front of the face. */
-function mask(b: MeshBuilder, lod: number) {
-  const sides = lod ? 3 : 5;
+function mask(b: MeshBuilder, lod: Lod) {
+  const sides = pick(lod, 5, 4, 3);
   const cy = HEAD[1] - 0.05;
   const zf = HEAD[2] + 0.35;
   const frame: V3[] = [];
-  const n = lod ? 8 : 12;
+  const n = pick(lod, 12, 10, 8);
   for (let i = 0; i <= n; i += 1) {
     const a = (i / n) * 2 * PI;
     const x = 0.21 * Math.cos(a);
@@ -461,7 +617,7 @@ function mask(b: MeshBuilder, lod: number) {
   tube(b, frame, 0.024, sides, U.gearDark, headSkin);
   const bar = (y: number, w: number) => {
     const pts: V3[] = [];
-    const m = lod ? 2 : 4;
+    const m = pick(lod, 4, 4, 2);
     for (let i = 0; i <= m; i += 1) {
       const x = -w + (2 * w * i) / m;
       pts.push([x, y, zf + 0.07 - 1.6 * x * x]);
@@ -471,7 +627,7 @@ function mask(b: MeshBuilder, lod: number) {
   bar(cy + 0.12, 0.17);
   bar(cy - 0.02, 0.2);
   bar(cy - 0.16, 0.17);
-  if (!lod) {
+  if (lod === 0) {
     tube(
       b,
       [
@@ -488,7 +644,7 @@ function mask(b: MeshBuilder, lod: number) {
   }
 }
 
-function hand(b: MeshBuilder, side: number, o: Outfit, lod: number) {
+function hand(b: MeshBuilder, side: number, o: Outfit, lod: Lod) {
   const bone = side > 0 ? BONE.handL : BONE.handR;
   const skin = rigid(bone);
   const hx = side * DIM.shoulderX;
@@ -503,8 +659,8 @@ function hand(b: MeshBuilder, side: number, o: Outfit, lod: number) {
     blob(b, {
       c: at(0, -0.015, 0.012),
       r: [0.098, 0.108, 0.088],
-      seg: lod ? 6 : 10,
-      rows: lod ? 4 : 7,
+      seg: pick(lod, 10, 8, 6),
+      rows: pick(lod, 7, 6, 4),
       uv: U.hand,
       skin,
       deform: (v, dx, dy, dz) => {
@@ -512,10 +668,10 @@ function hand(b: MeshBuilder, side: number, o: Outfit, lod: number) {
         v.ao = dz > 0.2 ? 0.8 + 0.2 * Math.abs(Math.cos(dy * 5.5)) : 0.95;
       },
     });
-    if (!lod) tube(b, [at(side * 0.085, 0.04, 0.05), at(side * 0.02, -0.01, 0.105), at(-side * 0.05, -0.03, 0.098)], 0.026, 5, U.hand, skin);
+    if (lod === 0) tube(b, [at(side * 0.085, 0.04, 0.05), at(side * 0.02, -0.01, 0.105), at(-side * 0.05, -0.03, 0.098)], 0.026, 5, U.hand, skin);
     return;
   }
-  if (lod) {
+  if (lod > 0) {
     blob(b, { c: at(0, -0.09, 0.02), r: [0.082, 0.21, 0.045], seg: 6, rows: 4, uv: U.hand, skin });
     return;
   }
@@ -530,7 +686,7 @@ function hand(b: MeshBuilder, side: number, o: Outfit, lod: number) {
   tube(b, [at(side * 0.07, 0.045, 0.012), at(side * 0.125, -0.03, 0.04), at(side * 0.15, -0.115, 0.062)], [0.027, 0.025, 0.021], 5, U.hand, skin);
 }
 
-function glove(b: MeshBuilder, side: number, hx: number, hy: number, mitt: boolean, lod: number, skin: SkinFn) {
+function glove(b: MeshBuilder, side: number, hx: number, hy: number, mitt: boolean, lod: Lod, skin: SkinFn) {
   // Fingers along −Y, pocket facing +Z, thumb on the `side` edge.
   const c: V3 = [hx, hy - 0.13, 0.03];
   const r: V3 = mitt ? [0.31, 0.33, 0.15] : [0.26, 0.345, 0.12];
@@ -548,8 +704,8 @@ function glove(b: MeshBuilder, side: number, hx: number, hy: number, mitt: boole
       v.ao = 0.72 + 0.28 * k;
     } else v.ao = 0.9;
   };
-  const seg = lod ? 5 : 10;
-  const rows = lod ? 5 : 10;
+  const seg = pick(lod, 10, 8, 5);
+  const rows = pick(lod, 10, 8, 5);
   // Back of the glove, then the pocket side.
   blob(b, { c, r, seg, rows, theta0: PI, arc: PI, uv: U.glove, skin, deform: shape });
   blob(b, {
@@ -569,22 +725,24 @@ function glove(b: MeshBuilder, side: number, hx: number, hy: number, mitt: boole
 }
 
 /** Catcher's gear: chest protector and shin guards with knee caps. */
-function gear(b: MeshBuilder, seg: number, lod: number) {
+function gear(b: MeshBuilder, lod: Lod) {
+  const seg = pick(lod, 32, 16, 12);
   const ribs = (_th: number, y: number) => 0.78 + 0.22 * Math.abs(Math.sin((y - Y0) * 9));
   loft(
     b,
     rings(
       [
-        [2.0, 0.36, 0.22],
-        [1.84, 0.74, 0.34],
-        [1.6, 0.74, 0.39, 0.01],
-        [1.3, 0.65, 0.4, 0.02],
-        [0.95, 0.57, 0.36, 0.01],
-        [0.62, 0.52, 0.34],
-        [0.44, 0.44, 0.335],
+        [2.0, 0.36, 0.225],
+        [1.86, 0.78, 0.335],
+        [1.72, 0.8, 0.36],
+        [1.58, 0.765, 0.385, 0.012],
+        [1.3, 0.67, 0.39, 0.02],
+        [0.95, 0.585, 0.35, 0.01],
+        [0.62, 0.535, 0.335],
+        [0.44, 0.45, 0.33],
       ],
-      U.gear,
-      0.02,
+      (o, t) => panelUV(o, PANEL.chest, 1 - t, (2.0 - (o.y - Y0)) / 1.56),
+      0.025,
     ),
     { seg: seg / 2, skin: torsoSkin, theta0: PI / 2 - 1.2, arc: 2.4, n: 2.5, shade: ribs },
   );
@@ -593,31 +751,30 @@ function gear(b: MeshBuilder, seg: number, lod: number) {
     const yh = Y0 + DIM.hipY;
     const skin = rigid(side > 0 ? BONE.shinL : BONE.shinR);
     const r = (d: number, rad: number, uv?: UVFn): Ring => ({ y: yh - d, rx: rad, rz: rad * 1.06, cx: x0, cz: 0.012, uv });
-    loft(b, [r(1.62, 0.2, U.gear), r(1.9, 0.205), r(2.15, 0.2), r(2.5, 0.16), r(2.9, 0.14)], {
-      seg: lod ? 4 : 6,
+    loft(b, [r(1.6, 0.21, U.gear), r(1.9, 0.212), r(2.15, 0.205), r(2.5, 0.165), r(2.9, 0.14)], {
+      seg: pick(lod, 6, 6, 4),
       skin,
       theta0: PI / 2 - 1.0,
       arc: 2.0,
       shade: (_th, y) => 0.8 + 0.2 * Math.abs(Math.sin((yh - y) * 8)),
     });
-    blob(b, { c: [x0, yh - 1.47, 0.14], r: [0.17, 0.21, 0.1], seg: lod ? 5 : 8, rows: lod ? 4 : 6, uv: U.gear, skin });
+    blob(b, { c: [x0, yh - 1.47, 0.155], r: [0.18, 0.22, 0.1], seg: pick(lod, 8, 7, 5), rows: pick(lod, 6, 6, 4), uv: U.gear, skin });
     // Instep flap over the laces.
-    blob(b, { c: [x0, yh - 2.93, 0.17], r: [0.13, 0.1, 0.17], seg: lod ? 4 : 6, rows: lod ? 3 : 4, uv: U.gearDark, skin: rigid(side > 0 ? BONE.footL : BONE.footR) });
+    blob(b, { c: [x0, yh - 2.93, 0.17], r: [0.13, 0.1, 0.17], seg: pick(lod, 6, 6, 4), rows: pick(lod, 4, 4, 3), uv: U.gearDark, skin: rigid(side > 0 ? BONE.footL : BONE.footR) });
   }
 }
 
-/** Build the mesh for an outfit. `lod` 0 is the close-up model, 1 the distant one. */
-export function buildBody(o: Outfit, lod: 0 | 1): MeshData {
+/** Build the mesh for an outfit. `lod` 0 is the close-up model, 1 the mid-field one, 2 the distant one. */
+export function buildBody(o: Outfit, lod: Lod): MeshData {
   const b = new MeshBuilder();
-  const seg = lod ? 12 : 24;
-  trunk(b, seg);
+  trunk(b, lod);
   head(b, o, lod);
   for (const side of [1, -1]) {
-    arm(b, side, lod ? 6 : 10);
+    arm(b, side, lod);
     hand(b, side, o, lod);
-    leg(b, side, lod ? 6 : 12);
+    leg(b, side, lod);
     shoe(b, side, lod);
   }
-  if (o.gear) gear(b, seg, lod);
+  if (o.gear) gear(b, lod);
   return b.build();
 }

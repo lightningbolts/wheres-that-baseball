@@ -25,10 +25,11 @@ import {
 import { MAX_FRAME_DT, actorsAt, type Playback } from "@/components/game/scene/playback";
 import { Person, Wardrobe } from "@/components/game/scene/character/person";
 import { hash01 } from "@/components/game/scene/character/paint";
+import { BAT_COLORS, batGeometry, batMaterial } from "@/components/game/scene/character/bat";
 import { loadRoster } from "@/components/game/scene/character/roster";
 import type { BallState, Timeline } from "@/lib/game/anim/timeline";
 
-const MAX = 20;
+const MAX = 24;
 
 /** Per-actor animation memory: smoothed transform, pose cross-fade and run cycle. */
 interface Anim {
@@ -100,36 +101,17 @@ function setTarget(a: ActorDraw, cls: PoseClass, tl: Timeline | null, ball: Ball
   ctx.tz = p.z;
 }
 
-/** Bat: knob, handle, taper and barrel, with the handle at the origin and the barrel along +Y. */
-function batGeometry(): THREE.BufferGeometry {
-  const profile: Array<[number, number]> = [
-    [0, -0.2],
-    [0.075, -0.2],
-    [0.08, -0.17],
-    [0.05, -0.13],
-    [0.042, 0.1],
-    [0.045, 0.7],
-    [0.062, 1.2],
-    [0.092, 1.7],
-    [0.108, 2.1],
-    [0.108, 2.5],
-    [0.09, 2.6],
-    [0, 2.62],
-  ];
-  const g = new THREE.LatheGeometry(
-    profile.map(([x, y]) => new THREE.Vector2(x, y)),
-    10,
-  );
-  g.computeVertexNormals();
-  return g;
-}
-
-const BAT_COLORS = ["#c9a26a", "#d8b98a", "#1b1b1d", "#6b3a20", "#b98a4e"].map((c) => new THREE.Color(c));
-/** Screen-height fractions at which a person switches to the close-up model and back. */
+/** Screen-height fractions at which a person switches between the close-up, mid-field and distant models (with hysteresis). */
 const LOD_NEAR = 0.12;
 const LOD_FAR = 0.09;
+const LOD_MID = 0.036;
+const LOD_TINY = 0.028;
+/** Below this screen-height fraction a person is drawn a little larger than life, so far fielders stay readable. */
+const BIG_BELOW = 0.07;
+const BIG_MAX = 1.4;
+const _big = new THREE.Matrix4();
 /** Uniform repaints per frame (each is a canvas redraw and a texture upload). */
-const PAINTS_PER_FRAME = 3;
+const PAINTS_PER_FRAME = 2;
 
 /**
  * Every on-field person: one smooth-skinned mesh each (one draw call, plus its shadow),
@@ -142,7 +124,7 @@ export function Players({ pb }: { pb: Playback }) {
     const group = new THREE.Group();
     for (const p of people) group.add(p.mesh);
     const batGeo = batGeometry();
-    const batMat = new THREE.MeshStandardMaterial({ roughness: 0.42, metalness: 0 });
+    const batMat = batMaterial();
     const bats = new THREE.InstancedMesh(batGeo, batMat, MAX);
     bats.castShadow = true;
     bats.frustumCulled = false;
@@ -303,7 +285,20 @@ export function Players({ pb }: { pb: Playback }) {
         person.mesh.visible = false;
       } else {
         const frac = 6 / (2 * Math.max(1, cam.position.distanceTo(out.center)) * tanHalf);
-        const lod = frac > LOD_NEAR ? 0 : frac < LOD_FAR ? 1 : person.lod;
+        const was = person.lod;
+        const lod = frac > LOD_NEAR ? 0 : frac > LOD_FAR ? (was === 0 ? 0 : 1) : frac > LOD_MID ? 1 : frac > LOD_TINY ? (was === 2 ? 2 : 1) : 2;
+        // Distant people grow smoothly up to BIG_MAX about the spot they stand on.
+        const big = Math.min(BIG_MAX, Math.max(1, BIG_BELOW / frac));
+        const fx = out.center.x;
+        const fz = out.center.z;
+        if (big > 1) {
+          const h = pb.hands.get(a.key);
+          if (h) {
+            h.ballP.x = fx + (h.ballP.x - fx) * big;
+            h.ballP.y = an.gy + (h.ballP.y - an.gy) * big;
+            h.ballP.z = fz + (h.ballP.z - fz) * big;
+          }
+        }
         person.dress(a, lod);
         if (person.stale(a) && paints < PAINTS_PER_FRAME) {
           person.paint(a);
@@ -312,8 +307,12 @@ export function Players({ pb }: { pb: Playback }) {
         // Never show a uniform that was painted for somebody else.
         const ready = person.stale(a) !== 2;
         person.mesh.visible = ready;
-        if (ready) person.pose(out);
+        if (ready) person.pose(out, big, fx, an.gy, fz);
         if (ready && out.hasBat && nBats < MAX) {
+          if (big > 1) {
+            _big.makeScale(big, big, big).setPosition(fx * (1 - big), an.gy * (1 - big), fz * (1 - big));
+            out.bat.premultiply(_big);
+          }
           bats.setMatrixAt(nBats, out.bat);
           bats.setColorAt(nBats, BAT_COLORS[Math.floor(hash01(a.id ?? 0, 11) * BAT_COLORS.length)]);
           nBats += 1;

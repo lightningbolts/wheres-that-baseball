@@ -1,5 +1,6 @@
 /**
- * Layout of the per-person texture atlas (512 × 512, canvas pixels, origin top-left).
+ * Layout of the per-person texture atlas (a 512 × 512 grid with the origin top-left; the
+ * canvas itself is painted at a multiple of that, see person.ts).
  * The body mesh is shared by everyone wearing the same outfit; all that differs from
  * one person to the next is this texture: uniform colours, the name and number on the
  * back, the face, sock style and so on.
@@ -7,6 +8,7 @@
  *   back panel   | front panel        (jersey, wrapped half-way round the torso each)
  *   face | pants strip / lower-leg panel   (legs unwrap by angle; the outseam is u = 0.5)
  *   swatches: flat colour cells, sampled at their centres
+ *   shoe | chest protector | sleeve    (small detail panels)
  */
 import type { VOut } from "@/components/game/scene/character/mesh";
 
@@ -25,6 +27,12 @@ export const PANEL = {
   face: { x: 0, y: 256, w: 128, h: 128 },
   pants: { x: 128, y: 256, w: 384, h: 32 },
   lower: { x: 128, y: 288, w: 384, h: 96 },
+  /** Side of a shoe: toe at the left, heel at the right, sole edge at the bottom. */
+  shoe: { x: 0, y: 448, w: 128, h: 64 },
+  /** Catcher's chest protector, wrapped across the front. */
+  chest: { x: 224, y: 448, w: 128, h: 64 },
+  /** Sleeve: wraps the upper arm, shoulder at the top, hem at the bottom. */
+  sleeve: { x: 352, y: 448, w: 160, h: 64 },
 } satisfies Record<string, Rect>;
 
 export const SWATCHES = [
@@ -93,6 +101,9 @@ export const PANEL_FINISH: Record<keyof typeof PANEL, [number, number]> = {
   face: [0.62, 0],
   pants: [0.9, 0],
   lower: [0.88, 0],
+  shoe: [0.45, 0],
+  chest: [0.55, 0],
+  sleeve: [0.92, 0],
 };
 
 /** UV writer for a flat-colour swatch. */

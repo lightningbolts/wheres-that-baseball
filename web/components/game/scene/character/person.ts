@@ -6,11 +6,11 @@
 import * as THREE from "three";
 import type { ActorDraw, ActorKind, RigOut } from "@/components/game/scene/rig";
 import { ATLAS } from "@/components/game/scene/character/atlas";
-import { buildBody, outfitFor, outfitKey, type Outfit } from "@/components/game/scene/character/body";
+import { buildBody, outfitFor, outfitKey, type Lod, type Outfit } from "@/components/game/scene/character/body";
 import type { MeshData } from "@/components/game/scene/character/mesh";
 import { hash01, paintFinish, paintLook, type Look } from "@/components/game/scene/character/paint";
 import { identity, rosterVersion } from "@/components/game/scene/character/roster";
-import { BONE_COUNT, writeSkinMatrices } from "@/components/game/scene/character/skeleton";
+import { SKIN_COUNT, scaleSkinMatrices, writeSkinMatrices } from "@/components/game/scene/character/skeleton";
 
 export function toGeometry(d: MeshData): THREE.BufferGeometry {
   const g = new THREE.BufferGeometry();
@@ -24,13 +24,46 @@ export function toGeometry(d: MeshData): THREE.BufferGeometry {
   return g;
 }
 
-function canvas2d(): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } {
+/** Texels per atlas unit: 1024² textures, or 512² on small / low-memory devices. */
+function atlasScale(): number {
+  if (typeof window === "undefined") return 1;
+  const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+  const small = Math.min(window.screen?.width ?? 2000, window.screen?.height ?? 2000) < 600;
+  return small || (mem !== undefined && mem < 4) ? 1 : 2;
+}
+
+function canvas2d(scale: number): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } {
   const canvas = document.createElement("canvas");
-  canvas.width = ATLAS;
-  canvas.height = ATLAS;
+  canvas.width = ATLAS * scale;
+  canvas.height = ATLAS * scale;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("2D canvas unavailable");
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
   return { canvas, ctx };
+}
+
+/**
+ * Stylised shading on top of the standard PBR material: a soft sky-tinted rim that lifts
+ * the silhouette off the grass (most of what you can see of a distant fielder) and a touch
+ * of wrapped fill so the side away from the lights never goes flat.
+ */
+function stylise(m: THREE.MeshStandardMaterial): void {
+  m.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "#include <opaque_fragment>",
+      `{
+        vec3 rimN = normalize( normal );
+        vec3 rimV = normalize( vViewPosition );
+        float rimF = 1.0 - clamp( dot( rimN, rimV ), 0.0, 1.0 );
+        float rimUp = 0.55 + 0.45 * dot( rimN, normalize( ( viewMatrix * vec4( 0.0, 1.0, 0.0, 0.0 ) ).xyz ) );
+        float rim = rimF * rimF * rimF * rimUp;
+        outgoingLight += ( diffuseColor.rgb * 0.5 + vec3( 0.07, 0.08, 0.1 ) ) * rim * 0.9;
+        outgoingLight += diffuseColor.rgb * 0.035;
+      }
+      #include <opaque_fragment>`,
+    );
+  };
+  m.customProgramCacheKey = () => "playball-person-1";
 }
 
 /** Meshes (per outfit and level of detail) and the surface-finish texture, shared by all people. */
@@ -39,13 +72,13 @@ export class Wardrobe {
   readonly finish: THREE.CanvasTexture;
 
   constructor() {
-    const { canvas, ctx } = canvas2d();
+    const { canvas, ctx } = canvas2d(1);
     paintFinish(ctx);
     this.finish = new THREE.CanvasTexture(canvas);
     this.finish.colorSpace = THREE.NoColorSpace;
   }
 
-  body(o: Outfit, lod: 0 | 1): THREE.BufferGeometry {
+  body(o: Outfit, lod: Lod): THREE.BufferGeometry {
     const key = `${outfitKey(o)}/${lod}`;
     let g = this.geos.get(key);
     if (!g) {
@@ -71,7 +104,7 @@ export class Person {
   /** Actor key occupying this slot, and the last frame it was drawn. */
   key = "";
   seen = -1;
-  lod: 0 | 1 = 0;
+  lod: Lod = 0;
   girth = 1;
 
   private skeleton: THREE.Skeleton;
@@ -87,11 +120,11 @@ export class Person {
   private shownLod = -1;
 
   constructor(private wardrobe: Wardrobe) {
-    const { canvas, ctx } = canvas2d();
+    const { canvas, ctx } = canvas2d(atlasScale());
     this.ctx = ctx;
     this.texture = new THREE.CanvasTexture(canvas);
     this.texture.colorSpace = THREE.SRGBColorSpace;
-    this.texture.anisotropy = 4;
+    this.texture.anisotropy = 8;
     this.material = new THREE.MeshStandardMaterial({
       map: this.texture,
       roughnessMap: wardrobe.finish,
@@ -100,8 +133,9 @@ export class Person {
       metalness: 1,
       vertexColors: true,
     });
+    stylise(this.material);
     this.mesh = new THREE.SkinnedMesh(new THREE.BufferGeometry(), this.material);
-    const bones = Array.from({ length: BONE_COUNT }, () => new THREE.Bone());
+    const bones = Array.from({ length: SKIN_COUNT }, () => new THREE.Bone());
     this.skeleton = new THREE.Skeleton(
       bones,
       bones.map(() => new THREE.Matrix4()),
@@ -155,7 +189,7 @@ export class Person {
   }
 
   /** Pick the mesh for the actor's role and the level of detail. */
-  dress(a: ActorDraw, lod: 0 | 1): void {
+  dress(a: ActorDraw, lod: Lod): void {
     if (a.kind !== this.kind || a.hand !== this.hand || lod !== this.shownLod) {
       const o = outfitFor(a.kind, a.hand);
       const k = outfitKey(o);
@@ -168,10 +202,14 @@ export class Person {
     this.lod = lod;
   }
 
-  pose(rig: RigOut): void {
+  /** Pose the mesh; `scale` enlarges the figure about the point on the ground under it (x, y, z). */
+  pose(rig: RigOut, scale = 1, x = 0, y = 0, z = 0): void {
     const sk = this.skeleton;
     if (!sk.boneTexture || !sk.boneMatrices) sk.computeBoneTexture();
-    if (sk.boneMatrices) writeSkinMatrices(sk.boneMatrices, rig.bones, this.girth);
+    if (sk.boneMatrices) {
+      writeSkinMatrices(sk.boneMatrices, rig.bones, this.girth);
+      if (scale !== 1) scaleSkinMatrices(sk.boneMatrices, scale, x, y, z);
+    }
     if (sk.boneTexture) sk.boneTexture.needsUpdate = true;
     this.mesh.boundingSphere?.center.copy(rig.center);
   }

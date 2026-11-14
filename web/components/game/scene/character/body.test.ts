@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { buildBody, outfitFor, outfitKey } from "@/components/game/scene/character/body";
-import { BONE, BONE_COUNT, DIM, REST, writeSkinMatrices } from "@/components/game/scene/character/skeleton";
+import { BONE, BONE_COUNT, DIM, REST, SKIN_COUNT, writeSkinMatrices } from "@/components/game/scene/character/skeleton";
 import { jerseyName, girthOf, fallbackNumber } from "@/components/game/scene/character/roster";
 import type { ActorKind } from "@/components/game/scene/rig";
 
@@ -28,18 +28,23 @@ function restBones(): THREE.Matrix4[] {
 }
 
 describe("character mesh", () => {
-  it("builds every outfit within its triangle budget at both levels of detail", () => {
+  it("builds every outfit within its triangle budget at every level of detail", () => {
     for (const kind of KINDS) {
       for (const hand of ["L", "R"] as const) {
         const o = outfitFor(kind, hand);
         const hi = buildBody(o, 0);
         const lo = buildBody(o, 1);
+        const far = buildBody(o, 2);
         const triHi = hi.index.length / 3;
         const triLo = lo.index.length / 3;
+        const triFar = far.index.length / 3;
+        expect(triFar, `${kind} LOD2`).toBeGreaterThan(500);
+        expect(triFar, `${kind} LOD2`).toBeLessThan(2400);
+        expect(triFar).toBeLessThan(triLo * 0.75);
         expect(triHi, `${kind} LOD0`).toBeGreaterThan(3500);
-        expect(triHi, `${kind} LOD0`).toBeLessThan(9000);
-        expect(triLo, `${kind} LOD1`).toBeGreaterThan(900);
-        expect(triLo, `${kind} LOD1`).toBeLessThan(2600);
+        expect(triHi, `${kind} LOD0`).toBeLessThan(12000);
+        expect(triLo, `${kind} LOD1`).toBeGreaterThan(1500);
+        expect(triLo, `${kind} LOD1`).toBeLessThan(4200);
         expect(triLo).toBeLessThan(triHi * 0.45);
       }
     }
@@ -77,8 +82,8 @@ describe("character mesh", () => {
           v <= 1 &&
           Math.abs(nl - 1) < 1e-3 &&
           Math.abs(w - 1) < 1e-5 &&
-          d.skinIndex[i * 4] < BONE_COUNT &&
-          d.skinIndex[i * 4 + 1] < BONE_COUNT &&
+          d.skinIndex[i * 4] < SKIN_COUNT &&
+          d.skinIndex[i * 4 + 1] < SKIN_COUNT &&
           d.color[i * 3] > 0.3 &&
           d.color[i * 3] <= 1;
         if (!ok) bad += 1;
@@ -107,7 +112,7 @@ describe("character mesh", () => {
 
   it("is left unchanged by the rest pose and moves rigidly with the whole skeleton", () => {
     const d = buildBody(outfitFor("catcher", "R"), 0);
-    const mats = new Float32Array(BONE_COUNT * 16);
+    const mats = new Float32Array(SKIN_COUNT * 16);
     writeSkinMatrices(mats, restBones());
     const v = new THREE.Vector3();
     const n = d.position.length / 3;

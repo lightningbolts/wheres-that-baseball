@@ -210,6 +210,8 @@ export interface LoftOpts {
   n?: number;
   /** Extra shade by angle and height. */
   shade?: (theta: number, y: number) => number;
+  /** Replace the cross-section: called with the ring and angle once the default position is set, before skin and UV. */
+  shape?: (o: VOut, ring: Ring, theta: number) => void;
   /** Final tweak of each vertex (after position, UV and skin are set). */
   post?: (o: VOut, theta: number) => void;
 }
@@ -242,6 +244,7 @@ export function loft(b: MeshBuilder, rings: Ring[], opts: LoftOpts): void {
       o.y = r.y;
       o.z = (r.cz ?? 0) + r.rz * sgnPow(Math.sin(th), e);
       o.ao = (r.ao ?? 1) * (opts.shade ? opts.shade(th, r.y) : 1);
+      if (opts.shape) opts.shape(o, r, th);
       opts.skin(o);
       uvf(o, t, s);
       if (opts.post) opts.post(o, th);

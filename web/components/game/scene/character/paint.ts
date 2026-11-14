@@ -197,29 +197,33 @@ function face(ctx: Ctx, skin: RGB, hair: RGB, beard: number, shaded: boolean, se
     ctx.fill();
     ctx.fillStyle = "rgb(236,232,224)";
     ctx.beginPath();
-    ctx.ellipse(ex, eyeY, 7.5, 3.8, 0, 0, Math.PI * 2);
+    ctx.ellipse(ex, eyeY, 8.6, 4.7, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = css(hash01(seed, 21) < 0.75 ? [58, 38, 24] : [70, 98, 120]);
     ctx.beginPath();
-    ctx.arc(ex, eyeY, 3.6, 0, Math.PI * 2);
+    ctx.arc(ex, eyeY, 4.3, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = "rgb(12,10,10)";
     ctx.beginPath();
-    ctx.arc(ex, eyeY, 1.7, 0, Math.PI * 2);
+    ctx.arc(ex, eyeY, 2.1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.beginPath();
+    ctx.arc(ex - 1.5, eyeY - 1.5, 0.9, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = css(mix(skin, BLACK, 0.7));
-    ctx.lineWidth = 1.8;
+    ctx.lineWidth = 2.4;
     ctx.beginPath();
-    ctx.moveTo(ex - 8.5, eyeY);
-    ctx.quadraticCurveTo(ex, eyeY - 6, ex + 8.5, eyeY);
+    ctx.moveTo(ex - 9.5, eyeY + 0.5);
+    ctx.quadraticCurveTo(ex, eyeY - 7.5, ex + 9.5, eyeY + 0.5);
     ctx.stroke();
     // Eyebrow.
-    ctx.strokeStyle = css(brow, 0.92);
-    ctx.lineWidth = 3.4;
+    ctx.strokeStyle = css(brow, 0.96);
+    ctx.lineWidth = 4.4;
     ctx.lineCap = "round";
     ctx.beginPath();
-    ctx.moveTo(ex - s * 10, eyeY - 9.5);
-    ctx.quadraticCurveTo(ex + s * 2, eyeY - 13.5, ex + s * 11, eyeY - 9);
+    ctx.moveTo(ex - s * 10, eyeY - 10.5);
+    ctx.quadraticCurveTo(ex + s * 2, eyeY - 15, ex + s * 12, eyeY - 10);
     ctx.stroke();
   }
   // Shade beside the nose and under it.
@@ -403,14 +407,130 @@ export function paintLook(ctx: Ctx, look: Look): void {
   inPanel(ctx, PANEL.face, () => face(ctx, skin, hair, beard, kind !== "catcher", seed));
 
   const pipe = css(accent);
+  /** Shade wrapping round a limb: darker toward the inseam at both edges of the unwrap. */
+  const wrap = (w: number, h: number, a: number) => {
+    const g = ctx.createLinearGradient(0, 0, w, 0);
+    g.addColorStop(0, `rgba(0,0,0,${a})`);
+    g.addColorStop(0.22, "rgba(0,0,0,0)");
+    g.addColorStop(0.78, "rgba(0,0,0,0)");
+    g.addColorStop(1, `rgba(0,0,0,${a})`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+  };
   inPanel(ctx, PANEL.pants, () => {
+    // v runs from the belt (0) to the knee (1).
     const { w, h } = PANEL.pants;
     ctx.fillStyle = css(pants);
     ctx.fillRect(0, 0, w, h);
+    wrap(w, h, 0.13);
+    // Shade under the belt and creases gathering at the knee.
+    const g = ctx.createLinearGradient(0, 0, 0, h * 0.14);
+    g.addColorStop(0, "rgba(0,0,0,0.16)");
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h * 0.14);
+    ctx.strokeStyle = "rgba(0,0,0,0.07)";
+    ctx.lineCap = "round";
+    ctx.lineWidth = 3;
+    for (let k = 0; k < 4; k++) {
+      const y = h * (0.8 + 0.055 * k);
+      const x = w * (0.12 + 0.2 * hash01(seed, 30 + k));
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.quadraticCurveTo(x + w * 0.2, y + 5, x + w * 0.42, y - 2);
+      ctx.stroke();
+    }
+    // Back pockets either side of the unwrap's ends would split across the seam, so keep to a fly-less front.
     if (piping) {
       ctx.fillStyle = pipe;
       ctx.fillRect(w / 2 - 4, 0, 8, h);
     }
+  });
+  inPanel(ctx, PANEL.sleeve, () => {
+    // u wraps from the armpit, v runs from the shoulder seam (0) to the hem (1).
+    const { w, h } = PANEL.sleeve;
+    ctx.fillStyle = css(jersey);
+    ctx.fillRect(0, 0, w, h);
+    wrap(w, h, 0.14);
+    ctx.strokeStyle = seam;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(0, h * 0.2);
+    ctx.lineTo(w, h * 0.2);
+    ctx.stroke();
+    if (!ump) {
+      ctx.fillStyle = css(accent);
+      ctx.fillRect(0, h - 9, w, 6);
+      if (piping) ctx.fillRect(0, h - 15, w, 2);
+    } else {
+      ctx.fillStyle = css(mix(jersey, WHITE, 0.1));
+      ctx.fillRect(0, h - 6, w, 3);
+    }
+  });
+  inPanel(ctx, PANEL.shoe, () => {
+    // Side view: u runs from the toe (0) to the heel (1), v from the collar (0) to the sole (1).
+    const { w, h } = PANEL.shoe;
+    const sRoll = hash01(seed, 9);
+    const upper: RGB = ump || !player ? [22, 22, 25] : sRoll < 0.62 ? [24, 24, 28] : sRoll < 0.82 ? [236, 236, 232] : mix(accent, BLACK, 0.15);
+    const mark: RGB = lum(upper) > 150 ? (lum(accent) < 150 ? accent : [30, 30, 36]) : lum(accent) > 60 ? mix(accent, WHITE, 0.25) : WHITE;
+    ctx.fillStyle = css(upper);
+    ctx.fillRect(0, 0, w, h);
+    const g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, "rgba(255,255,255,0.10)");
+    g.addColorStop(0.6, "rgba(0,0,0,0)");
+    g.addColorStop(1, "rgba(0,0,0,0.2)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+    // Toe cap seam, side stripes, laces across the instep, midsole.
+    ctx.strokeStyle = css(mix(upper, lum(upper) > 150 ? BLACK : WHITE, 0.22));
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(w * 0.2, 0);
+    ctx.quadraticCurveTo(w * 0.27, h * 0.5, w * 0.2, h);
+    ctx.stroke();
+    if (player) {
+      ctx.strokeStyle = css(mark);
+      ctx.lineWidth = 4;
+      ctx.lineCap = "round";
+      for (const u of [0.5, 0.6, 0.7]) {
+        ctx.beginPath();
+        ctx.moveTo(w * (u + 0.05), h * 0.3);
+        ctx.lineTo(w * (u - 0.07), h * 0.74);
+        ctx.stroke();
+      }
+    }
+    ctx.strokeStyle = css(lum(upper) > 150 ? [60, 60, 66] : [226, 226, 222]);
+    ctx.lineWidth = 2;
+    for (let k = 0; k < 4; k++) {
+      const x = w * (0.26 + 0.06 * k);
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x + 2, h * 0.2);
+      ctx.stroke();
+    }
+    ctx.fillStyle = css(lum(upper) > 150 ? [205, 204, 198] : [222, 220, 212]);
+    ctx.fillRect(0, h * 0.8, w, h * 0.2);
+  });
+  inPanel(ctx, PANEL.chest, () => {
+    // Chest protector: padded ribs with a trimmed edge; u wraps round the body, front in the middle.
+    const { w, h } = PANEL.chest;
+    const base = swatches.gear;
+    ctx.fillStyle = css(base);
+    ctx.fillRect(0, 0, w, h);
+    for (let k = 0; k < 6; k++) {
+      const y = (h * (k + 0.5)) / 6;
+      const g = ctx.createLinearGradient(0, y - h / 12, 0, y + h / 12);
+      g.addColorStop(0, "rgba(0,0,0,0.3)");
+      g.addColorStop(0.3, "rgba(255,255,255,0.09)");
+      g.addColorStop(1, "rgba(0,0,0,0.3)");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, y - h / 12, w, h / 6);
+    }
+    ctx.fillStyle = "rgba(0,0,0,0.3)";
+    ctx.fillRect(w / 2 - 1, 0, 2, h);
+    ctx.fillStyle = css(ump ? [60, 62, 70] : lum(accent) > 40 ? mix(accent, WHITE, 0.2) : [200, 200, 200]);
+    ctx.fillRect(0, 0, w, 3);
+    ctx.fillRect(0, h - 3, w, 3);
   });
   inPanel(ctx, PANEL.lower, () => {
     const { w, h } = PANEL.lower;
@@ -424,8 +544,25 @@ export function paintLook(ctx: Ctx, look: Look): void {
       ctx.fillRect(0, cuff + 26, w, 5);
       ctx.fillRect(0, cuff + 36, w, 5);
     }
+    wrap(w, h, 0.12);
     ctx.fillStyle = css(pants);
     ctx.fillRect(0, 0, w, cuff);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, w, cuff);
+    ctx.clip();
+    wrap(w, h, 0.13);
+    // Cloth bunching above the elastic.
+    ctx.strokeStyle = "rgba(0,0,0,0.07)";
+    ctx.lineWidth = 2.5;
+    for (let k = 0; k < 3; k++) {
+      const y = cuff - 8 - k * 9;
+      ctx.beginPath();
+      ctx.moveTo(w * 0.1, y);
+      ctx.quadraticCurveTo(w * 0.4, y + 5, w * 0.9, y - 1);
+      ctx.stroke();
+    }
+    ctx.restore();
     if (piping) {
       ctx.fillStyle = pipe;
       ctx.fillRect(w / 2 - 4, 0, 8, cuff);
