@@ -126,6 +126,7 @@ export function GameView({
 
       <MatchupCard snap={snap} />
       <Banner snap={snap} />
+      <Feedback snap={snap} />
       <Controls snap={snap} ctl={ctl} />
 
       {showLog && <PlayLog snap={snap} onClose={() => setShowLog(false)} />}
@@ -271,9 +272,24 @@ function Banner({ snap }: { snap: HudSnapshot }) {
   const tone = b.tone === "good" ? "text-emerald-300" : b.tone === "bad" ? "text-rose-300" : "text-white";
   return (
     <div className="pointer-events-none absolute inset-x-0 top-[18%] flex justify-center px-4">
-      <div className="max-w-xl rounded-xl bg-black/50 px-5 py-2 text-center shadow-xl backdrop-blur">
+      <div key={b.text} className="max-w-xl animate-play_in rounded-xl bg-black/50 px-5 py-2 text-center shadow-xl backdrop-blur">
         <div className={`text-2xl font-extrabold tracking-tight sm:text-3xl ${tone}`}>{b.text}</div>
         {b.sub && <div className="mt-0.5 text-xs text-white/75 sm:text-sm">{b.sub}</div>}
+      </div>
+    </div>
+  );
+}
+
+/** Instant swing feedback: timing on the press, exit velocity / launch angle on contact. */
+function Feedback({ snap }: { snap: HudSnapshot }) {
+  const f = snap.feedback;
+  if (!f) return null;
+  const tone = f.tone === "good" ? "text-emerald-300" : f.tone === "bad" ? "text-amber-300" : "text-white";
+  return (
+    <div className="pointer-events-none absolute inset-x-0 top-[34%] flex justify-center px-4">
+      <div key={f.id} className="animate-play_in rounded-lg bg-black/45 px-3 py-1 text-center shadow-lg backdrop-blur">
+        <div className={`text-sm font-bold uppercase tracking-wide sm:text-base ${tone}`}>{f.text}</div>
+        {f.sub && <div className="font-mono text-[11px] text-white/80 sm:text-xs">{f.sub}</div>}
       </div>
     </div>
   );
@@ -401,7 +417,7 @@ function Controls({ snap, ctl }: { snap: HudSnapshot; ctl: GameController }) {
           >
             Swing
           </button>
-          <div className="hidden text-[11px] text-white/65 sm:block">Move the box over the ball · Space / click to swing</div>
+          <div className="hidden text-[11px] text-white/65 sm:block">Move the box over the ball · Space / click to swing just before it arrives</div>
         </div>
       </div>
     );

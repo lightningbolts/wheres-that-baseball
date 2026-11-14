@@ -2,34 +2,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import rosters from "@/data/game/rosters.json";
 import { teamsFromRosters, type GameSetup, type HumanSide } from "@/lib/game/session/session";
 import type { RosterFile } from "@/lib/game/types";
-import { createPlayback, type Playback } from "@/components/game/scene/playback";
+import { advancePlayback, createPlayback } from "@/components/game/scene/playback";
+import { SWING_LEAD_S } from "@/lib/game/session/humanInput";
 import { GameController, idealContactTime } from "@/components/game/controller";
 import { Rng } from "@/lib/game/math";
 
 const teams = teamsFromRosters(rosters as unknown as RosterFile);
 const ids = [...teams.keys()];
 
-/** Mirror of the scene Director: advance T, fire cues, call onEnd. */
-function step(pb: Playback, dt: number) {
-  const tl = pb.timeline;
-  if (!tl || pb.paused) return;
-  let rate = pb.rate;
-  if (pb.slow && pb.T >= pb.slow.from && pb.T < pb.slow.to) rate = pb.slow.rate;
-  if (pb.turbo) rate *= 4;
-  pb.T += dt * rate;
-  for (const c of pb.cues) {
-    if (!c.done && pb.T >= c.T) {
-      c.done = true;
-      c.fn();
-      if (pb.paused) return;
-    }
-  }
-  if (pb.T >= tl.endT && pb.onEnd) {
-    const end = pb.onEnd;
-    pb.onEnd = null;
-    end();
-  }
-}
+const step = advancePlayback;
 
 function playGame(human: HumanSide, seed: number) {
   const setup: GameSetup = {
@@ -69,7 +50,7 @@ function playGame(human: HumanSide, seed: number) {
       // Human batting: swing at ~60% of pitches with some timing noise.
       if (swingAt == null) {
         const flight = (ctl as unknown as { flight: Parameters<typeof idealContactTime>[0] | null }).flight;
-        swingAt = flight && rng.next() < 0.6 ? idealContactTime(flight) - 0.16 + rng.range(-0.05, 0.05) : -99;
+        swingAt = flight && rng.next() < 0.6 ? idealContactTime(flight) - SWING_LEAD_S + rng.range(-0.05, 0.05) : -99;
       }
       if (swingAt > -99 && pb.T >= swingAt) {
         swings += 1;

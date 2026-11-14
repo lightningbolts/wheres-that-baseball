@@ -15,7 +15,7 @@ import type { TeamModel } from "@/lib/game/ratings";
 import { Rng, clamp } from "@/lib/game/math";
 import { homeWinProbability } from "@/lib/mlb/winExpectancy";
 import { getTeamColor } from "@/lib/mlb/teamColors";
-import type { Playback } from "@/components/game/scene/playback";
+import type { CamMode, Playback } from "@/components/game/scene/playback";
 import { crowdState, scoreboardCanvas } from "@/components/game/scene/Ballpark";
 import { sfx } from "@/components/game/audio";
 import { saveGame, clearSave } from "@/components/game/save";
@@ -51,6 +51,8 @@ export interface HudSnapshot {
   final: boolean;
   turbo: boolean;
   lastPitch: { type: string; mph: number; result: string } | null;
+  /** Instant feedback on the human's swing (timing) and on contact (exit velocity / launch angle). */
+  feedback: { id: number; text: string; sub?: string; tone: "good" | "bad" | "neutral" } | null;
 }
 
 const PITCH_NAMES: Record<string, string> = {
@@ -101,6 +103,8 @@ export class GameController {
   private log: Array<{ id: number; text: string }> = [];
   private logId = 0;
   private lastPitch: HudSnapshot["lastPitch"] = null;
+  private feedback: HudSnapshot["feedback"] = null;
+  private feedbackId = 0;
   private disposed = false;
 
   constructor(
@@ -141,6 +145,13 @@ export class GameController {
     this.timers.push(id);
   }
 
+  /** Switch camera; a change of camera is a cut, and the scene snaps animation across it. */
+  private setCam(mode: CamMode) {
+    if (this.pb.cam === mode) return;
+    this.pb.cam = mode;
+    this.pb.cutSeq += 1;
+  }
+
   // ---------- game flow ----------
   start() {
     // React StrictMode mounts, disposes and re-mounts in dev; re-arm on every start.
@@ -159,7 +170,7 @@ export class GameController {
     const s = this.session;
     if (s.game.final) {
       this.phase = "final";
-      this.pb.cam = "overview";
+      this.setCam("overview");
       clearSave();
       this.emit();
       return;
@@ -169,7 +180,10 @@ export class GameController {
     this.pb.timeline = null;
     this.pb.paused = false;
     this.pb.slow = null;
+    this.pb.hitstop = 0;
     this.pb.cues = [];
+    this.pb.onEnd = null;
+    this.feedback = null;
     this.swung = false;
     this.flight = null;
     this.outcome = null;
@@ -180,7 +194,7 @@ export class GameController {
     a.zoneBottom = ctx.batter.zoneBottom;
     a.zoneTop = ctx.batter.zoneTop;
     if (s.humanPitching) {
-      this.pb.cam = "pitcher";
+      this.setCam("pitcher");
       this.phase = "aim";
       this.pitchIdx = Math.min(this.pitchIdx, ctx.pitcher.arsenal.length - 1);
       a.kind = "target";
@@ -193,7 +207,7 @@ export class GameController {
         a.pz = (ctx.batter.zoneBottom + ctx.batter.zoneTop) / 2;
       }
     } else if (s.humanBatting) {
-      this.pb.cam = "batter";
+      this.setCam("batter");
       this.phase = "ready";
       a.kind = "pci";
       a.visible = true;
@@ -203,7 +217,7 @@ export class GameController {
         if (this.phase === "ready") this.throwPitch({ steal: this.stealOn });
       });
     } else {
-      this.pb.cam = "broadcast";
+      this.setCam("broadcast");
       this.phase = "ready";
       a.visible = false;
       a.showZone = false;
@@ -274,11 +288,20 @@ export class GameController {
       this.setup.difficulty,
       this.inputRng,
     );
+    if (pressT != null && sw.swing) {
+      const e = sw.timingErrMs;
+      const off = Math.abs(e);
+      this.feedback = {
+        id: (this.feedbackId += 1),
+        text: off <= 7 ? "Perfect timing" : off <= 18 ? (e < 0 ? "A touch early" : "A touch late") : e < 0 ? "Early" : "Late",
+        tone: off <= 7 ? "good" : off <= 18 ? "neutral" : "bad",
+      };
+    }
     const outcome = s.swing({ swing: sw });
-    this.afterSwing(outcome, false);
+    this.afterSwing(outcome, false, pressT ?? undefined);
   }
 
-  private afterSwing(outcome: PitchOutcome, fresh: boolean) {
+  private afterSwing(outcome: PitchOutcome, fresh: boolean, swingStartT?: number) {
     this.outcome = outcome;
     const s = this.session;
     if (outcome.throwPrompt && s.humanPitching) {
@@ -300,7 +323,7 @@ export class GameController {
       return;
     }
     const committed = s.commit();
-    const tl = buildTimeline(committed);
+    const tl = buildTimeline(committed, { swingStartT });
     this.mountTimeline(tl, fresh, committed);
     this.pb.onEnd = () => this.finish(committed);
     this.emit();
@@ -329,13 +352,38 @@ export class GameController {
     const cues = this.pb.cues.filter((c) => c.done);
     const r = o.result;
     const cross = r.flight.cross.t;
+    const pitchInfo = () => ({ type: r.flight.type, mph: Math.round(r.flight.releaseSpeedMph), result: RESULT_TEXT[r.kind] ?? r.kind });
     if (tl.contactT != null) {
       const ev = r.contact?.exitSpeedMph ?? 70;
+      const la = r.contact?.launchAngleDeg ?? 0;
       cues.push({
         T: tl.contactT,
+        // Land playback exactly on contact so the frame the crack fires on shows bat on ball.
+        snap: true,
         fn: () => {
-          if (r.kind === "foul_tip") sfx.foulTip();
+          const tip = r.kind === "foul_tip";
+          if (tip) sfx.foulTip();
           else sfx.crack(ev);
+          // Sell the contact: a beat of hit-stop, a flash at the ball, a camera kick.
+          const power = clamp((ev - 60) / 50, 0, 1);
+          const fx = this.pb.fx;
+          const at = tl.swing?.aim;
+          if (at) fx.flashP.set(at.x, at.y, at.z);
+          fx.flashAge = 0;
+          fx.flashPower = tip ? 0.15 : 0.35 + 0.9 * power;
+          if (!tip) {
+            if (!this.pb.turbo) this.pb.hitstop = 0.035 + 0.06 * power;
+            fx.shake = Math.max(fx.shake, tl.inPlay ? 0.05 + 0.15 * power : 0.04);
+            fx.punch = Math.max(fx.punch, tl.inPlay ? 0.3 + 0.7 * power : 0.2);
+          }
+          this.lastPitch = pitchInfo();
+          if (!tip && r.contact) {
+            const stat = `${ev.toFixed(0)} mph · ${Math.round(la)}°`;
+            this.feedback = this.feedback
+              ? { ...this.feedback, sub: stat }
+              : { id: (this.feedbackId += 1), text: stat, tone: "neutral" };
+            if (!tl.inPlay) this.emit();
+          }
           if (tl.inPlay) {
             this.pb.cam = "follow";
             this.pb.aim.visible = false;
@@ -352,7 +400,11 @@ export class GameController {
         T: cross + 0.04,
         fn: () => {
           if (r.kind !== "hbp") sfx.mitt();
-          if (r.kind === "called_strike") sfx.call(true);
+          if (r.kind === "called_strike") {
+            sfx.call(true);
+            this.pb.fx.umpCallAt = this.pb.now + 0.12;
+          }
+          this.lastPitch = pitchInfo();
           this.pb.lastPitch = { px: r.flight.px, pz: r.flight.pz, strike: r.inZone };
           this.pb.aim.showZone = this.session.humanBatting || this.session.humanPitching || this.pb.aim.showZone;
           this.banner = { text: RESULT_TEXT[r.kind] ?? r.kind, tone: "neutral" };
@@ -388,15 +440,15 @@ export class GameController {
     this.drawScoreboard();
     const inningOver = c.events.some((e) => e.kind === "inning_end");
     this.phase = "between";
-    this.pb.timeline = null;
+    // The finished play stays on screen (everyone where he ended up) until the next
+    // pitch is set up, so players never pop back to their positions in view.
     this.pb.slow = null;
-    this.refreshCast();
     if (s.game.final) {
       this.emit();
       this.later(1800, () => this.next());
       return;
     }
-    if (inningOver) this.pb.cam = "overview";
+    if (inningOver) this.setCam("overview");
     this.emit();
     const wait = this.pb.turbo ? 350 : inningOver ? 2600 : important.length ? 1500 : 650;
     this.later(wait, () => {
@@ -510,6 +562,8 @@ export class GameController {
     saveGame(this.setup, this.session.inputs);
     this.drawScoreboard();
     this.banner = { text: "Half-inning simulated", tone: "neutral" };
+    this.pb.timeline = null;
+    this.pb.cutSeq += 1;
     this.pb.cam = "overview";
     this.refreshCast();
     this.emit();
@@ -595,6 +649,7 @@ export class GameController {
       final: g.final,
       turbo: this.pb.turbo,
       lastPitch: this.lastPitch,
+      feedback: this.feedback,
     };
   }
 
