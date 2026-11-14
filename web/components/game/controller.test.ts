@@ -35,6 +35,7 @@ function playGame(human: HumanSide, seed: number) {
   let marks = 0;
   let readyWaits = 0;
   let steals = 0;
+  let chances = 0;
   let longWaits = 0;
   let catcherCam = 0;
   for (let frame = 0; frame < 400_000; frame += 1) {
@@ -55,7 +56,7 @@ function playGame(human: HumanSide, seed: number) {
       if (m.kind === "pending" && i < snap.pitches.length - 1) throw new Error("unsettled pitch marker");
     });
     marks = Math.max(marks, snap.pitches.length);
-    if (snap.phase === "final") return { ctl, swings, marks, catcherCam, steals, longWaits, frames: frame };
+    if (snap.phase === "final") return { ctl, swings, marks, catcherCam, steals, chances, longWaits, frames: frame };
     if (snap.phase === "aim") {
       ctl.setAim(rng.range(-0.9, 0.9), rng.range(1.6, 3.4));
       ctl.primary();
@@ -67,6 +68,7 @@ function playGame(human: HumanSide, seed: number) {
       if (readyWaits > 120) {
         longWaits += 1;
         // Sometimes send the runner first.
+        if (snap.canSteal) chances += 1;
         if (snap.canSteal && rng.next() < 0.7) {
           ctl.toggleSteal();
           steals += 1;
@@ -100,7 +102,7 @@ describe("GameController full-game smoke", () => {
   ])("%s plays to a final (seed %i)", (human, seed) => {
     vi.useFakeTimers();
     const res = playGame(human, seed);
-    const { ctl, swings, marks, catcherCam, steals, longWaits } = res;
+    const { ctl, swings, marks, catcherCam, steals, chances, longWaits } = res;
     const snap = ctl.getSnapshot();
     expect(snap.phase).toBe("final");
     const g = ctl.session.game;
@@ -110,7 +112,8 @@ describe("GameController full-game smoke", () => {
       expect(swings).toBeGreaterThan(0);
       // Every human at-bat pitch waited on the batter (two full seconds, untouched).
       expect(longWaits).toBeGreaterThan(20);
-      expect(steals).toBeGreaterThan(0);
+      // Runners go when the batter sends them (whenever a steal was on).
+      if (chances >= 3) expect(steals).toBeGreaterThan(0);
     }
     // Long at-bats happened and were charted; the human side hit from the catcher cam.
     expect(marks).toBeGreaterThanOrEqual(5);

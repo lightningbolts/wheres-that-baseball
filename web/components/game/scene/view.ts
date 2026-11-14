@@ -23,20 +23,31 @@ export function fitFov(vDeg: number, hDeg: number, aspect: number): number {
 }
 
 /**
- * Catcher cam: the catcher's eye line, in front of the umpire (who stands at
- * z ≈ −5.9 and leans over this spot). The near plane starts past the umpire and
- * the controller leaves the catcher out of the cast, so nothing ever stands
- * between the lens and the strike zone. The pitcher sits just above the zone.
+ * Catcher cam: the classic broadcast-game view from behind the plate, a little above
+ * the umpire's head. The catcher and umpire are left out of this view, and the near
+ * plane starts past where they would be. The hitter stands whole at the side of the
+ * frame, the strike zone sits in the lower middle and the pitcher just above it.
  */
-export const BATTER_CAM = { x: 0, y: 3.8, z: -4.4, lookY: 2.4, near: 0.7 };
+export const BATTER_CAM = { x: 0, y: 5.5, z: -10.5, lookY: 3.0, near: 1 };
+/** On a portrait phone the camera comes in close so the zone stays big enough to read. */
+const BATTER_CAM_TALL = { x: 0, y: 4.3, z: -5.2, lookY: 2.5, near: 1 };
 
 export function plateCam(mode: "batter" | "pitcher", aspect: number): CamPreset {
   if (mode === "batter") {
-    const c = BATTER_CAM;
-    return { pos: [c.x, c.y, c.z], look: [0, c.lookY, PLATE_FRONT_Z], fov: fitFov(50, 46, aspect), near: c.near };
+    const t = Math.min(1, Math.max(0, (aspect - 0.5) / (1.3 - 0.5)));
+    const a = BATTER_CAM_TALL;
+    const b = BATTER_CAM;
+    const mix = (u: number, v: number) => u + (v - u) * t;
+    return {
+      pos: [0, mix(a.y, b.y), mix(a.z, b.z)],
+      look: [0, mix(a.lookY, b.lookY), PLATE_FRONT_Z],
+      fov: fitFov(mix(50, 33), mix(46, 48), aspect),
+      near: 1,
+    };
   }
-  // Over the pitcher's shoulder from behind the mound, tight on the plate.
-  return { pos: [0, 9.6, 80], look: [0, 2.8, 0], fov: fitFov(14, 9.5, aspect), near: 0.3 };
+  // From behind and above the mound, off the pitcher's glove side: he stands whole in
+  // the lower corner of the frame and never covers the plate.
+  return { pos: [-4.5, 11, 86], look: [0, 2.7, 0], fov: fitFov(15.5, 13.5, aspect), near: 0.3 };
 }
 
 /** The drawn strike zone: a ball whose center is inside this box is a strike. */

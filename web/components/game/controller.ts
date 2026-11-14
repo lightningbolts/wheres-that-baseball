@@ -143,6 +143,8 @@ export class GameController {
   private readoutId = 0;
   private feedback: HudSnapshot["feedback"] = null;
   private feedbackId = 0;
+  /** The scoreboard canvas last drawn (the scene publishes it after the controller starts). */
+  private boardCanvas: HTMLCanvasElement | null = null;
   private disposed = false;
   private board!: Board;
   private hud: PlateHud;
@@ -252,6 +254,9 @@ export class GameController {
     this.flight = null;
     this.outcome = null;
     this.stealOn = false;
+    // Last pitch's swing / contact readout is stale once the next pitch is set up.
+    this.feedback = null;
+    if (scoreboardCanvas.canvas !== this.boardCanvas) this.drawScoreboard();
     this.board = this.readBoard();
     // A fresh count is a new at-bat: its pitch chart starts empty.
     if (s.game.balls === 0 && s.game.strikes === 0 && this.hud.marks.length) this.hud.marks = [];
@@ -466,7 +471,14 @@ export class GameController {
           }
           if (!tip && r.contact) {
             const stat = `${ev.toFixed(0)} mph · ${Math.round(la)}°`;
-            this.feedback = this.feedback ? { ...this.feedback, sub: stat } : { id: (this.feedbackId += 1), text: stat, tone: "neutral" };
+            const id = this.feedback?.id ?? (this.feedbackId += 1);
+            this.feedback = this.feedback ? { ...this.feedback, sub: stat } : { id, text: stat, tone: "neutral" };
+            // The contact readout belongs to this ball only: it never carries into the next pitch.
+            this.later(3200, () => {
+              if (this.feedback?.id !== id) return;
+              this.feedback = null;
+              this.emit();
+            });
           }
           if (tl.inPlay) {
             this.pb.cam = "follow";
@@ -771,31 +783,52 @@ export class GameController {
     const c = scoreboardCanvas.canvas;
     const tex = scoreboardCanvas.texture;
     if (!c || !tex) return;
+    this.boardCanvas = c;
     const g = this.session.game;
     const x = c.getContext("2d")!;
-    x.fillStyle = "#0b0d10";
-    x.fillRect(0, 0, c.width, c.height);
-    x.font = "bold 20px ui-monospace, monospace";
+    const W = c.width;
+    const H = c.height;
+    // An LED line score: big, bright digits that read from the far end of the park.
+    const bg = x.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, "#10151c");
+    bg.addColorStop(1, "#06080b");
+    x.fillStyle = bg;
+    x.fillRect(0, 0, W, H);
+    x.strokeStyle = "#2a3340";
+    x.lineWidth = 4;
+    x.strokeRect(2, 2, W - 4, H - 4);
     const innings = Math.max(9, g.line.away.length, g.line.home.length);
-    const colW = (c.width - 170) / (innings + 3);
-    x.fillStyle = "#f2c94c";
-    for (let i = 0; i < innings; i += 1) x.fillText(String(i + 1), 90 + i * colW, 40);
-    x.fillText("R", 90 + innings * colW + 10, 40);
+    const left = 96;
+    const colW = (W - left - 70) / innings;
+    const rowY = [H * 0.5, H * 0.84];
+    x.textAlign = "center";
+    x.textBaseline = "middle";
+    x.font = `bold ${Math.round(H * 0.15)}px ui-monospace, Menlo, monospace`;
+    x.fillStyle = "#9fb3c8";
+    for (let i = 0; i < innings; i += 1) x.fillText(String(i + 1), left + colW * (i + 0.5), H * 0.17);
+    x.fillStyle = "#ffd75e";
+    x.fillText("R", W - 36, H * 0.17);
     const rows: Array<["away" | "home", number]> = [
-      ["away", 90],
-      ["home", 140],
+      ["away", rowY[0]],
+      ["home", rowY[1]],
     ];
     for (const [side, y] of rows) {
       const team = side === "away" ? g.away.team.teamId : g.home.team.teamId;
       x.fillStyle = getTeamColor(team);
-      x.fillRect(12, y - 28, 64, 36);
+      x.fillRect(8, y - H * 0.13, left - 16, H * 0.26);
       x.fillStyle = "#fff";
-      x.fillText(abbrevFor(team), 18, y - 3);
+      x.font = `bold ${Math.round(H * 0.17)}px ui-sans-serif, system-ui, sans-serif`;
+      x.fillText(abbrevFor(team), left / 2, y + 1);
+      x.font = `bold ${Math.round(H * 0.22)}px ui-monospace, Menlo, monospace`;
+      x.fillStyle = "#f4f1e6";
       const arr = g.line[side];
-      for (let i = 0; i < arr.length; i += 1) x.fillText(String(arr[i]), 90 + i * colW, y);
-      x.fillStyle = "#f2c94c";
-      x.fillText(String(g.score[side]), 90 + innings * colW + 10, y);
+      for (let i = 0; i < arr.length; i += 1) x.fillText(String(arr[i]), left + colW * (i + 0.5), y + 1);
+      x.fillStyle = "#ffd75e";
+      x.font = `bold ${Math.round(H * 0.26)}px ui-monospace, Menlo, monospace`;
+      x.fillText(String(g.score[side]), W - 36, y + 1);
     }
+    x.textAlign = "start";
+    x.textBaseline = "alphabetic";
     tex.needsUpdate = true;
   }
 }

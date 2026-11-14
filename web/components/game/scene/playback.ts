@@ -303,20 +303,22 @@ export function actorsAt(pb: Playback): ActorDraw[] {
       list.push(d);
     }
   }
-  // Home-plate umpire and base coaches.
-  const u = draw(n);
-  n += 1;
-  u.key = "ump";
-  u.state = UMP_STATE;
-  u.kind = "umpire";
-  u.jersey = UMP.jersey;
-  u.accent = UMP.accent;
-  u.skin = skinFor(3);
-  u.id = 0;
-  u.hand = "R";
-  u.helmet = false;
-  u.pos = null;
-  list.push(u);
+  // Home-plate umpire (not from the catcher cam, which looks over his shoulder) and base coaches.
+  if (pb.cam !== "batter") {
+    const u = draw(n);
+    n += 1;
+    u.key = "ump";
+    u.state = UMP_STATE;
+    u.kind = "umpire";
+    u.jersey = UMP.jersey;
+    u.accent = UMP.accent;
+    u.skin = skinFor(3);
+    u.id = 0;
+    u.hand = "R";
+    u.helmet = false;
+    u.pos = null;
+    list.push(u);
+  }
   for (let i = 0; i < 2; i += 1) {
     const d = draw(n);
     n += 1;

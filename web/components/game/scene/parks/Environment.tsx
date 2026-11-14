@@ -138,9 +138,6 @@ export function Environment({ park }: { park: Park }) {
     [p],
   );
   useEffect(() => () => sky.dispose(), [sky]);
-  useFrame((state) => {
-    sky.uniforms.uTime.value = state.clock.elapsedTime;
-  });
 
   const light = useMemo(() => {
     const l = new THREE.DirectionalLight(p.keyColor, p.keyPower);
@@ -162,6 +159,47 @@ export function Environment({ park }: { park: Park }) {
     return l;
   }, [p]);
   useEffect(() => () => light.dispose(), [light]);
+
+  // One shadow map for the whole park is ~2 in per texel: jagged player shadows. Instead
+  // fit the shadow camera to the ground the view is looking at (tight at the plate,
+  // wider as the camera follows the ball), snapped to texels so it never shimmers.
+  const fit = useMemo(() => {
+    const dir = new THREE.Vector3(...p.key).normalize();
+    const right = new THREE.Vector3().crossVectors(dir, THREE.Object3D.DEFAULT_UP).normalize();
+    const up = new THREE.Vector3().crossVectors(right, dir).normalize();
+    return { fwd: new THREE.Vector3(), c: new THREE.Vector3(), half: 0, dir, right, up };
+  }, [p]);
+  useFrame((state) => {
+    sky.uniforms.uTime.value = state.clock.elapsedTime;
+    const cam = state.camera as THREE.PerspectiveCamera;
+    cam.getWorldDirection(fit.fwd);
+    // Where the view ray meets the field (or a point well out if it looks at the sky).
+    const k = fit.fwd.y < -0.02 ? Math.min(420, -cam.position.y / fit.fwd.y) : 220;
+    fit.c.copy(cam.position).addScaledVector(fit.fwd, k);
+    fit.c.y = 0;
+    const visible = 2 * k * Math.tan(((cam.fov ?? 45) * Math.PI) / 360) * Math.max(1, cam.aspect);
+    const half = THREE.MathUtils.clamp(visible * 0.75, 45, 300);
+    // Quantize the box size so the texel grid only changes on real view changes.
+    const q = Math.pow(2, Math.ceil(Math.log2(half) * 4) / 4);
+    const sc = light.shadow.camera;
+    if (q !== fit.half) {
+      fit.half = q;
+      sc.left = -q;
+      sc.right = q;
+      sc.top = q;
+      sc.bottom = -q;
+      sc.updateProjectionMatrix();
+      light.shadow.normalBias = 0.6 * (q / 340);
+    }
+    const texel = (2 * q) / light.shadow.mapSize.x;
+    // Snap the center along the light's own axes.
+    const u = Math.round(fit.c.dot(fit.right) / texel) * texel;
+    const v = Math.round(fit.c.dot(fit.up) / texel) * texel;
+    const w = fit.c.dot(fit.dir);
+    light.target.position.copy(fit.right).multiplyScalar(u).addScaledVector(fit.up, v).addScaledVector(fit.dir, w);
+    light.position.copy(light.target.position).addScaledVector(fit.dir, 800);
+    light.target.updateMatrixWorld();
+  });
 
   return (
     <>

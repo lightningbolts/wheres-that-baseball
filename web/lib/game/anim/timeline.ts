@@ -621,6 +621,11 @@ export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Ti
   const focus = (T: number): V3 => {
     const b = ballMemo(T);
     if (!inPlay || contactT == null) return b.p;
+    // Home run: hold on the ball landing in the seats, then pick up the trot.
+    if (homeRun && path && T > toFlight(path.endT + 0.9)) {
+      const br = runner(batterId, T);
+      if (br) return br.p;
+    }
     if (!b.held) return b.p;
     // Ball held: frame the lead runner still moving, else the ball.
     let lead: V3 | null = null;

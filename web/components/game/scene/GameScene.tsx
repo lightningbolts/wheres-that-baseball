@@ -20,7 +20,7 @@ export interface GameSceneProps {
 export default function GameScene({ park, pb, homeColor, onAim, onPrimary }: GameSceneProps) {
   return (
     <Canvas
-      shadows
+      shadows="soft"
       dpr={[1, 1.5]}
       gl={{ antialias: true, powerPreference: "high-performance" }}
       camera={{ position: [9, 22, 340], fov: 6, near: 0.3, far: 6000 }}

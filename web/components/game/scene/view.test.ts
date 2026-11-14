@@ -77,33 +77,19 @@ describe("plate cameras", () => {
       const h = (ndc(cam, 0, 3.5, PLATE_FRONT_Z).y - ndc(cam, 0, 1.6, PLATE_FRONT_Z).y) / 2;
       const w = (ndc(cam, -0.83, 2.5, PLATE_FRONT_Z).x - ndc(cam, 0.83, 2.5, PLATE_FRONT_Z).x) / 2;
       expect(h).toBeGreaterThan(0.15);
-      expect(w).toBeGreaterThan(0.12);
-      expect(Math.max(h, w)).toBeGreaterThan(0.25);
+      expect(w).toBeGreaterThan(aspect > 2 ? 0.09 : 0.12);
+      expect(Math.max(h, w)).toBeGreaterThan(0.2);
     }
   });
 
-  it("nothing stands between the catcher cam and the zone: the umpire is behind the lens, the catcher is not drawn", () => {
+  it("nothing stands between the catcher cam and the zone: neither the umpire nor the catcher is drawn", () => {
     const pb = createPlayback();
     const ctl = new GameController(setup, teams, pb);
-    const ump = actorsAt(pb).find((a) => a.kind === "umpire");
-    expect(ump).toBeDefined();
-    const { x: ux, z: uz } = ump!.state.p;
-    for (const aspect of ASPECTS) {
-      const cam = camera("batter", aspect);
-      const frustum = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
-      // Everything the crouching umpire can occupy, arms and strike call included.
-      const v = new THREE.Vector3();
-      for (let i = 0; i <= 8; i += 1)
-        for (let j = 0; j <= 8; j += 1)
-          for (let k = 0; k <= 8; k += 1) {
-            v.set(ux - 1.2 + (2.4 * i) / 8, (6.5 * j) / 8, uz - 1.5 + (3.4 * k) / 8);
-            expect(frustum.containsPoint(v)).toBe(false);
-          }
-    }
-    // The camera sits in front of the umpire, behind the plate.
-    const c = plateCam("batter", 16 / 9);
-    expect(c.pos[2]).toBeGreaterThan(uz);
-    expect(c.pos[2]).toBeLessThan(0);
+    expect(actorsAt(pb).some((a) => a.kind === "umpire")).toBe(true);
+    pb.cam = "batter";
+    expect(actorsAt(pb).some((a) => a.kind === "umpire")).toBe(false);
+    // The camera sits behind the plate.
+    for (const aspect of ASPECTS) expect(plateCam("batter", aspect).pos[2]).toBeLessThan(0);
     ctl.dispose();
   });
 

@@ -14,6 +14,7 @@ export function Director({ pb }: { pb: Playback }) {
 }
 
 const BALL_R = 0.121;
+const DEG = Math.PI / 180;
 const TRAIL = 16;
 const IDENT_Q = new THREE.Quaternion();
 
@@ -106,7 +107,7 @@ export function Ball({ pb }: { pb: Playback }) {
     const plateView = pb.cam === "batter" || pb.cam === "pitcher" || pb.cam === "broadcast";
     const pitching = !!tl && !held && plateView && pb.T >= tl.releaseT && pb.T < Math.min(tl.contactT ?? Infinity, tl.receive.t);
     // Keep the ball a minimum size on screen regardless of camera (radius in CSS px).
-    const minPx = pitching ? (pb.cam === "batter" ? 3.4 : 2.8) : 2.2;
+    const minPx = pitching ? (pb.cam === "batter" ? 3.4 : 2.8) : pb.cam === "follow" && !held ? 2.8 : 2.2;
     const ftPerPx = (2 * d * Math.tan(((cam.fov ?? 45) * Math.PI) / 360)) / Math.max(240, size.height);
     const s = Math.max(1, (minPx * ftPerPx) / BALL_R);
     b.scale.setScalar(s);
@@ -286,7 +287,17 @@ export function CameraRig({ pb }: { pb: Playback }) {
         const dist = Math.hypot(fx, fz);
         st.toPos.set(fx * 0.22, 32 + dist * 0.16 + fy * 0.25, -38 + fz * 0.18);
         st.toLook.set(fx, fy * 0.7, st.focus.z);
-        fov = 48 * wide;
+        // Zoom like a TV camera: frame a patch of field around the play (wider while the
+        // ball is fast or high, so it never outruns the frame), not the whole park.
+        let speed = 0;
+        if (pb.timeline) {
+          const a = pb.timeline.focus(pb.T);
+          const b = pb.timeline.focus(pb.T + 0.1);
+          speed = Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z) / 0.1;
+        }
+        const camDist = Math.hypot(st.toLook.x - st.toPos.x, st.toLook.y - st.toPos.y, st.toLook.z - st.toPos.z);
+        const frameH = Math.min(170, Math.max(48, 0.26 * dist + 0.32 * speed + 0.5 * fy));
+        fov = Math.min(50, ((2 * Math.atan(frameH / 2 / Math.max(1, camDist))) / DEG) * wide);
         break;
       }
       case "broadcast":
