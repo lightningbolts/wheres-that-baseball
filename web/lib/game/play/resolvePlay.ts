@@ -11,7 +11,7 @@
  * A human defender can override the throw target via `chooseThrow` (return undefined → AI).
  */
 import { judgeFair, sampleAt, type BallSample, type BattedBallPath } from "@/lib/game/physics/battedBall";
-import type { Park } from "@/lib/game/physics/park";
+import { isFairPosition, type Park } from "@/lib/game/physics/park";
 import { BASE_POS, runTime, throwTime } from "@/lib/game/play/movement";
 import { isInfielder, isOutfielder, type Fielder } from "@/lib/game/play/defense";
 import { horizDist, sprayAngleDeg, type Rng, type V3 } from "@/lib/game/math";
@@ -296,6 +296,11 @@ export function resolvePlay(input: PlayInput): PlayResult {
       return resolveCaughtFly(input, air.f, air.t, ballAt.p, events, result);
     }
     events.push({ t: air.t, type: air.dive ? "dive" : "drop", pos: air.f.pos, to: ballAt.p });
+    if (!air.dive && !isFairPosition(ballAt.p)) {
+      // A dropped foul fly is just a foul ball: the count moves, nobody advances.
+      events.push({ t: air.t, type: "foul" });
+      return result({ foul: true, endT: air.t + 1 });
+    }
     if (!air.dive) {
       // Dropped a catchable ball: error; the fielder picks it up ~1 s later right there.
       return resolveGroundOrHit(input, { f: air.f, t: air.t + 1.0, p: ballAt.p, dive: false }, events, result, true);
@@ -691,7 +696,9 @@ function finish(
     const outsSorted = rs.filter((r) => r.out).sort((a, b) => a.t - b.t);
     const third = outsSorted[2 - outs];
     const plan = third && plans.find((p) => p.playerId === third.playerId);
-    const isForce = third && (third.from === 0 || plan?.forced);
+    // A force applies only at the next base: the batter thrown out at first, or a forced runner at the
+    // base he was forced to. A runner tagged going for an extra base is a time play.
+    const isForce = third && third.to === third.from + 1 && (third.from === 0 || plan?.forced);
     runs = isForce ? [] : runs.filter((r) => r.t < third.t);
   }
   for (const r of runs) events.push({ t: r.t, type: "score", playerId: r.playerId });

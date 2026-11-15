@@ -230,10 +230,11 @@ export class BaseballGame {
     return ev;
   }
 
-  private addRuns(scorers: number[], rbiBatter: number | null): number {
+  private addRuns(scorers: number[], rbiBatter: number | null, homeRun = false): number {
     if (!scorers.length) return 0;
     let allowed = scorers.length;
-    const walkoffZone = !this.top && this.inning >= this.regulation;
+    // Every run scores on a walk-off home run; otherwise the game ends with the winning run.
+    const walkoffZone = !homeRun && !this.top && this.inning >= this.regulation;
     if (walkoffZone) {
       const needed = this.score.away - this.score.home + 1;
       if (needed > 0) allowed = Math.min(allowed, needed);
@@ -409,7 +410,7 @@ export class BaseballGame {
     this.recordOuts(play.outs);
     // No RBI on errors-only runs or double plays.
     const rbiBatter = play.error || play.doublePlay ? null : b.id;
-    const runs = this.addRuns(play.runs, rbiBatter);
+    const runs = this.addRuns(play.runs, rbiBatter, play.hit === 4);
     return this.emit({
       kind: "in_play",
       text: describePlay(this, b, play, runs),
