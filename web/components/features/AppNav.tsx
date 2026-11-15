@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { href: "/breakouts", label: "Projections", shortLabel: "Projections" },
   { href: "/respect", label: "Respect+", shortLabel: "Respect+" },
   { href: "/nerd", label: "Nerd Standings", shortLabel: "Nerd" },
+  { href: "/play", label: "Play Ball", shortLabel: "Play" },
   { href: "/about", label: "About", shortLabel: "About" },
 ] as const;
 

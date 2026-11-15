@@ -10,4 +10,13 @@ export default defineConfig([
       "react-hooks/set-state-in-effect": "off",
     },
   },
+  {
+    // R3F scene code mutates three.js objects and shared playback state every frame
+    // (useFrame), which is the intended pattern there but trips the React-compiler
+    // purity rule.
+    files: ["components/game/scene/**"],
+    rules: {
+      "react-hooks/immutability": "off",
+    },
+  },
 ]);
