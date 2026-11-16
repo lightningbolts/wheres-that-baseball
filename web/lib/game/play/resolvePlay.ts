@@ -605,7 +605,8 @@ function resolveCaughtFly(
     if (x.to !== 4 || x.out) continue;
     if (thirdOut && !(x.t < thirdOut.t)) continue;
     runs.push(x.playerId);
-    sacFly = kind === "F" || kind === "L";
+    // A sac fly is any caught fly an outfielder makes, high-angle pops included.
+    sacFly = kind === "F" || kind === "L" || (kind === "P" && outfield);
     events.push({ t: x.t, type: "score", playerId: x.playerId });
   }
   events.sort((a, b) => a.t - b.t);

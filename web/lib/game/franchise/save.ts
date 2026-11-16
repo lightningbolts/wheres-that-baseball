@@ -115,18 +115,20 @@ export async function saveLeague(league: League, slot: number): Promise<boolean>
 
 async function readSlot(slot: number): Promise<SlotRecord | null> {
   const rec = await idb<SlotRecord>("readonly", (s) => s.get(slot));
-  const db = rec?.data ? rec : null;
+  const valid = (r: SlotRecord | null | undefined): r is SlotRecord => !!r?.data && deserializeLeague(r.data) !== null;
+  const db = valid(rec) ? rec : null;
   let ls: SlotRecord | null = null;
   const raw = lsGet(LS_PREFIX + slot);
   if (raw) {
     try {
       const r = JSON.parse(raw) as SlotRecord;
-      if (r?.data) ls = r;
+      if (valid(r)) ls = r;
     } catch {
       ls = null;
     }
   }
-  // A save may have fallen back to localStorage while IndexedDB was unavailable: the newest wins.
+  // A save may have fallen back to localStorage while IndexedDB was unavailable: the newest
+  // valid record wins, so a corrupt newer copy never hides a good older one.
   if (db && ls) return (ls.meta?.savedAt ?? 0) > (db.meta?.savedAt ?? 0) ? ls : db;
   return db ?? ls;
 }
@@ -140,7 +142,7 @@ export async function listSlots(): Promise<Array<SlotMeta | null>> {
   const out: Array<SlotMeta | null> = [];
   for (let i = 0; i < SLOT_COUNT; i += 1) {
     const rec = await readSlot(i);
-    out.push(rec?.meta && deserializeLeague(rec.data) ? rec.meta : null);
+    out.push(rec?.meta ?? null);
   }
   return out;
 }
