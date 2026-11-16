@@ -222,6 +222,8 @@ export interface ParkLayout {
   pole?: string;
   /** Mile-high purple row in the upper deck (Coors). */
   purpleRow?: boolean;
+  /** Hand-operated out-of-town scoreboard set into the outfield wall, bearing range (T-Mobile Park). */
+  handBoard?: { from: number; to: number };
   features: Feature[];
 }
 
@@ -558,6 +560,8 @@ export const PARK_LAYOUTS: Record<number, ParkLayout> = {
     stands: [...infield("box3", -52, 52, { taper: 70 }), st(-45, -11, "bleach", 24, true), st(11, 45, "of2", 6, false, { cover: false })],
     eye: { from: -8, to: 8, h: 40, style: "wall" },
     board: { deg: -12, back: 150, y: 130, w: 140, style: "led" },
+    // The hand-turned out-of-town scoreboard in the left-field wall, between the 331 and 378 marks.
+    handBoard: { from: -39, to: -26 },
     lights: "rim",
     mow: "stripes",
     // The roof parks east over the BNSF tracks, beyond right field.

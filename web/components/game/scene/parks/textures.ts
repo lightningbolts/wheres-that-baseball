@@ -355,12 +355,77 @@ export interface DecalAtlas {
   cell(i: number): [number, number, number, number];
   /** UV rect of the manual scoreboard strip. */
   board: [number, number, number, number];
+  /** UV rect of the out-of-town (AL / NL) hand-turned board strip. */
+  outOfTown: [number, number, number, number];
+}
+
+const AL_GAMES: Array<[string, string]> = [["NYY", "BOS"], ["TOR", "BAL"], ["TB", "CLE"], ["DET", "MIN"], ["KC", "CWS"], ["HOU", "TEX"]];
+const NL_GAMES: Array<[string, string]> = [["NYM", "PHI"], ["ATL", "MIA"], ["WSH", "PIT"], ["CHC", "STL"], ["MIL", "CIN"], ["LAD", "SF"]];
+
+/**
+ * T-Mobile Park's out-of-town board: dark green steel, cream stencil type, a slot for
+ * each game's inning and each club's runs, hung by hand from the catwalk behind it.
+ */
+function drawOutOfTown(g: CanvasRenderingContext2D, y0: number, h: number): void {
+  const cream = "#ece6d2";
+  g.fillStyle = "#173a2d";
+  g.fillRect(0, y0, 1024, h);
+  g.strokeStyle = cream;
+  g.lineWidth = 2;
+  g.strokeRect(4, y0 + 4, 1016, h - 8);
+  g.beginPath();
+  g.moveTo(512, y0 + 4);
+  g.lineTo(512, y0 + h - 4);
+  g.stroke();
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  const leagues: Array<[string, Array<[string, string]>]> = [["AMERICAN LEAGUE", AL_GAMES], ["NATIONAL LEAGUE", NL_GAMES]];
+  leagues.forEach(([title, games], li) => {
+    const x0 = li * 512;
+    g.font = "bold 13px Arial, Helvetica, sans-serif";
+    g.fillStyle = cream;
+    g.fillText(title, x0 + 256, y0 + 14);
+    g.font = "bold 10px Arial, Helvetica, sans-serif";
+    for (let col = 0; col < 2; col += 1) {
+      const cx = x0 + 14 + col * 249;
+      g.fillStyle = "rgba(236,230,210,0.7)";
+      g.fillText("INN", cx + 14, y0 + 27);
+    }
+    g.font = "bold 15px Arial, Helvetica, sans-serif";
+    games.forEach(([away, home], gi) => {
+      const col = gi % 2;
+      const row = Math.floor(gi / 2);
+      const cx = x0 + 14 + col * 249;
+      const y = y0 + 42 + row * 20;
+      const k = li * 31 + gi * 7;
+      const inning = 1 + Math.floor(hash(k * 1.7) * 9);
+      const done = hash(k * 2.9) > 0.7;
+      // Inning slot (F for a final), then each club's name and its run tile.
+      g.fillStyle = "#0d2219";
+      g.fillRect(cx, y - 9, 28, 18);
+      g.fillStyle = "#f2d35b";
+      g.fillText(done ? "F" : String(inning), cx + 14, y + 1);
+      const club = (name: string, runs: number, x: number) => {
+        g.fillStyle = cream;
+        g.fillText(name, x + 26, y + 1);
+        g.fillStyle = "#0d2219";
+        g.fillRect(x + 56, y - 9, 26, 18);
+        g.fillStyle = cream;
+        g.fillText(String(runs), x + 69, y + 1);
+      };
+      club(away, Math.floor(hash(k * 4.3) * 8), cx + 34);
+      g.fillStyle = "rgba(236,230,210,0.6)";
+      g.fillText("@", cx + 128, y + 1);
+      club(home, Math.floor(hash(k * 6.1) * 8), cx + 132);
+    });
+  });
 }
 
 /** Painted distance markers plus a hand-operated scoreboard strip. */
 export function decalAtlas(numbers: number[], color: string): DecalAtlas {
-  const [c, g] = canvas(1024, 256);
-  g.clearRect(0, 0, 1024, 256);
+  const H = 512;
+  const [c, g] = canvas(1024, H);
+  g.clearRect(0, 0, 1024, H);
   g.font = "bold 54px Arial, Helvetica, sans-serif";
   g.textAlign = "center";
   g.textBaseline = "middle";
@@ -400,11 +465,15 @@ export function decalAtlas(numbers: number[], color: string): DecalAtlas {
       }
     }
   }
+  // Out-of-town board: 1024 × 96.
+  const o0 = 256;
+  drawOutOfTown(g, o0, 96);
   const t = finish(c, false, 8);
   return {
     texture: t,
-    cell: (i) => [(i * 128) / 1024, 1 - 64 / 256, ((i + 1) * 128) / 1024, 1],
-    board: [0, 1 - (y0 + 128) / 256, 1, 1 - y0 / 256],
+    cell: (i) => [(i * 128) / 1024, 1 - 64 / H, ((i + 1) * 128) / 1024, 1],
+    board: [0, 1 - (y0 + 128) / H, 1, 1 - y0 / H],
+    outOfTown: [0, 1 - (o0 + 96) / H, 1, 1 - o0 / H],
   };
 }
 

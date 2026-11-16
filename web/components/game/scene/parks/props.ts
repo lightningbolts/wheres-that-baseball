@@ -645,6 +645,25 @@ export function decalGeometry(c: PropCtx, atlas: DecalAtlas): THREE.BufferGeomet
       b.quadUv([p.x - p.nx * o, 1.2, p.z - p.nz * o], [q.x - q.nx * o, 1.2, q.z - q.nz * o], [q.x - q.nx * o, 14.2, q.z - q.nz * o], [p.x - p.nx * o, 14.2, p.z - p.nz * o], [ua, v0], [ub, v0], [ub, v1], [ua, v1], "#ffffff");
     }
   }
+  const hb = c.layout.handBoard;
+  if (hb) {
+    // Set flush into the wall face, following its curve, with a pad's worth of wall left above.
+    // Like the Fenway board: texture left to right along increasing arc length.
+    const sA = Math.min(c.loop.sOf(hb.from), c.loop.sOf(hb.to));
+    const sB = Math.max(c.loop.sOf(hb.from), c.loop.sOf(hb.to));
+    const n = 10;
+    const [u0, v0, u1, v1] = atlas.outOfTown;
+    const o = 0.2;
+    const len = Math.abs(sB - sA);
+    const top = Math.min(c.loop.at((sA + sB) / 2).h - 0.9, 1.1 + len / 10.7);
+    for (let i = 0; i < n; i += 1) {
+      const p = c.loop.at(sA + ((sB - sA) * i) / n);
+      const q = c.loop.at(sA + ((sB - sA) * (i + 1)) / n);
+      const ua = u0 + ((u1 - u0) * i) / n;
+      const ub = u0 + ((u1 - u0) * (i + 1)) / n;
+      b.quadUv([p.x - p.nx * o, 1.1, p.z - p.nz * o], [q.x - q.nx * o, 1.1, q.z - q.nz * o], [q.x - q.nx * o, top, q.z - q.nz * o], [p.x - p.nx * o, top, p.z - p.nz * o], [ua, v0], [ub, v0], [ub, v1], [ua, v1], "#ffffff");
+    }
+  }
   return b.build();
 }
 
