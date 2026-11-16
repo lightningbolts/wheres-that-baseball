@@ -57,6 +57,8 @@ interface Track {
   pts: Waypoint[];
   actions: Array<{ t: number; dur: number; action: Action }>;
   face?: V3;
+  /** Timed facing changes (from `t` on, face `p`), e.g. a relay man turning to throw. */
+  faces?: Array<{ t: number; p: V3 }>;
   /** Prefix integrals of x(t) / z(t) at each waypoint (built by finalize). */
   ix?: Float64Array;
   iz?: Float64Array;
@@ -289,7 +291,8 @@ export function trackAt(tr: Track, t: number): ActorState {
   const vz = (_a.z - _b.z) / (2 * h);
   const speed = Math.hypot(vx, vz);
   // Default facing: toward the plate; a moving actor faces where he is going.
-  const faceYaw = tr.face ? yawTo(p, tr.face, Math.atan2(-p.x, -p.z)) : Math.atan2(-p.x, -p.z);
+  const face = faceAt(tr, t);
+  const faceYaw = face ? yawTo(p, face, Math.atan2(-p.x, -p.z)) : Math.atan2(-p.x, -p.z);
   const w = clamp((speed - 1) / 4, 0, 1);
   const yaw = w > 0 ? lerpAngle(faceYaw, Math.atan2(vx, vz), w * w * (3 - 2 * w)) : faceYaw;
   let action: Action = speed > 3 ? "run" : "ready";
@@ -301,6 +304,12 @@ export function trackAt(tr: Track, t: number): ActorState {
     }
   }
   return { p, yaw, speed, action, actionT };
+}
+
+function faceAt(tr: Track, t: number): V3 | undefined {
+  let face = tr.face;
+  if (tr.faces) for (const f of tr.faces) if (t >= f.t) face = f.p;
+  return face;
 }
 
 function coverFor(base: number, thrower: FieldPos | undefined): FieldPos {
@@ -421,7 +430,7 @@ export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Ti
   }
   const receiver = new Map<PlayEvent, FieldPos | null>();
   throws.forEach((th, i) => {
-    const pos = i === 0 ? coverFor(th.base ?? 1, th.pos) : coverFor(th.base ?? 1, undefined);
+    const pos = th.receiver ?? (i === 0 ? coverFor(th.base ?? 1, th.pos) : coverFor(th.base ?? 1, undefined));
     receiver.set(th, pos === th.pos ? null : pos);
   });
 
@@ -574,14 +583,38 @@ export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Ti
       if (!pos || !tr) continue;
       const base = th.base ?? 1;
       const bp = BASE_POS[base as 1 | 2 | 3 | 4];
-      const spot = v3(bp.x * 0.98, 0, bp.z * 0.98 + (base === 4 ? 1.5 : 0));
+      // A relay / cutoff man sets up on his spot in line, a beat early, facing the thrower.
+      const spot = th.cutoff ? v3(th.to!.x, 0, th.to!.z) : v3(bp.x * 0.98, 0, bp.z * 0.98 + (base === 4 ? 1.5 : 0));
       const f = fielders.find((x) => x.pos === pos);
-      routeTo(tr, spot, toFlight(th.arriveT!) - 0.3, toFlight(f?.reaction ?? 0.3));
+      routeTo(tr, spot, toFlight(th.arriveT!) - (th.cutoff ? 0.6 : 0.3), toFlight(f?.reaction ?? 0.3));
       tr.actions.push({ t: toFlight(th.arriveT!) - 0.55, dur: 1.0, action: "catch" });
       tr.face = th.from;
+      tr.faces = undefined;
       const relay = throws.find((x) => x !== th && x.t > th.t && x.pos === pos);
       if (relay) {
+        // Catch, turn, and throw on.
+        tr.faces = [{ t: toFlight(th.arriveT!) + 0.1, p: relay.to! }];
         tr.actions.push({ t: toFlight(relay.t) - THROW_RELEASE_S, dur: THROW_RELEASE_S + 0.5, action: "throw" });
+      }
+    }
+    // The cutoff man lines up in front of the plate on a throw home (the ball goes past him).
+    for (const th of throws) {
+      if (!th.lineup || [...receiver.values()].includes(th.lineup.pos)) continue;
+      const tr = tracks.get(th.lineup.pos);
+      const f = fielders.find((x) => x.pos === th.lineup!.pos);
+      if (!tr) continue;
+      routeTo(tr, v3(th.lineup.p.x, 0, th.lineup.p.z), toFlight(th.arriveT!) - 1.0, toFlight(f?.reaction ?? 0.3));
+      tr.face = th.from;
+    }
+    // Doubled off by the fielder himself: he runs over and steps on the bag.
+    if (play?.caught && gather?.pos) {
+      for (const e of events) {
+        if (e.type !== "force_out" || !e.base || throws.some((th) => th.base === e.base && th.arriveT! <= e.t + 0.01)) continue;
+        const tr = tracks.get(gather.pos);
+        if (!tr) continue;
+        const bp = BASE_POS[e.base];
+        routeTo(tr, v3(bp.x * 0.98, 0, bp.z * 0.98), toFlight(e.t), toFlight(gatherT) + 0.1);
+        tr.face = undefined;
       }
     }
   }
@@ -620,6 +653,50 @@ export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Ti
   if (inPlay && play && contactT != null) {
     for (const ro of play.runners) {
       const sprint = sprintOf.get(ro.playerId) ?? 27;
+      if (ro.path?.length && ro.from > 0) {
+        // Scripted route (tagging up, holding halfway, frozen on a liner), then the last leg.
+        const t0 = contactT;
+        const pts: Waypoint[] = leadPts(ro.from).filter((w) => w.t < t0);
+        let lastS = leadS(ro.from) + 4;
+        let lastT = t0;
+        pts.push({ t: t0, p: basePathPoint(lastS) });
+        const leg = (s1: number, t1: number) => {
+          const d = Math.abs(s1 - lastS);
+          const tA = Math.max(t1, lastT + Math.max(0.05, d / MAX_RUN_FT_S));
+          const steps = Math.max(1, Math.ceil(d / 7.5));
+          for (let i = 1; i <= steps; i += 1) {
+            const f = i / steps;
+            pts.push({ t: lastT + (tA - lastT) * f, p: basePathPoint(lastS + (s1 - lastS) * f) });
+          }
+          lastS = s1;
+          lastT = tA;
+        };
+        for (const w of ro.path) leg(w.s, toFlight(w.t));
+        const v = sprint * 0.93;
+        const dir = Math.sign(ro.to * 90 - lastS) || 1;
+        const shortFt = ro.out ? clamp(((ro.arriveT ?? ro.t) - ro.t) * v, 2, 60) : 0;
+        const endS = ro.to * 90 - dir * shortFt;
+        leg(endS, toFlight(ro.t));
+        const tEnd = lastT;
+        const actions: Track["actions"] = [];
+        const moved = Math.abs(endS - ro.from * 90) > 20;
+        // Slide into a contested bag ahead; dive back into his own on a close one.
+        if (moved && (ro.out || throws.some((th) => th.base === ro.to && !th.cutoff))) actions.push({ t: tEnd - 0.32, dur: 0.95, action: "slide" });
+        else if (ro.to === ro.from && (ro.out || throws.some((th) => th.base === ro.to && !th.cutoff && Math.abs(toFlight(th.arriveT!) - tEnd) < 0.5))) {
+          actions.push({ t: tEnd - 0.32, dur: 0.95, action: "slide" });
+        }
+        if (ro.out || ro.to === 4) {
+          const at = pts[pts.length - 1].p;
+          const dd = Math.max(1, Math.hypot(dugout.x - at.x, dugout.z - at.z));
+          const wait = ro.out ? 0.7 : 0.05;
+          const jog = Math.min(dd, 16);
+          pts.push({ t: tEnd + wait, p: at });
+          pts.push({ t: tEnd + wait + jog / 13, p: lerp3(at, dugout, jog / dd) });
+        }
+        runTracks.set(ro.playerId, { pts, actions, face: baseFace(ro.to * 90), goneAt: Infinity, from: ro.from });
+        runnerIds.push(ro.playerId);
+        continue;
+      }
       const startS = ro.from === 0 ? 0 : leadS(ro.from) + 4;
       const v = homeRun ? 19 : sprint * 0.93;
       // Put out: draw him where he really was when the ball (or tag) beat him — a runner who
@@ -650,7 +727,7 @@ export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Ti
       }
       const actions: Track["actions"] = [];
       // Slide into any base where there is a play on the runner (never into first).
-      const playAtBase = throws.some((th) => th.base === ro.to);
+      const playAtBase = throws.some((th) => th.base === ro.to && !th.cutoff);
       if (!homeRun && d > 20 && ro.to !== 1 && (ro.out || playAtBase)) actions.push({ t: tEnd - 0.32, dur: 0.95, action: "slide" });
       if (runThrough) {
         const tBag = tEnd + (90 - endS) / v;

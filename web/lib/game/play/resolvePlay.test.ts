@@ -69,6 +69,13 @@ describe("resolvePlay scenarios", () => {
     expect(sf).toBeGreaterThan(0.8);
   });
 
+  it("a runner scoring on a high-angle catch in the outfield is a sacrifice fly too", () => {
+    const rs = [...Array(30)].map((_, i) => play(108, 52, 4, { on: [false, false, true], outs: 1, seed: i + 1 }));
+    const scored = rs.filter((r) => r.caught && r.runs.length === 1 && r.fieldedBy && ["LF", "CF", "RF"].includes(r.fieldedBy));
+    expect(scored.length).toBeGreaterThan(0);
+    for (const r of scored) expect(r.sacFly).toBe(true);
+  });
+
   it("no tag-up after the third out", () => {
     const r = play(96, 34, 0, { on: [false, false, true], outs: 2 });
     expect(r.caught).toBe(true);

@@ -16,6 +16,7 @@ import type { Park } from "@/lib/game/physics/park";
 import { batSide, type BatterModel, type PitcherModel, type TeamModel } from "@/lib/game/ratings";
 import type { Rng } from "@/lib/game/math";
 import type { FieldPos } from "@/lib/game/types";
+import { ABS_CHALLENGES, callIsWrong, challengeableCall, overturned } from "@/lib/game/rules/abs";
 
 export interface Runner {
   playerId: number;
@@ -87,6 +88,7 @@ export type GameEventKind =
   | "inning_end"
   | "pitching_change"
   | "substitution"
+  | "abs_challenge"
   | "game_over";
 
 export interface GameEvent {
@@ -100,6 +102,8 @@ export interface GameEvent {
   play?: PlayResult;
   /** Steal events: the base the runner left (0 = first, 1 = second, 2 = third). */
   base?: 0 | 1 | 2;
+  /** ABS challenge: who challenged and whether the call was overturned. */
+  abs?: { side: "away" | "home"; overturned: boolean; left: number };
 }
 
 export const emptyBat = (): BatLine => ({ pa: 0, ab: 0, h: 0, d: 0, t: 0, hr: 0, r: 0, rbi: 0, bb: 0, k: 0, hbp: 0, sf: 0 });
@@ -122,14 +126,20 @@ export class BaseballGame {
   names = new Map<number, string>();
   log: GameEvent[] = [];
   readonly regulation: number;
+  /** Postseason: no automatic runner in extra innings. */
+  readonly postseason: boolean;
+  /** ABS challenges each club has left; null when the game is played without ABS. */
+  abs: { away: number; home: number } | null;
 
   constructor(
     awayTeam: TeamModel,
     homeTeam: TeamModel,
     readonly park: Park,
-    opts: { awayStarter?: number; homeStarter?: number; innings?: number } = {},
+    opts: { awayStarter?: number; homeStarter?: number; innings?: number; abs?: boolean; postseason?: boolean } = {},
   ) {
     this.regulation = opts.innings ?? 9;
+    this.abs = opts.abs ? { away: ABS_CHALLENGES, home: ABS_CHALLENGES } : null;
+    this.postseason = !!opts.postseason;
     this.away = this.makeSide(awayTeam, opts.awayStarter ?? 0);
     this.home = this.makeSide(homeTeam, opts.homeStarter ?? 0);
   }
@@ -336,6 +346,36 @@ export class BaseballGame {
     this.fielding.pitcherOuts += n;
   }
 
+  /** The club that may challenge this called pitch under ABS (and still has a challenge), or null. */
+  absChallenger(result: Pick<PitchResult, "kind" | "wildPitch">): "away" | "home" | null {
+    if (!this.abs || this.final) return null;
+    const who = challengeableCall(result);
+    if (!who) return null;
+    const side = (who === "offense") === this.top ? "away" : "home";
+    return this.abs[side] > 0 ? side : null;
+  }
+
+  /**
+   * An ABS challenge of a called pitch, before it is applied: the Hawk-Eye zone decides.
+   * A winning challenge is kept, a losing one is spent. Returns the call that stands.
+   */
+  absChallenge(result: PitchResult): { result: PitchResult; event: GameEvent } | null {
+    const side = this.absChallenger(result);
+    if (!side || !this.abs) return null;
+    const wrong = callIsWrong(result);
+    if (!wrong) this.abs[side] -= 1;
+    const offense = (side === "away") === this.top;
+    const who = offense ? this.batter.name : (this.fielding.lineup.find((b) => b.pos === "C")?.name ?? this.fielding.pitcher.name);
+    const was = result.kind === "called_strike" ? "strike" : "ball";
+    const now = was === "strike" ? "ball" : "strike";
+    const left = this.abs[side];
+    const text = wrong
+      ? `ABS challenge by ${who}: overturned — it's a ${now}.`
+      : `ABS challenge by ${who}: the call stands — ${was}. ${left} challenge${left === 1 ? "" : "s"} left.`;
+    const event = this.emit({ kind: "abs_challenge", text, batterId: this.batter.id, pitcherId: this.fielding.pitcher.id, abs: { side, overturned: wrong, left } });
+    return { result: wrong ? overturned(result) : result, event };
+  }
+
   /** Apply one physical pitch result (and its resolved play, for balls in play). */
   apply(result: PitchResult, play?: PlayResult): GameEvent[] {
     if (this.final) return [];
@@ -454,7 +494,8 @@ export class BaseballGame {
     this.bases = next;
     this.recordOuts(play.outs);
     // No RBI on errors-only runs or double plays.
-    const rbiBatter = play.error || play.doublePlay ? null : b.id;
+    // No RBI on an error or a ground-ball double play; a sac fly still drives the run in when a trailing runner is thrown out after the catch.
+    const rbiBatter = play.error || (play.doublePlay && !play.caught) ? null : b.id;
     const runs = this.addRuns(play.runs, rbiBatter, play.hit === 4);
     return this.emit({
       kind: "in_play",
@@ -504,9 +545,14 @@ export class BaseballGame {
       this.top = true;
       this.inning += 1;
       this.line.away.push(0);
+      // ABS: a club out of challenges gets one for each extra inning.
+      if (this.abs && this.inning > this.regulation) {
+        if (this.abs.away === 0) this.abs.away = 1;
+        if (this.abs.home === 0) this.abs.home = 1;
+      }
     }
-    // Extra innings: the batter before the leadoff man starts on second.
-    if (this.inning > this.regulation) {
+    // Extra innings (regular season): the batter before the leadoff man starts on second.
+    if (this.inning > this.regulation && !this.postseason) {
       const s = this.batting;
       const prev = s.lineup[(s.idx + s.lineup.length - 1) % s.lineup.length];
       this.bases[1] = { playerId: prev.id, sprint: prev.sprint, chargedTo: this.fielding.pitcher.id };
@@ -516,8 +562,9 @@ export class BaseballGame {
   }
 
   /** CPU manager: pull tired or shelled pitchers between batters. */
-  managePitching(rng: Rng, manual: "away" | "home" | null = null): GameEvent | null {
+  managePitching(rng: Rng, manual: "away" | "home" | "both" | null = null): GameEvent | null {
     if (this.final) return null;
+    if (manual === "both") return null;
     // The human runs his own bullpen.
     if (manual && (manual === "home") === this.top) return null;
     const f = this.fielding;
@@ -662,9 +709,12 @@ function describePlay(game: BaseballGame, b: BatterModel, play: PlayResult, runs
   else if (play.hit === 2) s = `${b.name} doubles to ${where}.`;
   else if (play.hit === 1) s = `${b.name} singles to ${where}.`;
   else if (play.error) s = `${b.name} reaches on an error (${play.scoring}).`;
-  else if (play.doublePlay) s = `${b.name} grounds into a double play (${play.scoring}).`;
+  else if (play.caught) {
+    const out = play.scoring.startsWith("P") ? "pops out" : play.scoring.startsWith("L") ? "lines out" : "flies out";
+    // A runner doubled off his bag, or cut down trying to move up after the catch.
+    s = `${b.name} ${out} to ${where}${play.sacFly ? " (sac fly)" : ""}${play.doublePlay ? ` — double play (${play.scoring})` : ""}.`;
+  } else if (play.doublePlay) s = `${b.name} grounds into a double play (${play.scoring}).`;
   else if (play.fieldersChoice) s = `${b.name} reaches on a fielder's choice.`;
-  else if (play.caught) s = `${b.name} ${play.scoring.startsWith("P") ? "pops out" : play.scoring.startsWith("L") ? "lines out" : "flies out"} to ${where}${play.sacFly ? " (sac fly)" : ""}.`;
   else s = `${b.name} grounds out (${play.scoring}).`;
   const scorers = play.runs.slice(0, runs).filter((id) => id !== b.id).map((id) => game.name(id));
   if (scorers.length) s += ` ${scorers.join(", ")} score${scorers.length > 1 ? "" : "s"}.`;

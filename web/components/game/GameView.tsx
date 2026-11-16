@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
-import type { GameSetup, PitchInput } from "@/lib/game/session/session";
+import type { GameSession, GameSetup, PitchInput } from "@/lib/game/session/session";
 import type { TeamModel } from "@/lib/game/ratings";
 import { meterAt } from "@/lib/game/session/humanInput";
 import { getTeamColor } from "@/lib/mlb/teamColors";
@@ -29,11 +29,17 @@ export function GameView({
   teams,
   inputs,
   onExit,
+  onGameOver,
+  exitLabel,
 }: {
   setup: GameSetup;
   teams: Map<number, TeamModel>;
   inputs?: PitchInput[];
   onExit: () => void;
+  /** Fired once when the game goes final (season mode records the result). */
+  onGameOver?: (r: { awayRuns: number; homeRuns: number; session: GameSession }) => void;
+  /** Label of the button on the final box score (default "New game"). */
+  exitLabel?: string;
 }) {
   const pb = useMemo(() => createPlayback(), []);
   const ctl = useMemo(() => new GameController(setup, teams, pb, inputs ?? []), [setup, teams, pb, inputs]);
@@ -54,6 +60,19 @@ export function GameView({
     };
   }, [ctl, pb]);
 
+  // Season mode: report the final once.
+  const reported = useRef(false);
+  const onGameOverRef = useRef(onGameOver);
+  useEffect(() => {
+    onGameOverRef.current = onGameOver;
+  }, [onGameOver]);
+  useEffect(() => {
+    if (!snap.final || reported.current) return;
+    reported.current = true;
+    const s = ctl.session;
+    onGameOverRef.current?.({ awayRuns: s.game.score.away, homeRuns: s.game.score.home, session: s });
+  }, [snap.final, ctl]);
+
   // Keyboard controls.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -67,6 +86,9 @@ export function GameView({
         if (document.activeElement instanceof HTMLButtonElement) document.activeElement.blur();
         ctl.primary();
       } else if (k === "Escape") ctl.cancelAim();
+      else if (k === "c" || k === "C") {
+        if (!e.repeat) ctl.decideChallenge(true);
+      }
       else if (/^[1-7]$/.test(k)) ctl.selectPitch(Number(k) - 1);
       else if (e.repeat && (k === "Shift" || /^[pstbPSTB]$/.test(k))) return;
       else if (k === "Shift" || k === "p" || k === "P") ctl.togglePower();
@@ -78,8 +100,8 @@ export function GameView({
         if (ctl.getSnapshot().canManage) setShowMgr((v) => !v);
       }
       // px grows toward the 1B side: screen-right from behind the plate, screen-left from behind the mound.
-      else if (k === "ArrowLeft" || k === "a") ctl.nudgeAim(ctl.getSnapshot().humanPitching ? 0.12 : -0.12, 0);
-      else if (k === "ArrowRight" || k === "d") ctl.nudgeAim(ctl.getSnapshot().humanPitching ? -0.12 : 0.12, 0);
+      else if (k === "ArrowLeft" || k === "a") ctl.nudgeAim(pitchView(ctl.getSnapshot()) ? 0.12 : -0.12, 0);
+      else if (k === "ArrowRight" || k === "d") ctl.nudgeAim(pitchView(ctl.getSnapshot()) ? -0.12 : 0.12, 0);
       else if (k === "ArrowUp" || k === "w") ctl.nudgeAim(0, 0.12);
       else if (k === "ArrowDown") ctl.nudgeAim(0, -0.12);
       else return;
@@ -159,6 +181,9 @@ export function GameView({
       <Banner snap={snap} />
       <Feedback snap={snap} />
       <Controls snap={snap} ctl={ctl} touch={touch} />
+      <ChallengePrompt snap={snap} ctl={ctl} awayId={awayId} homeId={homeId} />
+      <TurnTag snap={snap} />
+      <Handoff snap={snap} ctl={ctl} />
 
       {showLog && <PlayLog snap={snap} onClose={() => setShowLog(false)} />}
       {showPitches && !snap.final && (
@@ -185,13 +210,110 @@ export function GameView({
               )}
               {snap.final && (
                 <button className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-black hover:bg-emerald-400" onClick={onExit}>
-                  New game
+                  {exitLabel ?? "New game"}
                 </button>
               )}
             </div>
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** The pitcher's view is up (aim directions are mirrored from the catcher's view). */
+const pitchView = (s: HudSnapshot) => s.humanPitching && (s.phase === "aim" || s.phase === "meter" || !s.humanBatting);
+
+/** ABS: the umpire has called it; the human club may challenge for a few seconds. */
+function ChallengePrompt({ snap, ctl, awayId, homeId }: { snap: HudSnapshot; ctl: GameController; awayId: number; homeId: number }) {
+  const c = snap.challenge;
+  const [now, setNow] = useState(() => performance.now());
+  useEffect(() => {
+    if (!c) return;
+    let raf = 0;
+    const tick = () => {
+      setNow(performance.now());
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [c]);
+  if (!c) return null;
+  const left = snap.abs?.[c.side] ?? 0;
+  const frac = Math.max(0, Math.min(1, (c.until - now) / c.ms));
+  const who = c.call === "strike" ? "batter" : "catcher";
+  const team = c.side === "away" ? awayId : homeId;
+  const btn = (e: React.PointerEvent, yes: boolean) => {
+    e.stopPropagation();
+    e.preventDefault();
+    ctl.decideChallenge(yes);
+  };
+  return (
+    <div className="pointer-events-none absolute inset-x-0 bottom-2 z-20 flex justify-center px-2 sm:bottom-3">
+      <div className="pointer-events-auto w-full max-w-sm animate-play_in overflow-hidden rounded-xl border border-white/15 bg-black/75 shadow-2xl backdrop-blur">
+        <div className="flex items-center gap-3 px-3 pt-2.5">
+          <span className={`rounded px-2 py-0.5 text-sm font-extrabold uppercase ${c.call === "strike" ? "bg-red-500/90" : "bg-green-600/90"}`}>{c.call}</span>
+          <div className="min-w-0 flex-1 text-xs leading-tight text-white/80">
+            <div className="font-semibold text-white">
+              {snap.twoPlayer ? `${c.side === "away" ? "P1" : "P2"} · ` : ""}
+              {abbrev(team)} {who} can challenge
+            </div>
+            <div>
+              ABS zone decides · {left} challenge{left === 1 ? "" : "s"} left (kept if you win)
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-2 p-2.5">
+          <button type="button" onPointerDown={(e) => btn(e, false)} className="flex-1 rounded-md bg-white/10 py-2 text-sm font-semibold hover:bg-white/20">
+            Accept <span className="hidden text-white/50 sm:inline">(Space)</span>
+          </button>
+          <button type="button" onPointerDown={(e) => btn(e, true)} className="flex-1 rounded-md bg-amber-400 py-2 text-sm font-bold text-black hover:bg-amber-300">
+            Challenge <span className="hidden text-black/60 sm:inline">(C)</span>
+          </button>
+        </div>
+        <div className="h-1 bg-white/10">
+          <div className="h-full bg-amber-400" style={{ width: `${frac * 100}%` }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Two players: whose turn it is at the controls. */
+function TurnTag({ snap }: { snap: HudSnapshot }) {
+  const t = snap.turn;
+  if (!t || snap.handoff || snap.phase === "between" || snap.phase === "play") return null;
+  return (
+    <div className="pointer-events-none absolute left-1/2 top-[88px] z-10 -translate-x-1/2 md:top-3">
+      <div className="flex items-center gap-2 rounded-full border border-white/15 bg-black/60 px-3 py-1 text-xs font-semibold shadow-lg backdrop-blur">
+        <span className={`rounded-full px-2 py-0.5 text-[11px] font-extrabold ${t.player === "P1" ? "bg-sky-400 text-black" : "bg-rose-400 text-black"}`}>{t.player}</span>
+        <TeamMark id={t.teamId} size={16} />
+        <span>{t.role === "pitch" ? "Pitching" : "Batting"}</span>
+      </div>
+    </div>
+  );
+}
+
+/** Two players, pass-the-device: an opaque card while the controls change hands. */
+function Handoff({ snap, ctl }: { snap: HudSnapshot; ctl: GameController }) {
+  const h = snap.handoff;
+  if (!h) return null;
+  return (
+    <div
+      className="absolute inset-0 z-40 flex items-center justify-center bg-[#05080b] px-4"
+      onPointerDown={(e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        sfx.unlock();
+        ctl.primary();
+      }}
+    >
+      <div className="animate-play_in text-center">
+        <div className="text-xs font-semibold uppercase tracking-[0.25em] text-amber-300">Hand it over</div>
+        <div className="mt-2 text-2xl font-extrabold">{h.title}</div>
+        <div className="mx-auto mt-2 max-w-xs text-sm text-white/65">{h.sub}</div>
+        <div className="mt-5 inline-block rounded-md bg-emerald-500 px-6 py-2.5 text-sm font-bold text-black">Ready — tap or press Space</div>
+      </div>
     </div>
   );
 }
@@ -298,6 +420,18 @@ function ScoreBug({ snap, awayId, homeId }: { snap: HudSnapshot; awayId: number;
         {pips("S", snap.strikes, 2, "bg-red-500")}
         {pips("O", snap.outs, 2, "bg-amber-300")}
       </div>
+      {snap.abs && (
+        <div className="flex flex-col justify-center gap-1 border-l border-white/10 pl-3 text-[10px] font-semibold text-white/60" title="ABS challenges left" aria-label={`ABS challenges left: ${abbrev(awayId)} ${snap.abs.away}, ${abbrev(homeId)} ${snap.abs.home}`}>
+          <div className="text-[9px] tracking-wider text-white/45">ABS</div>
+          {(["away", "home"] as const).map((side) => (
+            <div key={side} className="flex gap-1">
+              {Array.from({ length: Math.max(2, snap.abs![side]) }, (_, i) => (
+                <span key={i} className={`h-2 w-2 rounded-sm ${snap.abs![side] > i ? "bg-sky-400" : "bg-white/15"}`} />
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

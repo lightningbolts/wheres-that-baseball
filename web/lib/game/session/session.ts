@@ -22,8 +22,10 @@ import { buildPark, homeVenueForTeam } from "@/lib/game/physics/park";
 import { Rng } from "@/lib/game/math";
 import type { FieldPos, RosterFile } from "@/lib/game/types";
 import { pitchRecord, type PitchRecord } from "@/lib/game/stats/pitchLog";
+import { cpuWantsChallenge } from "@/lib/game/rules/abs";
 
-export type HumanSide = "away" | "home" | "none";
+/** "both": two players on one device, P1 the away club and P2 the home club. */
+export type HumanSide = "away" | "home" | "none" | "both";
 export type Difficulty = "rookie" | "pro" | "allstar";
 
 export interface GameSetup {
@@ -42,6 +44,15 @@ export interface GameSetup {
    * existed, which keep the old rules so they replay unchanged.
    */
   manager?: boolean;
+  /**
+   * ABS challenge system: two challenges a club, kept when they win. Absent on games
+   * saved before ABS existed, which replay unchanged.
+   */
+  abs?: boolean;
+  /** Two-player games: cover the screen while the pitcher picks his pitch, so the hitter can't see it. */
+  hidePitch?: boolean;
+  /** Postseason rules: extra innings start without the automatic runner on second. */
+  postseason?: boolean;
 }
 
 /** Everything a human decided on one pitch. `cpu` = that pitch was auto-played. */
@@ -57,6 +68,8 @@ export interface PitchInput {
   throwBase?: Base | null;
   /** Human substitutions made before this pitch, in order. */
   subs?: Substitution[];
+  /** The human challenged this called pitch under ABS. */
+  challenge?: boolean;
 }
 
 export interface ThrowPrompt {
@@ -117,6 +130,8 @@ export class GameSession {
       awayStarter: setup.awayStarter,
       homeStarter: setup.homeStarter,
       innings: setup.innings,
+      abs: !!setup.abs,
+      postseason: !!setup.postseason,
     });
   }
 
@@ -129,19 +144,25 @@ export class GameSession {
       for (const sub of input.subs ?? []) s.substitute(sub);
       s.throw(input);
       s.swing(input);
-      s.commit(input.throwBase);
+      s.commit(input.throwBase, input.challenge);
     }
     return s;
   }
 
   get humanBatting(): boolean {
     const h = this.setup.human;
-    return h !== "none" && (h === "away") === this.game.top;
+    return h === "both" || (h !== "none" && (h === "away") === this.game.top);
   }
 
   get humanPitching(): boolean {
     const h = this.setup.human;
-    return h !== "none" && (h === "home") === this.game.top;
+    return h === "both" || (h !== "none" && (h === "home") === this.game.top);
+  }
+
+  /** A human plays this club. */
+  humanControls(side: "away" | "home"): boolean {
+    const h = this.setup.human;
+    return h === "both" || h === side;
   }
 
   get stage(): "idle" | "prepared" | "thrown" | "swung" {
@@ -169,15 +190,26 @@ export class GameSession {
     const pre: GameEvent[] = [];
     const change = this.game.managePitching(this.rng, mgr ? human : null);
     if (change) pre.push(change);
-    if (mgr) pre.push(...this.game.manageLineup(human === null ? "both" : human === "home" ? "away" : "home"));
+    if (mgr && human !== "both") pre.push(...this.game.manageLineup(human === null ? "both" : human === "home" ? "away" : "home"));
     const ctx = this.game.pitchContext();
     this.pending = { input: auto ? { cpu: true } : {}, ctx, pre, steal: null };
     return { ctx, events: this.pending.pre };
   }
 
-  /** Which side the human manages (null when the CPU plays both). */
-  get humanSide(): "away" | "home" | null {
+  /** Which side the human manages ("both" in a two-player game; null when the CPU plays both). */
+  get humanSide(): "away" | "home" | "both" | null {
     return this.setup.human === "none" ? null : this.setup.human;
+  }
+
+  /**
+   * The club that could challenge the pending pitch's call under ABS when a human
+   * plays it (the CPU makes its own challenges on commit), or null.
+   */
+  get humanChallenger(): "away" | "home" | null {
+    const p = this.pending;
+    if (!p?.outcome || p.input.cpu) return null;
+    const side = this.game.absChallenger(p.outcome.result);
+    return side && this.humanControls(side) ? side : null;
   }
 
   /**
@@ -260,6 +292,7 @@ export class GameSession {
       ) as Parameters<typeof resolvePlay>[0]["runners"],
       batter: { playerId: b.id, sprint: b.sprint, bats: o.battingSide, bunt: !!o.result.bunt },
       outs: this.game.outs,
+      situation: { inning: this.game.inning, scoreDiff: this.game.top ? this.game.score.away - this.game.score.home : this.game.score.home - this.game.score.away },
       rng,
       chooseThrow,
       launch: { ev: o.result.contact!.exitSpeedMph ?? 0, la: o.result.contact!.launchAngleDeg ?? 0 },
@@ -270,10 +303,40 @@ export class GameSession {
    * Apply the pitch to the game. For a human defense with a throw prompt, pass the
    * chosen base (or null to hold); undefined keeps the AI's throw.
    */
-  commit(throwBase?: Base | null): CommittedPitch {
+  commit(throwBase?: Base | null, challenge?: boolean): CommittedPitch {
     const p = this.pending;
     if (!p?.outcome) throw new Error("commit() before swing()");
     const o = p.outcome;
+    // ABS: a called ball or strike may be challenged before it goes into the book.
+    const absEvents: GameEvent[] = [];
+    const challenger = this.game.absChallenger(o.result);
+    if (challenger) {
+      const human = this.humanControls(challenger) && !p.input.cpu;
+      const g = this.game;
+      const wants = human
+        ? !!challenge
+        : cpuWantsChallenge({
+            result: o.result,
+            zoneBottom: o.ctx.batter.zoneBottom,
+            zoneTop: o.ctx.batter.zoneTop,
+            balls: g.balls,
+            strikes: g.strikes,
+            outs: g.outs,
+            inning: g.inning,
+            regulation: g.regulation,
+            left: g.abs?.[challenger] ?? 0,
+            runnersOn: g.bases.filter(Boolean).length,
+            margin: challenger === "away" ? g.score.away - g.score.home : g.score.home - g.score.away,
+          });
+      if (human && wants) p.input.challenge = true;
+      if (wants) {
+        const r = g.absChallenge(o.result);
+        if (r) {
+          o.result = r.result;
+          absEvents.push(r.event);
+        }
+      }
+    }
     // Resolution consumes the RNG exactly like the headless sim: the play's own draws
     // come from a clone, then the main stream skips past them deterministically.
     if (o.result.kind === "in_play" && o.play && p.playRng) {
@@ -285,7 +348,7 @@ export class GameSession {
     }
     const inning = this.game.inning;
     const top = this.game.top;
-    const events = [...p.pre, ...this.game.apply(o.result, o.play)];
+    const events = [...p.pre, ...absEvents, ...this.game.apply(o.result, o.play)];
     this.pitchLog.push(
       pitchRecord({ ctx: o.ctx, result: o.result, play: o.play, battingSide: o.battingSide, events, inning, top }, this.pitchLog[this.pitchLog.length - 1]),
     );

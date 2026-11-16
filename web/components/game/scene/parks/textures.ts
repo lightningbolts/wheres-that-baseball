@@ -355,12 +355,77 @@ export interface DecalAtlas {
   cell(i: number): [number, number, number, number];
   /** UV rect of the manual scoreboard strip. */
   board: [number, number, number, number];
+  /** UV rect of the out-of-town (AL / NL) hand-turned board strip. */
+  outOfTown: [number, number, number, number];
+}
+
+const AL_GAMES: Array<[string, string]> = [["NYY", "BOS"], ["TOR", "BAL"], ["TB", "CLE"], ["DET", "MIN"], ["KC", "CWS"], ["HOU", "TEX"]];
+const NL_GAMES: Array<[string, string]> = [["NYM", "PHI"], ["ATL", "MIA"], ["WSH", "PIT"], ["CHC", "STL"], ["MIL", "CIN"], ["LAD", "SF"]];
+
+/**
+ * T-Mobile Park's out-of-town board: dark green steel, cream stencil type, a slot for
+ * each game's inning and each club's runs, hung by hand from the catwalk behind it.
+ */
+function drawOutOfTown(g: CanvasRenderingContext2D, y0: number, h: number): void {
+  const cream = "#ece6d2";
+  g.fillStyle = "#173a2d";
+  g.fillRect(0, y0, 1024, h);
+  g.strokeStyle = cream;
+  g.lineWidth = 2;
+  g.strokeRect(4, y0 + 4, 1016, h - 8);
+  g.beginPath();
+  g.moveTo(512, y0 + 4);
+  g.lineTo(512, y0 + h - 4);
+  g.stroke();
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  const leagues: Array<[string, Array<[string, string]>]> = [["AMERICAN LEAGUE", AL_GAMES], ["NATIONAL LEAGUE", NL_GAMES]];
+  leagues.forEach(([title, games], li) => {
+    const x0 = li * 512;
+    g.font = "bold 13px Arial, Helvetica, sans-serif";
+    g.fillStyle = cream;
+    g.fillText(title, x0 + 256, y0 + 14);
+    g.font = "bold 10px Arial, Helvetica, sans-serif";
+    for (let col = 0; col < 2; col += 1) {
+      const cx = x0 + 14 + col * 249;
+      g.fillStyle = "rgba(236,230,210,0.7)";
+      g.fillText("INN", cx + 14, y0 + 27);
+    }
+    g.font = "bold 15px Arial, Helvetica, sans-serif";
+    games.forEach(([away, home], gi) => {
+      const col = gi % 2;
+      const row = Math.floor(gi / 2);
+      const cx = x0 + 14 + col * 249;
+      const y = y0 + 42 + row * 20;
+      const k = li * 31 + gi * 7;
+      const inning = 1 + Math.floor(hash(k * 1.7) * 9);
+      const done = hash(k * 2.9) > 0.7;
+      // Inning slot (F for a final), then each club's name and its run tile.
+      g.fillStyle = "#0d2219";
+      g.fillRect(cx, y - 9, 28, 18);
+      g.fillStyle = "#f2d35b";
+      g.fillText(done ? "F" : String(inning), cx + 14, y + 1);
+      const club = (name: string, runs: number, x: number) => {
+        g.fillStyle = cream;
+        g.fillText(name, x + 26, y + 1);
+        g.fillStyle = "#0d2219";
+        g.fillRect(x + 56, y - 9, 26, 18);
+        g.fillStyle = cream;
+        g.fillText(String(runs), x + 69, y + 1);
+      };
+      club(away, Math.floor(hash(k * 4.3) * 8), cx + 34);
+      g.fillStyle = "rgba(236,230,210,0.6)";
+      g.fillText("@", cx + 128, y + 1);
+      club(home, Math.floor(hash(k * 6.1) * 8), cx + 132);
+    });
+  });
 }
 
 /** Painted distance markers plus a hand-operated scoreboard strip. */
 export function decalAtlas(numbers: number[], color: string): DecalAtlas {
-  const [c, g] = canvas(1024, 256);
-  g.clearRect(0, 0, 1024, 256);
+  const H = 512;
+  const [c, g] = canvas(1024, H);
+  g.clearRect(0, 0, 1024, H);
   g.font = "bold 54px Arial, Helvetica, sans-serif";
   g.textAlign = "center";
   g.textBaseline = "middle";
@@ -400,11 +465,15 @@ export function decalAtlas(numbers: number[], color: string): DecalAtlas {
       }
     }
   }
+  // Out-of-town board: 1024 × 96.
+  const o0 = 256;
+  drawOutOfTown(g, o0, 96);
   const t = finish(c, false, 8);
   return {
     texture: t,
-    cell: (i) => [(i * 128) / 1024, 1 - 64 / 256, ((i + 1) * 128) / 1024, 1],
-    board: [0, 1 - (y0 + 128) / 256, 1, 1 - y0 / 256],
+    cell: (i) => [(i * 128) / 1024, 1 - 64 / H, ((i + 1) * 128) / 1024, 1],
+    board: [0, 1 - (y0 + 128) / H, 1, 1 - y0 / H],
+    outOfTown: [0, 1 - (o0 + 96) / H, 1, 1 - o0 / H],
   };
 }
 
@@ -1137,38 +1206,96 @@ export function ledAtlas(lit: boolean): THREE.CanvasTexture {
   return t;
 }
 
-/** Feet per window column / floor in the city texture (32 × 32 windows per tile). */
+/**
+ * The city texture is a 2 × 2 atlas of facade styles, each an n × n grid of window bays
+ * (one bay = `w` feet wide, one floor = `h` feet tall). A building picks a style and a random
+ * offset inside that quadrant; walls taller or wider than a quadrant are split into pieces.
+ */
 export const CITY_CELL = { w: 11, h: 12.5, n: 32 } as const;
 
+/** Facade styles in the city atlas. */
+export const CITY_STYLE = { glass: 0, stone: 1, brick: 2, ribbon: 3 } as const;
+export type CityStyle = (typeof CITY_STYLE)[keyof typeof CITY_STYLE];
+
+/** UV origin of a style's quadrant (each quadrant spans 0.5 × 0.5). */
+export function cityQuadrant(style: CityStyle): [number, number] {
+  return [(style % 2) * 0.5, Math.floor(style / 2) * 0.5];
+}
+
+/** A texel of plain roof / spandrel color (the mortar corner of a stone-facade bay). */
+export const CITY_ROOF: [number, number] = [0.5 + 0.5 / (CITY_CELL.n * 20), 0.5 / (CITY_CELL.n * 20)];
+
 /**
- * Building facades: a grid of windows on a pale wall, multiplied by each building's color.
- * At night the wall goes dark and a scattering of windows is lit.
+ * Building facades, multiplied by each building's vertex color: a glass curtain wall
+ * (mullions, spandrel bands, panes that catch the sky unevenly), punched windows in pale
+ * stone, deep-set windows in brick, and mid-century ribbon windows. At night the walls go
+ * dark and offices light up a floor or a bay at a time, warm and cool.
  */
 export function cityTexture(lit: boolean): THREE.CanvasTexture {
   const n = CITY_CELL.n;
-  const px = 8;
-  const [c, g] = canvas(n * px, n * px);
-  g.fillStyle = lit ? "#2a2f3a" : "#ffffff";
-  g.fillRect(0, 0, n * px, n * px);
-  for (let j = 0; j < n; j += 1) {
-    // Whole floors are sometimes dark or fully lit, like real offices.
-    const floor = hash(j * 13.7 + 3);
-    for (let i = 0; i < n; i += 1) {
-      const r = hash(i * 7.31 + j * 3.17 + 11);
-      if (lit) {
-        const on = r < (floor > 0.93 ? 0.45 : floor < 0.3 ? 0.02 : 0.1);
-        const warm = hash(i * 1.7 + j * 9.3) < 0.7;
-        g.fillStyle = on ? (warm ? "#e8bf86" : "#b9cbe6") : "#222733";
-        g.globalAlpha = on ? 0.3 + 0.5 * hash(i + j * 31.1) : 1;
-      } else {
-        const v = 150 + Math.round(r * 50);
-        g.fillStyle = `rgb(${v - 30},${v - 8},${v + 14})`;
+  const px = 10;
+  const Q = n * px;
+  const [c, g] = canvas(Q * 2, Q * 2);
+  const rect = (style: number, i: number, j: number, x: number, y: number, w: number, h: number, fill: string, alpha = 1) => {
+    // (x, y) inside the bay, y measured up from the bay's floor line.
+    const qx = (style % 2) * Q;
+    const qy = Q * 2 - Math.floor(style / 2) * Q;
+    g.globalAlpha = alpha;
+    g.fillStyle = fill;
+    g.fillRect(qx + i * px + x, qy - (j * px + y + h), w, h);
+    g.globalAlpha = 1;
+  };
+  const grey = (v: number, tint = [0, 0, 0]) => `rgb(${Math.round(v + tint[0])},${Math.round(v + tint[1])},${Math.round(v + tint[2])})`;
+  // Night office light: whole floors tend to be on or off together, and so do bays.
+  const lamp = (style: number, i: number, j: number): string | null => {
+    const floor = hash(j * 13.7 + style * 101 + 3);
+    const bay = hash(Math.floor(i / 4) * 5.3 + j * 0.7 + style * 17);
+    const r = hash(i * 7.31 + j * 3.17 + style * 57 + 11);
+    const p = floor > 0.88 ? 0.75 : floor < 0.35 ? 0.03 : bay > 0.7 ? 0.5 : 0.12;
+    if (r >= p) return null;
+    const k = hash(i * 1.7 + j * 9.3 + style);
+    return k < 0.55 ? "#f2cf92" : k < 0.85 ? "#dfe8f6" : "#f5e3b8";
+  };
+  for (let style = 0; style < 4; style += 1) {
+    for (let j = 0; j < n; j += 1) {
+      for (let i = 0; i < n; i += 1) {
+        const r = hash(i * 7.31 + j * 3.17 + style * 31 + 11);
+        const on = lit ? lamp(style, i, j) : null;
+        const glow = 0.45 + 0.5 * hash(i + j * 31.1 + style);
+        if (style === CITY_STYLE.glass) {
+          // Mullion grid with a spandrel band; panes vary in tone by column (reflections).
+          const col = hash(Math.floor(i / 3) * 3.7 + style) * 0.5 + 0.5 * Math.sin(i * 0.45 + j * 0.08);
+          rect(style, i, j, 0, 0, px, px, lit ? "#1b2029" : grey(196, [-6, 2, 12]));
+          rect(style, i, j, 0, 0, px, 2, lit ? "#151920" : grey(170, [-4, 0, 6]));
+          const v = 122 + col * 46 + r * 14;
+          rect(style, i, j, 1, 2, px - 1, px - 2, lit ? "#121722" : grey(v, [-10, 0, 16]));
+          rect(style, i, j, 1, px - 3, px - 1, 1, lit ? "#1a1f2b" : grey(v + 22, [-8, 0, 12]));
+          if (on) rect(style, i, j, 1, 2, px - 1, px - 2, on, glow);
+        } else if (style === CITY_STYLE.stone) {
+          // Pale stone with deep punched windows and a lighter sill.
+          rect(style, i, j, 0, 0, px, px, lit ? "#2a2d33" : grey(212 + r * 16, [4, 2, -4]));
+          rect(style, i, j, 2, 2, 6, 6, lit ? "#1a1d24" : grey(84 + r * 30, [-6, 0, 12]));
+          rect(style, i, j, 2, 2, 6, 1, lit ? "#30333a" : grey(236, [2, 1, -2]));
+          if (on) rect(style, i, j, 2, 3, 6, 5, on, glow);
+        } else if (style === CITY_STYLE.brick) {
+          // Masonry with tall paired windows, piers every bay.
+          rect(style, i, j, 0, 0, px, px, lit ? "#2c2726" : grey(196 + r * 18, [6, 0, -8]));
+          for (const x of [2, 6]) {
+            rect(style, i, j, x, 2, 3, 6, lit ? "#1b1a1d" : grey(70 + r * 26, [-4, 0, 8]));
+            if (on && hash(i * 3 + x + j * 5) < 0.85) rect(style, i, j, x, 2, 3, 6, on, glow);
+          }
+          rect(style, i, j, 0, 9, px, 1, lit ? "#25211f" : grey(222, [4, 1, -6]));
+        } else {
+          // Ribbon windows: a continuous dark band per floor over a pale spandrel.
+          rect(style, i, j, 0, 0, px, px, lit ? "#272a31" : grey(220 + r * 10, [0, 0, 0]));
+          rect(style, i, j, 0, 3, px, 6, lit ? "#161a22" : grey(92 + 20 * Math.sin(i * 0.3 + j), [-6, 0, 14]));
+          rect(style, i, j, 0, 3, 1, 6, lit ? "#272a31" : grey(150));
+          if (on) rect(style, i, j, 0, 3, px, 6, on, glow * 0.9);
+        }
       }
-      g.fillRect(i * px + 2, j * px + 2, px - 3, px - 4);
-      g.globalAlpha = 1;
     }
   }
-  return finish(c, true, 8);
+  return finish(c, false, 8);
 }
 
 /** Soft radial glare for floodlight banks (additive). */

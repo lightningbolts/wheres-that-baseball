@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { AppNav } from "@/components/features/AppNav";
 import { MLB_TEAMS, getTeamById } from "@/lib/mlb/teams";
 import { getTeamColor } from "@/lib/mlb/teamColors";
@@ -12,7 +13,7 @@ import { clearSave, loadSave, type SavedGame } from "@/components/game/save";
 import { DIFFICULTY } from "@/lib/game/session/humanInput";
 import { sfx } from "@/components/game/audio";
 
-type Mode = "play-away" | "play-home" | "watch";
+type Mode = "play-away" | "play-home" | "two-player" | "watch";
 
 export function PlayBall() {
   const [rosters, setRosters] = useState<RosterFile | null>(null);
@@ -62,6 +63,17 @@ export function PlayBall() {
             bat-ball collisions, drag and lift, the park&apos;s real fences. You pitch and hit; the defense fields and throws on its own.
           </p>
         </header>
+        <Link
+          href="/play/season"
+          className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface p-4 hover:bg-hover"
+        >
+          <div>
+            <div className="text-xs uppercase tracking-wider text-secondary">New: franchise mode</div>
+            <div className="text-base font-semibold">2027 Season</div>
+            <div className="text-xs text-secondary">Run a club through 162 games and the postseason: trades, free agency, payroll, and play any game yourself.</div>
+          </div>
+          <span className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">Start</span>
+        </Link>
         {error && <p className="text-sm text-red-500">{error}</p>}
         {!rosters && !error && <p className="text-sm text-secondary">Loading rosters…</p>}
         {rosters && teams && (
@@ -130,14 +142,18 @@ function SetupForm({ rosters, onStart }: { rosters: RosterFile; onStart: (s: Gam
   const [difficulty, setDifficulty] = useState<Difficulty>("pro");
   const [myStarter, setMyStarter] = useState(0);
   const [oppStarter, setOppStarter] = useState(() => Math.floor(Math.random() * 5));
+  const [abs, setAbs] = useState(true);
+  const [hidePitch, setHidePitch] = useState(true);
+  const two = mode === "two-player";
 
   const rot = (id: number) => rosters.teams[String(id)]?.rotation ?? [];
   useEffect(() => setMyStarter(0), [mine]);
   useEffect(() => setOppStarter(Math.floor(Math.random() * Math.max(1, rot(opp).length))), [opp]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const start = () => {
-    const homeIsMine = mode !== "play-away";
-    const human: HumanSide = mode === "watch" ? "none" : mode === "play-home" ? "home" : "away";
+    // Two players: "mine" is P1 (away), the other club is P2 (home).
+    const homeIsMine = mode !== "play-away" && mode !== "two-player";
+    const human: HumanSide = mode === "watch" ? "none" : mode === "two-player" ? "both" : mode === "play-home" ? "home" : "away";
     onStart({
       awayTeamId: homeIsMine ? opp : mine,
       homeTeamId: homeIsMine ? mine : opp,
@@ -148,6 +164,8 @@ function SetupForm({ rosters, onStart }: { rosters: RosterFile; onStart: (s: Gam
       manager: true,
       awayStarter: homeIsMine ? oppStarter : myStarter,
       homeStarter: homeIsMine ? myStarter : oppStarter,
+      abs,
+      hidePitch: two ? hidePitch : undefined,
     });
   };
 
@@ -202,10 +220,10 @@ function SetupForm({ rosters, onStart }: { rosters: RosterFile; onStart: (s: Gam
         {teamSelect(mine, (n) => {
           setMine(n);
           if (n === opp) setOpp(available.find((t) => t.id !== n)?.id ?? opp);
-        }, -1, mode === "watch" ? "Team A" : "Your team")}
-        {teamSelect(opp, setOpp, mine, mode === "watch" ? "Team B" : "CPU opponent")}
-        {starterSelect(mine, myStarter, setMyStarter, mode === "watch" ? "Team A starter" : "Your starting pitcher")}
-        {starterSelect(opp, oppStarter, setOppStarter, mode === "watch" ? "Team B starter" : "CPU starting pitcher")}
+        }, -1, mode === "watch" ? "Team A" : two ? "Player 1 (away)" : "Your team")}
+        {teamSelect(opp, setOpp, mine, mode === "watch" ? "Team B" : two ? "Player 2 (home)" : "CPU opponent")}
+        {starterSelect(mine, myStarter, setMyStarter, mode === "watch" ? "Team A starter" : two ? "Player 1 starter" : "Your starting pitcher")}
+        {starterSelect(opp, oppStarter, setOppStarter, mode === "watch" ? "Team B starter" : two ? "Player 2 starter" : "CPU starting pitcher")}
       </div>
       <div className="grid gap-4 sm:grid-cols-3">
         <div>
@@ -213,6 +231,7 @@ function SetupForm({ rosters, onStart }: { rosters: RosterFile; onStart: (s: Gam
           {seg(mode, setMode, [
             ["play-home", "Home"],
             ["play-away", "Away"],
+            ["two-player", "2 players"],
             ["watch", "Watch CPU"],
           ])}
         </div>
@@ -229,6 +248,24 @@ function SetupForm({ rosters, onStart }: { rosters: RosterFile; onStart: (s: Gam
           {seg(difficulty, setDifficulty, (Object.keys(DIFFICULTY) as Difficulty[]).map((d) => [d, DIFFICULTY[d].label] as [Difficulty, string]))}
         </div>
       </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="flex cursor-pointer items-start gap-2 text-sm">
+          <input type="checkbox" className="mt-0.5 h-4 w-4 accent-emerald-600" checked={abs} onChange={(e) => setAbs(e.target.checked)} />
+          <span>
+            <span className="font-medium">ABS challenges</span>
+            <span className="block text-xs text-secondary">Two challenges a club on called balls and strikes; the automated zone decides and a winning challenge is kept.</span>
+          </span>
+        </label>
+        {two && (
+          <label className="flex cursor-pointer items-start gap-2 text-sm">
+            <input type="checkbox" className="mt-0.5 h-4 w-4 accent-emerald-600" checked={hidePitch} onChange={(e) => setHidePitch(e.target.checked)} />
+            <span>
+              <span className="font-medium">Pass the device</span>
+              <span className="block text-xs text-secondary">A cover screen hides each pitch while it&apos;s picked, so the hitter can&apos;t see it. Off for couch play on the honor system.</span>
+            </span>
+          </label>
+        )}
+      </div>
       <p className="text-xs text-secondary">
         The game is at the home team&apos;s ballpark: real fence distances and wall heights, with altitude and temperature in the air density.
       </p>
@@ -244,6 +281,8 @@ function Controls() {
     ["Pitching", "Pick a pitch (1–5), aim with the mouse or arrows, click or Space to set it, then stop the meter in the middle. A worse stop costs command."],
     ["Hitting", "You see the pitch from the catcher's view. Move the yellow coverage box over the ball (mouse, arrows, or drag on a touch screen) and swing with Space, a click or the Swing button just before it arrives. Every pitch leaves a numbered marker where it crossed the zone. Shift switches between contact and power swings (power has a smaller sweet spot and more bat speed). S sends the runner from first."],
     ["Fielding", "Fully automatic: fielders run to the ball and make the throws themselves, and the play never stops to wait for you."],
+    ["ABS challenges", "After a called ball or strike that goes against you, press C (or tap Challenge) within a few seconds. The automated zone reviews it; win and you keep the challenge. The CPU challenges too."],
+    ["Two players", "One device, hot seat: P1 is the away club, P2 the home club. The pitcher picks and throws, then the hitter takes the controls and calls for the pitch. Each player manages his own club with M on his turn."],
     ["Other", "T for fast-forward, Sim ½ to sim the rest of a half-inning. The game saves after every pitch."],
   ];
   return (

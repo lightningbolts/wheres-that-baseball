@@ -9,7 +9,8 @@ import type { Feature, ParkLayout } from "@/lib/game/data/parkLayouts";
 import { dirXZ, GROUND_Y, type WallLoop } from "@/components/game/scene/fieldGeometry";
 import { GeoBuilder, hash, mix, rgb, type P3, type RGB } from "@/components/game/scene/parks/geo";
 import type { StandReach } from "@/components/game/scene/parks/stands";
-import { CITY_CELL, LED_ROW, type DecalAtlas } from "@/components/game/scene/parks/textures";
+import { LED_ROW, type DecalAtlas } from "@/components/game/scene/parks/textures";
+import { cnTower, far, frameYaw, loc, obelisk, peak, skyline, spaceNeedle, type Frame } from "@/components/game/scene/parks/skyline";
 
 export interface PropCtx {
   park: Park;
@@ -33,21 +34,6 @@ export interface PropCtx {
   veil?: GeoBuilder;
 }
 
-/** A local frame on the ground: +lx to the viewer's right seen from home, +lz toward home. */
-interface Frame {
-  x: number;
-  z: number;
-  yaw: number;
-  rx: number;
-  rz: number;
-  fx: number;
-  fz: number;
-}
-
-function frameYaw(x: number, z: number, yaw: number): Frame {
-  return { x, z, yaw, rx: Math.cos(yaw), rz: -Math.sin(yaw), fx: Math.sin(yaw), fz: Math.cos(yaw) };
-}
-const loc = (f: Frame, lx: number, y: number, lz: number): P3 => [f.x + f.rx * lx + f.fx * lz, y, f.z + f.rz * lx + f.fz * lz];
 const clampDeg = (b: number) => Math.min(45, Math.max(-45, b));
 
 /** Frame `back` feet behind the wall at a bearing, facing the field. */
@@ -61,11 +47,6 @@ function behind(c: PropCtx, beta: number, back: number): Frame & { h: number } {
   return { ...frameYaw(w.x + w.nx * back, w.z + w.nz * back, Math.atan2(-w.nx, -w.nz)), h: w.h };
 }
 
-/** Frame at a bearing and distance from home, facing home. */
-function far(beta: number, dist: number): Frame {
-  const [dx, dz] = dirXZ(beta);
-  return frameYaw(dx * dist, dz * dist, Math.atan2(-dx, -dz));
-}
 
 function fbox(b: GeoBuilder, f: Frame, lx: number, y: number, lz: number, sx: number, sy: number, sz: number, color: string | RGB, shade = 1): void {
   const p = loc(f, lx, y, lz);
@@ -586,12 +567,46 @@ export function roof(c: PropCtx): void {
       const lift = (panels - 1 - k) * 15;
       const y = (u: number) => r.h + lift + 62 * Math.cos((u * Math.PI) / 2);
       skin((u, v) => at(a + (b - a) * u, (v * 2 - 1) * half, y(v * 2 - 1)), 2, 14, 1 - k * 0.04);
-      // Leading-edge and rib trusses.
-      for (let i = 0; i < 14; i += 1) {
-        const u0 = -1 + (2 * i) / 14;
-        const u1 = -1 + (2 * (i + 1)) / 14;
-        st.quadG(at(a, u0 * half, y(u0) - 18), at(a, u1 * half, y(u1) - 18), at(a, u1 * half, y(u1)), at(a, u0 * half, y(u0)), steel, 0.6, 0.86);
-        st.quad(at((a + b) / 2, u0 * half, y(u0) - 9), at((a + b) / 2, u1 * half, y(u1) - 9), at((a + b) / 2, u1 * half, y(u1)), at((a + b) / 2, u0 * half, y(u0)), steel, 0.66);
+      // Each panel is carried by open arched trusses at both ends: a curved top chord under
+      // the skin, a flatter bottom chord and Warren webbing between them.
+      const seg = 16;
+      const depth = (u: number) => 26 - 12 * Math.abs(u);
+      for (const t of [a, b]) {
+        const top = (u: number): P3 => at(t, u * half, y(u) - 2);
+        const bot = (u: number): P3 => at(t, u * half, y(u) - 2 - depth(u));
+        for (let i = 0; i < seg; i += 1) {
+          const u0 = -1 + (2 * i) / seg;
+          const u1 = -1 + (2 * (i + 1)) / seg;
+          st.beam(top(u0), top(u1), 4.5, steel, 0.95);
+          st.beam(bot(u0), bot(u1), 3.5, steel, 0.8);
+          st.beam(i % 2 ? top(u0) : bot(u0), i % 2 ? bot(u1) : top(u1), 1.8, steel, 0.75);
+        }
+        st.beam(top(-1), bot(-1), 2.4, steel, 0.8);
+        st.beam(top(1), bot(1), 2.4, steel, 0.8);
+      }
+      // A lighter rib truss at mid-panel.
+      const m = (a + b) / 2;
+      for (let i = 0; i < seg; i += 2) {
+        const u0 = -1 + (2 * i) / seg;
+        const u1 = -1 + (2 * (i + 2)) / seg;
+        st.quad(at(m, u0 * half, y(u0) - 10), at(m, u1 * half, y(u1) - 10), at(m, u1 * half, y(u1)), at(m, u0 * half, y(u0)), steel, 0.62);
+      }
+      // Wheeled trucks under each corner ride the rails; stacked panels sit on taller frames.
+      const rail = r.h + 1;
+      for (const side of [-1, 1]) {
+        for (const t of [a + Math.sign(b - a) * 14, b - Math.sign(b - a) * 14]) {
+          const p = at(t, side * half, rail + 4);
+          const yaw = Math.atan2(ax, az);
+          st.box(p[0], p[1], p[2], 13, 7, 34, yaw, "#3d4247", 0.9);
+          for (const o of [-11, 0, 11]) {
+            const w = at(t + o, side * half, rail + 1.6);
+            st.box(w[0], w[1], w[2], 15, 4.4, 4.4, yaw, "#1f2226", 0.8);
+          }
+          const top = y(side) - 2;
+          if (top - (rail + 7.5) > 2) {
+            for (const o of [-10, 10]) st.beam(at(t + o, side * half, rail + 7.5), at(t, side * half, top), 3, steel, 0.85);
+          }
+        }
       }
     }
   }
@@ -630,31 +645,26 @@ export function decalGeometry(c: PropCtx, atlas: DecalAtlas): THREE.BufferGeomet
       b.quadUv([p.x - p.nx * o, 1.2, p.z - p.nz * o], [q.x - q.nx * o, 1.2, q.z - q.nz * o], [q.x - q.nx * o, 14.2, q.z - q.nz * o], [p.x - p.nx * o, 14.2, p.z - p.nz * o], [ua, v0], [ub, v0], [ub, v1], [ua, v1], "#ffffff");
     }
   }
-  return b.build();
-}
-
-/** A building in the city mesh: four window-grid walls and a plain roof. */
-function cityBox(c: PropCtx, fr: Frame, lx: number, y0: number, w: number, h: number, d: number, color: RGB, k: number): void {
-  const n = CITY_CELL.n;
-  const uo = Math.floor(hash(k * 3.3) * n) / n;
-  const vo = Math.floor(hash(k * 5.1) * n) / n;
-  const corners: Array<[number, number]> = [
-    [-w / 2, d / 2],
-    [w / 2, d / 2],
-    [w / 2, -d / 2],
-    [-w / 2, -d / 2],
-  ];
-  const shades = [1, 0.78, 0.6, 0.86];
-  for (let i = 0; i < 4; i += 1) {
-    const a = corners[i];
-    const b = corners[(i + 1) % 4];
-    const cols = Math.max(1, Math.round((i % 2 ? d : w) / CITY_CELL.w));
-    const rows = Math.max(1, Math.round(h / CITY_CELL.h));
-    c.city.quadUv(loc(fr, lx + a[0], y0, a[1]), loc(fr, lx + b[0], y0, b[1]), loc(fr, lx + b[0], y0 + h, b[1]), loc(fr, lx + a[0], y0 + h, a[1]), [uo, vo], [uo + cols / n, vo], [uo + cols / n, vo + rows / n], [uo, vo + rows / n], color, shades[i]);
+  const hb = c.layout.handBoard;
+  if (hb) {
+    // Set flush into the wall face, following its curve, with a pad's worth of wall left above.
+    // Like the Fenway board: texture left to right along increasing arc length.
+    const sA = Math.min(c.loop.sOf(hb.from), c.loop.sOf(hb.to));
+    const sB = Math.max(c.loop.sOf(hb.from), c.loop.sOf(hb.to));
+    const n = 10;
+    const [u0, v0, u1, v1] = atlas.outOfTown;
+    const o = 0.2;
+    const len = Math.abs(sB - sA);
+    const top = Math.min(c.loop.at((sA + sB) / 2).h - 0.9, 1.1 + len / 10.7);
+    for (let i = 0; i < n; i += 1) {
+      const p = c.loop.at(sA + ((sB - sA) * i) / n);
+      const q = c.loop.at(sA + ((sB - sA) * (i + 1)) / n);
+      const ua = u0 + ((u1 - u0) * i) / n;
+      const ub = u0 + ((u1 - u0) * (i + 1)) / n;
+      b.quadUv([p.x - p.nx * o, 1.1, p.z - p.nz * o], [q.x - q.nx * o, 1.1, q.z - q.nz * o], [q.x - q.nx * o, top, q.z - q.nz * o], [p.x - p.nx * o, top, p.z - p.nz * o], [ua, v0], [ub, v0], [ub, v1], [ua, v1], "#ffffff");
+    }
   }
-  // Roof: a wall-colored texel (the mortar corner of a window cell).
-  const t = [0.5 / (n * 8), 1 - 0.5 / (n * 8)];
-  c.city.quadUv(loc(fr, lx + corners[0][0], y0 + h, corners[0][1]), loc(fr, lx + corners[1][0], y0 + h, corners[1][1]), loc(fr, lx + corners[2][0], y0 + h, corners[2][1]), loc(fr, lx + corners[3][0], y0 + h, corners[3][1]), t, t, t, t, color, 0.9);
+  return b.build();
 }
 
 function tree(b: GeoBuilder, x: number, z: number, kind: "pine" | "palm" | "round" | "cherry", k: number): void {
@@ -723,48 +733,257 @@ function tree(b: GeoBuilder, x: number, z: number, kind: "pine" | "palm" | "roun
   b.mat = 0;
 }
 
+/**
+ * Wrigleyville's rooftop clubs: three- and four-storey brick and greystone walk-ups along
+ * Waveland Ave (behind left field) and Sheffield Ave (behind right), each crowned with a
+ * stepped steel bleacher deck looking into the park. The two streets run square to the foul
+ * lines and meet at a corner behind center, so the rows read as city blocks, not an arc.
+ */
+function rooftops(c: PropCtx, f: { from: number; to: number; back: number }): void {
+  const nL = dirXZ(-45);
+  const nR = dirXZ(45);
+  // Put each street's building line clear of the bleachers, plus a sidewalk and the street.
+  let dL = c.park.fence(-45) + f.back * 0.55;
+  let dR = c.park.fence(45) + f.back * 0.55;
+  for (let b = -45; b <= 0; b += 3) {
+    const r = c.park.fence(clampDeg(b)) + c.reach(b).out + 62;
+    dL = Math.max(dL, r * Math.cos(((b + 45) * Math.PI) / 180));
+    dR = Math.max(dR, (c.park.fence(clampDeg(-b)) + c.reach(-b).out + 62) * Math.cos(((45 + b) * Math.PI) / 180));
+  }
+  const D = 62;
+  const row = (along: number[], away: number[], d0: number, t0: number, t1: number, seed: number) => {
+    const yaw = Math.atan2(-away[0], -away[1]);
+    let i = 0;
+    for (let t = t0; t < t1 - 6; i += 1) {
+      const w = Math.min(t1 - t, 30 + Math.round(hash(seed + i * 4.7) * 3) * 8);
+      const m = t + w / 2;
+      const x = away[0] * (d0 + D / 2) + along[0] * m;
+      const z = away[1] * (d0 + D / 2) + along[1] * m;
+      // Raise the deck on a steel frame until it clears the sightline over the bleachers.
+      const beta = clampDeg((Math.atan2(-x, z) * 180) / Math.PI);
+      const rc = c.reach(beta);
+      const rim = c.park.fence(beta) + rc.out;
+      const sight = 5 + ((rc.top - 5) * (Math.hypot(x, z) - D / 2)) / Math.max(1, rim);
+      rowhouse(c, frameYaw(x, z, yaw), w, D, seed + i, sight);
+      t += w;
+    }
+  };
+  // Waveland runs to the corner and turns it; Sheffield stops where Waveland's lots begin.
+  row(nR, nL, dL, -46, dR + D, 11);
+  row(nL, nR, dR, -46, dL, 57);
+}
+
+function rowhouse(c: PropCtx, fr: Frame, w: number, D: number, i: number, sight: number): void {
+  const { st, glow } = c;
+  const floors = hash(i * 3.1 + 5) > 0.68 ? 4 : 3;
+  const h = GROUND_Y + 5 + floors * 11;
+  const FACADES = ["#8a4434", "#9b5a42", "#7a3b2e", "#a69f92", "#c9c1ad", "#6e4a3a", "#e1dacb", "#8f6a4c", "#3f5b48"];
+  const col = FACADES[Math.floor(hash(i * 9.7 + 1) * FACADES.length)];
+  const front = D / 2;
+  st.mat = 1;
+  fbox(st, fr, 0, (h + GROUND_Y) / 2, 0, w - 0.6, h - GROUND_Y, D, col);
+  st.mat = 0;
+  // Cornice and a storefront band at street level.
+  fbox(st, fr, 0, h + 0.9, front - 0.4, w + 0.6, 1.8, 2.6, mix(col, "#1e1f22", 0.4));
+  panel(st, fr, 0, GROUND_Y + 5, front + 0.15, w * 0.84, 7.5, mix("#23272b", col, 0.15));
+  fbox(st, fr, 0, GROUND_Y + 9.6, front + 2, w * 0.86, 0.6, 4, hash(i * 2.3) > 0.5 ? "#2f5b3f" : "#7c2a2a");
+  // Bays of tall sash windows; at night some rooms are lit.
+  const bays = Math.max(2, Math.round(w / 9));
+  for (let fl = 0; fl < floors; fl += 1) {
+    for (let k = 0; k < bays; k += 1) {
+      const on = c.lit && hash(i * 13 + fl * 7 + k * 3) > 0.45;
+      panel(on ? glow : st, fr, ((k + 0.5) / bays - 0.5) * (w - 6), GROUND_Y + 16 + fl * 11, front + 0.2, 4.4, 6.6, on ? WINDOW : "#1d2228", on ? 0.85 : 1);
+    }
+  }
+
+  // The bleacher deck: aluminum risers on a steel frame, stepping up away from the park.
+  const rows = 6 + Math.floor(hash(i * 4.3 + 2) * 4);
+  const run = 3.1;
+  const rise = 2.2;
+  const x0 = -w / 2 + 1.2;
+  const x1 = w / 2 - 1.2;
+  const z0 = front - 2.5;
+  const zEnd = z0 - rows * run;
+  const base = Math.max(h + 2.2, sight - rows * rise * 0.3);
+  const yTop = base + rows * rise;
+  const seat = hash(i * 6.1) > 0.62 ? "#2d6a45" : hash(i * 6.1) > 0.3 ? "#a9afb4" : "#8c939a";
+  const steel = "#4b5056";
+  fbox(st, fr, 0, h + 1.1, (z0 + zEnd) / 2, w - 1, 1, z0 - zEnd + 2, "#5d6166");
+  if (base > h + 3) {
+    // Steel stilts and cross-bracing under a raised deck.
+    for (const x of [x0, 0, x1]) {
+      for (const z of [z0, (z0 + zEnd) / 2, zEnd]) st.beam(loc(fr, x, h, z), loc(fr, x, base, z), 0.8, "#464b51");
+      st.beam(loc(fr, x, h, z0), loc(fr, x, base, zEnd), 0.4, "#464b51");
+    }
+    st.beam(loc(fr, x0, base, z0), loc(fr, x1, base, z0), 0.9, "#464b51");
+    fbox(st, fr, 0, base - 0.5, (z0 + zEnd) / 2, w - 2, 1, z0 - zEnd, "#5d6166");
+  }
+  for (let r = 0; r < rows; r += 1) {
+    const zf = z0 - r * run;
+    const yt = base + (r + 1) * rise;
+    st.quad(loc(fr, x0, yt - rise, zf), loc(fr, x1, yt - rise, zf), loc(fr, x1, yt, zf), loc(fr, x0, yt, zf), steel, 0.8);
+    st.quad(loc(fr, x0, yt, zf), loc(fr, x1, yt, zf), loc(fr, x1, yt, zf - run), loc(fr, x0, yt, zf - run), seat, 1.05);
+  }
+  // Open side frames and the back screen.
+  for (const x of [x0, x1]) {
+    st.quad(loc(fr, x, base, z0), loc(fr, x, base, zEnd), loc(fr, x, yTop, zEnd), loc(fr, x, base + rise, z0), steel, 0.9);
+    st.beam(loc(fr, x, yTop, zEnd), loc(fr, x, yTop + 4, zEnd), 0.5, steel);
+    st.beam(loc(fr, x, base + rise + 3.4, z0), loc(fr, x, yTop + 3.4, zEnd), 0.35, "#b7bcc1");
+  }
+  st.quad(loc(fr, x0, h, zEnd - 0.3), loc(fr, x1, h, zEnd - 0.3), loc(fr, x1, yTop, zEnd - 0.3), loc(fr, x0, yTop, zEnd - 0.3), "#3b3f44", 0.9);
+  st.beam(loc(fr, x0, yTop + 4, zEnd), loc(fr, x1, yTop + 4, zEnd), 0.4, "#b7bcc1");
+  st.beam(loc(fr, x0, base + rise + 3.4, z0 + 0.3), loc(fr, x1, base + rise + 3.4, z0 + 0.3), 0.35, "#b7bcc1");
+
+  const style = hash(i * 7.3 + 4);
+  if (style > 0.62) {
+    // A shade canopy on posts over the top rows.
+    const cz = zEnd + Math.min(rows, 4) * run;
+    const cy = yTop + 9;
+    const awn = ["#2f5b3f", "#1f3456", "#7c2a2a", "#e8e3d6"][Math.floor(hash(i * 1.9) * 4)];
+    for (const x of [x0 + 0.5, x1 - 0.5]) {
+      st.beam(loc(fr, x, yTop, zEnd + 0.4), loc(fr, x, cy + 1.5, zEnd + 0.4), 0.6, steel);
+      st.beam(loc(fr, x, base + (rows - 4) * rise, cz), loc(fr, x, cy, cz), 0.5, steel);
+    }
+    st.quad(loc(fr, x0 - 1, cy - 0.5, cz + 2), loc(fr, x1 + 1, cy - 0.5, cz + 2), loc(fr, x1 + 1, cy + 2, zEnd - 1), loc(fr, x0 - 1, cy + 2, zEnd - 1), awn, 0.95);
+  } else if (style < 0.3) {
+    // A billboard over the back row, like the ad signs that top a few of the clubs.
+    const bw = Math.min(w - 4, 34);
+    const by = yTop + 12;
+    for (const x of [-bw * 0.35, bw * 0.35]) st.beam(loc(fr, x, yTop, zEnd - 1), loc(fr, x, by - 5, zEnd - 1), 0.7, steel);
+    const sign = ["#c8302c", "#1f4f9c", "#f2efe6", "#e3b02a"][Math.floor(hash(i * 3.9) * 4)];
+    fbox(st, fr, 0, by, zEnd - 1.4, bw, 10, 0.8, sign);
+    panel(c.lit ? glow : st, fr, 0, by - 1.4, zEnd - 0.9, bw * 0.78, 2.4, c.lit ? [0.96, 0.95, 0.9] : "#f6f4ee", c.lit ? 0.9 : 1);
+    panel(st, fr, 0, by + 2.4, zEnd - 0.9, bw * 0.6, 2.2, mix(sign, "#101215", 0.55));
+  }
+  if (c.lit) {
+    // String lights along the front rail and a lamp at each back corner.
+    const ly = base + rise + 3.9;
+    st.beam(loc(fr, x0, ly, z0 + 0.4), loc(fr, x1, ly, z0 + 0.4), 0.2, "#202326");
+    for (let k = 0; k <= 4; k += 1) {
+      const p = loc(fr, x0 + ((x1 - x0) * k) / 4, ly, z0 + 0.6);
+      glow.box(p[0], p[1], p[2], 0.8, 0.8, 0.8, fr.yaw, [1, 0.86, 0.55]);
+    }
+    for (const x of [x0, x1]) {
+      const p = loc(fr, x, yTop + 5, zEnd);
+      glow.box(p[0], p[1], p[2], 1.4, 1, 1.4, fr.yaw, LAMP_ON);
+      c.flares.push(p[0], p[1], p[2], 9);
+    }
+  }
+}
+
+/** A fountain jet: a tapering column that opens into a crown of falling streams. */
+function plume(b: GeoBuilder, p: P3, h: number, r: number, spread: number, col: RGB, k: number, n = 7): void {
+  b.cyl(p[0], p[1], p[2], r, r * 0.45, h, col, 6, false);
+  for (let i = 0; i < n; i += 1) {
+    const a = (i / n) * Math.PI * 2 + k * 0.7;
+    let prev: P3 = [p[0], p[1] + h, p[2]];
+    for (let j = 1; j <= 3; j += 1) {
+      const u = j / 3;
+      const q: P3 = [p[0] + Math.cos(a) * spread * u, p[1] + h + spread * 0.35 * u - spread * 1.5 * u * u, p[2] + Math.sin(a) * spread * u];
+      b.beam(prev, q, r * (0.75 - u * 0.2), col, 1 - u * 0.12);
+      prev = q;
+    }
+  }
+}
+
+/**
+ * Kauffman Stadium's Water Spectacular: a shallow pool against the fence, three stepped
+ * waterfalls climbing to a limestone terrace, a row of fountain jets and a tall geyser at the
+ * middle, all lit from below at night.
+ */
+function waterSpectacular(c: PropCtx, f: { from: number; to: number; back: number }, fi: number): void {
+  const { st, glow } = c;
+  const step = 1.5;
+  const tiers: Array<[z: number, top: number]> = [
+    [-11, 5],
+    [-18, 10.5],
+    [-25, 16.5],
+  ];
+  const zBack = -33;
+  const stone = "#b8ad96";
+  const LIGHTS: RGB[] = [
+    [0.45, 0.78, 1],
+    [0.4, 1, 0.92],
+    [0.62, 0.58, 1],
+    [0.42, 0.9, 1],
+  ];
+  const mid = (f.from + f.to) / 2;
+  for (let deg = f.from, s = 0; deg < f.to - 0.01; deg += step, s += 1) {
+    const a = behind(c, deg, f.back);
+    const b = behind(c, Math.min(f.to, deg + step), f.back);
+    const h = a.h;
+    const flat = (z0: number, z1: number, y: number, col: string | RGB, mat: number) => {
+      st.mat = mat;
+      st.quad(loc(a, 0, y, z0), loc(b, 0, y, z0), loc(b, 0, y, z1), loc(a, 0, y, z1), col, 0.95 + 0.1 * hash(deg * 2.3 + z0));
+      st.mat = 0;
+    };
+    const face = (z: number, y0: number, y1: number, col: string | RGB, mat: number) => {
+      st.mat = mat;
+      st.quad(loc(a, 0, y0, z), loc(b, 0, y0, z), loc(b, 0, y1, z), loc(a, 0, y1, z), col);
+      st.mat = 0;
+    };
+    const tint = LIGHTS[Math.floor(s / 3) % LIGHTS.length];
+    // Curb and the lower pool.
+    face(0, 0, h + 0.5, "#38434c", 0);
+    flat(0.4, tiers[0][0], h - 0.8, "#2c79ad", 6);
+    let y = h - 0.8;
+    for (let t = 0; t < tiers.length; t += 1) {
+      const [z, top] = tiers[t];
+      const yt = h + top;
+      face(z - 0.4, y, yt, stone, 1);
+      // The falling sheet leans out from the lip; bright at the lip, bluer where it lands.
+      const sheet: [P3, P3, P3, P3] = [loc(a, 0, yt + 0.25, z + 0.2), loc(b, 0, yt + 0.25, z + 0.2), loc(b, 0, y + 0.1, z + 1.4), loc(a, 0, y + 0.1, z + 1.4)];
+      if (c.lit) glow.quadG(...sheet, tint, 1, 0.55);
+      else st.quadG(...sheet, hash(deg * 7.7 + z) > 0.5 ? "#d4e9f4" : "#c4e0ef", 1.04, 0.72);
+      // Spray where it lands.
+      if (s % 2 === 0) {
+        const p = loc(a, 0, y + 0.6, z + 2.2);
+        st.sphere(p[0], p[1], p[2], 2.1, "#eef6fa", 6, 0.45);
+      }
+      // The next pool up.
+      const zNext = t + 1 < tiers.length ? tiers[t + 1][0] : zBack;
+      flat(z - 0.4, zNext, yt, "#2f80b4", 6);
+      y = yt;
+    }
+    // Limestone terrace wall and its coping.
+    face(zBack, 0, h + 20, stone, 1);
+    flat(zBack, zBack - 4, h + 20, "#e9e4d6", 0);
+    if (c.lit) {
+      // Underwater floods along the base of the lowest fall and the curb.
+      glow.quad(loc(a, 0, h - 0.6, -1), loc(b, 0, h - 0.6, -1), loc(b, 0, h - 0.6, -4), loc(a, 0, h - 0.6, -4), tint, 0.9);
+    }
+    // Fountain jets in the lower pool: a tall plume every other step, short ones between.
+    const tall = s % 2 === 0;
+    const jh = tall ? 18 + hash(deg * 5.1 + fi) * 14 : 6 + hash(deg * 3.7 + fi) * 4;
+    const p = loc(a, 0, h - 0.8, -5.5);
+    const jc: RGB = c.lit ? [0.55 + tint[0] * 0.45, 0.6 + tint[1] * 0.4, 0.7 + tint[2] * 0.3] : [0.84, 0.92, 0.97];
+    plume(c.lit ? glow : st, p, jh, tall ? 0.65 : 0.9, tall ? 3.6 : 2.2, jc, s, 9);
+    st.sphere(p[0], p[1] + 0.2, p[2], tall ? 3.4 : 2.6, "#e2eff6", 6, 0.22);
+  }
+  // The signature geyser at the middle of the run, and stone piers at the ends.
+  const g = loc(behind(c, mid, f.back), 0, behind(c, mid, f.back).h - 0.8, -6);
+  const gh = f.to - f.from > 25 ? 62 : 40;
+  plume(c.lit ? glow : st, g, gh, 1.6, gh * 0.11, c.lit ? [0.85, 0.95, 1] : [0.9, 0.95, 0.98], 7, 16);
+  st.sphere(g[0], g[1] + 0.3, g[2], 6, "#e2eff6", 8, 0.22);
+  for (const deg of [f.from, f.to]) {
+    const e = behind(c, deg, f.back);
+    st.mat = 1;
+    fbox(st, e, 0, (e.h + 21) / 2, zBack / 2, 3.2, e.h + 21, -zBack + 1, stone);
+    st.mat = 0;
+  }
+}
+
 function feature(c: PropCtx, f: Feature, fi: number): void {
   const { st, glow } = c;
   const park = c.park;
   const fenceAt = (beta: number) => park.fence(clampDeg(beta));
   switch (f.k) {
-    case "skyline": {
-      // Two hazy layers of towers with real window grids; tiers and the odd spire break
-      // up the boxes. Lit windows come from the night texture.
-      const towers: Array<[number, number, number, number]> = [];
-      for (let layer = 0; layer < 2; layer += 1) {
-        const n = layer ? Math.ceil(f.n * 0.8) : f.n;
-        for (let i = 0; i < n; i += 1) {
-          const k = i + layer * 400;
-          const t = hash(fi * 97 + k * 13.7);
-          towers.push([f.from + ((f.to - f.from) * (i + hash(k * 5.1 + fi))) / n, f.h * (layer ? 0.42 : 0.72) * (0.3 + 0.7 * t * t), k, layer]);
-        }
-      }
-      for (const [deg, h] of f.tall ?? []) towers.push([deg, h * 0.8, 1000 + deg, 0]);
-      for (const [deg, h, k, layer] of towers) {
-        const fr = far(deg, f.dist * (layer ? 1.7 : 1.2 + 0.25 * hash(k * 1.9 + 2)));
-        const tall = k >= 1000;
-        const w = 62 + hash(k * 2.3) * 70 + (tall ? 26 : 0);
-        const d = 60 + hash(k * 4.1) * 40;
-        const warm = hash(k * 6.3) < 0.3;
-        const base = mix(warm ? "#b7a593" : "#9fb0c2", warm ? "#7d6a5d" : "#5d6c80", hash(k * 7.7));
-        const color: RGB = c.lit ? rgb("#ffffff", 0.75 + 0.35 * hash(k * 3.1)) : mix(base, "#cfe2f3", 0.45 + 0.25 * layer);
-        const tiers = tall || (h > f.h * 0.55 && hash(k * 8.9) < 0.6) ? 2 : 1;
-        const h0 = tiers > 1 ? h * (0.62 + 0.2 * hash(k * 2.7)) : h;
-        cityBox(c, fr, 0, GROUND_Y, w, h0, d, color, k);
-        if (tiers > 1) {
-          cityBox(c, fr, 0, GROUND_Y + h0, w * 0.66, h - h0, d * 0.66, color, k + 7);
-          if (tall || hash(k * 4.7) < 0.5) {
-            const p = loc(fr, 0, GROUND_Y + h, 0);
-            st.cyl(p[0], p[1], p[2], 2.4, 0.5, h * 0.2, c.lit ? "#3a4254" : mix("#8c97a6", "#cfe2f3", 0.4), 5, false);
-          }
-        } else if (hash(k * 9.3) < 0.35) {
-          // Rooftop plant.
-          cityBox(c, fr, w * 0.12, GROUND_Y + h0, w * 0.4, 10, d * 0.4, color, k + 3);
-        }
-      }
+    case "skyline":
+      skyline(c, f, fi);
       break;
-    }
+    case "peak":
+      peak(st, f);
+      break;
     case "mountains": {
       const n = 40;
       const pts: Array<[P3, number]> = [];
@@ -824,51 +1043,18 @@ function feature(c: PropCtx, f: Feature, fi: number): void {
       break;
     }
     case "bridge": {
-      const fr = far(f.deg, f.dist);
-      const deckY = 58;
-      fbox(st, fr, 0, deckY, 0, f.len, 7, 34, f.color, 0.9);
-      for (let x = -f.len / 2 + 40; x < f.len / 2; x += 130) fbox(st, fr, x, (deckY + GROUND_Y) / 2, 0, 12, deckY - GROUND_Y, 26, "#8b8f94");
-      for (let t = 0; t < f.towers; t += 1) {
-        const x = f.len * ((t + 1) / (f.towers + 1) - 0.5);
-        const top = deckY + 150;
-        for (const lz of [-15, 15]) fbox(st, fr, x, (top + GROUND_Y) / 2, lz, 11, top - GROUND_Y, 9, f.color);
-        fbox(st, fr, x, top - 12, 0, 11, 9, 34, f.color, 0.9);
-        const reach = f.len / (f.towers + 1) / 2;
-        for (const dirx of [-1, 1]) {
-          for (let k = 1; k <= 3; k += 1) st.beam(loc(fr, x, top - 4, 0), loc(fr, x + (dirx * reach * k) / 3, deckY + 3, 0), 2, f.color, 0.95);
-        }
-      }
+      bridge(c, f);
       break;
     }
     case "arch": {
-      const fr = far(f.deg, f.dist);
-      const n = 26;
-      const pt = (i: number): P3 => {
-        const t = -1 + (2 * i) / n;
-        return loc(fr, (t * f.h) / 2, GROUND_Y + f.h * (1 - Math.abs(t) ** 2.3), 0);
-      };
-      for (let i = 0; i < n; i += 1) st.beam(pt(i), pt(i + 1), 26 - 12 * (1 - Math.abs(-1 + (2 * i + 1) / n)), "#cfd5db", 0.85 + 0.15 * hash(i));
+      gatewayArch(st, far(f.deg, f.dist), f.h);
       break;
     }
     case "needle": {
       const [dx, dz] = dirXZ(f.deg);
-      const x = dx * f.dist;
-      const z = dz * f.dist;
-      if (f.style === "saucer") {
-        // Space Needle: a waisted white tower, the halo saucer near the top, a spire.
-        st.cyl(x, GROUND_Y, z, 34, 9, f.h * 0.42, "#ecebe6", 8, false);
-        st.cyl(x, GROUND_Y + f.h * 0.42, z, 9, 16, f.h * 0.33, "#ecebe6", 8, false);
-        st.cyl(x, GROUND_Y + f.h * 0.75, z, 34, 62, f.h * 0.05, "#d9d6cc", 16);
-        st.cyl(x, GROUND_Y + f.h * 0.8, z, 62, 40, f.h * 0.05, "#c9a24a", 16);
-        st.cyl(x, GROUND_Y + f.h * 0.85, z, 10, 2, f.h * 0.15, "#ecebe6", 6);
-      } else if (f.h > 700) {
-        st.cyl(x, GROUND_Y, z, 30, 11, f.h * 0.62, "#b9bcc0", 8, false);
-        st.cyl(x, GROUND_Y + f.h * 0.62, z, 34, 30, 46, "#8f949b", 10);
-        st.cyl(x, GROUND_Y + f.h * 0.62 + 46, z, 9, 2, f.h * 0.38 - 46, "#d5d7da", 6);
-      } else {
-        st.cyl(x, GROUND_Y, z, 28, 17, f.h * 0.9, "#e6e3d9", 4, false);
-        st.cyl(x, GROUND_Y + f.h * 0.9, z, 17, 0, f.h * 0.1, "#e6e3d9", 4, false);
-      }
+      if (f.style === "saucer") spaceNeedle(c, dx * f.dist, dz * f.dist, f.h);
+      else if (f.h > 700) cnTower(c, dx * f.dist, dz * f.dist, f.h);
+      else obelisk(c, dx * f.dist, dz * f.dist, f.h);
       break;
     }
     case "building": {
@@ -888,24 +1074,12 @@ function feature(c: PropCtx, f: Feature, fi: number): void {
       }
       break;
     }
-    case "rowhouses": {
-      for (let deg = f.from + 3, i = 0; deg < f.to; deg += 6.5, i += 1) {
-        const h = 36 + hash(i * 3.1 + 5) * 16;
-        const fr = behind(c, deg, f.back + 20);
-        const col = mix("#8a4b38", "#b9a488", hash(i * 9.7));
-        fbox(st, fr, 0, GROUND_Y + (h - GROUND_Y) / 2, 0, 44, h - GROUND_Y, 40, col);
-        for (let k = 0; k < 3; k += 1) {
-          for (let r = 0; r < 3; r += 1) {
-            const on = c.lit && hash(i * 5 + k * 3 + r) > 0.5;
-            panel(on ? glow : st, fr, (k - 1) * 13, 8 + r * 10, 20.3, 6, 6, on ? WINDOW : "#222831");
-          }
-        }
-        // Rooftop bleachers looking into the park.
-        st.quad(loc(fr, -20, h + 1, 18), loc(fr, 20, h + 1, 18), loc(fr, 20, h + 15, -16), loc(fr, -20, h + 15, -16), "#6f757c");
-        st.quad(loc(fr, -20, h, -16), loc(fr, 20, h, -16), loc(fr, 20, h + 15, -16), loc(fr, -20, h + 15, -16), "#4c5157");
-      }
+    case "rowhouses":
+      rooftops(c, f);
       break;
-    }
+    case "spectacular":
+      waterSpectacular(c, f, fi);
+      break;
     case "trees": {
       for (let i = 0; i < f.n; i += 1) {
         const deg = f.from + ((f.to - f.from) * (i + 0.5 + (hash(i * 3.7 + fi) - 0.5) * 0.7)) / f.n;
@@ -967,6 +1141,172 @@ function feature(c: PropCtx, f: Feature, fi: number): void {
     }
     default:
       landmark(c, f, fi);
+  }
+}
+
+/**
+ * A river bridge seen side-on: suspension (cables in parabolas between portal towers, with
+ * hangers), cable-stayed (fans off H-pylons), through-arch, vertical lift (two truss towers
+ * and a trussed lift span) or plain girder on piers. Deck lights and tower beacons at night.
+ */
+function bridge(c: PropCtx, f: Extract<Feature, { k: "bridge" }>): void {
+  const { st, glow, lit } = c;
+  const fr = far(f.deg, f.dist);
+  const style = f.style ?? (f.towers > 0 ? "suspension" : "girder");
+  const L = f.len;
+  const deckY = 58;
+  const col = f.color;
+  const pier = "#8b8f94";
+  const P = (x: number, y: number, z = 0): P3 => loc(fr, x, y, z);
+  // Deck: a colored fascia girder over a darker roadway slab.
+  fbox(st, fr, 0, deckY, 0, L, 7, 34, col, 0.9);
+  fbox(st, fr, 0, deckY - 5.5, 0, L, 4, 28, "#5d6166", 0.8);
+  const piers = (x0: number, x1: number, step: number) => {
+    for (let x = x0; x <= x1 + 0.1; x += step) fbox(st, fr, x, (deckY - 7 + GROUND_Y) / 2, 0, 12, deckY - 7 - GROUND_Y, 26, pier);
+  };
+  const beacon = (x: number, y: number) => {
+    if (lit) glow.box(...P(x, y), 4, 4, 4, fr.yaw, [1, 0.18, 0.12]);
+  };
+  if (lit) {
+    for (let x = -L / 2 + 12; x < L / 2; x += 36) for (const z of [-17.5, 17.5]) glow.box(...P(x, deckY + 7, z), 1.6, 1.6, 1.6, fr.yaw, [1, 0.86, 0.6]);
+  }
+  /** Cable between two points sagging by `sag` at mid-span (parabolic), optional hangers. */
+  const cable = (x0: number, y0: number, x1: number, y1: number, sag: number, z: number, hang: number) => {
+    const n = 14;
+    const yAt = (u: number) => y0 + (y1 - y0) * u - 4 * sag * u * (1 - u);
+    for (let i = 0; i < n; i += 1) st.beam(P(x0 + ((x1 - x0) * i) / n, yAt(i / n), z), P(x0 + ((x1 - x0) * (i + 1)) / n, yAt((i + 1) / n), z), 2.6, col, 0.95);
+    if (hang > 0) {
+      const k = Math.max(2, Math.round(Math.abs(x1 - x0) / hang));
+      for (let i = 1; i < k; i += 1) {
+        const u = i / k;
+        const y = yAt(u);
+        if (y - deckY > 6) st.beam(P(x0 + (x1 - x0) * u, deckY + 3, z), P(x0 + (x1 - x0) * u, y, z), 0.9, col, 0.9);
+        if (lit && i % 2 === 0) glow.box(...P(x0 + (x1 - x0) * u, y, z), 2, 2, 2, fr.yaw, [1, 0.94, 0.78]);
+      }
+    }
+  };
+  /** Portal tower: two legs and cross struts. */
+  const portal = (x: number, top: number, w = 11) => {
+    for (const z of [-16, 16]) fbox(st, fr, x, (top + GROUND_Y) / 2, z, w, top - GROUND_Y, 9, col);
+    fbox(st, fr, x, top - 6, 0, w, 10, 40, col, 0.9);
+    fbox(st, fr, x, deckY + (top - deckY) * 0.55, 0, w * 0.8, 7, 34, col, 0.85);
+    beacon(x, top + 3);
+  };
+  const towerXs = Array.from({ length: Math.max(1, f.towers) }, (_, t) => L * ((t + 1) / (Math.max(1, f.towers) + 1) - 0.5));
+  switch (style) {
+    case "suspension": {
+      const span = L / (towerXs.length + 1);
+      const top = deckY + Math.min(170, Math.max(70, span * 0.3));
+      towerXs.forEach((x) => portal(x, top));
+      for (const z of [-16, 16]) {
+        // Side spans down to the anchorages, main spans between towers.
+        cable(-L / 2, deckY + 6, towerXs[0], top - 3, (top - deckY) * 0.12, z, 34);
+        cable(towerXs[towerXs.length - 1], top - 3, L / 2, deckY + 6, (top - deckY) * 0.12, z, 34);
+        for (let i = 0; i + 1 < towerXs.length; i += 1) cable(towerXs[i], top - 3, towerXs[i + 1], top - 3, top - deckY - 9, z, 30);
+      }
+      for (const x of [-L / 2, L / 2]) fbox(st, fr, x, deckY / 2, 0, 30, deckY + 8, 44, "#9a9690", 0.9);
+      break;
+    }
+    case "stayed": {
+      const span = L / (towerXs.length + 1);
+      const top = deckY + Math.max(90, span * 0.42);
+      piers(-L / 2 + 30, L / 2 - 30, Math.max(150, span));
+      towerXs.forEach((x) => {
+        for (const z of [-16, 16]) st.beam(P(x, GROUND_Y, z * 1.3), P(x, top, z * 0.4), 9, col);
+        fbox(st, fr, x, deckY + 22, 0, 9, 7, 44, col, 0.85);
+        beacon(x, top + 3);
+        for (const z of [-15, 15]) {
+          for (let k = 1; k <= 8; k += 1) {
+            for (const d of [-1, 1]) st.beam(P(x, top - 6 - k * 4, z * 0.45), P(x + (d * span * 0.48 * k) / 8, deckY + 3, z), 1.2, "#e4e6e8", 0.95);
+          }
+        }
+      });
+      break;
+    }
+    case "arch": {
+      const span = L * 0.42;
+      const rise = span * 0.22;
+      piers(-L / 2 + 40, L / 2 - 40, 140);
+      const n = 18;
+      const archY = (u: number) => deckY + 4 + rise * (1 - (2 * u - 1) ** 2);
+      for (const z of [-16, 16]) {
+        for (let i = 0; i < n; i += 1) st.beam(P(-span / 2 + (span * i) / n, archY(i / n), z), P(-span / 2 + (span * (i + 1)) / n, archY((i + 1) / n), z), 6, col, 0.95);
+        for (let i = 1; i < n; i += 1) st.beam(P(-span / 2 + (span * i) / n, deckY + 3, z), P(-span / 2 + (span * i) / n, archY(i / n), z), 1.4, col, 0.85);
+      }
+      for (let i = 3; i < n - 2; i += 3) st.beam(P(-span / 2 + (span * i) / n, archY(i / n), -16), P(-span / 2 + (span * i) / n, archY(i / n), 16), 2.4, col, 0.8);
+      beacon(0, deckY + 8 + rise);
+      break;
+    }
+    case "lift": {
+      const span = Math.min(220, L * 0.42);
+      const top = deckY + 120;
+      piers(-L / 2 + 40, L / 2 - 40, 120);
+      for (const x of [-span / 2, span / 2]) {
+        for (const dx of [-6, 6]) for (const z of [-16, 16]) st.beam(P(x + dx, GROUND_Y, z), P(x + dx, top, z), 4.5, col, 0.95);
+        // Cross-braced faces.
+        for (let y = deckY + 10; y < top - 12; y += 24) {
+          for (const z of [-16, 16]) {
+            st.beam(P(x - 6, y, z), P(x + 6, y + 24, z), 1.4, col, 0.85);
+            st.beam(P(x + 6, y, z), P(x - 6, y + 24, z), 1.4, col, 0.85);
+          }
+        }
+        fbox(st, fr, x, top + 7, 0, 22, 14, 44, col, 0.9);
+        fbox(st, fr, x, top + 16, 0, 16, 5, 36, col, 1);
+        beacon(x, top + 21);
+      }
+      // Warren truss on the lift span.
+      const tt = deckY + 30;
+      for (const z of [-16, 16]) {
+        st.beam(P(-span / 2 + 6, tt, z), P(span / 2 - 6, tt, z), 3, col, 0.95);
+        const k = 8;
+        for (let i = 0; i < k; i += 1) {
+          const x0 = -span / 2 + 6 + ((span - 12) * i) / k;
+          const x1 = -span / 2 + 6 + ((span - 12) * (i + 1)) / k;
+          st.beam(P(x0, i % 2 ? tt : deckY + 3, z), P(x1, i % 2 ? deckY + 3 : tt, z), 2, col, 0.85);
+        }
+      }
+      break;
+    }
+    default:
+      piers(-L / 2 + 40, L / 2 - 40, 130);
+  }
+}
+
+/**
+ * The Gateway Arch: Saarinen's weighted catenary, y = fc − A(cosh(Cx/L) − 1), with an
+ * equilateral-triangle section tapering from 54 ft at the feet to 17 ft at the crown. One
+ * edge points at the viewer, so the two front faces catch the light differently.
+ */
+function gatewayArch(st: GeoBuilder, fr: Frame, h: number): void {
+  const A = 68.7672;
+  const C = 3.0022;
+  const L = 299.2239;
+  const fc = 625.0925;
+  const s = h / 630;
+  const n = 44;
+  const coshC = Math.cosh(C);
+  const centroid = (x: number) => fc - A * (Math.cosh((C * x) / L) - 1);
+  const ring = (i: number): P3[] => {
+    const x = -L + (2 * L * i) / n;
+    const y = centroid(x);
+    // In-plane normal (perpendicular to the curve within the arch's plane).
+    const slope = -A * (C / L) * Math.sinh((C * x) / L);
+    const tl = Math.hypot(1, slope);
+    const nx = -slope / tl;
+    const ny = 1 / tl;
+    const side = 17 + (54 - 17) * ((Math.cosh((C * x) / L) - 1) / (coshC - 1));
+    const r = side / Math.sqrt(3);
+    const at = (a: number, b: number): P3 => loc(fr, (x + nx * a) * s, GROUND_Y + Math.max(0, y + ny * a) * s, b * s);
+    return [at(0, r), at(-r * 0.866, -r / 2), at(r * 0.866, -r / 2)];
+  };
+  let prev = ring(0);
+  for (let i = 1; i <= n; i += 1) {
+    const cur = ring(i);
+    const lean = 0.94 + 0.06 * Math.sin((i / n) * Math.PI);
+    st.quad(prev[1], cur[1], cur[0], prev[0], "#d9dee3", 1.04 * lean);
+    st.quad(prev[0], cur[0], cur[2], prev[2], "#c9cfd6", 0.86 * lean);
+    st.quad(prev[2], cur[2], cur[1], prev[1], "#b8bec5", 0.7);
+    prev = cur;
   }
 }
 
@@ -1087,12 +1427,54 @@ function landmark(c: PropCtx, f: Extract<Feature, { y?: number }>, fi: number): 
       break;
     }
     case "triSign": {
-      st.beam(at(-16, -y + GROUND_Y), at(-16, -30), 3, "#4b4f55");
-      st.beam(at(16, -y + GROUND_Y), at(16, -30), 3, "#4b4f55");
-      const face = c.lit ? glow : st;
-      panel(face, fr, 0, y, 0, 62, 62, c.lit ? LAMP_ON : "#f3f3ef", 0.96);
-      face.tri(at(-22, -4, 0.6), at(22, -4, 0.6), at(0, 24, 0.6), "#c8242b");
-      panel(face, fr, 0, y - 17, 0.6, 46, 8, "#1e3f8f");
+      // The Citgo sign: a 60 ft square on a steel frame atop a five-storey brick block in
+      // Kenmore Square. White by day; dark with neon trimark and letters at night.
+      const roofY = y - 40;
+      fbox(st, fr, 0, (roofY + GROUND_Y) / 2, -24, 130, roofY - GROUND_Y, 80, "#8e5a44", 0.95);
+      fbox(st, fr, 0, roofY + 1.5, -24, 133, 3, 83, "#c9bba0", 0.9);
+      for (let fl = 0; fl < 5; fl += 1) {
+        for (let k = 0; k < 9; k += 1) {
+          const on = c.lit && hash(fi * 13 + fl * 9 + k) > 0.45;
+          panel(on ? glow : st, fr, (k - 4) * 13.5, GROUND_Y + 14 + fl * ((roofY - GROUND_Y - 16) / 5), 16.3, 6, 9, on ? WINDOW : "#2a2f36", 0.9);
+        }
+      }
+      for (const lx of [-26, 0, 26]) {
+        st.beam(at(lx, roofY - y, -3), at(lx, -31, -3), 2.4, "#4b4f55");
+        st.beam(at(lx, roofY - y, -14), at(lx, -31, -3), 1.6, "#4b4f55", 0.85);
+      }
+      st.beam(at(-30, -31, -3), at(30, -31, -3), 2, "#4b4f55");
+      const neon = c.lit;
+      panel(st, fr, 0, y, -0.4, 64, 64, neon ? "#16181d" : "#f3f3ef", 0.96);
+      const bright = neon ? glow : st;
+      const red: RGB | string = neon ? [1, 0.12, 0.1] : "#c8242b";
+      const blue: RGB | string = neon ? [0.22, 0.45, 1] : "#1e3f8f";
+      const bg: RGB | string = neon ? "#16181d" : "#f3f3ef";
+      // Trimark: nested triangles (red, background, red).
+      const tri = (r: number, z: number, col: RGB | string, b: GeoBuilder) => b.tri(at(-r, 6 - r * 0.42, z), at(r, 6 - r * 0.42, z), at(0, 6 + r * 1.1, z), col);
+      tri(20, 0.3, red, bright);
+      tri(12.5, 0.5, bg, st);
+      tri(7, 0.7, red, bright);
+      // CITGO in block capitals.
+      const W = 8;
+      const H = 11;
+      const sw = 2.2;
+      const by = -23;
+      const bar = (x0: number, y0: number, x1: number, y1: number) => {
+        const cx = (x0 + x1) / 2;
+        const cy = (y0 + y1) / 2;
+        panel(bright, fr, cx, y + by + cy, 0.5, Math.max(sw, Math.abs(x1 - x0)), Math.max(sw, Math.abs(y1 - y0)), blue);
+      };
+      const glyph: Record<string, Array<[number, number, number, number]>> = {
+        C: [[0, H, W, H], [0, 0, 0, H], [0, 0, W, 0]],
+        I: [[W / 2, 0, W / 2, H]],
+        T: [[0, H, W, H], [W / 2, 0, W / 2, H]],
+        G: [[0, H, W, H], [0, 0, 0, H], [0, 0, W, 0], [W, 0, W, H / 2], [W / 2, H / 2, W, H / 2]],
+        O: [[0, H, W, H], [0, 0, 0, H], [0, 0, W, 0], [W, 0, W, H]],
+      };
+      [..."CITGO"].forEach((ch, i) => {
+        const ox = -26 + i * 11;
+        for (const [x0, y0, x1, y1] of glyph[ch]) bar(ox + x0 - (x0 === x1 ? sw / 2 : 0), y0 - (y0 === y1 ? sw / 2 : 0), ox + x1 + (x0 === x1 ? sw / 2 : 0), y1 + (y0 === y1 ? sw / 2 : 0));
+      });
       break;
     }
     case "boats": {
