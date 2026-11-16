@@ -14,6 +14,8 @@ export interface Identity {
   girth: number;
   /** Club nickname for the chest wordmark ("Red Sox"), or "" when unknown. */
   team: string;
+  /** Skin tone sampled from the player's MLB headshot (0xRRGGBB), or null when unknown. */
+  skin: number | null;
 }
 
 interface RosterPlayer {
@@ -22,6 +24,8 @@ interface RosterPlayer {
   num?: string | null;
   heightIn?: number | null;
   weight?: number | null;
+  /** "#rrggbb" sampled from the headshot by ml-engine/scripts/sample_skin_tones.py. */
+  skin?: string | null;
 }
 
 const SUFFIX = /^(jr|sr|ii|iii|iv|v)\.?$/i;
@@ -61,7 +65,8 @@ export function nickname(full: string): string {
 
 export function identityOf(p: RosterPlayer, team = ""): Identity {
   const num = p.num != null && String(p.num).trim() !== "" ? String(p.num).trim().slice(0, 2) : fallbackNumber(p.id);
-  return { name: p.name ? jerseyName(p.name) : "", num, girth: girthOf(p.heightIn, p.weight), team };
+  const skin = typeof p.skin === "string" && /^#[0-9a-f]{6}$/i.test(p.skin) ? parseInt(p.skin.slice(1), 16) : null;
+  return { name: p.name ? jerseyName(p.name) : "", num, girth: girthOf(p.heightIn, p.weight), team, skin };
 }
 
 const table = new Map<number, Identity>();
@@ -103,7 +108,7 @@ export function identity(id: number): Identity {
   let f = fallbacks.get(id);
   if (!f) {
     if (fallbacks.size > 500) fallbacks.clear();
-    f = { name: "", num: fallbackNumber(id), girth: 1, team: "" };
+    f = { name: "", num: fallbackNumber(id), girth: 1, team: "", skin: null };
     fallbacks.set(id, f);
   }
   return f;
