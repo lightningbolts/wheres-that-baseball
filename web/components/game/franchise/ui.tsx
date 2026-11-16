@@ -1,7 +1,7 @@
 "use client";
 
 import type { ButtonHTMLAttributes, ReactNode } from "react";
-import { getTeamColor } from "@/lib/mlb/teamColors";
+import { TeamLogo } from "@/components/ui/TeamLogo";
 import { cn } from "@/lib/utils";
 import type { League, Player } from "@/lib/game/franchise/types";
 
@@ -49,10 +49,11 @@ export function SmallBtn({ className, ...rest }: ButtonHTMLAttributes<HTMLButton
   return <button type="button" {...rest} className={cn("rounded border border-border px-1.5 py-0.5 text-xs hover:bg-hover disabled:opacity-40", className)} />;
 }
 
+/** The club's real logo followed by a label (abbreviation or name). */
 export function TeamDot({ id, abbrev, className }: { id: number; abbrev: string; className?: string }) {
   return (
     <span className={cn("inline-flex items-center gap-1.5 font-medium", className)}>
-      <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: getTeamColor(id) }} />
+      <TeamLogo teamId={id} size={18} title={abbrev} />
       {abbrev}
     </span>
   );
