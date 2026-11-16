@@ -5,6 +5,7 @@ import { BaseballGame, type GameEvent } from "@/lib/game/rules/game";
 import { batSide } from "@/lib/game/ratings";
 import { chargeBunt } from "@/lib/game/play/defense";
 import type { Rng } from "@/lib/game/math";
+import { cpuWantsChallenge } from "@/lib/game/rules/abs";
 import { cpuWantsSteal, resolveSteal, stealRace, withPitchSpeed, type StealFrom } from "@/lib/game/ai/baserunning";
 
 export interface Controllers {
@@ -29,7 +30,30 @@ export function stepPitch(game: BaseballGame, ctl: Controllers, rng: Rng): Pitch
   const batting = game.top ? ctl.away : ctl.home;
   const wants = (ctl.wantsSteal ?? cpuWantsSteal)(game, rng);
   const race = wants?.length ? stealRace(game, wants) : null;
-  const result = playPitch(ctx, pitching, batting, rng);
+  let result = playPitch(ctx, pitching, batting, rng);
+  // ABS: CPU clubs challenge clear misses (deterministic, no dice).
+  const absEvents: GameEvent[] = [];
+  const challenger = game.absChallenger(result);
+  if (challenger) {
+    const wants = cpuWantsChallenge({
+      result,
+      zoneBottom: ctx.batter.zoneBottom,
+      zoneTop: ctx.batter.zoneTop,
+      balls: game.balls,
+      strikes: game.strikes,
+      outs: game.outs,
+      inning: game.inning,
+      regulation: game.regulation,
+      left: game.abs?.[challenger] ?? 0,
+      runnersOn: game.bases.filter(Boolean).length,
+      margin: challenger === "away" ? game.score.away - game.score.home : game.score.home - game.score.away,
+    });
+    const r = wants ? game.absChallenge(result) : null;
+    if (r) {
+      result = r.result;
+      absEvents.push(r.event);
+    }
+  }
   let play: PlayResult | undefined;
   if (result.kind === "in_play" && result.path && result.contact) {
     const b = ctx.batter;
@@ -47,6 +71,7 @@ export function stepPitch(game: BaseballGame, ctl: Controllers, rng: Rng): Pitch
       ],
       batter: { playerId: b.id, sprint: b.sprint, bats: batSide(b, ctx.pitcher.throws), bunt: !!result.bunt },
       outs: game.outs,
+      situation: { inning: game.inning, scoreDiff: game.top ? game.score.away - game.score.home : game.score.home - game.score.away },
       rng,
       launch: { ev: result.contact.exitSpeedMph ?? 0, la: result.contact.launchAngleDeg ?? 0 },
     });
@@ -57,7 +82,7 @@ export function stepPitch(game: BaseballGame, ctl: Controllers, rng: Rng): Pitch
   if (race && noContact && !game.final && race.legs.every((l) => game.bases[l.from]?.playerId === l.runnerId)) {
     events.push(...game.applySteals(resolveSteal(withPitchSpeed(race, result.flight.releaseSpeedMph), rng)));
   }
-  return { result, play, events: [...pre, ...events] };
+  return { result, play, events: [...pre, ...absEvents, ...events] };
 }
 
 export function simulateGame(game: BaseballGame, ctl: Controllers, rng: Rng, maxPitches = 1200): BaseballGame {

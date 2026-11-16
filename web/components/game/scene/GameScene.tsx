@@ -23,7 +23,11 @@ export default function GameScene({ park, pb, homeColor, awayColor, onAim, onPri
     <Canvas
       shadows="soft"
       dpr={[1, 1.5]}
-      gl={{ antialias: true, powerPreference: "high-performance" }}
+      // The scene runs from a foot in front of the lens to a skyline a mile out, mostly through
+      // long telephoto lenses: a linear depth buffer leaves only fractions of an inch of
+      // precision at the infield from center field, and layered surfaces (chalk, dirt,
+      // ad panels, stands) fight over pixels and shimmer. Logarithmic depth keeps them apart.
+      gl={{ antialias: true, powerPreference: "high-performance", logarithmicDepthBuffer: true }}
       camera={{ position: [9, 22, 340], fov: 6, near: 0.3, far: 6000 }}
       onCreated={({ gl }) => {
         gl.toneMapping = THREE.ACESFilmicToneMapping;

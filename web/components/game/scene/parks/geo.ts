@@ -134,6 +134,15 @@ export class GeoBuilder {
     this.uv.push(ua[0], ua[1], ub[0], ub[1], uc[0], uc[1], ua[0], ua[1], uc[0], uc[1], ud[0], ud[1]);
   }
 
+  /** Textured triangle: uv per corner. */
+  triUv(a: P3, b: P3, c: P3, ua: readonly number[], ub: readonly number[], uc: readonly number[], color: string | RGB, shade = 1): void {
+    const k = rgb(color, shade);
+    this.pos.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
+    for (let i = 0; i < 3; i += 1) this.col.push(k[0], k[1], k[2]);
+    this.face(a, b, c);
+    this.uv.push(ua[0], ua[1], ub[0], ub[1], uc[0], uc[1]);
+  }
+
   /** Axis-aligned box (center, size) rotated by `yaw` about Y. */
   box(cx: number, cy: number, cz: number, sx: number, sy: number, sz: number, yaw: number, color: string | RGB, shade = 1): void {
     const c = Math.cos(yaw);

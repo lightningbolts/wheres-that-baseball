@@ -25,7 +25,7 @@ import { sfx } from "@/components/game/audio";
 import { crowdReaction, crowdRise, crowdVolume, type CrowdInput } from "@/lib/game/crowd/reaction";
 import { saveGame, clearSave } from "@/components/game/save";
 
-export type Phase = "aim" | "meter" | "ready" | "pitch" | "play" | "between" | "final";
+export type Phase = "aim" | "meter" | "ready" | "pitch" | "play" | "between" | "final" | "handoff" | "challenge";
 
 export interface HudSnapshot {
   phase: Phase;
@@ -91,6 +91,16 @@ export interface HudSnapshot {
   curtain: boolean;
   /** Between half-innings: the card that covers the teams changing sides. */
   bumper: { title: string; sub: string } | null;
+  /** ABS challenges each club has left (null: no ABS this game). */
+  abs: { away: number; home: number } | null;
+  /** A human may challenge the umpire's call now: who, what was called, and when the window closes. */
+  challenge: { side: "away" | "home"; call: "strike" | "ball"; until: number; ms: number } | null;
+  /** Two-player game. */
+  twoPlayer: boolean;
+  /** Two players: the controls are changing hands (the card says who is up). */
+  handoff: { title: string; sub: string } | null;
+  /** Two players: whose turn it is at the controls right now ("P1" = away, "P2" = home). */
+  turn: { player: "P1" | "P2"; teamId: number; role: "pitch" | "bat" } | null;
 }
 
 /** A broadcast cut dips to black for this long before the shot changes (ms). */
@@ -118,6 +128,7 @@ type Board = Pick<
   | "humanPitching"
   | "winProbHome"
   | "final"
+  | "abs"
 > & { runnerIds: (number | null)[] };
 
 const markKind = (k: string): MarkKind => (k === "foul_tip" ? "swinging_strike" : k in MARK_COLOR ? (k as MarkKind) : "ball");
@@ -257,6 +268,15 @@ export class GameController {
   private revealed = false;
   private curtain = false;
   private bumper: HudSnapshot["bumper"] = null;
+  /** ABS challenge window open on the pitch just called. */
+  private challengeWin: HudSnapshot["challenge"] = null;
+  private challengeResolve: ((yes: boolean) => void) | null = null;
+  /** The pitch is not yet in the book (waiting on a challenge): the HUD must not show it. */
+  private provisional = false;
+  /** Two players: the pitch the pitcher has locked in, waiting for the hitter. */
+  private lockedPitch: PitchInput["pitch"] | null = null;
+  private handoff: HudSnapshot["handoff"] = null;
+  private handoffNext: (() => void) | null = null;
 
   constructor(
     readonly setup: GameSetup,
@@ -440,9 +460,17 @@ export class GameController {
     a.zoneBottom = ctx.batter.zoneBottom;
     a.zoneTop = ctx.batter.zoneTop;
     a.showZone = true;
+    this.lockedPitch = null;
+    this.challengeWin = null;
+    this.challengeResolve = null;
+    this.provisional = false;
     if (s.humanPitching) {
       this.setCam("pitcher", cut || this.turbo);
       this.phase = "aim";
+      if (this.twoPlayer && this.setup.hidePitch) {
+        const pitcherSide = s.game.top ? "home" : "away";
+        this.openHandoff(`${this.player(pitcherSide)} pitching`, `${abbrevFor(s.game.batting.team.teamId)} hitter, look away while the pitch is picked.`, () => {});
+      }
       this.pitchIdx = Math.min(this.pitchIdx, ctx.pitcher.arsenal.length - 1);
       a.kind = "target";
       a.visible = true;
@@ -477,6 +505,63 @@ export class GameController {
     this.emit();
   }
 
+  private get twoPlayer(): boolean {
+    return this.setup.human === "both";
+  }
+
+  private player(side: "away" | "home"): string {
+    return `${side === "away" ? "P1" : "P2"} (${abbrevFor(side === "away" ? this.setup.awayTeamId : this.setup.homeTeamId)})`;
+  }
+
+  /** Two players: hold the screen on a card until the next player presses the action button. */
+  private openHandoff(title: string, sub: string, then: () => void) {
+    this.handoff = { title, sub };
+    this.handoffNext = then;
+    this.phase = "handoff";
+    this.emit();
+  }
+
+  private closeHandoff() {
+    const next = this.handoffNext;
+    const was = this.handoff;
+    this.handoff = null;
+    this.handoffNext = null;
+    if (!was) return;
+    // Back to the aim the card interrupted, unless the continuation sets its own phase.
+    this.phase = this.lockedPitch ? "ready" : "aim";
+    next?.();
+    this.emit();
+  }
+
+  /**
+   * Two players: the pitcher has his pitch locked in. Hand the controls to the hitter,
+   * on the catcher's-eye camera, with the coverage box back in the middle of the zone
+   * (it shared the pitcher's target, which would give the location away).
+   */
+  private toHitter() {
+    const s = this.session;
+    const ctx = s.currentContext!;
+    const a = this.pb.aim;
+    const go = () => {
+      this.setCam("batter", true);
+      a.kind = "pci";
+      a.visible = true;
+      a.px = 0;
+      a.pz = (ctx.batter.zoneBottom + ctx.batter.zoneTop) / 2;
+      this.applyPci();
+      this.phase = "ready";
+      this.emit();
+    };
+    a.visible = false;
+    if (this.setup.hidePitch) {
+      const batSide = s.game.top ? "away" : "home";
+      this.cover(() => {
+        go();
+        this.openHandoff(`${this.player(batSide)} batting`, "The pitch is set. Take the controls and press the action button.", () => {});
+      });
+    } else this.cover(go);
+  }
+
   private applyPci() {
     const { w, h } = pciHalfSize(this.power, this.setup.difficulty, this.session.currentContext?.batter);
     this.pb.aim.w = w;
@@ -507,7 +592,7 @@ export class GameController {
     this.hud.cross = { px: flight.px, pz: flight.pz };
     this.readout = null;
     this.pb.aim.showZone = true;
-    if (s.humanPitching) this.pb.aim.visible = false;
+    if (s.humanPitching && !s.humanBatting) this.pb.aim.visible = false;
     if (s.humanBatting) {
       const tl = this.pitchOnlyTimeline(flight);
       this.settle();
@@ -632,12 +717,57 @@ export class GameController {
     this.outcome = outcome;
     const g = this.session.game;
     this.pre = { top: g.top, inning: g.inning, outsBefore: g.outs, basesBefore: [!!g.bases[0], !!g.bases[1], !!g.bases[2]], scoreBefore: { ...g.score } };
+    // ABS: a human club may challenge this call. The pitch plays out as called and the
+    // book waits on the decision (a runner going makes the throw part of it: no window).
+    const challenger = outcome.steal ? null : this.session.humanChallenger;
+    if (challenger) {
+      const provisional: CommittedPitch = { ...outcome, events: [] };
+      this.provisional = true;
+      const tl = buildTimeline(provisional, { swingStartT });
+      this.pb.turbo = this.turbo;
+      this.mountTimeline(tl, fresh, provisional);
+      this.pb.onEnd = () => this.openChallenge(challenger, outcome.result.kind === "called_strike" ? "strike" : "ball");
+      this.emit();
+      return;
+    }
     const committed = this.session.commit();
     const tl = buildTimeline(committed, { swingStartT });
     this.pb.turbo = this.turbo;
     this.mountTimeline(tl, fresh, committed);
     this.pb.onEnd = () => this.finish(committed);
     this.emit();
+  }
+
+  /** The umpire has called it: the human club gets a few seconds to tap the helmet. */
+  private openChallenge(side: "away" | "home", call: "strike" | "ball") {
+    if (this.challengeWin) return;
+    const ms = this.turbo ? 2500 : 5000;
+    this.phase = "challenge";
+    this.challengeWin = { side, call, until: performance.now() + ms, ms };
+    this.challengeResolve = (yes) => {
+      this.challengeWin = null;
+      this.challengeResolve = null;
+      this.provisional = false;
+      this.revealed = false;
+      const committed = this.session.commit(undefined, yes);
+      const abs = committed.events.find((e) => e.kind === "abs_challenge");
+      // The zone's verdict: a strike gets the punch-out call.
+      if (abs?.abs?.overturned && committed.result.kind === "called_strike") sfx.call(true);
+      this.phase = "between";
+      this.finish(committed);
+    };
+    const seq = this.pitchSeq;
+    this.later(ms, () => {
+      if (this.pitchSeq === seq && this.challengeWin) this.decideChallenge(false);
+    });
+    this.emit();
+  }
+
+  /** Challenge the call (true) or let it stand (false). */
+  decideChallenge(yes: boolean) {
+    if (this.phase !== "challenge" || !this.challengeResolve) return;
+    sfx.unlock();
+    this.challengeResolve(yes);
   }
 
   private mountTimeline(tl: Timeline, fresh: boolean, c: CommittedPitch) {
@@ -742,7 +872,8 @@ export class GameController {
    */
   private liveCues(tl: Timeline, c: CommittedPitch, cues: Playback["cues"]) {
     const offense = this.setup.human !== "none" && (this.setup.human === "away") === this.board.top;
-    const tone = (goodForOffense: boolean): "good" | "bad" | "neutral" => (this.setup.human === "none" ? "neutral" : goodForOffense === offense ? "good" : "bad");
+    const solo = this.setup.human === "away" || this.setup.human === "home";
+    const tone = (goodForOffense: boolean): "good" | "bad" | "neutral" => (!solo ? "neutral" : goodForOffense === offense ? "good" : "bad");
     const flash = (text: string, base: number, good: boolean) => {
       const id = (this.callId += 1);
       this.call = { id, text, base, tone: tone(good) };
@@ -810,7 +941,7 @@ export class GameController {
 
   /** Put a committed pitch on the HUD: count / outs / score, play-by-play and the banner. */
   private reveal(c: CommittedPitch) {
-    if (this.revealed) return;
+    if (this.revealed || this.provisional) return;
     this.revealed = true;
     const important = c.events.filter((e) => e.kind !== "pitch" && !this.shown.has(e));
     for (const e of important) this.pushLog(e);
@@ -881,12 +1012,18 @@ export class GameController {
   private bannerFor(c: CommittedPitch, events: GameEvent[]): HudSnapshot["banner"] {
     const play = c.play;
     const offenseHuman = this.session.setup.human !== "none" && (this.session.setup.human === "away") === !!events[0]?.top;
-    const toneFor = (goodForOffense: boolean) =>
-      this.setup.human === "none" ? "neutral" : goodForOffense === offenseHuman ? "good" : "bad";
+    const solo = this.setup.human === "away" || this.setup.human === "home";
+    const toneFor = (goodForOffense: boolean) => (!solo ? "neutral" : goodForOffense === offenseHuman ? "good" : "bad");
+    const abs = c.events.find((e) => e.kind === "abs_challenge");
     const ko = events.find((e) => e.kind === "strikeout");
-    if (ko) return { text: "Strikeout", sub: ko.text, tone: toneFor(false) };
+    if (ko) return { text: abs?.abs?.overturned ? "Overturned — strikeout" : "Strikeout", sub: abs ? `${abs.text} ${ko.text}` : ko.text, tone: toneFor(false) };
     const bb = events.find((e) => e.kind === "walk" || e.kind === "hbp");
-    if (bb) return { text: bb.kind === "walk" ? "Walk" : "Hit by pitch", sub: bb.text, tone: toneFor(true) };
+    if (bb) return { text: bb.kind === "walk" ? (abs?.abs?.overturned ? "Overturned — walk" : "Walk") : "Hit by pitch", sub: abs && bb.kind === "walk" ? `${abs.text} ${bb.text}` : bb.text, tone: toneFor(true) };
+    if (abs?.abs) {
+      // Good for the club that challenged when it won.
+      const challengerOffense = (abs.abs.side === "away") === abs.top;
+      return { text: abs.abs.overturned ? "ABS: call overturned" : "ABS: call stands", sub: abs.text, tone: toneFor(challengerOffense === abs.abs.overturned) };
+    }
     const ip = events.find((e) => e.kind === "in_play");
     if (ip && play) {
       const big = ["Out", "Single", "Double", "Triple", "Home run!"][play.hit] ?? "In play";
@@ -923,6 +1060,15 @@ export class GameController {
   /** Primary action: lock target / stop meter / swing. */
   primary() {
     sfx.unlock();
+    if (this.phase === "handoff") {
+      this.closeHandoff();
+      return;
+    }
+    // Space during the challenge window accepts the call.
+    if (this.phase === "challenge") {
+      this.decideChallenge(false);
+      return;
+    }
     if (this.phase === "aim") {
       this.phase = "meter";
       this.meterStart = performance.now();
@@ -934,12 +1080,23 @@ export class GameController {
       this.meterStart = null;
       const decision = humanPitch(this.pitchIdx, this.pb.aim.px, this.pb.aim.pz, m, this.setup.difficulty);
       this.banner = null;
+      if (this.twoPlayer) {
+        // The hitter is a person too: he gets the controls before the ball is released.
+        this.lockedPitch = decision;
+        this.phase = "between";
+        this.toHitter();
+        return;
+      }
       this.throwPitch({ pitch: decision });
       return;
     }
     if (this.phase === "pitch") this.swing(this.pb.T);
     // Ready to hit: call for the pitch without waiting for the pitcher.
-    else if (this.phase === "ready" && this.session.humanBatting) this.throwPitch({ steals: this.legalSteals() });
+    else if (this.phase === "ready" && this.session.humanBatting) {
+      const pitch = this.lockedPitch ?? undefined;
+      this.lockedPitch = null;
+      this.throwPitch({ steals: this.legalSteals(), pitch });
+    }
   }
 
   cancelAim() {
@@ -1024,7 +1181,10 @@ export class GameController {
 
   /** Quick-sim the rest of the half-inning with the CPU on both sides. */
   simHalf() {
-    if (this.phase === "final" || this.phase === "pitch" || this.phase === "play") return;
+    if (this.phase === "final" || this.phase === "pitch" || this.phase === "play" || this.phase === "challenge") return;
+    this.handoff = null;
+    this.handoffNext = null;
+    this.lockedPitch = null;
     this.timers.forEach(clearTimeout);
     this.timers = [];
     this.uncover();
@@ -1055,8 +1215,17 @@ export class GameController {
   }
 
   // ---------- managing ----------
-  private mySide(): Side | null {
+  /** The club the human manages now: in a two-player game, whoever has the controls. */
+  private myName(): "away" | "home" | null {
     const h = this.session.humanSide;
+    if (h !== "both") return h;
+    const g = this.session.game;
+    const pitching = this.phase === "aim" || this.phase === "meter";
+    return (g.top === pitching) ? "home" : "away";
+  }
+
+  private mySide(): Side | null {
+    const h = this.myName();
     return h ? this.session.game[h] : null;
   }
 
@@ -1122,7 +1291,7 @@ export class GameController {
 
   /** Make a manager's move for the human's club. */
   substitute(sub: SubMove): boolean {
-    const side = this.session.humanSide;
+    const side = this.myName();
     if (!side || !this.canManage()) return false;
     const e = this.session.substitute({ ...sub, side } as Substitution);
     if (!e) return false;
@@ -1229,6 +1398,7 @@ export class GameController {
       humanPitching: s.humanPitching,
       winProbHome: wp,
       final: g.final,
+      abs: g.abs ? { ...g.abs } : null,
     };
   }
 
@@ -1261,7 +1431,19 @@ export class GameController {
       curtain: this.curtain,
       bumper: this.bumper,
       pitcherTired: this.pitcherTired(),
+      challenge: this.challengeWin,
+      twoPlayer: this.twoPlayer,
+      handoff: this.handoff,
+      turn: this.turnInfo(),
     };
+  }
+
+  private turnInfo(): HudSnapshot["turn"] {
+    if (!this.twoPlayer || this.phase === "final") return null;
+    const g = this.session.game;
+    const pitching = this.phase === "aim" || this.phase === "meter" || (this.phase === "handoff" && !this.lockedPitch);
+    const side: "away" | "home" = g.top === pitching ? "home" : "away";
+    return { player: side === "away" ? "P1" : "P2", teamId: side === "away" ? this.setup.awayTeamId : this.setup.homeTeamId, role: pitching ? "pitch" : "bat" };
   }
 
   private drawScoreboard() {

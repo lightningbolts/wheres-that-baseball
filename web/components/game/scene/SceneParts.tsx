@@ -571,6 +571,7 @@ export function SkyDome() {
       new THREE.ShaderMaterial({
         side: THREE.BackSide,
         depthWrite: false,
+        depthTest: false,
         fog: false,
         uniforms: { top: { value: new THREE.Color("#3d76c2") }, horizon: { value: new THREE.Color("#cfe2f3") } },
         vertexShader: "varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
@@ -581,7 +582,7 @@ export function SkyDome() {
   );
   useEffect(() => () => mat.dispose(), [mat]);
   return (
-    <mesh material={mat} position={[0, 0, 150]}>
+    <mesh material={mat} position={[0, 0, 150]} renderOrder={-1000}>
       <sphereGeometry args={[3000, 24, 12]} />
     </mesh>
   );

@@ -135,12 +135,33 @@ export interface StandSpec {
   cover?: boolean;
 }
 
+/**
+ * Named tower shapes for skyline landmarks: "stepped" (Columbia Center), "pyramid" (Smith
+ * Tower, Key Tower), "spike" (Transamerica), "taper" (One WTC), "bullet" (Salesforce Tower),
+ * "deco" (Empire State, Terminal Tower), "bundled" (Willis Tower), "hancock" (John Hancock
+ * Center), "cylinder" (U.S. Bank Tower), "rencen" (Renaissance Center), "gothic" (PPG Place),
+ * "gable" (One Liberty Place), "slab" (a plain tower with plant and antenna).
+ */
+export type TowerStyle = "slab" | "stepped" | "pyramid" | "spike" | "taper" | "bullet" | "deco" | "bundled" | "hancock" | "cylinder" | "rencen" | "gothic" | "gable";
+
+/**
+ * A skyline landmark: bearing, height, shape, and optionally its distance (ft) and facade color.
+ * With a distance the tower is drawn exactly `h` tall there; without one it stands at 1.25 ×
+ * the skyline's distance at 0.85 `h`.
+ */
+export type SkylineTower = [deg: number, h: number, style?: TowerStyle, dist?: number, color?: string];
+
+export type BridgeStyle = "suspension" | "stayed" | "arch" | "lift" | "girder";
+
 export type Feature =
-  | { k: "skyline"; from: number; to: number; dist: number; h: number; n: number; tall?: Array<[number, number]> }
+  | { k: "skyline"; from: number; to: number; dist: number; h: number; n: number; tall?: SkylineTower[] }
   | { k: "mountains"; from: number; to: number; dist: number; h: number; color: string; snow?: boolean }
+  /** A lone snow-capped volcano: bearing, distance, height, angular width (deg), rock color, snow fraction. */
+  | { k: "peak"; deg: number; dist: number; h: number; w: number; color: string; snow?: number }
   /** Open water `back` ft past the wall; `w` makes it a river of that width (default: open bay). */
   | { k: "water"; from: number; to: number; back: number; w?: number }
-  | { k: "bridge"; deg: number; dist: number; len: number; color: string; towers: number }
+  /** Default style: a suspension bridge when it has towers, else a girder bridge on piers. */
+  | { k: "bridge"; deg: number; dist: number; len: number; color: string; towers: number; style?: BridgeStyle }
   | { k: "arch"; deg: number; dist: number; h: number }
   | { k: "needle"; deg: number; dist: number; h: number; style?: "saucer" }
   | { k: "building"; deg: number; back: number; w: number; d: number; h: number; color: string; trim?: string; glass?: boolean; /** Turn the face this many degrees off square-to-home (+ swings it toward right field). */ skew?: number }
@@ -285,7 +306,7 @@ export const PARK_LAYOUTS: Record<number, ParkLayout> = {
       { k: "building", deg: 44, back: 155, w: 940, d: 51, h: 98, color: "#8a4a36", trim: "#c8b89a", skew: 15 },
       // Downtown past left-center: the Hilton (-21), Bromo-Seltzer Tower (-19, 1,700 ft),
       // 100 Light Street, the tallest (+23, 2,600 ft).
-      { k: "skyline", from: -32, to: 30, dist: 1350, h: 250, n: 22, tall: [[-21, 300], [-19, 360], [23, 560]] },
+      { k: "skyline", from: -32, to: 30, dist: 1350, h: 250, n: 22, tall: [[-21, 300], [-19, 360, "deco", 1690, "#b4805a"], [23, 560]] },
       { k: "flags", deg: 30, back: 34 },
     ],
   }),
@@ -304,7 +325,7 @@ export const PARK_LAYOUTS: Record<number, ParkLayout> = {
       // Citgo sign over Kenmore Square, ~1,100 ft from the plate past the Monster.
       { k: "triSign", deg: -12, back: 724, y: 135 },
       // Back Bay over right field: the Prudential (+40) and the Hancock (+35) beyond it.
-      { k: "skyline", from: 15, to: 55, dist: 2600, h: 300, n: 20, tall: [[40, 770], [35, 560]] },
+      { k: "skyline", from: 15, to: 55, dist: 2600, h: 300, n: 20, tall: [[40, 655, "slab", 3250, "#a9a8a2"], [35, 476, "slab", 3250, "#86a9c9"]] },
       { k: "building", deg: -24, back: 150, w: 420, d: 60, h: 62, color: "#8d5a44", trim: "#cdbfa6" },
     ],
   }),
@@ -322,7 +343,7 @@ export const PARK_LAYOUTS: Record<number, ParkLayout> = {
     features: [
       { k: "pinwheels", deg: 0, back: 122, y: 150 },
       // The Loop lies north, behind the third-base stands (Willis Tower at -128, 3.4 mi).
-      { k: "skyline", from: -150, to: -108, dist: 3000, h: 260, n: 24, tall: [[-128, 400]] },
+      { k: "skyline", from: -150, to: -108, dist: 3000, h: 260, n: 24, tall: [[-128, 400, "bundled"]] },
     ],
   }),
   // Progressive Field — white steel, 19 ft left-field wall under the big board, toothbrush lights.
@@ -338,7 +359,7 @@ export const PARK_LAYOUTS: Record<number, ParkLayout> = {
     features: [
       { k: "trees", from: -11, to: 11, back: 46, kind: "round", n: 12 },
       // Downtown over the left-field corner: Terminal Tower (-65) and Key Tower (-48).
-      { k: "skyline", from: -82, to: -32, dist: 1900, h: 300, n: 22, tall: [[-65, 885], [-48, 955]] },
+      { k: "skyline", from: -82, to: -32, dist: 1900, h: 300, n: 22, tall: [[-65, 885, "deco"], [-48, 955, "pyramid"]] },
     ],
   }),
   // Kauffman Stadium — swooping upper deck, fountains and the crown scoreboard, open outfield.
@@ -396,7 +417,7 @@ export const PARK_LAYOUTS: Record<number, ParkLayout> = {
       { k: "building", deg: 0, back: 104, w: 330, d: 60, h: 190, color: "#9fb4c4", trim: "#c9cdd1", glass: true },
       // CN Tower just past the first-base side; the Financial District beyond right field.
       { k: "needle", deg: 55, dist: 765, h: 1500 },
-      { k: "skyline", from: 38, to: 85, dist: 2600, h: 520, n: 22, tall: [[49, 1220]] },
+      { k: "skyline", from: 38, to: 85, dist: 2600, h: 520, n: 22, tall: [[49, 1037, "slab", 3250, "#e4e4df"]] },
     ],
   }),
   // Chase Field — pool in right-center, the roof split to both ends, panelled walls beyond.
@@ -439,7 +460,7 @@ export const PARK_LAYOUTS: Record<number, ParkLayout> = {
       { k: "rowhouses", from: -44, to: 44, back: 170 },
       // The Loop is ~4-5 miles south-southeast, behind the first-base side: Hancock (+112), Willis (+126).
       // Compressed to fit the far plane; heights scaled to keep their true angular size.
-      { k: "skyline", from: 100, to: 132, dist: 2900, h: 140, n: 18, tall: [[112, 280], [126, 280]] },
+      { k: "skyline", from: 100, to: 132, dist: 2900, h: 140, n: 18, tall: [[112, 280, "hancock"], [126, 280, "bundled"]] },
       { k: "flags", deg: 0, back: 114, y: 130 },
     ],
   }),
@@ -460,7 +481,7 @@ export const PARK_LAYOUTS: Record<number, ParkLayout> = {
       { k: "trees", from: -11, to: 11, back: 40, kind: "pine", n: 16 },
       // The Front Range lies west, past third base and the left-field corner; downtown is behind first base.
       { k: "mountains", from: -135, to: -40, dist: 4500, h: 250, color: "#6f7fa0", snow: true },
-      { k: "skyline", from: 125, to: 178, dist: 2600, h: 300, n: 20, tall: [[156, 600]] },
+      { k: "skyline", from: 125, to: 178, dist: 2600, h: 300, n: 20, tall: [[156, 600, "bullet"], [151, 560, "slab"]] },
     ],
   }),
   // Dodger Stadium — five pastel decks, roofed pavilions, hexagonal boards, palms and the San Gabriels.
@@ -482,7 +503,7 @@ export const PARK_LAYOUTS: Record<number, ParkLayout> = {
       { k: "mountains", from: -35, to: 50, dist: 4500, h: 340, color: "#8c8fa6" },
       { k: "mountains", from: -70, to: 70, dist: 900, h: 110, color: "#6b7a55" },
       // Downtown LA behind home plate (U.S. Bank Tower, Wilshire Grand, City Hall).
-      { k: "skyline", from: 158, to: 195, dist: 3000, h: 260, n: 18, tall: [[183, 560], [186, 540], [160, 320]] },
+      { k: "skyline", from: 158, to: 195, dist: 3000, h: 260, n: 18, tall: [[183, 560, "cylinder"], [186, 540, "taper"], [160, 320, "pyramid"]] },
     ],
   }),
   // PNC Park — two limestone decks, Clemente Wall, the Allegheny, the yellow bridge and downtown.
@@ -505,7 +526,7 @@ export const PARK_LAYOUTS: Record<number, ParkLayout> = {
       { k: "bridge", deg: -17, dist: 1311, len: 900, color: "#e9b824", towers: 2 },
       { k: "bridge", deg: -21, dist: 1813, len: 900, color: "#e9b824", towers: 2 },
       // Downtown across the river: U.S. Steel Tower (+6), BNY Mellon (+16.5), PPG Place (+48).
-      { k: "skyline", from: -5, to: 60, dist: 2300, h: 300, n: 26, tall: [[6, 846], [16.5, 704], [48, 910]] },
+      { k: "skyline", from: -5, to: 60, dist: 2300, h: 300, n: 26, tall: [[6, 719, "slab", 2875, "#4a3f39"], [16.5, 704, "slab"], [48, 910, "gothic"]] },
       { k: "trees", from: -12, to: 6, back: 44, kind: "round", n: 8 },
     ],
   }),
@@ -542,12 +563,35 @@ export const PARK_LAYOUTS: Record<number, ParkLayout> = {
     // The roof parks east over the BNSF tracks, beyond right field.
     roof: { axis: 43, cover: 0.4, h: 240, color: "#b3bbbf" },
     features: [
-      // Downtown (Columbia Center, Smith Tower) past the left-field corner.
-      { k: "skyline", from: -80, to: -20, dist: 2600, h: 380, n: 28, tall: [[-40, 800], [-47, 640], [-55, 600]] },
-      // The Space Needle far up the waterfront, the Olympics across the Sound, Rainier to the southeast.
-      { k: "needle", deg: -67, dist: 5200, h: 300, style: "saucer" },
-      { k: "mountains", from: -150, to: -95, dist: 4800, h: 180, color: "#7f8fa8", snow: true },
-      { k: "mountains", from: 98, to: 113, dist: 5000, h: 260, color: "#8d9ab2", snow: true },
+      // Downtown fills left field. Center field faces about 49° (NE), so a spray bearing b is
+      // compass 49 + b. Columbia Center (compass 6°, 0.9 mi, 937 ft) is spray −43, Smith Tower
+      // (compass 3°, 0.7 mi, 462 ft) −46, then 1201 Third (−40), Rainier Square (−37) and Two
+      // Union Square (−39). Distances are compressed to the far plane at the true angular size.
+      {
+        k: "skyline",
+        from: -78,
+        to: -18,
+        dist: 2400,
+        h: 330,
+        n: 30,
+        tall: [
+          [-43, 650, "stepped", 3300],
+          [-46.5, 330, "pyramid", 2700],
+          [-39.5, 560, "gable", 3800, "#8597a6"],
+          [-37, 540, "slab", 3500, "#9aa9b5"],
+          [-41, 470, "slab", 3600, "#6f8597"],
+          [-50, 420, "slab", 3200, "#b9b3a6"],
+        ],
+      },
+      // The Space Needle 2.2 mi up the waterfront (compass −21° → spray −70), drawn at its true
+      // angular height; the Olympics across the Sound to the west.
+      { k: "needle", deg: -70, dist: 3800, h: 220, style: "saucer" },
+      { k: "mountains", from: -150, to: -95, dist: 4600, h: 170, color: "#7f8fa8", snow: true },
+      // Mount Rainier, 58 mi away at compass 152° → spray +103: a broad snow cone over the
+      // first-base side (2.7° tall in life; a touch larger here so it reads through the haze).
+      { k: "peak", deg: 103, dist: 4300, h: 280, w: 30, color: "#71819b", snow: 0.62 },
+      // The Cascade foothills under it.
+      { k: "mountains", from: 80, to: 128, dist: 4500, h: 70, color: "#6d7d8f" },
       { k: "trees", from: -44, to: -20, back: 60, kind: "pine", n: 8 },
     ],
   }),
@@ -570,7 +614,7 @@ export const PARK_LAYOUTS: Record<number, ParkLayout> = {
       { k: "train", deg: -24, back: 96, y: 74 },
       { k: "glass", from: -48, to: -6, back: 130, h: 190 },
       // Downtown Houston beyond left field: JPMorgan Chase Tower and Wells Fargo Plaza.
-      { k: "skyline", from: -80, to: -35, dist: 2100, h: 420, n: 20, tall: [[-50, 1250], [-67, 850]] },
+      { k: "skyline", from: -80, to: -35, dist: 2100, h: 420, n: 20, tall: [[-50, 1062, "slab", 2625, "#3f4852"], [-67, 850, "taper"]] },
       { k: "trees", from: -8, to: 8, back: 50, kind: "round", n: 6 },
     ],
   }),
@@ -588,7 +632,7 @@ export const PARK_LAYOUTS: Record<number, ParkLayout> = {
       // The center-field water feature, in front of the ivy screen so it reads from the plate.
       { k: "fountain", from: -8, to: 8, back: 6 },
       // Downtown past center: the RenCen (-3), Guardian (+18) and Penobscot (+25) buildings.
-      { k: "skyline", from: -12, to: 38, dist: 2400, h: 340, n: 24, tall: [[-3, 635], [18, 525], [25, 660]] },
+      { k: "skyline", from: -12, to: 38, dist: 2400, h: 340, n: 24, tall: [[-3, 635, "rencen"], [18, 446, "deco", 3000, "#c8622e"], [25, 660, "deco"]] },
     ],
   }),
   // Oracle Park — brick arcade in right over McCovey Cove, the glove and the bottle in left.
@@ -612,7 +656,7 @@ export const PARK_LAYOUTS: Record<number, ParkLayout> = {
       { k: "mountains", from: -45, to: 45, dist: 4600, h: 150, color: "#7d8fa3" },
       { k: "bridge", deg: -66, dist: 4200, len: 2400, color: "#b7bcc2", towers: 3 },
       // SoMa and the Financial District behind third base (Salesforce Tower, Transamerica).
-      { k: "skyline", from: -135, to: -90, dist: 3000, h: 360, n: 22, tall: [[-113, 1040], [-118, 540]] },
+      { k: "skyline", from: -135, to: -90, dist: 3000, h: 360, n: 22, tall: [[-113, 1040, "bullet"], [-118, 540, "spike"]] },
     ],
   }),
   // George M. Steinbrenner Field — spring-training scale with a Yankee Stadium frieze.
@@ -645,7 +689,7 @@ export const PARK_LAYOUTS: Record<number, ParkLayout> = {
     features: [
       // The Sacramento River runs north-south beyond right field; Tower Bridge and downtown across it.
       { k: "water", from: 5, to: 100, back: 1000, w: 550 },
-      { k: "bridge", deg: 46, dist: 1690, len: 520, color: "#d7b23c", towers: 2 },
+      { k: "bridge", deg: 46, dist: 1690, len: 520, color: "#d7b23c", towers: 2, style: "lift" },
       { k: "skyline", from: 40, to: 75, dist: 3500, h: 260, n: 16, tall: [[52, 400]] },
       { k: "trees", from: -70, to: 70, back: 150, kind: "round", n: 36 },
     ],
@@ -670,9 +714,9 @@ export const PARK_LAYOUTS: Record<number, ParkLayout> = {
       // Roebling (blue, two towers) off right field; Taylor-Southgate past left-center; the yellow Big Mac past the LF pole.
       { k: "bridge", deg: 86, dist: 1854, len: 1000, color: "#3f6fb0", towers: 2 },
       { k: "bridge", deg: -10, dist: 1830, len: 1100, color: "#8a8f96", towers: 0 },
-      { k: "bridge", deg: -47, dist: 3660, len: 1200, color: "#e9b824", towers: 0 },
+      { k: "bridge", deg: -47, dist: 3660, len: 1200, color: "#e9b824", towers: 0, style: "arch" },
       // Downtown sits behind third base and home: Great American Tower (-121), Carew Tower (-175).
-      { k: "skyline", from: -178, to: -105, dist: 700, h: 300, n: 22, tall: [[-121, 830], [-175, 420]] },
+      { k: "skyline", from: -178, to: -105, dist: 700, h: 300, n: 22, tall: [[-121, 830, "bullet"], [-175, 420, "deco"]] },
     ],
   }),
   // Petco Park — sandstone, the Western Metal Supply Co. building at the left-field pole.
@@ -713,7 +757,7 @@ export const PARK_LAYOUTS: Record<number, ParkLayout> = {
       { k: "bell", deg: 17, back: 96, y: 96 },
       // Center City is ~3.3 miles north, just left of center: Comcast Technology Center (-12.4), the
       // Liberty towers and City Hall (-5.6). Compressed, heights scaled to true angular size.
-      { k: "skyline", from: -18, to: 2, dist: 3000, h: 160, n: 18, tall: [[-12.4, 311], [-9, 270], [-7.5, 265], [-5.6, 160]] },
+      { k: "skyline", from: -18, to: 2, dist: 3000, h: 160, n: 18, tall: [[-12.4, 311, "slab"], [-9, 270, "gable"], [-7.5, 265, "gable"], [-5.6, 160, "deco"]] },
       { k: "trees", from: -10, to: 10, back: 48, kind: "round", n: 8 },
     ],
   }),
@@ -737,7 +781,7 @@ export const PARK_LAYOUTS: Record<number, ParkLayout> = {
       { k: "building", deg: -39, back: 370, w: 300, d: 150, h: 70, color: "#7a4a3a", trim: "#c9b9a0" },
       { k: "building", deg: -8, back: 400, w: 130, d: 110, h: 330, color: "#8d9aa6", trim: "#c9cdd1", glass: true },
       // Downtown fills left and left-center (Metropolitan Square at -35).
-      { k: "skyline", from: -70, to: 0, dist: 1500, h: 300, n: 28, tall: [[-35, 764]] },
+      { k: "skyline", from: -70, to: 0, dist: 1500, h: 300, n: 28, tall: [[-35, 764, "pyramid"]] },
     ],
   }),
   // Citi Field — brick arcade, dark green seats, the Home Run Apple, orange foul poles.
@@ -759,7 +803,7 @@ export const PARK_LAYOUTS: Record<number, ParkLayout> = {
       // Flushing Bay past the left-field corner; Manhattan ~7-9 miles west behind third base
       // (Empire State -110, One WTC -125); downtown Flushing past right field.
       { k: "water", from: -60, to: -15, back: 2200 },
-      { k: "skyline", from: -128, to: -100, dist: 3000, h: 120, n: 22, tall: [[-110, 189], [-125, 182]] },
+      { k: "skyline", from: -128, to: -100, dist: 3000, h: 120, n: 22, tall: [[-110, 189, "deco"], [-125, 182, "taper"]] },
       { k: "skyline", from: 50, to: 75, dist: 2600, h: 200, n: 14 },
     ],
   }),
@@ -782,7 +826,7 @@ export const PARK_LAYOUTS: Record<number, ParkLayout> = {
       // Navy Yard mid-rises ring the outfield; the Anacostia and the Douglass Bridge lie off first base.
       { k: "skyline", from: -40, to: 45, dist: 1000, h: 200, n: 30 },
       { k: "water", from: 50, to: 130, back: 1600, w: 900 },
-      { k: "bridge", deg: 124, dist: 1619, len: 1200, color: "#c9c9c4", towers: 0 },
+      { k: "bridge", deg: 124, dist: 1619, len: 1200, color: "#e8e8e4", towers: 0, style: "arch" },
       // The Washington Monument ~1.9 miles off the third-base side; compressed, true angular size.
       { k: "needle", deg: -85, dist: 4800, h: 268 },
     ],
@@ -805,7 +849,7 @@ export const PARK_LAYOUTS: Record<number, ParkLayout> = {
     features: [
       { k: "trees", from: -8, to: 10, back: 60, kind: "pine", n: 10 },
       // Downtown Minneapolis beyond center: Capella (+1), Wells Fargo Center (+3), IDS (+14).
-      { k: "skyline", from: -6, to: 40, dist: 2200, h: 380, n: 24, tall: [[1, 800], [3, 935], [14, 990]] },
+      { k: "skyline", from: -6, to: 40, dist: 2200, h: 380, n: 24, tall: [[1, 800, "slab"], [3, 935, "deco"], [14, 990, "slab"]] },
     ],
   }),
   // Yankee Stadium — limestone arches, four decks under the frieze, bleachers and the big board.

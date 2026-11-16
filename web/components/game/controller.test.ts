@@ -12,8 +12,9 @@ const ids = [...teams.keys()];
 
 const step = advancePlayback;
 
-function playGame(human: HumanSide, seed: number) {
+function playGame(human: HumanSide, seed: number, extra: Partial<GameSetup> = {}) {
   const setup: GameSetup = {
+    ...extra,
     awayTeamId: ids[seed % ids.length],
     homeTeamId: ids[(seed + 7) % ids.length],
     human,
@@ -38,6 +39,9 @@ function playGame(human: HumanSide, seed: number) {
   let chances = 0;
   let longWaits = 0;
   let catcherCam = 0;
+  let handoffs = 0;
+  let windows = 0;
+  let challenged = 0;
   for (let frame = 0; frame < 400_000; frame += 1) {
     vi.advanceTimersByTime(16);
     step(pb, 1 / 60);
@@ -59,7 +63,23 @@ function playGame(human: HumanSide, seed: number) {
     // Once the third out is made, nobody shows up on a base (or gets a SAFE call) on that play.
     if (snap.outs >= 3 && snap.bases.some(Boolean)) throw new Error(`runner on base with three out: ${snap.bases}`);
     if (snap.outs >= 3 && snap.call && snap.call.text !== "OUT") throw new Error(`${snap.call.text} call after the third out`);
-    if (snap.phase === "final") return { ctl, swings, marks, catcherCam, steals, chances, longWaits, frames: frame };
+    if (snap.phase === "final") return { ctl, swings, marks, catcherCam, steals, chances, longWaits, handoffs, windows, challenged, frames: frame };
+    // Two players: the cover card waits for the next player.
+    if (snap.phase === "handoff") {
+      if (!snap.handoff) throw new Error("handoff phase without a card");
+      handoffs += 1;
+      ctl.primary();
+      continue;
+    }
+    // ABS: challenge about half the calls the human gets a window on.
+    if (snap.phase === "challenge") {
+      if (!snap.challenge) throw new Error("challenge phase without a window");
+      windows += 1;
+      const yes = rng.next() < 0.5;
+      if (yes) challenged += 1;
+      ctl.decideChallenge(yes);
+      continue;
+    }
     if (snap.phase === "aim") {
       ctl.setAim(rng.range(-0.9, 0.9), rng.range(1.6, 3.4));
       ctl.primary();
@@ -130,6 +150,45 @@ describe("GameController full-game smoke", () => {
     const again = GameSession.replay(ctl.setup, ctl.session.inputs, teams).game;
     expect(again.score).toEqual(g.score);
     expect(again.final).toBe(true);
+  });
+});
+
+describe("ABS and two players through the controller", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("plays a one-player ABS game: challenge windows open, challenges are recorded and replay", () => {
+    vi.useFakeTimers();
+    const { ctl, windows, challenged } = playGame("home", 51, { abs: true });
+    const g = ctl.session.game;
+    expect(g.final).toBe(true);
+    expect(windows).toBeGreaterThan(0);
+    expect(ctl.session.inputs.filter((i) => i.challenge).length).toBe(challenged);
+    const reviews = g.log.filter((e) => e.kind === "abs_challenge");
+    expect(reviews.length).toBeGreaterThanOrEqual(challenged);
+    expect(g.abs!.away).toBeGreaterThanOrEqual(0);
+    expect(g.abs!.home).toBeGreaterThanOrEqual(0);
+    const again = GameSession.replay(ctl.setup, ctl.session.inputs, teams).game;
+    expect(again.score).toEqual(g.score);
+    expect(again.log.filter((e) => e.kind === "abs_challenge").length).toBe(reviews.length);
+  });
+
+  it("plays a two-player pass-the-device game: both sides pitch and hit, every pitch changes hands", () => {
+    vi.useFakeTimers();
+    const { ctl, swings, handoffs, catcherCam } = playGame("both", 57, { abs: true, hidePitch: true });
+    const g = ctl.session.game;
+    expect(g.final).toBe(true);
+    expect(swings).toBeGreaterThan(0);
+    expect(catcherCam).toBeGreaterThan(0);
+    // Two cards a human pitch: the pitcher's turn and the hitter's.
+    const humanPitches = ctl.session.inputs.filter((i) => !i.cpu).length;
+    expect(handoffs).toBeGreaterThanOrEqual(humanPitches);
+    // Every human pitch carries both players' input: the pitch and the swing (or take).
+    for (const i of ctl.session.inputs.filter((x) => !x.cpu)) {
+      expect(i.pitch).toBeDefined();
+      expect(i.swing).toBeDefined();
+    }
+    const again = GameSession.replay(ctl.setup, ctl.session.inputs, teams).game;
+    expect(again.score).toEqual(g.score);
   });
 });
 

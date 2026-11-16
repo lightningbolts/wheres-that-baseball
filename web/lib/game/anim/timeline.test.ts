@@ -178,3 +178,64 @@ describe("out pacing", () => {
     expect(homers).toBeGreaterThan(0);
   });
 });
+
+describe("relays and tag-ups on screen", () => {
+  /** Auto-play games until `pick` finds a pitch worth checking. */
+  function findPitch(pick: (c: ReturnType<GameSession["autoPitch"]>) => boolean, maxGames = 12) {
+    for (let g = 0; g < maxGames; g += 1) {
+      const s = new GameSession({ awayTeamId: ids[g % ids.length], homeTeamId: ids[(g + 5) % ids.length], human: "none", innings: 9, seed: 100 + g, difficulty: "pro", awayStarter: 0, homeStarter: 0 }, teams);
+      while (!s.game.final) {
+        const c = s.autoPitch();
+        if (pick(c)) return c;
+      }
+    }
+    return null;
+  }
+
+  it("shows the ball going outfielder → relay man (in line, turning) → base", () => {
+    const c = findPitch((x) => {
+      const th = x.play?.events.filter((e) => e.type === "throw") ?? [];
+      return th.length >= 2 && !!th[0].cutoff && th[1].pos === th[0].receiver;
+    });
+    expect(c, "a relay play").not.toBeNull();
+    const tl = buildTimeline(c!);
+    const [l1, l2] = c!.play!.events.filter((e) => e.type === "throw");
+    const T = (u: number) => tl.contactT! + u;
+    const relay = l1.receiver!;
+    // The relay man is out on his spot when the throw gets there, and the ball is in his hand.
+    const atCatch = tl.fielder(relay, T(l1.arriveT!) + 0.05);
+    expect(Math.hypot(atCatch.p.x - l1.to!.x, atCatch.p.z - l1.to!.z)).toBeLessThan(4);
+    const held = tl.ball(T(l1.arriveT!) + 0.05);
+    expect(held.held).toBe(true);
+    expect(held.holder).toBe(relay);
+    // His spot is on the line from where the outfielder threw to the target.
+    const a = l1.from!;
+    const b = l2.to!;
+    const cross = Math.abs((b.x - a.x) * (l1.to!.z - a.z) - (b.z - a.z) * (l1.to!.x - a.x)) / Math.hypot(b.x - a.x, b.z - a.z);
+    expect(cross).toBeLessThan(1);
+    // He has turned toward the base when he lets it go, and the ball is in flight between legs.
+    const atThrow = tl.fielder(relay, T(l2.t));
+    const want = Math.atan2(b.x - atThrow.p.x, b.z - atThrow.p.z);
+    const dy = Math.abs(((atThrow.yaw - want + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+    expect(dy).toBeLessThan(0.6);
+    expect(atThrow.action).toBe("throw");
+    expect(tl.ball(T((l2.t + l2.arriveT!) / 2)).held).toBe(false);
+  });
+
+  it("a tagging runner goes back to the bag, waits for the catch, then runs", () => {
+    const c = findPitch((x) => !!x.play?.caught && x.play.runners.some((r) => r.from > 0 && r.to > r.from && !r.out && r.path?.length));
+    expect(c, "a tag-up").not.toBeNull();
+    const tl = buildTimeline(c!);
+    const ro = c!.play!.runners.find((r) => r.from > 0 && r.to > r.from && !r.out)!;
+    const catchT = c!.play!.events.find((e) => e.type === "catch" || e.type === "dive")!.t;
+    const bag = BASE_POS[ro.from as 1 | 2 | 3];
+    const at = (u: number) => tl.runner(ro.playerId, tl.contactT! + u)!.p;
+    const dist = (p: { x: number; z: number }) => Math.hypot(p.x - bag.x, p.z - bag.z);
+    expect(dist(at(catchT))).toBeLessThan(2.5);
+    expect(dist(at(catchT - 0.3))).toBeLessThan(2.5);
+    expect(dist(at(catchT + 1.5))).toBeGreaterThan(8);
+    const end = at(ro.t + 0.25);
+    const next = BASE_POS[ro.to];
+    expect(Math.hypot(end.x - next.x, end.z - next.z)).toBeLessThan(3);
+  });
+});

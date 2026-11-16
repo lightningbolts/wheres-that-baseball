@@ -233,10 +233,12 @@ export function Ballpark({ park, homeColor, awayColor }: { park: Park; homeColor
       depthWrite: false,
       blending: THREE.AdditiveBlending,
       vertexShader:
-        "attribute float size; uniform float uScale; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv; gl_PointSize = clamp(size * uScale * projectionMatrix[1][1] / -mv.z, 2.0, 420.0); }",
-      fragmentShader: "uniform sampler2D map; uniform float uPower; void main(){ vec4 t = texture2D(map, gl_PointCoord); gl_FragColor = vec4(t.rgb * t.a * uPower, 1.0); }",
+        "#include <common>\n#include <logdepthbuf_pars_vertex>\nattribute float size; uniform float uScale; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv; gl_PointSize = clamp(size * uScale * projectionMatrix[1][1] / -mv.z, 2.0, 420.0);\n#include <logdepthbuf_vertex>\n}",
+      // Depth in the same (logarithmic) space as the rest of the park, or the flares hide behind their own lamp racks.
+      fragmentShader:
+        "#include <logdepthbuf_pars_fragment>\nuniform sampler2D map; uniform float uPower; void main(){\n#include <logdepthbuf_fragment>\nvec4 t = texture2D(map, gl_PointCoord); gl_FragColor = vec4(t.rgb * t.a * uPower, 1.0); }",
     });
-    // The city sinks into the horizon haze toward street level: a silhouette, not a wall.
+    // The city sinks into the horizon haze toward street level (scene fog adds distance haze).
     const city = new THREE.MeshBasicMaterial({ map: cityTex, vertexColors: true, color: tod === "night" ? "#b4bfdc" : tod === "dusk" ? "#b9a6a6" : "#ffffff" });
     const haze = new THREE.Color(tod === "night" ? "#18233c" : tod === "dusk" ? "#e2a988" : "#cfe2f3");
     city.onBeforeCompile = (sh) => {
@@ -244,7 +246,7 @@ export function Ballpark({ park, homeColor, awayColor }: { park: Park; homeColor
       sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nvarying float vHazeY;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvHazeY = position.y;");
       sh.fragmentShader = sh.fragmentShader
         .replace("#include <common>", "#include <common>\nuniform vec3 uHaze; varying float vHazeY;")
-        .replace("#include <color_fragment>", "#include <color_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, uHaze, clamp(0.78 - vHazeY / 260.0, 0.22, 0.78));");
+        .replace("#include <color_fragment>", "#include <color_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, uHaze, clamp(0.44 - vHazeY / 520.0, 0.04, 0.44));");
     };
     const textures = [detail, mow, atlas, seatTex, netTex, ledTex, cityTex, flareTex, blocksTex, decals.texture];
     const materials = {

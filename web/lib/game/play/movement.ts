@@ -25,14 +25,31 @@ export function baseToBaseAtSpeed(vmax: number): number {
   return 90 / vmax + 0.35;
 }
 
-/** A thrown ball's flight time (s): fielders throw ~88% of max arm on game throws; long throws bounce/relay. */
+/** Share of max arm a fielder puts on a game throw. */
+const GAME_EFFORT = 0.88;
+
+/**
+ * Comfortable throwing range (ft) for a Savant arm strength (mph): on a line or one
+ * hop, accurate, full speed — ~190 ft for a 78 mph arm, ~250 average (88), ~310 a cannon (98).
+ */
+export function throwRange(armMph: number): number {
+  return Math.min(340, Math.max(160, 250 + (armMph - 88) * 6));
+}
+
+/**
+ * Flight time (s) of one throw of `d` ft. Inside the comfortable range it's a line
+ * drive slowed a little by drag; past it the ball is lofted / bounces and dies, each
+ * foot beyond the range costing ~1.8x a foot inside it. (Relays are planned in throws.ts.)
+ */
+export function legTime(d: number, armMph: number): number {
+  const v = armMph * MPH_TO_FPS * GAME_EFFORT;
+  const range = throwRange(armMph);
+  return (d / v) * (1 + d / 1200) + (d > range ? ((d - range) / v) * 0.8 : 0);
+}
+
+/** A direct throw's flight time (s) between two points. */
 export function throwTime(from: V3, to: V3, armMph: number): number {
-  const d = Math.hypot(to.x - from.x, to.z - from.z);
-  const v = armMph * MPH_TO_FPS * 0.88;
-  // Air drag slows long throws; beyond ~250 ft a cutoff relay costs extra.
-  const dragPenalty = 1 + d / 1200;
-  const relay = d > 250 ? 0.45 : 0;
-  return (d / v) * dragPenalty + relay;
+  return legTime(Math.hypot(to.x - from.x, to.z - from.z), armMph);
 }
 
 export const BASE_POS: Record<1 | 2 | 3 | 4, V3> = {

@@ -12,8 +12,9 @@
  */
 import { judgeFair, sampleAt, type BallSample, type BattedBallPath } from "@/lib/game/physics/battedBall";
 import { isFairPosition, type Park } from "@/lib/game/physics/park";
-import { BASE_POS, runTime, throwTime } from "@/lib/game/play/movement";
+import { BASE_POS, runDistance, runTime, throwTime } from "@/lib/game/play/movement";
 import { isInfielder, isOutfielder, type Fielder } from "@/lib/game/play/defense";
+import { coverMan, exchangeTime, legTime, planThrow, returnThrow, type ThrowLeg, type ThrowPlan } from "@/lib/game/play/throws";
 import { horizDist, sprayAngleDeg, type Rng, type V3 } from "@/lib/game/math";
 import type { FieldPos } from "@/lib/game/types";
 
@@ -46,6 +47,13 @@ export interface PlayInput {
   /** Human throw decision; return null to hold the ball. Defaults to the AI. */
   chooseThrow?: (options: ThrowOption[], fielded: { pos: FieldPos; t: number }) => Base | null | undefined;
   launch: { ev: number; la: number };
+  /**
+   * Outfield throws can go through relay / cutoff men (default true). Pass false to keep
+   * every throw direct (the pre-relay model).
+   */
+  relays?: boolean;
+  /** Game situation for send/hold calls: inning and batting team's lead (negative = trailing). */
+  situation?: { inning: number; scoreDiff: number };
 }
 
 export interface RunnerOutcome {
@@ -57,6 +65,12 @@ export interface RunnerOutcome {
   t: number;
   /** Put out: when he would have reached `to` (> t on a close force/tag — he was still short of the bag). */
   arriveT?: number;
+  /**
+   * Base-path waypoints (s = feet from home along the bases, t = s after contact) for a
+   * runner whose route isn't one run from his lead to `to`: back to the bag to tag up,
+   * holding halfway, frozen on a liner. The final leg to `to` (ending at `t`) follows them.
+   */
+  path?: Array<{ t: number; s: number }>;
 }
 
 export type PlayEventType =
@@ -84,6 +98,12 @@ export interface PlayEvent {
   to?: V3;
   /** For throws: arrival time. */
   arriveT?: number;
+  /** For throws: who catches it (absent on older plays → whoever covers `base`). */
+  receiver?: FieldPos;
+  /** For throws: `to` is a relay/cutoff man's spot in line, not the bag at `base`. */
+  cutoff?: boolean;
+  /** For throws home: a cutoff man lined up in front of the plate that the ball goes past. */
+  lineup?: { pos: FieldPos; p: V3 };
 }
 
 export interface PlayResult {
@@ -352,6 +372,34 @@ export function resolvePlay(input: PlayInput): PlayResult {
   return resolveGroundOrHit(input, pick, events, result, rng.chance(errP));
 }
 
+/** Primary leads by base (ft), as in the runner plans. */
+const LEAD_FT: Record<1 | 2 | 3, number> = { 1: 12, 2: 15, 3: 10 };
+
+interface TagPlan {
+  r: RunnerIn;
+  from: 1 | 2 | 3;
+  /** Feet off the bag when the ball is caught. */
+  off: number;
+  /** Time he's back on (or touching) his bag after the catch. */
+  tBack: number;
+  /** Route before the final leg (for the animation). */
+  path: Array<{ t: number; s: number }>;
+  advance: boolean;
+  /** Arrival at the next base when advancing. */
+  tRun: number;
+  out: boolean;
+  outT: number;
+  doubledOff: boolean;
+}
+
+/**
+ * A ball caught in the air with fewer than two outs (before the catch). Every runner has
+ * to be on his bag after the catch: on a fly he goes back to tag (or hangs halfway if it
+ * might fall), on a liner he's frozen off the bag and has to scramble back, and a runner
+ * going on the pitch may not make it. After touching, he can try for the next base
+ * against the throw (direct or relayed). The defense throws on the likeliest out —
+ * doubling a runner off his bag or cutting down an advancing one.
+ */
 function resolveCaughtFly(
   input: PlayInput,
   f: Fielder,
@@ -360,58 +408,204 @@ function resolveCaughtFly(
   events: PlayEvent[],
   result: (p: Partial<PlayResult>) => PlayResult,
 ): PlayResult {
-  const { runners, outs, rng, launch } = input;
+  const { runners, outs, rng, launch, fielders } = input;
   const kind = launch.la >= 50 ? "P" : launch.la >= 22 ? "F" : launch.la >= 10 ? "L" : "G";
   const scoring = `${kind}${POS_NUM[f.pos]}`;
   const rs: RunnerOutcome[] = [{ playerId: input.batter.playerId, from: 0, to: 1, out: true, t: tCatch }];
-  let outsMade = 1;
-  const runs: number[] = [];
-  let sacFly = false;
   if (outs + 1 >= 3) {
     return result({ outs: 1, caught: true, fieldedBy: f.pos, runners: rs, scoring, endT: tCatch + 1 });
   }
-  // Tag-ups, lead runner first: go if he beats the throw by a safe margin.
-  const transfer = isOutfielder(f.pos) ? 1.0 : 0.7;
-  let throwUsed = false;
+  const deep = horizDist(at);
+  const liner = kind === "L" || kind === "G" || tCatch < 1.8;
+  const pop = !liner && (kind === "P" || deep < 150);
+  const outfield = isOutfielder(f.pos);
+  const transfer = outfield ? 1.0 : liner ? 0.7 : 0.6;
+  const tRelease = tCatch + transfer;
+  const sit = input.situation;
+
+  // Where the defense can get the ball to `base` (s after contact), and how.
+  const plans = new Map<Base, ThrowPlan | null>();
+  const planTo = (base: Base): ThrowPlan | null => {
+    if (!plans.has(base)) {
+      plans.set(base, horizDist(at, BASE_POS[base]) < 12 ? null : planThrow(f, at, tRelease, base, { fielders, relays: input.relays }));
+    }
+    return plans.get(base)!;
+  };
+  const ballAt = (base: Base): number => {
+    const d = horizDist(at, BASE_POS[base]);
+    // The fielder near the bag runs over and steps on it.
+    if (d < 12) return tCatch + 0.2 + runTime(Math.max(0, d - 3), f.sprint);
+    const plan = planTo(base)!;
+    // Someone has to be on the bag to take it.
+    const cover = fielders.find((x) => x.pos === plan.legs[plan.legs.length - 1].receiver);
+    const coverT = cover ? cover.reaction + 0.15 + runTime(Math.max(0, horizDist(cover.p, BASE_POS[base]) - 2), cover.sprint) : 0;
+    return Math.max(plan.arriveT, coverT + 0.1);
+  };
+
+  // ---- Each runner, lead first: where is he at the catch, and does he go? ----
+  const tags: TagPlan[] = [];
   for (const base of [3, 2, 1] as const) {
     const r = runners[base - 1];
     if (!r) continue;
-    const to = (base + 1) as Base;
-    // Runners can't advance into an occupied base that isn't also moving.
-    const blocked = to <= 3 && runners[to - 1] && !rs.some((x) => x.from === to && x.to > to && !x.out);
-    const tRun = tCatch + 0.05 + runTime(90, r.sprint); // rocking start timed to the catch
-    const tThrow = tCatch + transfer + throwTime(at, BASE_POS[to], f.arm);
-    const deep = horizDist(at);
-    const goMargin = to === 4 ? 0.15 : 0.3; // aggressive to score, conservative to 3rd
-    const perceived = tThrow + rng.gauss(0, 0.25);
-    const tries = !blocked && deep > (to === 4 ? 160 : 200) && tRun + goMargin < perceived && kind !== "P";
-    if (!tries) {
-      rs.push({ playerId: r.playerId, from: base, to: base as Base, out: false, t: tCatch });
-      continue;
-    }
-    let out = false;
-    if (!throwUsed) {
-      throwUsed = true;
-      events.push({ t: tCatch + transfer, type: "throw", pos: f.pos, from: at, to: BASE_POS[to], base: to, arriveT: tThrow });
-      out = tThrow + 0.12 < tRun + rng.gauss(0, 0.08) && outs + outsMade < 3;
-    }
-    if (out) {
-      outsMade += 1;
-      events.push({ t: tThrow + 0.12, type: "tag_out", base: to, playerId: r.playerId });
-      rs.push({ playerId: r.playerId, from: base, to, out: true, t: tThrow + 0.12 });
+    const lead = LEAD_FT[base];
+    const bag = base * 90;
+    let tagIntent = false;
+    let want: number; // where he means to be when the ball comes down
+    if (liner) want = lead + 3;
+    else if (pop) {
+      // It hangs: plenty of time to stand on the bag.
+      tagIntent = true;
+      want = 0;
     } else {
-      rs.push({ playerId: r.playerId, from: base, to, out: false, t: tRun });
-      if (to === 4) {
-        // Run counts if he touches home before a third out (a time play).
-        const thirdOut = rs.find((x) => x.out && x.from !== 0 && outs + outsMade >= 3);
-        if (!thirdOut || tRun < thirdOut.t) {
-          runs.push(r.playerId);
-          sacFly = kind === "F" || kind === "L";
-          events.push({ t: tRun, type: "score", playerId: r.playerId });
-        }
+      // A fly that may drop: tag if it's deep enough to move up on, else hang halfway.
+      tagIntent = base === 3 || (base === 2 && deep > 200) || (base === 1 && deep > 280);
+      want = tagIntent ? 0 : base === 2 ? 20 : 30;
+    }
+    const path: TagPlan["path"] = [];
+    let off: number;
+    let tBack: number;
+    if (r.going) {
+      // Running on the pitch: he's well down the line before he reads it and turns around.
+      const tStop = liner ? tCatch + 0.15 : Math.min(tCatch, 0.75);
+      const offStop = Math.min(84, lead + (base === 3 ? 22 : 26) + runDistance(tStop, r.sprint));
+      const tTurn = tStop + 0.35;
+      const tHome = tTurn + runTime(offStop, r.sprint);
+      path.push({ t: tStop, s: bag + offStop }, { t: tTurn, s: bag + offStop });
+      if (tCatch <= tTurn) off = offStop;
+      else off = Math.max(want, offStop - runDistance(tCatch - tTurn, r.sprint));
+      if (off > want + 0.5 || liner) tBack = tHome;
+      else {
+        // He made it back to his spot before the catch and waits there.
+        const tAt = tTurn + runTime(offStop - want, r.sprint);
+        path.push({ t: tAt, s: bag + want }, { t: tCatch + 0.1, s: bag + want });
+        tBack = want > 0 ? tCatch + 0.15 + runTime(want, r.sprint) : tAt;
       }
+    } else if (liner && base === 3 && outfield && tCatch > 1.1) {
+      // A liner to the outfield with a man on third: he freezes, sees it carry, and gets
+      // back to tag — nothing to gain from being off the bag on a ball in the air.
+      const back = runDistance(tCatch - 0.55, r.sprint * 0.85);
+      off = Math.max(0, want - back);
+      const tOn = 0.55 + runTime(want, r.sprint * 0.85);
+      path.push({ t: 0.45, s: bag + want });
+      if (off > 0.5) {
+        path.push({ t: tCatch, s: bag + off });
+        tBack = tCatch + 0.1 + runTime(off, r.sprint);
+      } else {
+        path.push({ t: tOn, s: bag }, { t: tCatch, s: bag });
+        off = 0;
+        tBack = tCatch;
+      }
+    } else if (liner) {
+      // Frozen in his secondary lead until the ball is caught.
+      off = want;
+      path.push({ t: Math.min(0.3, tCatch), s: bag + off }, { t: tCatch + 0.15, s: bag + off });
+      // He breaks back on the catch and dives in: the last ~6 ft are the dive.
+      tBack = tCatch + 0.1 + runTime(Math.max(0, off - 6), r.sprint) + 0.15;
+    } else if (tagIntent) {
+      // Back to the bag to tag while the ball is in the air.
+      off = 0;
+      const tOn = Math.min(tCatch - 0.4, 0.3 + runTime(lead, r.sprint * 0.7));
+      path.push({ t: tOn, s: bag }, { t: tCatch, s: bag });
+      tBack = tCatch;
+    } else {
+      off = want;
+      const tOut = Math.max(0.4, Math.min(tCatch - 0.3, tCatch * 0.6));
+      path.push({ t: tOut, s: bag + want }, { t: tCatch + 0.12, s: bag + want });
+      tBack = tCatch + 0.12 + runTime(want, r.sprint);
+    }
+
+    // ---- Tag and go? ----
+    let advance = false;
+    let tRun = 0;
+    const to = (base + 1) as Base;
+    const ahead = tags.find((x) => x.from === to);
+    const blocked = to <= 3 && !!runners[to - 1] && !ahead?.advance;
+    if ((!liner || outfield) && !pop && !blocked && (outfield || deep > 200)) {
+      const onBag = off <= 0.5;
+      // A rocking start timed to the catch; from halfway he has to get back and touch first.
+      const tLeave = Math.max(tCatch, tBack) + (onBag ? 0.05 : 0.3);
+      // Timed off a rocking start he's at speed in a few strides (MLB tag times ~3.4–3.9 s);
+      // the hand reaches the bag a couple of feet before the body.
+      tRun = tLeave + runTime(86, r.sprint, onBag ? 30 : 15);
+      let margin = to === 4 ? (outs === 0 ? 0.25 : 0.1) : to === 3 ? (outs === 0 ? 0.3 : 0.55) : 0.35;
+      if (sit && to === 4) {
+        if (sit.inning >= 7 && sit.scoreDiff >= -1 && sit.scoreDiff <= 0) margin -= 0.1;
+        else if (Math.abs(sit.scoreDiff) >= 4) margin += 0.15;
+      }
+      const perceived = ballAt(to) + rng.gauss(0, 0.25);
+      advance = tRun + margin < perceived;
+      if (advance) path.push({ t: tLeave - (onBag ? 0.05 : 0), s: bag });
+    }
+    tags.push({ r, from: base, off, tBack, path, advance, tRun, out: false, outT: 0, doubledOff: false });
+  }
+
+  // ---- The throw ----
+  const options: ThrowOption[] = [];
+  for (const g of tags) {
+    if (g.advance) options.push({ base: (g.from + 1) as Base, runnerId: g.r.playerId, margin: g.tRun - ballAt((g.from + 1) as Base), force: false });
+    else if (g.off > 0.5) options.push({ base: g.from, runnerId: g.r.playerId, margin: g.tBack - ballAt(g.from), force: true });
+  }
+  let target: Base | null = null;
+  if (options.length) {
+    const human = input.chooseThrow?.(options, { pos: f.pos, t: tCatch });
+    if (human !== undefined) target = human;
+    else {
+      const best = [...options].sort((a, b) => b.margin - a.margin)[0];
+      target = best.margin > -0.3 ? best.base : null;
     }
   }
+  let outsMade = 1;
+  const thrownAt = target != null ? options.find((o) => o.base === target) : undefined;
+  const g = thrownAt && tags.find((x) => x.r.playerId === thrownAt.runnerId);
+  if (target != null && g) {
+    const plan = planTo(target);
+    const tArr = ballAt(target);
+    if (plan) pushLegs(events, plan.legs, target, plan);
+    const spread = plan?.spread ?? 0.04;
+    if (g.advance) {
+      if (tArr + 0.12 < g.tRun + rng.gauss(0, Math.hypot(0.08, spread)) && outs + outsMade < 3) {
+        g.out = true;
+        g.outT = tArr + 0.12;
+        outsMade += 1;
+        events.push({ t: g.outT, type: "tag_out", base: target, playerId: g.r.playerId });
+      }
+    } else if (tArr + 0.05 < g.tBack + rng.gauss(0, Math.hypot(0.08, spread)) && outs + outsMade < 3) {
+      // Doubled off: the ball beats him back to the bag.
+      g.out = true;
+      g.doubledOff = true;
+      g.outT = tArr + 0.05;
+      outsMade += 1;
+      events.push({ t: g.outT, type: "force_out", base: target, playerId: g.r.playerId });
+    }
+  } else if (target != null && outfield) {
+    pushLegs(events, [returnThrow(f, at, tRelease, fielders)], 2);
+  } else if (outfield && tags.some((x) => x.advance)) {
+    // Nobody to get: the ball comes back in to the relay man.
+    pushLegs(events, [returnThrow(f, at, tRelease, fielders)], 2);
+  }
+
+  const runs: number[] = [];
+  let sacFly = false;
+  for (const x of tags) {
+    if (x.doubledOff) {
+      rs.push({ playerId: x.r.playerId, from: x.from, to: x.from, out: true, t: x.outT, arriveT: x.tBack, path: x.path });
+    } else if (x.advance) {
+      const to = (x.from + 1) as Base;
+      rs.push({ playerId: x.r.playerId, from: x.from, to, out: x.out, t: x.out ? x.outT : x.tRun, arriveT: x.out ? x.tRun : undefined, path: x.path });
+    } else {
+      rs.push({ playerId: x.r.playerId, from: x.from, to: x.from, out: false, t: Math.max(tCatch, x.tBack), path: x.path });
+    }
+  }
+  // Runs count if they cross before a third out (all time plays here).
+  const thirdOut = outs + outsMade >= 3 ? rs.filter((x) => x.out && x.from !== 0).sort((a, b) => a.t - b.t)[2 - outs - 1] : undefined;
+  for (const x of rs) {
+    if (x.to !== 4 || x.out) continue;
+    if (thirdOut && !(x.t < thirdOut.t)) continue;
+    runs.push(x.playerId);
+    sacFly = kind === "F" || kind === "L";
+    events.push({ t: x.t, type: "score", playerId: x.playerId });
+  }
+  events.sort((a, b) => a.t - b.t);
   return result({
     outs: outsMade,
     caught: true,
@@ -421,7 +615,7 @@ function resolveCaughtFly(
     scoring: outsMade > 1 ? `${scoring} DP` : scoring,
     sacFly,
     doublePlay: outsMade > 1,
-    endT: Math.max(tCatch + 1.5, ...rs.map((x) => x.t)),
+    endT: Math.max(tCatch + 1.5, ...rs.map((x) => x.t), ...events.map((e) => e.arriveT ?? e.t)),
   });
 }
 
@@ -503,11 +697,20 @@ function resolveGroundOrHit(
   }
 
   const transfer = (isInfielder(f.pos) ? 0.55 : 0.85) + (pick.dive ? 0.35 : 0);
+  const tRelease = tField + transfer;
+  // Outfielders throw direct or through a relay, whichever gets there first (arm-dependent).
+  const planCache = new Map<Base, ThrowPlan>();
+  const planFor = (base: Base): ThrowPlan => {
+    let p = planCache.get(base);
+    if (!p) planCache.set(base, (p = planThrow(f, P, tRelease, base, { fielders: input.fielders, relays: input.relays })));
+    return p;
+  };
   const throwArrive = (base: Base) => {
     const d = horizDist(P, BASE_POS[base]);
     // Fielder near the bag just steps on it.
     if (d < 10) return tField + runTime(d, f.sprint) + 0.05;
-    return tField + transfer + throwTime(P, BASE_POS[base], f.arm);
+    if (isOutfielder(f.pos)) return planFor(base).arriveT;
+    return tRelease + throwTime(P, BASE_POS[base], f.arm);
   };
 
   if (infieldPlay) {
@@ -544,36 +747,84 @@ function resolveGroundOrHit(
     target = best && best.margin > -0.3 ? best.base : null;
   }
   if (target == null) {
-    // No play: the ball comes back in to the cutoff man at second.
-    events.push({ t: tField + transfer, type: "throw", pos: f.pos, from: P, to: BASE_POS[2], base: 2, arriveT: throwArrive(2) });
+    // No play: the ball comes back in to the relay man (or second base on a short one).
+    pushLegs(events, [returnThrow(f, P, tRelease, input.fielders)], 2);
   }
   if (target != null) {
+    const plan: ThrowPlan | null = horizDist(P, BASE_POS[target]) < 10 ? null : isOutfielder(f.pos) ? planFor(target) : null;
     const tArr = throwArrive(target);
-    events.push({ t: tField + transfer, type: "throw", pos: f.pos, from: P, to: BASE_POS[target], base: target, arriveT: tArr });
+    const legs: ThrowLeg[] = plan
+      ? plan.legs.map((l) => ({ ...l }))
+      : [{ pos: f.pos, from: P, to: BASE_POS[target], t: tRelease, arriveT: tArr, receiver: coverMan(target, [f.pos]), cutoff: false, dist: horizDist(P, BASE_POS[target]) }];
+    const spread = plan?.spread ?? 0.05;
     const runner = plans.find((p) => p.target === target);
+    let leadSafe = true;
     if (runner && !runner.done) {
       const tRun = arrival(runner, target);
-      const throwErr = rng.chance(0.012);
+      const throwErr = rng.chance(plan?.errP ?? 0.012);
       if (throwErr) {
+        pushLegs(events, legs, target, plan);
         events.push({ t: tArr, type: "error", base: target });
         for (const p of plans) p.target = Math.min(4, p.target + 1) as Base;
         return finish(input, plans, events, result, { error: true, fieldedBy: f.pos, hitBases, scoring: hitLabel(hitBases, f.pos) + " +E" });
       }
-      if (tArr + 0.12 < tRun + rng.gauss(0, 0.07)) {
+      if (tArr + 0.12 < tRun + rng.gauss(0, Math.hypot(0.07, spread))) {
         runner.out = true;
         runner.outT = tArr + 0.12;
+        leadSafe = false;
         events.push({ t: runner.outT, type: "tag_out", base: target, playerId: runner.playerId });
       }
     }
-    // Trailing runners move up on the throw when the base ahead is open and the cutoff can't stop them.
+    // Trailing runners move up on the throw when the base ahead is open.
+    const movedUp: RunnerPlan[] = [];
     for (const p of [...plans].sort((a, b) => b.target - a.target)) {
       if (p.out || p.target >= target || p.target >= 3) continue;
       const next = (p.target + 1) as Base;
       if (plans.some((q) => q !== p && !q.out && q.target === next)) continue;
-      if (arrival(p, next) < tArr + 0.55) p.target = next;
+      if (arrival(p, next) < tArr + 0.55) {
+        p.target = next;
+        movedUp.push(p);
+      }
+    }
+    // Cut it! The lead runner beats the throw, so the cutoff (or relay) man takes it and
+    // goes after the trailer moving up on the throw.
+    const cutMan = plan?.cutoffMan
+      ? { pos: plan.cutoffMan.pos, p: plan.cutoffMan.p, t: plan.cutoffMan.passT }
+      : plan?.kind === "relay"
+        ? { pos: legs[0].receiver, p: legs[0].to, t: legs[0].arriveT }
+        : null;
+    const trailer = movedUp[0];
+    const cutter = cutMan && input.fielders.find((x) => x.pos === cutMan.pos);
+    if (cutMan && cutter && trailer && leadSafe && runner && arrival(runner, target) < tArr - 0.05 && outs + plans.filter((p) => p.out).length < 3) {
+      const nb = trailer.target;
+      const out = cutMan.t + exchangeTime(cutter.glove) * 0.8;
+      const tCut = out + legTime(horizDist(cutMan.p, BASE_POS[nb]), cutter.arm);
+      const cutLegs: ThrowLeg[] = [
+        { ...legs[0], to: cutMan.p, arriveT: cutMan.t, receiver: cutMan.pos, cutoff: true },
+        { pos: cutMan.pos, from: cutMan.p, to: BASE_POS[nb], t: out, arriveT: tCut, receiver: coverMan(nb, [f.pos, cutMan.pos]), cutoff: false, dist: 0 },
+      ];
+      pushLegs(events, cutLegs, nb);
+      if (tCut + 0.12 < arrival(trailer, nb) + rng.gauss(0, 0.08)) {
+        trailer.out = true;
+        trailer.outT = tCut + 0.12;
+        events.push({ t: trailer.outT, type: "tag_out", base: nb, playerId: trailer.playerId });
+      }
+    } else {
+      pushLegs(events, legs, target, plan);
     }
   }
   return finish(input, plans, events, result, { fieldedBy: f.pos, hitBases, scoring: hitLabel(hitBases, f.pos) });
+}
+
+/** Record a (possibly multi-leg) throw as throw events. */
+function pushLegs(events: PlayEvent[], legs: ThrowLeg[], base: Base, plan?: ThrowPlan | null): void {
+  legs.forEach((l, i) => {
+    const e: PlayEvent = { t: l.t, type: "throw", pos: l.pos, from: l.from, to: l.to, base, arriveT: l.arriveT };
+    if (l.receiver) e.receiver = l.receiver;
+    if (l.cutoff) e.cutoff = true;
+    if (i === legs.length - 1 && plan?.cutoffMan && plan.kind === "direct") e.lineup = { pos: plan.cutoffMan.pos, p: plan.cutoffMan.p };
+    events.push(e);
+  });
 }
 
 function hitLabel(bases: number, pos: FieldPos): string {

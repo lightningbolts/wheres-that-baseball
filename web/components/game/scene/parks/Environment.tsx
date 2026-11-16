@@ -126,6 +126,7 @@ export function Environment({ park }: { park: Park }) {
       new THREE.ShaderMaterial({
         side: THREE.BackSide,
         depthWrite: false,
+        depthTest: false,
         fog: false,
         uniforms: {
           top: { value: new THREE.Color(p.top) },
@@ -187,8 +188,12 @@ export function Environment({ park }: { park: Park }) {
     fit.c.y = 0;
     const visible = 2 * k * Math.tan(((cam.fov ?? 45) * Math.PI) / 360) * Math.max(1, cam.aspect);
     const half = THREE.MathUtils.clamp(visible * 0.75, 45, 300);
-    // Quantize the box size so the texel grid only changes on real view changes.
-    const q = Math.pow(2, Math.ceil(Math.log2(half) * 4) / 4);
+    // Quantize the box size so the texel grid only changes on real view changes, with
+    // hysteresis: grow as soon as the view needs more ground, but only shrink once it needs
+    // clearly less. Without it a view sitting on a step boundary flips the box (and every
+    // shadow's resolution and softness) back and forth from frame to frame: a strobe.
+    const want = Math.pow(2, Math.ceil(Math.log2(half) * 4) / 4);
+    const q = want > fit.half || want < fit.half / Math.pow(2, 0.5) || fit.half === 0 ? want : fit.half;
     const sc = light.shadow.camera;
     if (q !== fit.half) {
       fit.half = q;
@@ -211,7 +216,8 @@ export function Environment({ park }: { park: Park }) {
 
   return (
     <>
-      <mesh material={sky} position={[0, 0, 150]} frustumCulled={false}>
+      {/* Background: drawn first with no depth test, so its depth never meets the park's. */}
+      <mesh material={sky} position={[0, 0, 150]} frustumCulled={false} renderOrder={-1000}>
         <sphereGeometry args={[5200, 32, 16]} />
       </mesh>
       <hemisphereLight args={[p.sky, p.ground, p.hemi]} />

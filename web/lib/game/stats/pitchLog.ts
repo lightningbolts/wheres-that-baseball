@@ -77,9 +77,12 @@ const DEFAULT_EXT_FT = 6.3;
  */
 export function pitchMovement(flight: PitchFlight, air: Air, extFt: number | null = null): { ivb: number; hb: number } {
   const s0 = flight.samples[0];
-  const { final } = integrateFlight({ p: s0.p, v: s0.v, w: v3(0, 0, 0) }, air, (b) => b.p.z <= PLATE_FRONT_Z, { dt: 1 / 960, maxT: 1.5, sampleEvery: 1000 });
-  // Both balls end within one step of the plate plane; project the spinless one onto it.
-  const back = (final.p.z - PLATE_FRONT_Z) / (final.v.z || -1);
+  // A ball in the dirt ends its flight where it hits the ground, short of the plate: compare
+  // the spinless ball at that same distance, not at the plate (it would be under the ground).
+  const endZ = Math.max(PLATE_FRONT_Z, flight.cross.p.z);
+  const { final } = integrateFlight({ p: s0.p, v: s0.v, w: v3(0, 0, 0) }, air, (b) => b.p.z <= endZ, { dt: 1 / 960, maxT: 1.5, sampleEvery: 1000 });
+  // Both balls end within one step of that plane; project the spinless one onto it.
+  const back = (final.p.z - endZ) / (final.v.z || -1);
   const nx = final.p.x - final.v.x * back;
   const ny = final.p.y - final.v.y * back;
   const t50 = flight.cross.t - s0.t;
