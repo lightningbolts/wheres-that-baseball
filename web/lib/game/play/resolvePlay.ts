@@ -11,7 +11,7 @@
  * A human defender can override the throw target via `chooseThrow` (return undefined → AI).
  */
 import { judgeFair, sampleAt, type BallSample, type BattedBallPath } from "@/lib/game/physics/battedBall";
-import type { Park } from "@/lib/game/physics/park";
+import { isFairPosition, type Park } from "@/lib/game/physics/park";
 import { BASE_POS, runTime, throwTime } from "@/lib/game/play/movement";
 import { isInfielder, isOutfielder, type Fielder } from "@/lib/game/play/defense";
 import { horizDist, sprayAngleDeg, type Rng, type V3 } from "@/lib/game/math";
@@ -22,6 +22,8 @@ export type Base = 1 | 2 | 3 | 4;
 export interface RunnerIn {
   playerId: number;
   sprint: number;
+  /** Running on the pitch (steal / hit-and-run): already well down the line at contact. */
+  going?: boolean;
 }
 
 export interface ThrowOption {
@@ -38,7 +40,7 @@ export interface PlayInput {
   fielders: Fielder[];
   /** Runners on [1st, 2nd, 3rd]. */
   runners: [RunnerIn | null, RunnerIn | null, RunnerIn | null];
-  batter: RunnerIn & { bats: "L" | "R" };
+  batter: RunnerIn & { bats: "L" | "R"; bunt?: boolean };
   outs: number;
   rng: Rng;
   /** Human throw decision; return null to hold the ball. Defaults to the AI. */
@@ -53,6 +55,8 @@ export interface RunnerOutcome {
   out: boolean;
   /** Time the runner reached `to` (or was put out). */
   t: number;
+  /** Put out: when he would have reached `to` (> t on a close force/tag — he was still short of the bag). */
+  arriveT?: number;
 }
 
 export type PlayEventType =
@@ -296,6 +300,11 @@ export function resolvePlay(input: PlayInput): PlayResult {
       return resolveCaughtFly(input, air.f, air.t, ballAt.p, events, result);
     }
     events.push({ t: air.t, type: air.dive ? "dive" : "drop", pos: air.f.pos, to: ballAt.p });
+    if (!air.dive && !isFairPosition(ballAt.p)) {
+      // A dropped foul fly is just a foul ball: the count moves, nobody advances.
+      events.push({ t: air.t, type: "foul" });
+      return result({ foul: true, endT: air.t + 1 });
+    }
     if (!air.dive) {
       // Dropped a catchable ball: error; the fielder picks it up ~1 s later right there.
       return resolveGroundOrHit(input, { f: air.f, t: air.t + 1.0, p: ballAt.p, dive: false }, events, result, true);
@@ -457,6 +466,11 @@ function resolveGroundOrHit(
         effLead = lead + 4;
       }
     }
+    // Sent on the pitch: by contact he's ~a third of the way, and on a grounder or liner he keeps going.
+    if (r.going && (grounder || launch.la < 22 || twoOuts)) {
+      tGo = 0;
+      effLead = lead + (base === 3 ? 22 : 26);
+    }
     plans.push({ playerId: r.playerId, sprint: r.sprint, from: base, lead: effLead, tGo, target: (base + 1) as Base, forced, out: false, outT: 0, done: false });
   }
   const bPlan: RunnerPlan = {
@@ -464,7 +478,8 @@ function resolveGroundOrHit(
     sprint: batter.sprint,
     from: 0,
     lead: 0,
-    tGo: batter.bats === "L" ? 0.2 : 0.3,
+    // Out of the box: lefties are a step closer; a bunter is already moving as he squares.
+    tGo: (batter.bats === "L" ? 0.2 : 0.3) - (batter.bunt ? 0.12 : 0),
     target: 1,
     forced: true,
     out: false,
@@ -684,6 +699,7 @@ function finish(
     to: p.target,
     out: p.out,
     t: p.out ? p.outT : p.done ? 0 : arrival(p, p.target),
+    arriveT: p.out ? arrival(p, p.target) : undefined,
   }));
   // Third-out rule: no runs if the third out is a force (or the batter before 1st); else time play.
   let runs = rs.filter((r) => r.to === 4 && !r.out);
@@ -691,7 +707,9 @@ function finish(
     const outsSorted = rs.filter((r) => r.out).sort((a, b) => a.t - b.t);
     const third = outsSorted[2 - outs];
     const plan = third && plans.find((p) => p.playerId === third.playerId);
-    const isForce = third && (third.from === 0 || plan?.forced);
+    // A force applies only at the next base: the batter thrown out at first, or a forced runner at the
+    // base he was forced to. A runner tagged going for an extra base is a time play.
+    const isForce = third && third.to === third.from + 1 && (third.from === 0 || plan?.forced);
     runs = isForce ? [] : runs.filter((r) => r.t < third.t);
   }
   for (const r of runs) events.push({ t: r.t, type: "score", playerId: r.playerId });

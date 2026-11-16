@@ -34,8 +34,8 @@ PITCH_NAMES = {
 }
 KIN_KEYS = ["x0", "y0", "z0", "vX0", "vY0", "vZ0", "aX", "aY", "aZ", "pX", "pZ"]
 FIELD_POS = ["C", "1B", "2B", "3B", "SS", "LF", "CF", "RF"]
-# Typical Statcast sprint speed (ft/s) by primary position — real per-player sprint
-# speed isn't in the local data, so this is a position prior.
+# Typical Statcast sprint speed (ft/s) and arm (mph) by primary position: priors for
+# players missing from Savant's leaderboards (enrich_game_rosters.py fills in the rest).
 POS_SPRINT = {"C": 25.3, "1B": 25.9, "2B": 27.4, "3B": 26.8, "SS": 27.8, "LF": 27.3,
               "CF": 28.4, "RF": 27.3, "DH": 26.0, "P": 25.5, "TWP": 26.5}
 POS_ARM = {"C": 80, "1B": 74, "2B": 78, "3B": 85, "SS": 86, "LF": 84, "CF": 87, "RF": 89,
@@ -284,6 +284,9 @@ def main() -> None:
     payload = {"season": args.season, "generatedFrom": "statcast-local", "teams": teams_out}
     OUT.write_text(json.dumps(payload, separators=(",", ":")))
     print(f"wrote {OUT} ({os.path.getsize(OUT) / 1024:.0f} KB, {len(teams_out)} teams)", file=sys.stderr)
+    # Savant player metrics: sprint speed, arm, OAA, pop time, bat tracking, expected stats.
+    import subprocess
+    subprocess.run([sys.executable, str(Path(__file__).with_name("enrich_game_rosters.py")), "--season", str(args.season)], check=False)
 
 
 if __name__ == "__main__":

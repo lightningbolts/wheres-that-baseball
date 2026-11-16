@@ -100,6 +100,8 @@ describe("animator", () => {
       an.step(a, env(tl, T, 1 / 60, frame), 1, out, ballP);
     }
     const held = out.bones.map((m) => m.clone());
+    // Paused on the last frame drawn: the clock stops where it was.
+    T -= 1 / 60;
     for (let k = 0; k < 30; k += 1) {
       frame += 1;
       an.step(a, { ...env(tl, T, 0, frame), now: 5 + T }, 1, out, ballP);

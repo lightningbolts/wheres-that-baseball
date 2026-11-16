@@ -8,6 +8,7 @@
  * keyframes are interpolated with monotone cubic splines (no stop-and-go at every
  * key), and all poses are authored right-handed and mirrored for lefties.
  */
+import type { Uniform } from "@/components/game/scene/character/uniforms";
 import * as THREE from "three";
 import type { ActorState } from "@/lib/game/anim/timeline";
 import type { FieldPos } from "@/lib/game/types";
@@ -30,6 +31,8 @@ export interface ActorDraw {
   pos: FieldPos | null;
   /** MLB player id (name, number and looks); 0 or absent for umpires and coaches. */
   id?: number;
+  /** Club uniform details (cap mark, lettering, pinstripes); absent for umpires. */
+  uni?: Uniform | null;
 }
 
 export interface Pose {
@@ -91,6 +94,8 @@ export interface PoseCtx {
   hold: number;
   /** Swing: seconds from launch to contact. */
   swingDur: number;
+  /** The swing is a bunt: squared around, bat held out over the plate. */
+  bunt?: boolean;
   /** Umpire: seconds since he began a strike call (negative: none). */
   callT: number;
   /** 0..1, fixed per actor: de-synchronises idle motion and varies mannerisms. */
@@ -625,6 +630,45 @@ function swingInto(p: Pose, t: number, c: PoseCtx, flip: number, time: number) {
   }
 }
 
+/**
+ * Bunt: he squares around early (t is time since he showed bunt; swingDur → contact),
+ * knees bent, the bat level out in front with the barrel over the plate, then catches
+ * the ball on it — the sweet spot is set on the aim point.
+ */
+function buntInto(p: Pose, t: number, c: PoseCtx, flip: number, time: number) {
+  const D = Math.max(0.2, c.swingDur);
+  const sq = smooth(t / 0.35);
+  stanceInto(_stance, -10, time);
+  standing(p);
+  p.hipH = lerp(2.95, 2.55, sq);
+  p.lean = lerp(0.04, 0.22, sq);
+  p.twist = lerp(0, 0.9, sq);
+  p.headYaw = lerp(1.3, 0.6, sq);
+  p.headPitch = 0.15;
+  p.footL.set(1.3, GROUND, 0.25);
+  p.footR.set(lerp(-1.2, -0.35, sq), GROUND, lerp(0.1, 0.9, sq));
+  _h.set(0.15, 3.65, 1.2);
+  _dir.set(0.95, 0.12, 0.3).normalize();
+  if (c.hasTarget) {
+    localTarget(_t, c, 0, flip);
+    // Barrel's sweet spot on the ball; the hands stay a forearm out in front of the chest.
+    _d.copy(_t);
+    _dc.subVectors(_d, _h);
+    const l = _dc.length();
+    if (l > 0.2) {
+      _dc.multiplyScalar(1 / l);
+      _hc.copy(_d).addScaledVector(_dc, -Math.min(BAT_SWEET * 0.75, l));
+      const w = sq;
+      _h.lerp(_hc, 0.7 * w);
+      _dir.lerp(_dc, w).normalize();
+    }
+  }
+  gripBat(p, _h, _dir);
+  // After the ball is off the bat he comes out of it toward first.
+  const rec = smooth((t - D - 0.15) / 0.35);
+  if (rec > 0) lerpPose(p, p, _stance, rec * 0.5);
+}
+
 function mirror(p: Pose) {
   p.twist = -p.twist;
   p.headYaw = -p.headYaw;
@@ -789,8 +833,11 @@ export function poseInto(p: Pose, a: ActorDraw, cls: PoseClass, c: PoseCtx): Pos
         _t.y -= p.rootY;
         const low = clamp01((3.2 - _t.y) / 2.5) * w;
         const high = clamp01((_t.y - 5.6) / 2) * w;
-        p.hipH += 0.14 * high - 0.55 * low;
-        p.lean += 0.4 * low - 0.1 * high;
+        // A shoestring catch close to the body: sit down into it, not just bend.
+        const shoe = clamp01((2.0 - _t.y) / 1.0) * clamp01((1.6 - Math.hypot(_t.x, _t.z)) / 1.0) * w;
+        p.hipH += 0.14 * high - 0.55 * low - 0.55 * shoe;
+        p.lean += 0.4 * low - 0.1 * high + 0.25 * shoe;
+        p.footL.z += 0.35 * shoe;
         p.sway = 0.3 * w * Math.max(-1, Math.min(1, _t.x * 0.6));
         p.toeR = Math.max(p.toeR, 0.5 * high);
         // Fingers up for a ball above the belt, down for one below it.
@@ -861,7 +908,8 @@ export function poseInto(p: Pose, a: ActorDraw, cls: PoseClass, c: PoseCtx): Pos
       look = t < 0.6 ? 0.85 : 0;
       break;
     case "swing":
-      swingInto(p, t, c, flip, c.time + sd * 5);
+      if (c.bunt) buntInto(p, t, c, flip, c.time + sd * 5);
+      else swingInto(p, t, c, flip, c.time + sd * 5);
       break;
     case "idle":
     default: {

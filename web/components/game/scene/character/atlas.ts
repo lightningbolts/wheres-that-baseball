@@ -35,6 +35,10 @@ export const PANEL = {
   chest: { x: 224, y: 448, w: 128, h: 64 },
   /** Sleeve: wraps the upper arm, shoulder at the top, hem at the bottom. */
   sleeve: { x: 352, y: 448, w: 160, h: 64 },
+  /** Front of the cap crown (head-on projection, 0.6 × 0.3 ft) carrying the club's mark. */
+  capFront: { x: 192, y: 416, w: 64, h: 32 },
+  /** Front of the batting helmet, same projection. */
+  helmetFront: { x: 256, y: 416, w: 64, h: 32 },
 } satisfies Record<string, Rect>;
 
 export const SWATCHES = [
@@ -107,6 +111,8 @@ export const PANEL_FINISH: Record<keyof typeof PANEL, [number, number]> = {
   glove: [0.58, 0],
   chest: [0.55, 0],
   sleeve: [0.92, 0],
+  capFront: [0.88, 0],
+  helmetFront: [0.2, 0.05],
 };
 
 /** UV writer for a flat-colour swatch. */

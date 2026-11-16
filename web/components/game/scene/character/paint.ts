@@ -5,6 +5,7 @@
 import type { ActorKind } from "@/components/game/scene/rig";
 import { ATLAS, FINISH, PANEL, PANEL_FINISH, SWATCHES, swatchRect, type Rect, type Swatch } from "@/components/game/scene/character/atlas";
 import { CUFF_AT } from "@/components/game/scene/character/body";
+import { capLogo } from "@/components/game/scene/character/uniforms";
 
 export interface Look {
   kind: ActorKind;
@@ -20,6 +21,12 @@ export interface Look {
   num: string;
   /** Club nickname for the chest wordmark, or "". */
   team: string;
+  /** MLB team id for the cap mark (0 = none). */
+  teamId: number;
+  /** Cap colour, lettering colour and pinstripe colour as 0xRRGGBB (-1 = derive from accent / none). */
+  cap: number;
+  letter: number;
+  stripe: number;
 }
 
 type RGB = [number, number, number];
@@ -415,7 +422,8 @@ export function paintLook(ctx: Ctx, look: Look): void {
   const skin = rgb(look.skin);
   const pants: RGB = ump ? [66, 69, 76] : mix(jersey, BLACK, 0.035);
   // Lettering must stand off the cloth: fall back to navy or white when the team colour would not.
-  const ink: RGB = Math.abs(lum(accent) - lum(jersey)) > 55 ? accent : lum(jersey) > 128 ? [22, 30, 54] : WHITE;
+  const letter = look.letter >= 0 && !ump ? rgb(look.letter) : accent;
+  const ink: RGB = Math.abs(lum(letter) - lum(jersey)) > 55 ? letter : lum(jersey) > 128 ? [22, 30, 54] : WHITE;
   const outline = !ump && lum(jersey) < 215 ? css(lum(ink) > 150 ? [20, 24, 36] : WHITE) : null;
   const hairSet = lum(skin) < 140 ? HAIR_DARK : HAIR_LIGHT;
   const hair = hairSet[Math.floor(hash01(seed, 1) * hairSet.length)];
@@ -429,11 +437,18 @@ export function paintLook(ctx: Ctx, look: Look): void {
   const battingGlove: RGB = gRoll < 0.4 ? [238, 238, 234] : gRoll < 0.7 ? [26, 26, 30] : accent;
   const handC = kind === "batter" || kind === "runner" ? battingGlove : skin;
   const leather = LEATHER[Math.floor(hash01(seed, 6) * LEATHER.length)];
-  const headwear: RGB = ump ? [20, 22, 28] : accent;
+  const headwear: RGB = ump ? [20, 22, 28] : look.cap >= 0 ? rgb(look.cap) : accent;
+  const stripe: RGB | null = !ump && look.stripe >= 0 ? rgb(look.stripe) : null;
   const sockRoll = hash01(seed, 7);
   const sockStyle = !player ? 2 : sockRoll < 0.42 ? 0 : sockRoll < 0.7 ? 1 : 2;
   // Trim follows the team (not the player), so a side looks like one club.
-  const piping = !ump && hash01(look.accent, 8) < 0.55;
+  const piping = !ump && !stripe && hash01(look.accent, 8) < 0.55;
+  /** Thin vertical pinstripes across a panel (period in texels). */
+  const pinstripes = (w: number, h: number, period: number) => {
+    if (!stripe) return;
+    ctx.fillStyle = css(stripe, 0.85);
+    for (let x = period / 2; x < w; x += period) ctx.fillRect(x - 0.6, 0, 1.2, h);
+  };
 
   const swatches: Record<Swatch, RGB> = {
     skin,
@@ -475,6 +490,7 @@ export function paintLook(ctx: Ctx, look: Look): void {
     ctx.fillStyle = css(jersey);
     ctx.fillRect(0, 0, w, h);
     cloth(ctx, w, h);
+    pinstripes(w, h, 14);
     if (piping) {
       ctx.fillStyle = css(accent);
       ctx.fillRect(cx - 15, 0, 3, h);
@@ -534,6 +550,7 @@ export function paintLook(ctx: Ctx, look: Look): void {
     ctx.fillStyle = css(jersey);
     ctx.fillRect(0, 0, w, h);
     cloth(ctx, w, h);
+    pinstripes(w, h, 14);
     // Yoke seam across the shoulders.
     ctx.strokeStyle = css(mix(jersey, BLACK, 0.1));
     ctx.lineWidth = 1.5;
@@ -563,6 +580,7 @@ export function paintLook(ctx: Ctx, look: Look): void {
     const { w, h } = PANEL.pants;
     ctx.fillStyle = css(pants);
     ctx.fillRect(0, 0, w, h);
+    pinstripes(w, h, 16);
     wrap(w, h, 0.13);
     // Shade under the belt and creases gathering at the knee.
     const g = ctx.createLinearGradient(0, 0, 0, h * 0.14);
@@ -592,6 +610,7 @@ export function paintLook(ctx: Ctx, look: Look): void {
     const { w, h } = PANEL.sleeve;
     ctx.fillStyle = css(jersey);
     ctx.fillRect(0, 0, w, h);
+    pinstripes(w, h, 12);
     wrap(w, h, 0.14);
     ctx.strokeStyle = seam;
     ctx.lineWidth = 1.2;
@@ -674,6 +693,32 @@ export function paintLook(ctx: Ctx, look: Look): void {
     ctx.fillRect(0, 0, w, 3);
     ctx.fillRect(0, h - 3, w, 3);
   });
+  // Cap and helmet fronts: the club's mark, centred over the brim.
+  const mark = ump ? null : capLogo(look.teamId);
+  for (const [panel, base, gloss] of [
+    [PANEL.capFront, headwear, 0],
+    [PANEL.helmetFront, headwear, 1],
+  ] as const) {
+    inPanel(ctx, panel, () => {
+      const { w, h } = panel;
+      ctx.fillStyle = css(base);
+      ctx.fillRect(0, 0, w, h);
+      if (gloss) {
+        const g = ctx.createLinearGradient(0, 0, 0, h);
+        g.addColorStop(0, "rgba(255,255,255,0.10)");
+        g.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, w, h);
+      }
+      if (!mark) return;
+      // Fit the mark in a box 0.21 ft tall and wide (the panel spans 0.6 × 0.3 ft).
+      const box = h * 0.72;
+      const ar = mark.naturalWidth / Math.max(1, mark.naturalHeight);
+      const mw = ar >= 1 ? box : box * ar;
+      const mh = ar >= 1 ? box / ar : box;
+      ctx.drawImage(mark, w / 2 - mw / 2, h * 0.52 - mh / 2, mw, mh);
+    });
+  }
   inPanel(ctx, PANEL.lower, () => {
     const { w, h } = PANEL.lower;
     const cuff = sockStyle === 2 ? h * 0.9 : CUFF_AT * h;
@@ -693,6 +738,7 @@ export function paintLook(ctx: Ctx, look: Look): void {
     ctx.beginPath();
     ctx.rect(0, 0, w, cuff);
     ctx.clip();
+    pinstripes(w, h, 16);
     wrap(w, h, 0.13);
     // Cloth bunching above the elastic.
     ctx.strokeStyle = "rgba(0,0,0,0.07)";

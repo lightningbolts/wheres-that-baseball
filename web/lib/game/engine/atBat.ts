@@ -3,7 +3,8 @@
  * bat–ball collision → batted-ball path. Decisions come from Controllers so a
  * human (UI input) and the CPU (AI) drive the exact same physics.
  */
-import { throwPitch, isStrike, pitchStateAt, PLATE_FRONT_Z, type PitchFlight } from "@/lib/game/physics/pitch";
+import { throwPitch, crossesZone, pitchStateAt, PLATE_FRONT_Z, type PitchFlight } from "@/lib/game/physics/pitch";
+import { battedBallFromLaunch } from "@/lib/game/physics/batBall";
 import { resolveContact, type ContactResult } from "@/lib/game/physics/batBall";
 import { simulateBattedBall, type BattedBallPath } from "@/lib/game/physics/battedBall";
 import type { Park } from "@/lib/game/physics/park";
@@ -23,6 +24,10 @@ export interface PitchContext {
   outs: number;
   pitchCount: number;
   runnersOn: number;
+  /** Occupied bases [1st, 2nd, 3rd]. */
+  bases?: [boolean, boolean, boolean];
+  /** Final three innings of regulation (or extras) in a one-run game. */
+  lateClose?: boolean;
   park: Park;
 }
 
@@ -46,6 +51,10 @@ export interface SwingDecision {
   alongErrFt: number;
   /** Bat speed multiplier for this swing (effort / protect-mode / fatigue). */
   batSpeedMult?: number;
+  /** Squared to bunt: the bat is held out over the plate instead of swung. */
+  bunt?: boolean;
+  /** Where the bunt is pushed, spray degrees (+ toward 1B, − toward 3B). */
+  buntAimDeg?: number;
 }
 
 export interface Controller {
@@ -74,6 +83,8 @@ export interface PitchResult {
   contactT?: number;
   /** A taken ball the catcher couldn't handle (in the dirt / way wide): runners move up. */
   wildPitch?: boolean;
+  /** The batter bunted (foul with two strikes is a strikeout; fielders charge). */
+  bunt?: boolean;
 }
 
 /** Where a batter stands: inner edge of the body ~1.9 ft from plate center on his side. */
@@ -118,7 +129,7 @@ export function resolveSwingPhase(
   swing: SwingDecision,
   rng: Rng,
 ): PitchResult {
-  const inZone = isStrike(flight.px, flight.pz, ctx.batter.zoneBottom, ctx.batter.zoneTop);
+  const inZone = crossesZone(flight, ctx.batter.zoneBottom, ctx.batter.zoneTop);
 
   // Hit by pitch: the ball crosses where the batter's body is.
   const bodySide = ctx.side === "R" ? -1 : 1; // RHB stands on the catcher's left (−px)
@@ -127,9 +138,14 @@ export function resolveSwingPhase(
     return { kind: "hbp", flight, decision, swing, inZone };
   }
 
+  if (swing.swing && swing.bunt) return resolveBunt(ctx, decision, flight, swing, rng, inZone);
+
   if (!swing.swing) {
-    // Umpire: Statcast zone with a little edge noise (~1 in).
-    const called = isStrike(flight.px + rng.gauss(0, 0.07), flight.pz + rng.gauss(0, 0.07), ctx.batter.zoneBottom, ctx.batter.zoneTop);
+    // Umpire: the rulebook zone, called exactly — any part of the ball over any part of
+    // the plate is a strike. (Two draws are still taken so the RNG stream keeps its shape.)
+    rng.gauss(0, 1);
+    rng.gauss(0, 1);
+    const called = inZone;
     let wildPitch = false;
     if (!called && ctx.runnersOn > 0) {
       const pWild = flight.pz < -0.2 ? 0.4 : flight.pz < 0.4 ? 0.12 : Math.abs(flight.px) > 2.0 ? 0.12 : 0.006;
@@ -166,6 +182,64 @@ export function resolveSwingPhase(
   }
   const path = simulateBattedBall(contact.ball, ctx.park);
   return { kind: "in_play", flight, decision, swing, inZone, contact, contactT, path };
+}
+
+/**
+ * A bunt: the bat is held still over the plate, so the ball comes off it slowly. The
+ * batter pulls the bat back on a pitch well off the plate (a take); otherwise skill
+ * (bat control), location and velocity decide contact, foul or fair, and pop-ups on
+ * high pitches. Fair bunts die 30–70 ft out toward the aimed line.
+ */
+function resolveBunt(
+  ctx: PitchContext,
+  decision: PitchDecision,
+  flight: PitchFlight,
+  swing: SwingDecision,
+  rng: Rng,
+  inZone: boolean,
+): PitchResult {
+  const b = ctx.batter;
+  const off = distanceOutsideZone(flight.px, flight.pz, b);
+  if (off > 0.42) {
+    const take = resolveSwingPhase(ctx, decision, flight, { ...swing, swing: false, bunt: false }, rng);
+    return { ...take, swing: { ...swing, swing: false } };
+  }
+  const skill = b.bunt;
+  const velo = flight.releaseSpeedMph;
+  const breaking = !["FF", "SI", "FC"].includes(flight.type);
+  const pContact = clamp(0.74 + 0.24 * skill - off * 0.7 - (breaking ? 0.06 : 0) - Math.max(0, velo - 95) * 0.012, 0.15, 0.97);
+  const contactT = idealContactTime(flight) + 0.012;
+  if (!rng.chance(pContact)) return { kind: "swinging_strike", flight, decision, swing, inZone, contactT, bunt: true };
+  const at = pitchStateAt(flight, contactT);
+  const high = flight.pz > b.zoneTop - 0.25;
+  const pFoul = clamp(0.3 - 0.2 * skill + off * 0.35, 0.06, 0.6);
+  const pPop = high ? clamp(0.34 - 0.26 * skill, 0.04, 0.4) : clamp(0.06 - 0.05 * skill, 0.01, 0.06);
+  const aim = swing.buntAimDeg ?? (ctx.side === "R" ? -28 : 26);
+  const roll = rng.next();
+  let ev: number, la: number, spray: number, spin: number;
+  if (roll < pFoul) {
+    // Off the bat toward the stands or back into the screen.
+    const back = rng.chance(0.45);
+    ev = rng.range(28, 55);
+    la = back ? rng.range(15, 50) : rng.range(-20, 25);
+    spray = (rng.chance(0.5) ? 1 : -1) * rng.range(back ? 120 : 52, back ? 170 : 85);
+    spin = 1200;
+  } else if (roll < pFoul + pPop) {
+    ev = rng.range(32, 52);
+    la = rng.range(38, 62);
+    spray = aim * 0.6 + rng.gauss(0, 14);
+    spin = 2600;
+  } else {
+    ev = clamp(rng.gauss(21 + (1 - skill) * 10, 4.5), 12, 45);
+    la = clamp(rng.gauss(-13, 8), -40, 6);
+    spray = clamp(aim + rng.gauss(0, 13 - 7 * skill), -47, 47);
+    spin = -700;
+  }
+  const ball = battedBallFromLaunch(ev, la, spray, spin, 0, at.p);
+  const contact = { contact: true, ball, exitSpeedMph: ev, launchAngleDeg: la, sprayDeg: spray, backspinRpm: spin, q: 0.04 };
+  const path = simulateBattedBall(ball, ctx.park);
+  const kind: PitchResultKind = Math.abs(spray) > 45 || ball.v.z < 0 ? "foul" : "in_play";
+  return { kind, flight, decision, swing, inZone, contact, contactT, path, bunt: true };
 }
 
 /** Zone-relative location helpers for AI and UI. */

@@ -10,7 +10,7 @@
  * are ball joints (a rounded limb end turning inside the part it attaches to).
  */
 import type { ActorKind } from "@/components/game/scene/rig";
-import { PANEL, panelUV, sw } from "@/components/game/scene/character/atlas";
+import { PANEL, panelUV, sw, type Rect } from "@/components/game/scene/character/atlas";
 import { MeshBuilder, blob, loft, smoothstep, tube, type MeshData, type Ring, type SkinFn, type UVFn, type V3, type VOut } from "@/components/game/scene/character/mesh";
 import { BONE, DIM, HELPER } from "@/components/game/scene/character/skeleton";
 
@@ -540,22 +540,24 @@ function head(b: MeshBuilder, o: Outfit, lod: Lod) {
   const top = HEAD[1];
   if (o.head === "cap" || o.head === "umpire") {
     const k = 1.09;
-    blob(b, {
+    const crown = {
       c: HEAD,
       r: scaled(k),
-      seg,
+      seg: Math.ceil(seg / 2),
       rows,
-      polar1: (th) => 1.3 - 0.22 * Math.sin(th),
-      uv: U.cap,
+      polar1: (th: number) => 1.3 - 0.22 * Math.sin(th),
       skin: headSkin,
-      deform: (v, dx, dy, dz) => {
+      deform: (v: VOut, dx: number, dy: number, dz: number) => {
         headDeform(v, dx, dy, dz);
         // A structured crown: taller and squarer in front.
         if (dz > 0) v.z += 0.025 * dz * smoothstep(0.2, 0.7, dy);
         v.y += 0.012 * smoothstep(0.3, 0.9, dy);
         v.ao = 0.82 + 0.18 * smoothstep(0.2, 0.8, dy);
       },
-    });
+    };
+    // Front half carries the club's mark (umpires' caps paint that panel plain); the back is flat colour.
+    blob(b, { ...crown, theta0: 0, arc: PI, uv: o.head === "umpire" ? U.cap : frontUV(PANEL.capFront) });
+    blob(b, { ...crown, theta0: PI, arc: PI, uv: U.cap });
     // Button on the crown.
     if (lod < 2) blob(b, { c: [0, HEAD[1] + HEAD_R[1] * k + 0.012, HEAD[2]], r: [0.03, 0.014, 0.03], seg: 6, rows: 3, uv: U.brim, skin: headSkin });
     const len = o.head === "umpire" ? 0.13 : 0.2;
@@ -563,27 +565,34 @@ function head(b: MeshBuilder, o: Outfit, lod: Lod) {
   } else {
     const flapAt = o.flap > 0 ? 0 : PI;
     const catcher = o.head === "catcher";
-    blob(b, {
+    const shell = {
       c: HEAD,
       r: scaled(1.14),
-      seg,
+      seg: Math.ceil(seg / 2),
       rows: rows + 1,
-      polar1: (th) => {
+      polar1: (th: number) => {
         if (catcher) return 1.78 - 0.56 * Math.sin(th);
         const base = 1.5 - 0.34 * Math.sin(th);
         return o.head === "flap" ? base + 0.72 * gauss(dAng(th, flapAt), 0.55) : base;
       },
-      uv: U.helmet,
       skin: headSkin,
-      deform: (v, dx, dy, dz) => {
+      deform: (v: VOut, dx: number, dy: number, dz: number) => {
         headDeform(v, dx, dy, dz);
         v.y += 0.015 * smoothstep(0.3, 0.9, dy);
         v.ao = 0.85 + 0.15 * smoothstep(-0.2, 0.6, dy);
       },
-    });
+    };
+    // The catcher's skull cap is worn backwards: no mark in front.
+    blob(b, { ...shell, theta0: 0, arc: PI, uv: catcher ? U.helmet : frontUV(PANEL.helmetFront) });
+    blob(b, { ...shell, theta0: PI, arc: PI, uv: U.helmet });
     if (!catcher) brim(b, top + 0.165, HEAD[2] + 0.4, 0.21, 0.15, U.helmet, lod);
   }
   if (o.head === "catcher" || o.head === "umpire") mask(b, lod);
+}
+
+/** Head-on projection onto a cap/helmet front panel: 0.6 ft across, 0.3 ft tall, centred over the brim. */
+function frontUV(panel: Rect): UVFn {
+  return (v) => panelUV(v, panel, 0.5 + v.x / 0.6, 0.5 - (v.y - (HEAD[1] + 0.29)) / 0.3);
 }
 
 function brim(b: MeshBuilder, y: number, z: number, rx: number, rz: number, uv: UVFn, lod: Lod) {

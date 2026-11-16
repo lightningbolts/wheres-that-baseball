@@ -62,8 +62,31 @@ export function cpuChoosePitch(ctx: PitchContext, rng: Rng): PitchDecision {
   return { pitchIdx: idx, targetPx: tx, targetPz: tz, commandMult: 1 };
 }
 
+/**
+ * Squares to bunt before the pitch: sacrifices with a runner on and nobody out (mostly
+ * weak hitters, more late in close games) and the occasional drag bunt by a burner.
+ */
+export function cpuWantsBunt(ctx: PitchContext, rng: Rng): boolean {
+  const { batter: b, count, outs } = ctx;
+  const bases = ctx.bases;
+  if (!bases || count.strikes >= 2) return false;
+  const xw = b.raw.sav?.xwoba ?? 0.31;
+  if (outs === 0 && (bases[0] || bases[1]) && !bases[2]) {
+    const weak = clamp((0.3 - xw) / 0.05, 0, 1);
+    const p = (ctx.lateClose ? 0.06 + 0.3 * weak : 0.004 + 0.05 * weak) * (0.4 + b.bunt);
+    return p > 0.003 && rng.chance(p);
+  }
+  if (!bases[0] && !bases[1] && !bases[2] && b.sprint >= 29 && b.bunt >= 0.5 && count.balls <= 1) return rng.chance(0.006);
+  return false;
+}
+
 export function cpuDecideSwing(ctx: PitchContext, flight: PitchFlight, rng: Rng): SwingDecision {
   const { batter: b, count, pitcher, side } = ctx;
+  if (cpuWantsBunt(ctx, rng)) {
+    const drag = !ctx.bases?.some(Boolean);
+    const toFirst = drag && side === "L";
+    return { swing: true, bunt: true, buntAimDeg: toFirst ? 24 : side === "R" ? -20 : -18, timingErrMs: 0, verticalErrFt: 0, alongErrFt: 0 };
+  }
   const type = flight.type;
   const breaking = !FASTBALLS.has(type);
   // Perception: hitters judge location with error, more so on spin that tunnels off the fastball.

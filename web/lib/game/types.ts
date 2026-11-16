@@ -52,6 +52,51 @@ export interface PitchRatingsRaw {
   arsenal: ArsenalPitch[];
 }
 
+export interface SavantMetrics {
+  hpTo1b?: number;
+  sbOpp?: number;
+  sb?: number;
+  cs?: number;
+  /** Primary lead on steal attempts, ft. */
+  sbLead?: number;
+  sbRuns?: number;
+  bolts?: number;
+  armMax?: number;
+  oaa?: number;
+  frp?: number;
+  oaaIn?: number;
+  oaaBack?: number;
+  pop2b?: number;
+  exchange?: number;
+  popArm?: number;
+  batSpeed?: number;
+  swingLength?: number;
+  squaredUp?: number;
+  blast?: number;
+  hardSwing?: number;
+  xwoba?: number;
+  xba?: number;
+  xslg?: number;
+  woba?: number;
+  barrel?: number;
+  hardHit?: number;
+  sweetSpot?: number;
+  maxEv?: number;
+  pull?: number;
+  gb?: number;
+  fb?: number;
+  whiff?: number;
+  hrs?: number;
+  avg?: number;
+  slg?: number;
+  era?: number;
+  xera?: number;
+  chase?: number;
+  ip?: number;
+  so?: number;
+  sv?: number;
+}
+
 export interface RosterPlayer {
   id: number;
   name: string;
@@ -65,6 +110,8 @@ export interface RosterPlayer {
   zone: [number | null, number | null];
   sprint: number;
   arm: number;
+  /** Baseball Savant leaderboards (enrich_game_rosters.py); any key may be missing. */
+  sav?: SavantMetrics;
   bat?: BatRatingsRaw;
   pitch?: PitchRatingsRaw;
 }

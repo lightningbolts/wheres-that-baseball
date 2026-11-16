@@ -2,7 +2,7 @@
  * Pure view math for the plate cameras and the strike-zone overlay (no React, no
  * renderer), plus the overlay state the controller shares with the scene.
  */
-import { PLATE_FRONT_Z, ZONE_HALF_WIDTH } from "@/lib/game/physics/pitch";
+import { PLATE_FRONT_Z, PLATE_HALF_WIDTH } from "@/lib/game/physics/pitch";
 import { BALL_RADIUS_FT } from "@/lib/game/physics/ballFlight";
 import type { Playback } from "@/components/game/scene/playback";
 
@@ -50,10 +50,16 @@ export function plateCam(mode: "batter" | "pitcher", aspect: number): CamPreset 
   return { pos: [-4.5, 11, 86], look: [0, 2.7, 0], fov: fitFov(15.5, 13.5, aspect), near: 0.3 };
 }
 
-/** The drawn strike zone: a ball whose center is inside this box is a strike. */
+/**
+ * The drawn strike zone is the rulebook zone itself: the plate's width, knees to letters.
+ * Pitch markers are drawn at the ball's true size, so any marker touching this box is a strike.
+ */
 export function zoneBox(zoneBottom: number, zoneTop: number): { x0: number; x1: number; y0: number; y1: number } {
-  return { x0: -ZONE_HALF_WIDTH, x1: ZONE_HALF_WIDTH, y0: zoneBottom - BALL_RADIUS_FT, y1: zoneTop + BALL_RADIUS_FT };
+  return { x0: -PLATE_HALF_WIDTH, x1: PLATE_HALF_WIDTH, y0: zoneBottom, y1: zoneTop };
 }
+
+/** Ball radius, ft (markers on the zone are drawn this size). */
+export const MARK_BALL_R = BALL_RADIUS_FT;
 
 export type MarkKind = "pending" | "ball" | "called_strike" | "swinging_strike" | "foul" | "in_play" | "hbp";
 
