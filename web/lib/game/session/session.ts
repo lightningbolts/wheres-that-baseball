@@ -5,7 +5,7 @@
  * reproduces the game exactly (save / resume = setup + inputs).
  */
 import { CPU, cpuChoosePitch, cpuDecideSwing } from "@/lib/game/ai/cpu";
-import { cpuWantsSteal, resolveSteal, stealRace, type StealRace } from "@/lib/game/ai/baserunning";
+import { cpuWantsSteal, resolveSteal, stealRace, withPitchSpeed, type StealFrom, type StealRace } from "@/lib/game/ai/baserunning";
 import {
   resolveSwingPhase,
   throwPitchPhase,
@@ -15,7 +15,7 @@ import {
   type SwingDecision,
 } from "@/lib/game/engine/atBat";
 import { resolvePlay, type Base, type PlayResult, type ThrowOption } from "@/lib/game/play/resolvePlay";
-import type { Fielder } from "@/lib/game/play/defense";
+import { chargeBunt, type Fielder } from "@/lib/game/play/defense";
 import { BaseballGame, type GameEvent, type Runner, type Substitution } from "@/lib/game/rules/game";
 import { batSide, teamModel, type TeamModel } from "@/lib/game/ratings";
 import { buildPark, homeVenueForTeam } from "@/lib/game/physics/park";
@@ -48,7 +48,10 @@ export interface PitchInput {
   cpu?: boolean;
   pitch?: PitchDecision;
   swing?: SwingDecision;
+  /** Legacy: steal of second by the runner on first (same as steals: [0]). */
   steal?: boolean;
+  /** Runners sent on this pitch, by the base they leave (0 = first … 2 = third). */
+  steals?: StealFrom[];
   /** Human throw target (null = hold the ball); absent = let the AI throw. */
   throwBase?: Base | null;
   /** Human substitutions made before this pitch, in order. */
@@ -197,9 +200,10 @@ export class GameSession {
     p.input.cpu = auto || undefined;
     const humanOffense = this.humanBatting && !auto;
     const humanDefense = this.humanPitching && !auto;
-    const wants = humanOffense ? !!input.steal : cpuWantsSteal(this.game, this.rng);
-    if (humanOffense && input.steal) p.input.steal = true;
-    p.steal = wants ? stealRace(this.game) : null;
+    const human = input.steals?.length ? input.steals : input.steal ? ([0] as StealFrom[]) : null;
+    const wants = humanOffense ? human : cpuWantsSteal(this.game, this.rng);
+    p.steal = wants?.length ? stealRace(this.game, wants) : null;
+    if (humanOffense && p.steal) p.input.steals = p.steal.legs.map((l) => l.from);
     let decision: PitchDecision;
     if (humanDefense && input.pitch) {
       decision = input.pitch;
@@ -207,6 +211,7 @@ export class GameSession {
     } else decision = cpuChoosePitch(p.ctx, this.rng);
     p.decision = decision;
     p.flight = throwPitchPhase(p.ctx, decision, this.rng);
+    if (p.steal) p.steal = withPitchSpeed(p.steal, p.flight.releaseSpeedMph);
     return p.flight;
   }
 
@@ -222,7 +227,7 @@ export class GameSession {
       p.input.swing = swing;
     } else swing = cpuDecideSwing(p.ctx, p.flight, this.rng);
     const result = resolveSwingPhase(p.ctx, p.decision, p.flight, swing, this.rng);
-    const fielders = this.game.fielders();
+    const fielders = result.bunt ? chargeBunt(this.game.fielders()) : this.game.fielders();
     const runners = [...this.game.bases] as PitchOutcome["runners"];
     const battingSide = batSide(p.ctx.batter, p.ctx.pitcher.throws);
     const outcome: PitchOutcome = { ctx: p.ctx, result, fielders, runners, battingSide, steal: p.steal };
@@ -247,8 +252,10 @@ export class GameSession {
       path: o.result.path!,
       park: this.game.park,
       fielders: o.fielders,
-      runners: bases.map((r) => (r ? { playerId: r.playerId, sprint: r.sprint } : null)) as Parameters<typeof resolvePlay>[0]["runners"],
-      batter: { playerId: b.id, sprint: b.sprint, bats: o.battingSide },
+      runners: bases.map((r, i) =>
+        r ? { playerId: r.playerId, sprint: r.sprint, going: !!o.steal?.legs.some((l) => l.from === i) } : null,
+      ) as Parameters<typeof resolvePlay>[0]["runners"],
+      batter: { playerId: b.id, sprint: b.sprint, bats: o.battingSide, bunt: !!o.result.bunt },
       outs: this.game.outs,
       rng,
       chooseThrow,
@@ -276,8 +283,9 @@ export class GameSession {
     const events = [...p.pre, ...this.game.apply(o.result, o.play)];
     const noContact =
       o.result.kind === "called_strike" || o.result.kind === "swinging_strike" || (o.result.kind === "ball" && !o.result.wildPitch);
-    if (o.steal && noContact && !this.game.final && o.runners[0] && this.game.bases[0]?.playerId === o.runners[0].playerId && !this.game.bases[1]) {
-      events.push(...this.game.applySteal(resolveSteal(o.steal, this.rng)));
+    // Runners still on the bags they left (the pitch didn't end the half or move them) race the throw.
+    if (o.steal && noContact && !this.game.final && o.steal.legs.every((l) => this.game.bases[l.from]?.playerId === l.runnerId)) {
+      events.push(...this.game.applySteals(resolveSteal(o.steal, this.rng)));
     }
     this.inputs.push(p.input);
     this.pending = null;

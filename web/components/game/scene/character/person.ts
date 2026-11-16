@@ -10,6 +10,7 @@ import { buildBody, outfitFor, outfitKey, type Lod, type Outfit } from "@/compon
 import type { MeshData } from "@/components/game/scene/character/mesh";
 import { hash01, paintFinish, paintLook, type Look } from "@/components/game/scene/character/paint";
 import { identity, rosterVersion } from "@/components/game/scene/character/roster";
+import { capLogoVersion } from "@/components/game/scene/character/uniforms";
 import { SKIN_COUNT, scaleSkinMatrices, writeSkinMatrices } from "@/components/game/scene/character/skeleton";
 
 export function toGeometry(d: MeshData): THREE.BufferGeometry {
@@ -111,7 +112,7 @@ export class Person {
   private material: THREE.MeshStandardMaterial;
   private texture: THREE.CanvasTexture;
   private ctx: CanvasRenderingContext2D;
-  private look: Look = { kind: "fielder", id: -1, seed: 0, jersey: -1, accent: -1, skin: -1, name: "", num: "", team: "" };
+  private look: Look = { kind: "fielder", id: -1, seed: 0, jersey: -1, accent: -1, skin: -1, name: "", num: "", team: "", teamId: 0, cap: -1, letter: -1, stripe: -1 };
   private painted = false;
   private version = -1;
   private outfit = "";
@@ -155,9 +156,9 @@ export class Person {
   /** Does the slot need repainting for this actor? 0 no · 1 refresh (roster arrived) · 2 a different person. */
   stale(a: ActorDraw): 0 | 1 | 2 {
     const l = this.look;
-    if (!this.painted || l.kind !== a.kind || l.id !== (a.id ?? 0) || l.jersey !== a.jersey.getHex() || l.accent !== a.accent.getHex() || l.skin !== a.skin.getHex()) return 2;
+    if (!this.painted || l.kind !== a.kind || l.id !== (a.id ?? 0) || l.jersey !== a.jersey.getHex() || l.accent !== a.accent.getHex() || l.skin !== a.skin.getHex() || l.teamId !== (a.uni?.teamId ?? 0)) return 2;
     if (l.id === 0 && l.seed !== a.key.length * 131 + a.key.charCodeAt(a.key.length - 1)) return 2;
-    return this.version !== rosterVersion() ? 1 : 0;
+    return this.version !== rosterVersion() + capLogoVersion() * 4096 ? 1 : 0;
   }
 
   paint(a: ActorDraw): void {
@@ -168,6 +169,10 @@ export class Person {
     l.jersey = a.jersey.getHex();
     l.accent = a.accent.getHex();
     l.skin = a.skin.getHex();
+    l.teamId = a.uni?.teamId ?? 0;
+    l.cap = a.uni?.cap ?? -1;
+    l.letter = a.uni?.letter ?? -1;
+    l.stripe = a.uni?.stripe ?? -1;
     if (a.kind === "umpire") {
       l.name = "";
       l.num = "";
@@ -188,7 +193,7 @@ export class Person {
     paintLook(this.ctx, l);
     this.texture.needsUpdate = true;
     this.painted = true;
-    this.version = rosterVersion();
+    this.version = rosterVersion() + capLogoVersion() * 4096;
   }
 
   /** Pick the mesh for the actor's role and the level of detail. */

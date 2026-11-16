@@ -45,6 +45,7 @@ export interface SwingInfo {
   /** World point the barrel passes through (the ball on contact; over/under it on a miss). */
   aim: V3;
   hit: boolean;
+  bunt?: boolean;
 }
 
 interface Waypoint {
@@ -312,7 +313,12 @@ export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Ti
   const lastSample = flight.samples[flight.samples.length - 1];
   const events: PlayEvent[] = play ? [...play.events].sort((a, b) => a.t - b.t) : [];
   const toFlight = (u: number) => (contactT ?? 0) + u;
-  const stealEvent = c.events.find((e) => e.kind === "stolen_base" || e.kind === "caught_stealing");
+  // Steal attempts on this pitch, lead runner first (base = the bag he left: 0 = first …).
+  const stealEvents = c.events
+    .filter((e) => e.kind === "stolen_base" || e.kind === "caught_stealing")
+    .sort((a, b) => (b.base ?? 0) - (a.base ?? 0));
+  const stealEvent = stealEvents[0];
+  const stealLead = stealEvent?.base ?? 0;
 
   // ---- The pitch past the plate: straight on into the catcher's mitt ----
   const pastZ = Math.max(1, Math.abs(lastSample.v.z));
@@ -333,8 +339,10 @@ export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Ti
     const miss = clamp(result.swing.verticalErrFt, -0.8, 0.8);
     // A whiff launched too late still shows a full (late) swing rather than snapping to its finish.
     const through = !hit && opts.swingStartT != null ? Math.max(swingT, opts.swingStartT + 0.07) : swingT;
-    const startT = clamp(opts.swingStartT ?? through - SWING_LAUNCH_S, through - 0.24, through - 0.06);
-    swing = { startT, contactT: through, aim: v3(at.x, at.y - (hit ? 0 : miss), at.z), hit };
+    const bunt = !!result.bunt;
+    // A bunter shows it as the pitcher comes set; a swing launches just before contact.
+    const startT = bunt ? Math.min(releaseT - 0.15, swingT - 0.5) : clamp(opts.swingStartT ?? through - SWING_LAUNCH_S, through - 0.24, through - 0.06);
+    swing = { startT, contactT: bunt ? swingT : through, aim: v3(at.x, bunt ? at.y : at.y - (hit ? 0 : miss), at.z), hit, bunt };
   }
 
   // ---- Ball after contact: gathered, then thrown around ----
@@ -400,8 +408,14 @@ export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Ti
   };
 
   // Stolen-base attempt: the catcher comes up throwing to second.
-  const stealThrow = stealEvent && !inPlay && contactT == null ? { t: mittT + 0.72, arriveT: crossT + (stealEvent.kind === "stolen_base" ? 1.98 : 1.8) } : null;
-  const stealCover: FieldPos = battingSide === "R" ? "2B" : "SS";
+  // The catcher throws on the lead runner (to second or third); a steal of home is a tag at the plate.
+  const stealSafe = stealEvent?.kind === "stolen_base";
+  const stealBase = (stealLead + 2) as 2 | 3 | 4;
+  const stealThrow =
+    stealEvent && stealLead < 2 && !inPlay && contactT == null
+      ? { t: mittT + 0.72, arriveT: crossT + (stealLead === 0 ? (stealSafe ? 1.98 : 1.8) : stealSafe ? 1.72 : 1.56), to: stealBase as 2 | 3 }
+      : null;
+  const stealCover: FieldPos = stealLead === 1 ? "3B" : battingSide === "R" ? "2B" : "SS";
 
   const ball = (T: number): BallState => {
     if (T < releaseT) return { p: releaseP, visible: true, held: true, holder: "P" };
@@ -419,7 +433,7 @@ export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Ti
     if (T < mittT) return { p: pitchAt(T), visible: true, held: false, holder: null };
     if (stealThrow && T >= stealThrow.t) {
       const from = v3(0, 5.2, -2.2);
-      const to = add(BASE_POS[2], v3(0, 2.2, -1));
+      const to = add(BASE_POS[stealThrow.to], v3(0, 2.2, -1));
       if (T >= stealThrow.arriveT) return { p: to, visible: true, held: true, holder: stealCover };
       const f = (T - stealThrow.t) / (stealThrow.arriveT - stealThrow.t);
       return { p: add(lerp3(from, to, f), v3(0, 4 * f * (1 - f) * 5, 0)), visible: true, held: false, holder: null };
@@ -453,7 +467,7 @@ export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Ti
       tr.actions.push({ t: -10, dur: upAt === Infinity ? 60 : 10 + upAt, action: "crouch" });
       if (stealThrow) {
         tr.actions.push({ t: stealThrow.t - THROW_RELEASE_S, dur: THROW_RELEASE_S + 0.5, action: "throw" });
-        tr.face = BASE_POS[2];
+        tr.face = BASE_POS[stealThrow.to];
       }
     }
     tracks.set(f.pos, tr);
@@ -461,7 +475,8 @@ export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Ti
   if (stealThrow) {
     const tr = tracks.get(stealCover);
     if (tr) {
-      routeTo(tr, v3(BASE_POS[2].x, 0, BASE_POS[2].z - 1.5), stealThrow.arriveT - 0.3, releaseT + 0.1);
+      const bag = BASE_POS[stealThrow.to];
+      routeTo(tr, v3(bag.x + (stealThrow.to === 3 ? 1.5 : 0), 0, bag.z - 1.5), stealThrow.arriveT - 0.3, releaseT + 0.1);
       tr.actions.push({ t: stealThrow.arriveT - 0.5, dur: 1.1, action: "catch" });
       tr.face = v3(0, 0, 0);
     }
@@ -555,9 +570,14 @@ export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Ti
     for (const ro of play.runners) {
       const sprint = sprintOf.get(ro.playerId) ?? 27;
       const startS = ro.from === 0 ? 0 : leadS(ro.from) + 4;
-      const endS = ro.to === ro.from ? ro.from * 90 : ro.out ? ro.to * 90 - 3 : ro.to * 90;
-      const d = Math.abs(endS - startS);
       const v = homeRun ? 19 : sprint * 0.93;
+      // Put out: draw him where he really was when the ball (or tag) beat him — a runner who
+      // lost the race by 0.3 s is a long stride and a half from the bag, not on it.
+      const shortFt = ro.out ? clamp(((ro.arriveT ?? ro.t) - ro.t) * v, 3, 60) : 0;
+      const endS = ro.to === ro.from ? ro.from * 90 : ro.out ? Math.max(startS + 2, ro.to * 90 - shortFt) : ro.to * 90;
+      const d = Math.abs(endS - startS);
+      // Forced out at first: he keeps running, through the bag, after the out.
+      const runThrough = ro.out && ro.from === 0 && ro.to === 1 && shortFt < 40;
       let tEnd = homeRun ? toFlight(1.2 + (ro.to * 90 - startS) / v + ro.from * 0.4) : toFlight(ro.t);
       let tStart = tEnd - d / v - 0.35;
       const minStart = toFlight(ro.from === 0 ? BATTER_HANDOFF_S : 0.1);
@@ -581,14 +601,24 @@ export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Ti
       // Slide into any base where there is a play on the runner (never into first).
       const playAtBase = throws.some((th) => th.base === ro.to);
       if (!homeRun && d > 20 && ro.to !== 1 && (ro.out || playAtBase)) actions.push({ t: tEnd - 0.32, dur: 0.95, action: "slide" });
+      if (runThrough) {
+        const tBag = tEnd + (90 - endS) / v;
+        pts.push({ t: tBag, p: basePathPoint(90) });
+        // Down the line in foul ground, not toward second, easing up as he goes.
+        const line = (s: number) => lerp3(BASE_POS[4], BASE_POS[1], s / 90);
+        pts.push({ t: tBag + 9 / v, p: line(99) });
+        pts.push({ t: tBag + 9 / v + 0.55, p: line(104) });
+        pts.push({ t: tBag + 9 / v + 1.25, p: line(106.5) });
+      }
       if (ro.out || ro.to === 4) {
         // Jog off toward the dugout; he leaves the scene when the next pitch is set up.
         const at = pts[pts.length - 1].p;
         const dd = Math.max(1, Math.hypot(dugout.x - at.x, dugout.z - at.z));
         const wait = ro.out ? 0.7 : 0.05;
         const jog = Math.min(dd, 16);
-        pts.push({ t: tEnd + wait, p: at });
-        pts.push({ t: tEnd + wait + jog / 13, p: lerp3(at, dugout, jog / dd) });
+        const t0 = Math.max(tEnd, pts[pts.length - 1].t);
+        pts.push({ t: t0 + wait, p: at });
+        pts.push({ t: t0 + wait + jog / 13, p: lerp3(at, dugout, jog / dd) });
       }
       runTracks.set(ro.playerId, { pts, actions, face: baseFace(endS), goneAt: Infinity, from: ro.from });
       runnerIds.push(ro.playerId);
@@ -600,13 +630,19 @@ export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Ti
       const pts = leadPts(base);
       const actions: Track["actions"] = [];
       let goneAt = Infinity;
-      if (stealEvent && base === 1) {
-        const safe = stealEvent.kind === "stolen_base";
+      const se = stealEvents.find((e) => (e.base ?? 0) === i);
+      if (se) {
+        const safe = se.kind === "stolen_base";
+        const lead = se === stealEvent;
+        // Lead runner: at the bag with the throw (or the pitch, stealing home); trailers a beat sooner.
+        const atBag = i === 2 ? crossT + (safe ? 1.5 : 0.75) : stealThrow ? stealThrow.arriveT + (lead ? -0.08 : -0.3) : crossT + 1.6;
+        const bagS = (base + 1) * 90;
         pts.length = 2;
         pts.push({ t: releaseT - 0.35, p: basePathPoint(leadS(base) + 3) });
-        pts.push({ t: crossT + 1.9, p: basePathPoint(safe ? 180 : 177) });
-        actions.push({ t: crossT + 1.58, dur: 0.95, action: "slide" });
-        if (!safe) goneAt = crossT + 3.6;
+        pts.push({ t: atBag, p: basePathPoint(safe ? bagS : bagS - (i === 2 ? 14 : 3)) });
+        if (safe || i < 2) actions.push({ t: atBag - 0.32, dur: 0.95, action: "slide" });
+        if (!safe) goneAt = atBag + 1.7;
+        else if (i === 2) goneAt = atBag + 1.4;
       } else {
         pts.push({ t: crossT + 1.15, p: basePathPoint(base * 90) });
       }

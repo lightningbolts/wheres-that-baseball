@@ -22,6 +22,8 @@ export type Base = 1 | 2 | 3 | 4;
 export interface RunnerIn {
   playerId: number;
   sprint: number;
+  /** Running on the pitch (steal / hit-and-run): already well down the line at contact. */
+  going?: boolean;
 }
 
 export interface ThrowOption {
@@ -38,7 +40,7 @@ export interface PlayInput {
   fielders: Fielder[];
   /** Runners on [1st, 2nd, 3rd]. */
   runners: [RunnerIn | null, RunnerIn | null, RunnerIn | null];
-  batter: RunnerIn & { bats: "L" | "R" };
+  batter: RunnerIn & { bats: "L" | "R"; bunt?: boolean };
   outs: number;
   rng: Rng;
   /** Human throw decision; return null to hold the ball. Defaults to the AI. */
@@ -53,6 +55,8 @@ export interface RunnerOutcome {
   out: boolean;
   /** Time the runner reached `to` (or was put out). */
   t: number;
+  /** Put out: when he would have reached `to` (> t on a close force/tag — he was still short of the bag). */
+  arriveT?: number;
 }
 
 export type PlayEventType =
@@ -462,6 +466,11 @@ function resolveGroundOrHit(
         effLead = lead + 4;
       }
     }
+    // Sent on the pitch: by contact he's ~a third of the way, and on a grounder or liner he keeps going.
+    if (r.going && (grounder || launch.la < 22 || twoOuts)) {
+      tGo = 0;
+      effLead = lead + (base === 3 ? 22 : 26);
+    }
     plans.push({ playerId: r.playerId, sprint: r.sprint, from: base, lead: effLead, tGo, target: (base + 1) as Base, forced, out: false, outT: 0, done: false });
   }
   const bPlan: RunnerPlan = {
@@ -469,7 +478,8 @@ function resolveGroundOrHit(
     sprint: batter.sprint,
     from: 0,
     lead: 0,
-    tGo: batter.bats === "L" ? 0.2 : 0.3,
+    // Out of the box: lefties are a step closer; a bunter is already moving as he squares.
+    tGo: (batter.bats === "L" ? 0.2 : 0.3) - (batter.bunt ? 0.12 : 0),
     target: 1,
     forced: true,
     out: false,
@@ -689,6 +699,7 @@ function finish(
     to: p.target,
     out: p.out,
     t: p.out ? p.outT : p.done ? 0 : arrival(p, p.target),
+    arriveT: p.out ? arrival(p, p.target) : undefined,
   }));
   // Third-out rule: no runs if the third out is a force (or the batter before 1st); else time play.
   let runs = rs.filter((r) => r.to === 4 && !r.out);

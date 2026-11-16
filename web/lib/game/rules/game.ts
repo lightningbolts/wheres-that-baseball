@@ -98,6 +98,8 @@ export interface GameEvent {
   pitcherId?: number;
   runs?: number;
   play?: PlayResult;
+  /** Steal events: the base the runner left (0 = first, 1 = second, 2 = third). */
+  base?: 0 | 1 | 2;
 }
 
 export const emptyBat = (): BatLine => ({ pa: 0, ab: 0, h: 0, d: 0, t: 0, hr: 0, r: 0, rbi: 0, bb: 0, k: 0, hbp: 0, sf: 0 });
@@ -190,6 +192,8 @@ export class BaseballGame {
       outs: this.outs,
       pitchCount: f.pitchCount,
       runnersOn: this.bases.filter(Boolean).length,
+      bases: [!!this.bases[0], !!this.bases[1], !!this.bases[2]],
+      lateClose: this.inning >= this.regulation - 2 && Math.abs(this.score.home - this.score.away) <= 1,
       park: this.park,
     };
   }
@@ -217,7 +221,7 @@ export class BaseballGame {
         p: spots[pos],
         sprint: b?.sprint ?? 27,
         arm: b?.arm ?? 82,
-        reaction: DEFAULT_REACTION[pos],
+        reaction: DEFAULT_REACTION[pos] + (b?.reactionAdj ?? 0),
         glove: b?.glove ?? 0.5,
       });
     }
@@ -284,16 +288,46 @@ export class BaseballGame {
 
   /** Resolve a steal of second by the runner on first. */
   applySteal(safe: boolean): GameEvent[] {
-    const r = this.bases[0];
-    if (!r || this.bases[1] || this.final) return [];
-    this.bases[0] = null;
-    const name = this.names.get(r.playerId) ?? "The runner";
-    if (safe) {
-      this.bases[1] = r;
-      return [this.emit({ kind: "stolen_base", text: `${name} steals second!` })];
+    return this.applySteals([{ from: 0, safe }]);
+  }
+
+  /**
+   * Resolve steal attempts, lead runner first (0 = from first, 1 = second, 2 = third).
+   * A runner whose next base is still held (and not vacated by a leg already applied) is skipped.
+   */
+  applySteals(legs: { from: 0 | 1 | 2; safe: boolean }[]): GameEvent[] {
+    if (this.final) return [];
+    const events: GameEvent[] = [];
+    const sorted = [...legs].sort((a, b) => b.from - a.from);
+    const label = ["second", "third", "home"];
+    for (const leg of sorted) {
+      if (this.final || this.outs >= 3) break;
+      const r = this.bases[leg.from];
+      if (!r) continue;
+      if (leg.from < 2 && this.bases[leg.from + 1]) continue;
+      this.bases[leg.from] = null;
+      const name = this.names.get(r.playerId) ?? "The runner";
+      const double = sorted.length > 1 ? " (double steal)" : "";
+      if (leg.safe) {
+        if (leg.from === 2) {
+          this.addRuns([r.playerId], null);
+          events.push(this.emit({ kind: "stolen_base", base: 2, runs: 1, text: `${name} steals home!${double}` }));
+          const after = this.afterPlay();
+          events.push(...after);
+          if (this.final) break;
+        } else {
+          this.bases[leg.from + 1] = r;
+          events.push(this.emit({ kind: "stolen_base", base: leg.from, text: `${name} steals ${label[leg.from]}!${double}` }));
+        }
+      } else {
+        this.recordOuts(1);
+        events.push(this.emit({ kind: "caught_stealing", base: leg.from, text: `${name} is caught stealing ${label[leg.from]}.` }));
+        const after = this.afterPlay();
+        events.push(...after);
+        if (after.length) break;
+      }
     }
-    this.recordOuts(1);
-    return [this.emit({ kind: "caught_stealing", text: `${name} is caught stealing.` }), ...this.afterPlay()];
+    return events;
   }
 
   private recordOuts(n: number): void {
@@ -359,12 +393,23 @@ export class BaseballGame {
           const how = kind === "called_strike" ? "called out on strikes" : "strikes out swinging";
           events.push(this.emit({ kind: "strikeout", text: `${b.name} ${how}.`, batterId: b.id, pitcherId: p.id }));
           finishPA();
-        } else events.push(this.emit({ kind: "pitch", text: kind === "called_strike" ? "Called strike." : kind === "foul_tip" ? "Foul tip." : "Swinging strike." }));
+        } else events.push(this.emit({ kind: "pitch", text: kind === "called_strike" ? "Called strike." : kind === "foul_tip" ? "Foul tip." : result.bunt ? "Misses the bunt." : "Swinging strike." }));
         break;
       }
       case "foul": {
+        // A two-strike foul bunt is strike three.
+        if (this.strikes === 2 && result.bunt) {
+          this.strikes = 3;
+          bl.k += 1;
+          bl.ab += 1;
+          pl.k += 1;
+          this.recordOuts(1);
+          events.push(this.emit({ kind: "strikeout", text: `${b.name} bunts foul with two strikes — strike three.`, batterId: b.id, pitcherId: p.id }));
+          finishPA();
+          break;
+        }
         if (this.strikes < 2) this.strikes += 1;
-        events.push(this.emit({ kind: "pitch", text: "Foul ball." }));
+        events.push(this.emit({ kind: "pitch", text: result.bunt ? "Bunted foul." : "Foul ball." }));
         break;
       }
       case "in_play": {

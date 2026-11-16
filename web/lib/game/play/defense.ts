@@ -79,3 +79,19 @@ export const DEFAULT_REACTION: Record<FieldPos, number> = {
 
 export const isInfielder = (pos: FieldPos) => pos === "1B" || pos === "2B" || pos === "SS" || pos === "3B" || pos === "P";
 export const isOutfielder = (pos: FieldPos) => pos === "LF" || pos === "CF" || pos === "RF";
+
+/**
+ * The batter squared around: the corners crash toward the plate and the pitcher and
+ * catcher break on the ball as it's bunted.
+ */
+export function chargeBunt(fielders: Fielder[]): Fielder[] {
+  return fielders.map((f) => {
+    if (f.pos === "1B" || f.pos === "3B") {
+      const d = Math.hypot(f.p.x, f.p.z);
+      const k = Math.max(0, d - 26) / d;
+      return { ...f, p: v3(f.p.x * (1 - k * 0.32), f.p.y, f.p.z * (1 - k * 0.32)), reaction: f.reaction - 0.12 };
+    }
+    if (f.pos === "P" || f.pos === "C") return { ...f, reaction: f.reaction - 0.15 };
+    return f;
+  });
+}

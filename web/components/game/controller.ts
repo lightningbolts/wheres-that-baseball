@@ -4,11 +4,13 @@
  * outside React so per-frame scene code and input handlers share one source of truth.
  */
 import * as THREE from "three";
+import { uniformFor } from "@/components/game/scene/character/uniforms";
 import { buildTimeline, type Timeline } from "@/lib/game/anim/timeline";
 import { GameSession, type CommittedPitch, type GameSetup, type PitchInput, type PitchOutcome } from "@/lib/game/session/session";
 import { DIFFICULTY, humanPitch, humanSwing, meterAt, pciHalfSize } from "@/lib/game/session/humanInput";
 import { idealContactTime } from "@/lib/game/engine/atBat";
-import type { PitchFlight } from "@/lib/game/physics/pitch";
+import { zoneContact, type PitchFlight } from "@/lib/game/physics/pitch";
+import { legalSteals, type StealFrom } from "@/lib/game/ai/baserunning";
 import type { GameEvent, Side, Substitution } from "@/lib/game/rules/game";
 import { batSide, type BatterModel, type PitcherModel, type TeamModel } from "@/lib/game/ratings";
 import { Rng, clamp } from "@/lib/game/math";
@@ -42,6 +44,17 @@ export interface HudSnapshot {
   humanPitching: boolean;
   canSteal: boolean;
   stealOn: boolean;
+  /** Bags whose runner the human may send on this pitch (0 = first, 1 = second, 2 = third). */
+  stealOpts: number[];
+  /** Runners sent (legal combination), by the bag they leave. */
+  steals: number[];
+  /** Who is on each base: name, number, sprint speed and SB record. */
+  runners: Array<{ id: number; name: string; num: string | null; sprint: number; sb: number; cs: number } | null>;
+  /** Squared to bunt: 0 = no, 1 = down the third-base line, 2 = toward first. */
+  bunt: 0 | 1 | 2;
+  canBunt: boolean;
+  /** Live umpire call on the bases during a play. */
+  call: { id: number; text: string; base: number; tone: "good" | "bad" | "neutral" } | null;
   power: boolean;
   meterStart: number | null;
   banner: { text: string; sub?: string; tone: "good" | "bad" | "neutral" } | null;
@@ -91,7 +104,7 @@ type Board = Pick<
   | "humanPitching"
   | "winProbHome"
   | "final"
->;
+> & { runnerIds: (number | null)[] };
 
 const markKind = (k: string): MarkKind => (k === "foul_tip" ? "swinging_strike" : k in MARK_COLOR ? (k as MarkKind) : "ball");
 /** Approach ring on the zone: the whole flight for rookies, the last stretch on pro, off on all-star. */
@@ -183,7 +196,10 @@ export class GameController {
   private phase: Phase = "between";
   private pitchIdx = 0;
   private power = false;
-  private stealOn = false;
+  private steals = new Set<StealFrom>();
+  private bunt: 0 | 1 | 2 = 0;
+  private call: HudSnapshot["call"] = null;
+  private callId = 0;
   private meterStart: number | null = null;
   private swung = false;
   private flight: PitchFlight | null = null;
@@ -319,7 +335,9 @@ export class GameController {
     this.revealed = false;
     this.flight = null;
     this.outcome = null;
-    this.stealOn = false;
+    this.steals.clear();
+    this.bunt = 0;
+    this.call = null;
     // Last pitch's swing / contact readout is stale once the next pitch is set up.
     this.feedback = null;
     this.hud.hint = null;
@@ -414,6 +432,8 @@ export class GameController {
       // speed from the hand to the plate instead of visibly decelerating mid-flight.
       this.pb.slow = { from: tl.releaseT - 0.55, to: flight.cross.t + 0.2, rate: DIFFICULTY[this.setup.difficulty].timeScale };
       this.pb.cues = [
+        // Squared around: the bunt is put down as the ball gets to him.
+        { T: idealContactTime(flight) - 0.08, fn: () => this.bunt && this.swing(null) },
         { T: flight.cross.t, fn: () => this.markPitch(flight, "pending") },
         { T: flight.cross.t + 0.1, fn: () => this.swing(null) },
       ];
@@ -448,7 +468,10 @@ export class GameController {
     } else {
       this.marked = true;
       const n = (marks[marks.length - 1]?.n ?? 0) + 1;
-      marks.push({ n, px: flight.px, pz: flight.pz, kind, type: flight.type, mph: Math.round(flight.releaseSpeedMph) });
+      // A pitch that only clipped the zone deeper over the plate is drawn where it did.
+      const a = this.pb.aim;
+      const at = zoneContact(flight, a.zoneBottom, a.zoneTop) ?? { px: flight.px, pz: flight.pz };
+      marks.push({ n, px: at.px, pz: at.pz, kind, type: flight.type, mph: Math.round(flight.releaseSpeedMph) });
       this.hud.markAt = this.pb.now;
     }
     if (kind === "pending") this.showReadout(flight);
@@ -463,6 +486,18 @@ export class GameController {
     const s = this.session;
     const ctx = s.currentContext!;
     const a = this.pb.aim;
+    if (this.bunt) {
+      // Squared around: a press pulls the bat back (take); otherwise he bunts it where he aimed.
+      const pull = pressT != null;
+      const aimDeg = this.bunt === 1 ? (ctx.side === "R" ? -27 : -24) : ctx.side === "L" ? 25 : 22;
+      const bw = pull
+        ? { swing: false, timingErrMs: 0, verticalErrFt: 0, alongErrFt: 0 }
+        : { swing: true, bunt: true, buntAimDeg: aimDeg, timingErrMs: 0, verticalErrFt: 0, alongErrFt: 0 };
+      if (pull) this.bunt = 0;
+      const outcome = s.swing({ swing: bw });
+      this.afterSwing(outcome, false);
+      return;
+    }
     const sw = humanSwing(
       { pressT, pciPx: a.px, pciPz: a.pz, power: this.power },
       this.flight,
@@ -585,9 +620,81 @@ export class GameController {
         },
       });
     }
+    this.liveCues(tl, c, cues);
     this.pb.cues = cues;
     // After the ball is past the plate, real-time playback.
     if (this.pb.slow) this.pb.slow.to = Math.min(this.pb.slow.to, tl.contactT ?? this.pb.slow.to);
+  }
+
+  /**
+   * The scorebug and the bases panel follow the play as it happens: each runner shows
+   * up on the bag he reaches, outs and runs tick the moment the ball (or the tag) beats
+   * a runner or a runner crosses the plate, and the umpire's call flashes on the bases.
+   */
+  private liveCues(tl: Timeline, c: CommittedPitch, cues: Playback["cues"]) {
+    const offense = this.setup.human !== "none" && (this.setup.human === "away") === this.board.top;
+    const tone = (goodForOffense: boolean): "good" | "bad" | "neutral" => (this.setup.human === "none" ? "neutral" : goodForOffense === offense ? "good" : "bad");
+    const flash = (text: string, base: number, good: boolean) => {
+      const id = (this.callId += 1);
+      this.call = { id, text, base, tone: tone(good) };
+      this.later(1300, () => {
+        if (this.call?.id !== id) return;
+        this.call = null;
+        this.emit();
+      });
+    };
+    const side = this.board.top ? "away" : "home";
+    const play = c.play;
+    if (play && !play.foul && tl.contactT != null) {
+      const at = new Map<number, number>();
+      c.runners.forEach((r, i) => r && at.set(r.playerId, i + 1));
+      const scored = new Set(play.runs);
+      const events = play.events;
+      const callAt = (id: number, t: number) => events.find((e) => e.playerId === id && Math.abs(e.t - t) < 0.2 && (e.type === "force_out" || e.type === "tag_out" || e.type === "safe"));
+      const legs = [...play.runners].filter((r) => r.to !== r.from || r.out).sort((a, b) => a.t - b.t);
+      for (const r of legs) {
+        cues.push({
+          T: tl.contactT + Math.max(0.05, r.t),
+          fn: () => {
+            const b = this.board;
+            at.delete(r.playerId);
+            let outs = b.outs;
+            const score = { ...b.score };
+            const line = { away: [...b.line.away], home: [...b.line.home] };
+            if (r.out) outs = Math.min(3, outs + 1);
+            else if (r.to === 4) {
+              if (scored.has(r.playerId)) {
+                score[side] += 1;
+                line[side][line[side].length - 1] = (line[side][line[side].length - 1] ?? 0) + 1;
+              }
+            } else at.set(r.playerId, r.to);
+            const ids: (number | null)[] = [null, null, null];
+            for (const [id, base] of at) if (base >= 1 && base <= 3) ids[base - 1] = id;
+            this.board = { ...b, outs, score, line, runnerIds: ids, bases: [ids[0] != null, ids[1] != null, ids[2] != null] };
+            const ev = callAt(r.playerId, r.t);
+            if (r.out) flash("OUT", r.to, false);
+            else if (r.to === 4 && scored.has(r.playerId)) flash("RUN SCORES", 4, true);
+            else if (ev?.type === "safe") flash("SAFE", r.to, true);
+            this.emit();
+          },
+        });
+      }
+    }
+    // A steal: the call comes with the throw (or the tag at the plate).
+    const steals = c.events.filter((e) => e.kind === "stolen_base" || e.kind === "caught_stealing").sort((a, b) => (b.base ?? 0) - (a.base ?? 0));
+    if (steals.length && tl.contactT == null) {
+      const lead = steals[0];
+      const T = tl.receive.t + (lead.base === 2 ? 0.7 : lead.base === 1 ? 1.62 : 1.86);
+      cues.push({
+        T,
+        fn: () => {
+          const safe = lead.kind === "stolen_base";
+          flash(safe ? "SAFE" : "OUT", (lead.base ?? 0) + 2, safe);
+          this.reveal(c);
+          this.emit();
+        },
+      });
+    }
   }
 
   /** Put a committed pitch on the HUD: count / outs / score, play-by-play and the banner. */
@@ -698,7 +805,7 @@ export class GameController {
     }
     if (this.phase === "pitch") this.swing(this.pb.T);
     // Ready to hit: call for the pitch without waiting for the pitcher.
-    else if (this.phase === "ready" && this.session.humanBatting) this.throwPitch({ steal: this.stealOn });
+    else if (this.phase === "ready" && this.session.humanBatting) this.throwPitch({ steals: this.legalSteals() });
   }
 
   cancelAim() {
@@ -723,10 +830,55 @@ export class GameController {
     this.emit();
   }
 
-  toggleSteal() {
-    if (!this.canSteal()) return;
-    this.stealOn = !this.stealOn;
+  /**
+   * Send (or hold) a runner. With no base given: the lead runner who can go, then every
+   * runner (double / triple steal), then nobody.
+   */
+  toggleSteal(from?: number) {
+    const opts = this.stealOpts();
+    if (!opts.length) return;
+    if (from == null) {
+      const lead = Math.max(...opts) as StealFrom;
+      const all = legalSteals(this.session.game.bases, [0, 1, 2]);
+      if (!this.steals.size) this.steals = new Set([lead]);
+      else if (this.steals.size < all.length && all.length > 1) this.steals = new Set(all);
+      else this.steals.clear();
+    } else {
+      const f = from as StealFrom;
+      if (!opts.includes(f)) return;
+      if (this.steals.has(f)) {
+        this.steals.delete(f);
+        // A trailing runner can't go into an occupied bag once the runner ahead is held.
+        for (const t of [...this.steals]) if (!legalSteals(this.session.game.bases, [...this.steals]).includes(t)) this.steals.delete(t);
+      } else {
+        this.steals.add(f);
+        // Sending a trailing runner into an occupied bag sends the runner ahead too.
+        const b = this.session.game.bases;
+        for (let k = f + 1; k <= 2 && b[k]; k += 1) this.steals.add(k as StealFrom);
+      }
+    }
     this.emit();
+  }
+
+  /** Square around to bunt: off → down the third-base line → toward first → off. */
+  toggleBunt() {
+    if (!this.canBunt()) return;
+    this.bunt = this.bunt === 0 ? 1 : this.bunt === 1 ? 2 : 0;
+    this.emit();
+  }
+
+  private canBunt(): boolean {
+    return this.session.humanBatting && (this.phase === "ready" || (this.phase === "pitch" && !this.swung));
+  }
+
+  private stealOpts(): StealFrom[] {
+    const g = this.session.game;
+    if (!this.session.humanBatting || this.phase !== "ready" || g.outs >= 3) return [];
+    return ([0, 1, 2] as StealFrom[]).filter((f) => g.bases[f]);
+  }
+
+  private legalSteals(): StealFrom[] {
+    return legalSteals(this.session.game.bases, [...this.steals]);
   }
 
   toggleTurbo() {
@@ -863,8 +1015,17 @@ export class GameController {
   }
 
   private canSteal(): boolean {
+    return this.stealOpts().length > 0;
+  }
+
+  private runnersInfo(): HudSnapshot["runners"] {
     const g = this.session.game;
-    return this.session.humanBatting && this.phase === "ready" && !!g.bases[0] && !g.bases[1] && g.outs < 3;
+    const lineup = [...g.batting.lineup, ...g.batting.team.bench];
+    return this.board.runnerIds.map((id) => {
+      if (id == null) return null;
+      const b = lineup.find((x) => x.id === id);
+      return { id, name: b?.name ?? g.names.get(id) ?? "Runner", num: b?.num ?? null, sprint: b?.sprint ?? 27, sb: b?.raw.sav?.sb ?? 0, cs: b?.raw.sav?.cs ?? 0 };
+    });
   }
 
   // ---------- scene state ----------
@@ -873,10 +1034,10 @@ export class GameController {
     const fieldTeam = g.fielding.team.teamId;
     const batTeam = g.batting.team.teamId;
     const homeId = g.home.team.teamId;
-    const uni = (teamId: number) => ({
-      jersey: new THREE.Color(teamId === homeId ? "#f3f2ec" : "#a9aeb6"),
-      accent: new THREE.Color(getTeamColor(teamId)),
-    });
+    const uni = (teamId: number) => {
+      const u = uniformFor(teamId, teamId === homeId, new THREE.Color(getTeamColor(teamId)).getHex());
+      return { jersey: new THREE.Color(u.jersey), accent: new THREE.Color(u.cap), uni: u };
+    };
     const ctx = this.session.currentContext ?? g.pitchContext();
     this.fielders = g.fielders().map((f) => ({ pos: f.pos, p: f.p, id: f.playerId }));
     this.pb.cast = {
@@ -918,6 +1079,7 @@ export class GameController {
       balls: g.balls,
       strikes: g.strikes,
       bases: [!!g.bases[0], !!g.bases[1], !!g.bases[2]],
+      runnerIds: g.bases.map((r) => r?.playerId ?? null),
       score: { ...g.score },
       line: { away: [...g.line.away], home: [...g.line.home] },
       batterName: ctx.batter.name,
@@ -939,7 +1101,13 @@ export class GameController {
       phase: this.phase,
       pitchIdx: this.pitchIdx,
       canSteal: this.canSteal(),
-      stealOn: this.stealOn,
+      stealOn: this.steals.size > 0,
+      stealOpts: this.stealOpts(),
+      steals: this.legalSteals(),
+      runners: this.runnersInfo(),
+      bunt: this.bunt,
+      canBunt: this.canBunt(),
+      call: this.call,
       power: this.power,
       meterStart: this.meterStart,
       banner: this.banner,

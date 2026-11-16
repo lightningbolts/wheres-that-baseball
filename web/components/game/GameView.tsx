@@ -7,9 +7,10 @@ import type { TeamModel } from "@/lib/game/ratings";
 import { meterAt } from "@/lib/game/session/humanInput";
 import { getTeamColor } from "@/lib/mlb/teamColors";
 import { getTeamById } from "@/lib/mlb/teams";
+import { mlbTeamLogoUrl } from "@/lib/mlb/teamAssets";
 import { ordinal } from "@/lib/game/rules/game";
 import { GameController, pitchName, setAbbrevLookup, type HudSnapshot, type ManagerArm, type ManagerBat } from "@/components/game/controller";
-import { MARK_COLOR, zoneBox } from "@/components/game/scene/view";
+import { MARK_BALL_R, MARK_COLOR, zoneBox } from "@/components/game/scene/view";
 import { createPlayback } from "@/components/game/scene/playback";
 import { sfx } from "@/components/game/audio";
 import { BoxScore } from "@/components/game/BoxScore";
@@ -65,9 +66,10 @@ export function GameView({
         ctl.primary();
       } else if (k === "Escape") ctl.cancelAim();
       else if (/^[1-7]$/.test(k)) ctl.selectPitch(Number(k) - 1);
-      else if (e.repeat && (k === "Shift" || /^[pstPST]$/.test(k))) return;
+      else if (e.repeat && (k === "Shift" || /^[pstbPSTB]$/.test(k))) return;
       else if (k === "Shift" || k === "p" || k === "P") ctl.togglePower();
       else if (k === "s" || k === "S") ctl.toggleSteal();
+      else if (k === "b" || k === "B") ctl.toggleBunt();
       else if (k === "t" || k === "T") ctl.toggleTurbo();
       else if (k === "m" || k === "M") {
         if (ctl.getSnapshot().canManage) setShowMgr((v) => !v);
@@ -144,6 +146,7 @@ export function GameView({
       </div>
 
       <MatchupCard snap={snap} />
+      <BasesPanel snap={snap} ctl={ctl} />
       <Banner snap={snap} />
       <Feedback snap={snap} />
       <Controls snap={snap} ctl={ctl} touch={touch} />
@@ -205,11 +208,16 @@ function HudButton({ children, onClick, active, title, pulse }: { children: Reac
 
 function ScoreBug({ snap, awayId, homeId }: { snap: HudSnapshot; awayId: number; homeId: number }) {
   const row = (id: number, runs: number, batting: boolean) => (
-    <div className="flex items-center gap-2">
-      <span className="h-4 w-1.5 rounded-sm" style={{ background: getTeamColor(id) }} />
-      <span className="w-10 font-semibold">{abbrev(id)}</span>
-      <span className="w-6 text-right text-lg font-bold tabular-nums">{runs}</span>
-      {batting && <span className="text-[10px] text-amber-300">●</span>}
+    <div className="flex items-center gap-2 rounded-md pr-1" style={{ background: `linear-gradient(90deg, ${getTeamColor(id)}cc, ${getTeamColor(id)}33 70%, transparent)` }}>
+      <span className="flex h-6 w-7 items-center justify-center">
+        <TeamMark id={id} size={20} />
+      </span>
+      <span className="w-10 font-semibold tracking-wide">{abbrev(id)}</span>
+      {/* Keyed on the score so a run flashes the moment it crosses the plate. */}
+      <span key={runs} className="w-6 animate-play_in text-right text-lg font-bold tabular-nums">
+        {runs}
+      </span>
+      <span className={`text-[10px] ${batting ? "text-amber-300" : "text-transparent"}`}>●</span>
     </div>
   );
   const pips = (label: string, n: number, max: number, on: string) => (
@@ -236,6 +244,112 @@ function ScoreBug({ snap, awayId, homeId }: { snap: HudSnapshot; awayId: number;
         {pips("B", snap.balls, 3, "bg-sky-400")}
         {pips("S", snap.strikes, 2, "bg-rose-500")}
         {pips("O", snap.outs, 2, "bg-amber-300")}
+      </div>
+    </div>
+  );
+}
+
+/** Real club mark (MLB static SVG, on-dark), falling back to the abbreviation. */
+function TeamMark({ id, size }: { id: number; size: number }) {
+  const [bad, setBad] = useState(false);
+  if (bad) return <span className="text-[9px] font-bold">{abbrev(id)}</span>;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={mlbTeamLogoUrl(id, "dark")} alt="" width={size} height={size} style={{ width: size, height: size }} className="object-contain drop-shadow" onError={() => setBad(true)} />;
+}
+
+/**
+ * Bottom-right: the bases as they stand right now (updated mid-play), who is on each
+ * one, the outs, and — when batting — a tap on a runner sends him (multi-base steals).
+ */
+function BasesPanel({ snap, ctl }: { snap: HudSnapshot; ctl: GameController }) {
+  const canSend = snap.stealOpts.length > 0;
+  const going = new Set(snap.steals);
+  // Diamond geometry (SVG units): home at the bottom.
+  const P: Array<[number, number]> = [
+    [112, 62],
+    [70, 22],
+    [28, 62],
+  ];
+  const label = ["2nd", "3rd", "home"];
+  const call = snap.call;
+  return (
+    <div className="pointer-events-none absolute bottom-2 right-2 z-10 w-[148px] select-none sm:bottom-3 sm:right-3 sm:w-[170px]" aria-label="Runners on base">
+      <div className="pointer-events-auto relative rounded-xl border border-white/10 bg-black/60 p-2 shadow-xl backdrop-blur">
+        <svg viewBox="0 0 140 104" className="w-full">
+          <path d="M70 100 L112 62 L70 22 L28 62 Z" fill="none" stroke="#ffffff" strokeOpacity={0.25} strokeWidth={1.5} />
+          <rect x={65} y={95} width={10} height={8} fill="#fff" opacity={0.5} />
+          {P.map(([x, y], i) => {
+            const on = snap.bases[i];
+            const r = snap.runners[i];
+            const sendable = canSend && snap.stealOpts.includes(i);
+            const isGoing = going.has(i);
+            return (
+              <g
+                key={i}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (sendable) ctl.toggleSteal(i);
+                }}
+                style={{ cursor: sendable ? "pointer" : "default" }}
+              >
+                <rect
+                  x={x - 9}
+                  y={y - 9}
+                  width={18}
+                  height={18}
+                  transform={`rotate(45 ${x} ${y})`}
+                  fill={on ? (isGoing ? "#f59e0b" : "#fcd34d") : "rgba(255,255,255,0.06)"}
+                  stroke={isGoing ? "#fff" : "#fff"}
+                  strokeOpacity={isGoing ? 1 : 0.55}
+                  strokeWidth={isGoing ? 2.5 : 1.2}
+                >
+                  {isGoing && <animate attributeName="stroke-opacity" values="1;0.3;1" dur="0.8s" repeatCount="indefinite" />}
+                </rect>
+                {r && (
+                  <text x={x} y={y + (i === 1 ? -15 : 24)} textAnchor="middle" fontSize={9} fontWeight={600} fill="#fff">
+                    {(r.name.split(" ").slice(-1)[0] ?? r.name).slice(0, 11)}
+                  </text>
+                )}
+                {r && (
+                  <text x={x} y={y + (i === 1 ? -25 : 33)} textAnchor="middle" fontSize={7} fill="#cbd5e1">
+                    {r.sprint.toFixed(1)} ft/s{r.sb ? ` · ${r.sb} SB` : ""}
+                  </text>
+                )}
+                {sendable && (
+                  <text x={x} y={y + 3} textAnchor="middle" fontSize={8} fontWeight={700} fill="#111">
+                    {isGoing ? "GO" : ""}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+        </svg>
+        <div className="mt-0.5 flex items-center justify-between text-[10px] font-semibold text-white/70">
+          <span className="flex items-center gap-1">
+            OUT
+            {[0, 1, 2].map((i) => (
+              <span key={i} className={`h-2 w-2 rounded-full ${snap.outs > i ? "bg-amber-300" : "bg-white/20"}`} />
+            ))}
+          </span>
+          <span className="tabular-nums">
+            {snap.balls}-{snap.strikes}
+          </span>
+        </div>
+        {canSend && (
+          <div className="mt-1 text-center text-[10px] leading-tight text-white/60">
+            {snap.steals.length ? `Sending: ${snap.steals.map((f) => label[f]).join(" + ")}` : "Tap a runner (or S) to steal"}
+          </div>
+        )}
+        {call && (
+          <div
+            key={call.id}
+            className={`pointer-events-none absolute inset-x-0 top-1/3 animate-play_in text-center text-xl font-black italic tracking-wider drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] ${
+              call.tone === "good" ? "text-emerald-300" : call.tone === "bad" ? "text-rose-400" : "text-white"
+            }`}
+          >
+            {call.text}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -302,19 +416,20 @@ function ZoneFrame({ zone }: { zone: { bottom: number; top: number } }) {
   return <rect x={ZX(b.x0)} y={ZY(b.y1)} width={ZX(b.x1) - ZX(b.x0)} height={ZY(b.y0) - ZY(b.y1)} fill="rgba(255,255,255,0.06)" stroke="#fff" strokeOpacity={0.85} strokeWidth={1.5} />;
 }
 
-/** This at-bat's pitches on a small strike zone (catcher's view). */
+/** Ball radius in the mini zone diagrams' SVG units (26 per ft): markers are drawn true to size. */
+const ZR = MARK_BALL_R * 26;
+
+/** This at-bat's pitches on a small strike zone (catcher's view), each dot the ball's true size. */
 function PitchChart({ snap }: { snap: HudSnapshot }) {
   if (!snap.pitches.length) return null;
   const last = snap.pitches.length - 1;
   return (
-    <svg width={58} height={72} viewBox="4 6 92 116" className="shrink-0" role="img" aria-label={`Pitch locations this at-bat: ${snap.pitches.length}`}>
+    <svg width={70} height={88} viewBox="4 6 92 116" className="shrink-0" role="img" aria-label={`Pitch locations this at-bat: ${snap.pitches.length}`}>
       <ZoneFrame zone={snap.zone} />
       {snap.pitches.map((m, i) => (
-        <g key={m.n} opacity={i === last ? 1 : 0.7}>
-          <circle cx={ZX(m.px)} cy={ZY(m.pz)} r={i === last ? 6.5 : 5.5} fill={MARK_COLOR[m.kind]} stroke="#0a0f18" strokeWidth={1} />
-          <text x={ZX(m.px)} y={ZY(m.pz) + 3} textAnchor="middle" fontSize={8.5} fontWeight={700} fill={m.kind === "pending" ? "#111" : "#fff"}>
-            {m.n}
-          </text>
+        <g key={m.n} opacity={i === last ? 1 : 0.75}>
+          {i === last && <circle cx={ZX(m.px)} cy={ZY(m.pz)} r={ZR + 2.2} fill="none" stroke="#fff" strokeWidth={1.2} />}
+          <circle cx={ZX(m.px)} cy={ZY(m.pz)} r={ZR} fill={MARK_COLOR[m.kind]} stroke="#0a0f18" strokeWidth={0.6} />
         </g>
       ))}
     </svg>
@@ -324,7 +439,7 @@ function PitchChart({ snap }: { snap: HudSnapshot }) {
 function MatchupCard({ snap }: { snap: HudSnapshot }) {
   const last = snap.pitches[snap.pitches.length - 1];
   return (
-    <div className="pointer-events-none absolute bottom-2 left-2 flex max-w-[58vw] items-center gap-2.5 rounded-lg border border-white/10 bg-black/55 px-3 py-2 text-xs shadow-lg backdrop-blur sm:bottom-3 sm:left-3">
+    <div className="pointer-events-none absolute bottom-2 left-2 flex max-w-[calc(100vw-180px)] sm:max-w-[58vw] items-center gap-2.5 rounded-lg border border-white/10 bg-black/55 px-3 py-2 text-xs shadow-lg backdrop-blur sm:bottom-3 sm:left-3">
       <PitchChart snap={snap} />
       <div className="min-w-0">
         <div className="truncate">
@@ -380,7 +495,7 @@ function Feedback({ snap }: { snap: HudSnapshot }) {
           <svg width={62} height={77} viewBox="4 6 92 116" className="shrink-0" role="img" aria-label={covered ? "The ball was inside your coverage box" : "The ball was outside your coverage box"}>
             <ZoneFrame zone={sw.zone} />
             <rect x={ZX(sw.pci.px - sw.pci.w)} y={ZY(sw.pci.pz + sw.pci.h)} width={sw.pci.w * 52} height={sw.pci.h * 52} fill="rgba(255,225,77,0.18)" stroke="#ffe14d" strokeWidth={2} />
-            <circle cx={ZX(sw.ball.px)} cy={ZY(sw.ball.pz)} r={4.5} fill="#fff" stroke={covered ? "#39d98a" : "#ff4d43"} strokeWidth={2.5} />
+            <circle cx={ZX(sw.ball.px)} cy={ZY(sw.ball.pz)} r={ZR} fill="#fff" stroke={covered ? "#39d98a" : "#ff4d43"} strokeWidth={1.2} />
           </svg>
         )}
         <div className="min-w-[6.5rem]">
@@ -490,6 +605,20 @@ function Controls({ snap, ctl, touch }: { snap: HudSnapshot; ctl: GameController
           >
             {snap.power ? "Power swing" : "Contact swing"}
           </button>
+          {snap.canBunt && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                e.currentTarget.blur();
+                ctl.toggleBunt();
+              }}
+              className={`rounded-md px-3 py-1.5 text-xs font-semibold ${snap.bunt ? "bg-sky-300 text-black" : "bg-white/10 hover:bg-white/25"}`}
+              title="Square to bunt (B): third-base line, then first-base line, then off"
+            >
+              {snap.bunt === 1 ? "Bunt → 3B line" : snap.bunt === 2 ? "Bunt → 1B line" : "Bunt (B)"}
+            </button>
+          )}
           {snap.canSteal && (
             <button
               type="button"
@@ -499,15 +628,20 @@ function Controls({ snap, ctl, touch }: { snap: HudSnapshot; ctl: GameController
                 ctl.toggleSteal();
               }}
               className={`rounded-md px-3 py-1.5 text-xs font-semibold ${snap.stealOn ? "bg-amber-300 text-black" : "bg-white/10 hover:bg-white/25"}`}
+              title="Steal (S): lead runner, then everyone, then hold — or tap runners on the bases panel"
             >
-              {snap.stealOn ? "Runner going!" : "Steal 2nd (S)"}
+              {snap.stealOn ? `Going: ${snap.steals.map((f) => ["2nd", "3rd", "home"][f]).join(" + ")}` : "Steal (S)"}
             </button>
           )}
           <button type="button" onPointerDown={press} className={action}>
-            {snap.phase === "ready" ? "Ready" : "Swing"}
+            {snap.phase === "ready" ? "Ready" : snap.bunt ? "Pull back" : "Swing"}
           </button>
           <div className={hint}>
-            {snap.phase === "ready" ? "Space / click when you are ready for the pitch" : "Move the box over the ball · Space / click to swing just before it arrives"}
+            {snap.bunt
+              ? "Squared to bunt — it goes down by itself · Space / click to pull the bat back"
+              : snap.phase === "ready"
+                ? "Space / click when you are ready for the pitch"
+                : "Move the box over the ball · Space / click to swing just before it arrives"}
           </div>
           {touch && <div className="text-[11px] text-white/65">Drag to move the box</div>}
         </div>

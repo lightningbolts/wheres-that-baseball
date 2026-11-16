@@ -6,6 +6,7 @@ import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { PLATE_FRONT_Z } from "@/lib/game/physics/pitch";
 import { MAX_FRAME_DT, advancePlayback, fielderKey, type Playback } from "@/components/game/scene/playback";
 import { MARK_COLOR, MAX_MARKS, plateCam, plateHud, zoneBox } from "@/components/game/scene/view";
+import { BALL_RADIUS_FT } from "@/lib/game/physics/ballFlight";
 
 /** Advances playback time and fires cues. Mount first so it runs before readers. */
 export function Director({ pb }: { pb: Playback }) {
@@ -549,7 +550,8 @@ export function PlateOverlay({
     // Where each pitch of the at-bat crossed: numbered, colored by result, newest on top.
     const list = hud.marks;
     const first = Math.max(0, list.length - MAX_MARKS);
-    const r = Math.max(BALL_R, 4.5 * ftPerPx);
+    // True ball size: a marker that touches the drawn zone is a strike, one clear of it a ball.
+    const r = BALL_RADIUS_FT;
     const age = hud.markAt < 0 ? 10 : pb.now - hud.markAt;
     for (let i = 0; i < MAX_MARKS; i += 1) {
       const g = marks.current[i];
@@ -560,7 +562,7 @@ export function PlateOverlay({
       const newest = first + i === list.length - 1;
       g.position.set(-m.px, m.pz, z);
       g.quaternion.copy(cam.quaternion);
-      g.scale.setScalar(r * (newest ? 1 + 0.9 * Math.exp(-age / 0.12) : 0.92));
+      g.scale.setScalar(r * (newest ? 1 + 0.9 * Math.exp(-age / 0.12) : 1));
       const disc = (g.children[1] as THREE.Mesh).material as THREE.MeshBasicMaterial;
       disc.color.copy(MARK_COLORS[m.kind]);
       disc.opacity = newest ? 0.95 : 0.55;
@@ -649,15 +651,15 @@ export function PlateOverlay({
           }}
         >
           <mesh renderOrder={8}>
-            <ringGeometry args={[0.96, 1.22, 24]} />
+            <ringGeometry args={[0.8, 1, 24]} />
             <meshBasicMaterial color="#0a0f18" transparent opacity={0.6} depthTest={false} depthWrite={false} />
           </mesh>
           <mesh renderOrder={8}>
-            <circleGeometry args={[1, 24]} />
+            <circleGeometry args={[0.84, 24]} />
             <meshBasicMaterial color="#ffffff" transparent opacity={0.9} depthTest={false} depthWrite={false} />
           </mesh>
           <mesh renderOrder={9}>
-            <planeGeometry args={[1.5, 1.5]} />
+            <planeGeometry args={[1.25, 1.25]} />
             <meshBasicMaterial map={numerals[i]} transparent depthTest={false} depthWrite={false} />
           </mesh>
         </group>

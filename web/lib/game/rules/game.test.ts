@@ -3,6 +3,7 @@ import type { PitchResult, PitchResultKind } from "@/lib/game/engine/atBat";
 import type { PlayResult } from "@/lib/game/play/resolvePlay";
 import { newGame } from "@/lib/game/__fixtures/teams";
 import type { BaseballGame } from "@/lib/game/rules/game";
+import { legalSteals, stealOptions } from "@/lib/game/ai/baserunning";
 
 const pitch = (kind: PitchResultKind, extra: Partial<PitchResult> = {}) => ({ kind, ...extra }) as PitchResult;
 const runner = (id: number) => ({ playerId: id, sprint: 27, chargedTo: 0 });
@@ -87,6 +88,57 @@ describe("baserunning events", () => {
     g.applySteal(false);
     expect(g.outs).toBe(1);
     expect(g.bases.every((b) => b === null)).toBe(true);
+  });
+
+  it("a double steal moves both runners, lead runner first", () => {
+    const g = newGame();
+    g.bases = [runner(9001), runner(9002), null];
+    g.applySteals([
+      { from: 1, safe: true },
+      { from: 0, safe: true },
+    ]);
+    expect(g.bases.map((b) => b?.playerId ?? null)).toEqual([null, 9001, 9002]);
+    expect(g.outs).toBe(0);
+  });
+
+  it("a steal of home scores; the trailer still takes his base when the lead runner is thrown out", () => {
+    const g = newGame();
+    g.bases = [runner(9001), null, runner(9003)];
+    g.applySteals([
+      { from: 2, safe: true },
+      { from: 0, safe: true },
+    ]);
+    expect(g.score.away).toBe(1);
+    expect(g.bases.map((b) => b?.playerId ?? null)).toEqual([null, 9001, null]);
+    const h = newGame();
+    h.bases = [runner(9001), runner(9002), null];
+    h.applySteals([
+      { from: 1, safe: false },
+      { from: 0, safe: true },
+    ]);
+    expect(h.outs).toBe(1);
+    expect(h.bases.map((b) => b?.playerId ?? null)).toEqual([null, 9001, null]);
+  });
+
+  it("only runners with an open base ahead (or a runner going ahead of them) may steal", () => {
+    const b = [runner(1), runner(2), null] as const;
+    expect(stealOptions(b)).toEqual([1]);
+    expect(legalSteals(b, [0])).toEqual([]);
+    expect(legalSteals(b, [0, 1])).toEqual([1, 0]);
+    expect(legalSteals([null, null, null], [0])).toEqual([]);
+  });
+
+  it("a two-strike foul bunt is strike three", () => {
+    const g = newGame();
+    g.apply(pitch("called_strike"));
+    g.apply(pitch("called_strike"));
+    g.apply(pitch("foul", { bunt: true }));
+    expect(g.outs).toBe(1);
+    const h = newGame();
+    h.apply(pitch("called_strike"));
+    h.apply(pitch("foul"));
+    h.apply(pitch("foul"));
+    expect(h.outs).toBe(0);
   });
 });
 

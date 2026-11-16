@@ -4,6 +4,7 @@ import { buildBody, outfitFor, outfitKey } from "@/components/game/scene/charact
 import { BONE, BONE_COUNT, DIM, REST, SKIN_COUNT, writeSkinMatrices } from "@/components/game/scene/character/skeleton";
 import { jerseyName, girthOf, fallbackNumber, nickname } from "@/components/game/scene/character/roster";
 import type { ActorKind } from "@/components/game/scene/rig";
+import { ATLAS, PANEL } from "@/components/game/scene/character/atlas";
 
 const KINDS: ActorKind[] = ["fielder", "pitcher", "catcher", "batter", "runner", "umpire", "coach"];
 
@@ -191,5 +192,31 @@ describe("jersey lettering", () => {
     expect(girthOf(73, 207)).toBeCloseTo(1, 2);
     expect(girthOf(70, 280)).toBeLessThanOrEqual(1.14);
     expect(girthOf(78, 160)).toBeGreaterThanOrEqual(0.9);
+  });
+
+  it("caps and batting helmets carry the club mark panel on the front of the crown only", () => {
+    const inPanel = (u: number, v: number, r: { x: number; y: number; w: number; h: number }) => {
+      const px = u * ATLAS;
+      const py = (1 - v) * ATLAS;
+      return px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h;
+    };
+    for (const [kind, panel] of [
+      ["fielder", PANEL.capFront],
+      ["batter", PANEL.helmetFront],
+    ] as const) {
+      const d = buildBody(outfitFor(kind, "R"), 0);
+      let front = 0;
+      let centre = 0;
+      for (let i = 0; i < d.position.length / 3; i += 1) {
+        if (!inPanel(d.uv[i * 2], d.uv[i * 2 + 1], panel)) continue;
+        front += 1;
+        // Everything painted from that panel faces the pitcher (+Z of the head) or sits on its sides.
+        expect(d.position[i * 3 + 2]).toBeGreaterThan(DIM.headCZ - 0.02);
+        const s = (d.uv[i * 2] * ATLAS - panel.x) / panel.w;
+        if (Math.abs(s - 0.5) < 0.2 && d.position[i * 3 + 1] > DIM.hip + DIM.headCY + 0.2) centre += 1;
+      }
+      expect(front).toBeGreaterThan(20);
+      expect(centre).toBeGreaterThan(2);
+    }
   });
 });

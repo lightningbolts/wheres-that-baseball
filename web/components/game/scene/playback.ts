@@ -3,6 +3,7 @@
  * scene components (no React re-render per frame). The view swaps timelines and
  * sets cues; the Director advances T in useFrame.
  */
+import type { Uniform } from "@/components/game/scene/character/uniforms";
 import * as THREE from "three";
 import type { Timeline, ActorState } from "@/lib/game/anim/timeline";
 import type { FieldPos } from "@/lib/game/types";
@@ -20,8 +21,8 @@ export interface Cue {
 
 export interface Cast {
   /** Uniform colors for the fielding / batting team. */
-  field: { jersey: THREE.Color; accent: THREE.Color };
-  bat: { jersey: THREE.Color; accent: THREE.Color };
+  field: { jersey: THREE.Color; accent: THREE.Color; uni?: Uniform };
+  bat: { jersey: THREE.Color; accent: THREE.Color; uni?: Uniform };
   pitcherHand: "L" | "R";
   batterHand: "L" | "R";
   /** Standby positions (between pitches). */
@@ -239,6 +240,7 @@ export function actorsAt(pb: Playback): ActorDraw[] {
     d.kind = f.pos === "C" ? "catcher" : f.pos === "P" ? "pitcher" : "fielder";
     d.jersey = c.field.jersey;
     d.accent = c.field.accent;
+    d.uni = c.field.uni ?? null;
     d.skin = skinFor(f.id);
     d.id = f.id;
     d.hand = f.pos === "P" ? c.pitcherHand : "R";
@@ -258,6 +260,7 @@ export function actorsAt(pb: Playback): ActorDraw[] {
     d.kind = "batter";
     d.jersey = c.bat.jersey;
     d.accent = c.bat.accent;
+    d.uni = c.bat.uni ?? null;
     d.skin = skinFor(c.batterId);
     d.id = c.batterId;
     d.hand = bSide;
@@ -277,6 +280,7 @@ export function actorsAt(pb: Playback): ActorDraw[] {
       d.kind = "runner";
       d.jersey = c.bat.jersey;
       d.accent = c.bat.accent;
+      d.uni = c.bat.uni ?? null;
       d.skin = skinFor(id);
       d.id = id;
       d.hand = "R";
@@ -295,6 +299,7 @@ export function actorsAt(pb: Playback): ActorDraw[] {
       d.kind = "runner";
       d.jersey = c.bat.jersey;
       d.accent = c.bat.accent;
+      d.uni = c.bat.uni ?? null;
       d.skin = skinFor(r.id);
       d.id = r.id;
       d.hand = "R";
@@ -312,6 +317,7 @@ export function actorsAt(pb: Playback): ActorDraw[] {
     u.kind = "umpire";
     u.jersey = UMP.jersey;
     u.accent = UMP.accent;
+    u.uni = null;
     u.skin = skinFor(3);
     u.id = 0;
     u.hand = "R";
@@ -327,6 +333,7 @@ export function actorsAt(pb: Playback): ActorDraw[] {
     d.kind = "coach";
     d.jersey = c.bat.jersey;
     d.accent = c.bat.accent;
+    d.uni = c.bat.uni ?? null;
     d.skin = COACH_SKIN[i];
     d.id = 0;
     d.hand = "R";

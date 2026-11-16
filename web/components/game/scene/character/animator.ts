@@ -148,6 +148,7 @@ export class Animator {
   private aim(a: ActorDraw, cls: PoseClass, env: AnimEnv, big: number) {
     const { tl, ball, T } = env;
     ctx.hasTarget = false;
+    ctx.bunt = false;
     ctx.targetW = 0;
     ctx.jump = 0;
     if (!tl) return;
@@ -171,6 +172,7 @@ export class Animator {
       ok = true;
       ctx.targetW = 1;
       ctx.swingDur = tl.swing.contactT - tl.swing.startT;
+      ctx.bunt = !!tl.swing.bunt;
     } else if (cls === "throw") {
       const start = T - s.actionT;
       if (Math.abs(start - this.thrAt) > 0.05) {

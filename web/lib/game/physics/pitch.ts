@@ -37,8 +37,10 @@ import type { ArsenalPitch, StatcastKinematics } from "@/lib/game/types";
 
 /** Front edge of home plate (Statcast plate plane), ft from the point of the plate. */
 export const PLATE_FRONT_Z = 17 / 12;
-/** Half plate width plus ball radius: any part of the ball over the plate counts. */
-export const ZONE_HALF_WIDTH = 17 / 24 + BALL_RADIUS_FT;
+/** Half the plate's width (17 in), ft. */
+export const PLATE_HALF_WIDTH = 17 / 24;
+/** Half plate width plus ball radius: a ball whose center is this close to the middle touches the plate. */
+export const ZONE_HALF_WIDTH = PLATE_HALF_WIDTH + BALL_RADIUS_FT;
 const STATCAST_Y0 = 50;
 
 export interface CalibratedPitch {
@@ -219,7 +221,44 @@ export function pitchStateAt(flight: PitchFlight, t: number): FlightSample {
   return s[s.length - 1];
 }
 
-/** Statcast strike zone test for a plate crossing. */
+/** Statcast strike zone test for a plate crossing (front plane only). */
 export function isStrike(px: number, pz: number, zoneBottom: number, zoneTop: number): boolean {
   return Math.abs(px) <= ZONE_HALF_WIDTH && pz >= zoneBottom - BALL_RADIUS_FT && pz <= zoneTop + BALL_RADIUS_FT;
+}
+
+/** Half-width of home plate at depth z (ft from the point): square front half, then the 45° point. */
+export function plateHalfWidthAt(z: number): number {
+  if (z < 0 || z > PLATE_FRONT_Z) return -1;
+  return Math.min(PLATE_HALF_WIDTH, z);
+}
+
+/**
+ * The rulebook strike: any part of the ball passes through the zone — the volume over
+ * the whole five-sided plate, 17 in deep, between the batter's knees and the midpoint of
+ * his torso. A ball whose leading edge only clips the back corner, or a breaking ball
+ * that drops onto the bottom edge as it crosses the plate, is a strike.
+ */
+export function crossesZone(flight: PitchFlight, zoneBottom: number, zoneTop: number): boolean {
+  return zoneContact(flight, zoneBottom, zoneTop) != null;
+}
+
+/**
+ * Where the ball touched the zone (Statcast px / pz of its center), or null for a ball.
+ * The front-plane crossing when it already touches there; otherwise the first point over
+ * the plate where it does (a backdoor breaker or a curve dropping onto the knees).
+ */
+export function zoneContact(flight: PitchFlight, zoneBottom: number, zoneTop: number): { px: number; pz: number } | null {
+  if (isStrike(flight.px, flight.pz, zoneBottom, zoneTop)) return { px: flight.px, pz: flight.pz };
+  const vz = Math.abs(flight.cross.v.z) || 130;
+  const t0 = flight.cross.t;
+  const t1 = t0 + PLATE_FRONT_Z / vz;
+  const steps = 10;
+  for (let i = 1; i <= steps; i += 1) {
+    const s = pitchStateAt(flight, t0 + ((t1 - t0) * i) / steps);
+    const half = plateHalfWidthAt(s.p.z);
+    if (half < 0) continue;
+    const y = s.p.y;
+    if (Math.abs(s.p.x) <= half + BALL_RADIUS_FT && y >= zoneBottom - BALL_RADIUS_FT && y <= zoneTop + BALL_RADIUS_FT) return { px: -s.p.x, pz: y };
+  }
+  return null;
 }
