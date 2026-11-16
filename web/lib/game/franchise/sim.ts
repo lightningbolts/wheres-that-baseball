@@ -277,8 +277,11 @@ export function simGame(input: SimInput): GameOutcome {
     pl.bf += 1;
     let outs = outsIn;
     let runs = 0;
+    // Bottom of the ninth or later: the game ends the moment the home side goes ahead, so
+    // no run past the winning one counts (a home run is the exception: every runner scores).
+    let cap = walkoffInning ? fld.runs - bat.runs + 1 : Infinity;
     const score = (r: Runner | null, rbi = true) => {
-      if (!r) return;
+      if (!r || runs >= cap) return;
       runs += 1;
       r.b.line.r += 1;
       r.pit.line.r += 1;
@@ -321,6 +324,7 @@ export function simGame(input: SimInput): GameOutcome {
       bl.hr += 1;
       pl.h += 1;
       pl.hr += 1;
+      cap = Infinity;
       for (const x of nb) score(x);
       score(me);
       nb = [null, null, null];
@@ -439,7 +443,6 @@ export function simGame(input: SimInput): GameOutcome {
     }
     bat.runs += runs;
     if (bl.h && runs >= 0) bat.hits = bat.lineup.reduce((s, x) => s + x.line.h, 0);
-    void walkoffInning;
     return { outs, runs, bases: nb };
   };
 

@@ -84,9 +84,11 @@ export function accrueDay(league: League): void {
     const f = t.fin;
     f.media += (NATIONAL_MEDIA + club(t.id).localMedia) / days;
     f.sponsorship += sponsorshipRevenue(t.id, wp) / days;
-    f.payroll += payroll(league, t.id) / days;
+    // payroll() counts dead money too (it counts toward the tax line); book it once, under dead money.
+    const dead = t.dead.reduce((s, d) => s + d.aav, 0);
+    f.payroll += Math.max(0, payroll(league, t.id) - dead) / days;
     f.operations += operationsCost(t.id) / days;
-    f.deadMoney += t.dead.reduce((s, d) => s + d.aav, 0) / days;
+    f.deadMoney += dead / days;
   }
 }
 

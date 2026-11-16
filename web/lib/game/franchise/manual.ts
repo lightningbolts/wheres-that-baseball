@@ -40,7 +40,33 @@ export function rosterPlayerFor(p: Player, idx: RosterIndex, pos?: string): Rost
   out.pos = pos ?? p.pos;
   if (!p.real) out.num = null;
   if (p.bat && out.bat) {
-    out.bat = { ...out.bat, pa: Math.max(out.bat.pa, 400), k: p.bat.k, bb: p.bat.bb, hr: p.bat.hr };
+    // The 3D game hits with contact, swing decisions and exit velocity, not with rate
+    // stats: move those physics inputs by how far the player's current K / BB / HR rates
+    // sit from the template's (development, aging and slumps all show up in play).
+    const b0 = out.bat;
+    const kBase = b0.k ?? p.bat0?.k ?? p.bat.k;
+    const bbBase = b0.bb ?? p.bat0?.bb ?? p.bat.bb;
+    const hrBase = b0.hr ?? p.bat0?.hr ?? p.bat.hr;
+    const dK = p.bat.k - kBase;
+    const dBB = p.bat.bb - bbBase;
+    const dHR = p.bat.hr - hrBase;
+    const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+    const nudge = (v: number | null, d: number, lo: number, hi: number) => (v == null ? null : clamp(v + d, lo, hi));
+    out.bat = {
+      ...b0,
+      pa: Math.max(b0.pa, 400),
+      k: p.bat.k,
+      bb: p.bat.bb,
+      hr: p.bat.hr,
+      // +5 pts of K% ≈ −2.5 pts zone contact, −4.5 pts chase contact.
+      zContact: nudge(b0.zContact, -dK * 0.5, 0.6, 0.97),
+      oContact: nudge(b0.oContact, -dK * 0.9, 0.3, 0.9),
+      // +3 pts of BB% ≈ −3.6 pts chase rate.
+      oSwing: nudge(b0.oSwing, -dBB * 1.2, 0.15, 0.5),
+      // +1 pt of HR/PA ≈ +2.5 mph at the 90th percentile and a touch more lift.
+      evP90: nudge(b0.evP90, dHR * 250, 95, 112),
+      laMean: nudge(b0.laMean, dHR * 120, -5, 25),
+    };
     out.sprint = p.bat.spd;
   }
   if (p.pit && out.pitch) out.pitch = { ...out.pitch, bf: Math.max(out.pitch.bf ?? 0, 400), k: p.pit.k, bb: p.pit.bb, stamina: p.pit.stam };
