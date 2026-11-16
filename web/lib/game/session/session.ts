@@ -51,6 +51,8 @@ export interface GameSetup {
   abs?: boolean;
   /** Two-player games: cover the screen while the pitcher picks his pitch, so the hitter can't see it. */
   hidePitch?: boolean;
+  /** Postseason rules: extra innings start without the automatic runner on second. */
+  postseason?: boolean;
 }
 
 /** Everything a human decided on one pitch. `cpu` = that pitch was auto-played. */
@@ -129,6 +131,7 @@ export class GameSession {
       homeStarter: setup.homeStarter,
       innings: setup.innings,
       abs: !!setup.abs,
+      postseason: !!setup.postseason,
     });
   }
 

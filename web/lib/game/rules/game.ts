@@ -126,6 +126,8 @@ export class BaseballGame {
   names = new Map<number, string>();
   log: GameEvent[] = [];
   readonly regulation: number;
+  /** Postseason: no automatic runner in extra innings. */
+  readonly postseason: boolean;
   /** ABS challenges each club has left; null when the game is played without ABS. */
   abs: { away: number; home: number } | null;
 
@@ -133,10 +135,11 @@ export class BaseballGame {
     awayTeam: TeamModel,
     homeTeam: TeamModel,
     readonly park: Park,
-    opts: { awayStarter?: number; homeStarter?: number; innings?: number; abs?: boolean } = {},
+    opts: { awayStarter?: number; homeStarter?: number; innings?: number; abs?: boolean; postseason?: boolean } = {},
   ) {
     this.regulation = opts.innings ?? 9;
     this.abs = opts.abs ? { away: ABS_CHALLENGES, home: ABS_CHALLENGES } : null;
+    this.postseason = !!opts.postseason;
     this.away = this.makeSide(awayTeam, opts.awayStarter ?? 0);
     this.home = this.makeSide(homeTeam, opts.homeStarter ?? 0);
   }
@@ -548,8 +551,8 @@ export class BaseballGame {
         if (this.abs.home === 0) this.abs.home = 1;
       }
     }
-    // Extra innings: the batter before the leadoff man starts on second.
-    if (this.inning > this.regulation) {
+    // Extra innings (regular season): the batter before the leadoff man starts on second.
+    if (this.inning > this.regulation && !this.postseason) {
       const s = this.batting;
       const prev = s.lineup[(s.idx + s.lineup.length - 1) % s.lineup.length];
       this.bases[1] = { playerId: prev.id, sprint: prev.sprint, chargedTo: this.fielding.pitcher.id };

@@ -89,11 +89,15 @@ export function synthContract(p: Player, season: number, teamId: number): Contra
   return { aav: Math.round(aav * 10) / 10, years, kind: "fa", signed: season - elapsed };
 }
 
-/** CBT payroll: 40-man salaries plus dead money, $M. */
+/**
+ * CBT payroll: 40-man salaries, plus guaranteed (major-league) deals of players the club
+ * outrighted but still pays, plus dead money, $M. Matches what committed() counts.
+ */
 export function payroll(league: League, teamId: number): number {
   let sum = 0;
   for (const p of Object.values(league.players)) {
-    if (p.team === teamId && (p.on40 || p.status === "active" || p.status === "il")) sum += p.contract.aav;
+    if (p.team !== teamId || p.status === "retired") continue;
+    if (p.on40 || p.status === "active" || p.status === "il" || p.contract.kind !== "minor") sum += p.contract.aav;
   }
   for (const d of league.teams[teamId]?.dead ?? []) sum += d.aav;
   return Math.round(sum * 10) / 10;

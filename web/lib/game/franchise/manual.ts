@@ -118,11 +118,12 @@ export interface ManualGame {
 export function buildManualGame(league: League, gameId: number, idx: RosterIndex): ManualGame | null {
   const g = league.schedule.find((x) => x.id === gameId);
   if (!g || g.result) return null;
-  const away = buildRosterTeam(league, g.away, idx, g.day, !!g.ps);
-  const home = buildRosterTeam(league, g.home, idx, g.day, !!g.ps);
-  if (away.roster.lineup.length < 9 || home.roster.lineup.length < 9 || !away.roster.rotation.length || !home.roster.rotation.length) return null;
-  const seed = league.pending?.gameId === gameId ? league.pending.seed : hash32(league.seed, league.season, gameId, league.rng) >>> 0;
-  league.pending = { gameId, seed };
+  const resume = league.pending?.gameId === gameId ? league.pending : undefined;
+  const away = resume?.away ?? buildRosterTeam(league, g.away, idx, g.day, !!g.ps).roster;
+  const home = resume?.home ?? buildRosterTeam(league, g.home, idx, g.day, !!g.ps).roster;
+  if (away.lineup.length < 9 || home.lineup.length < 9 || !away.rotation.length || !home.rotation.length) return null;
+  const seed = resume ? resume.seed : hash32(league.seed, league.season, gameId, league.rng) >>> 0;
+  league.pending = { gameId, seed, away, home };
   const human = g.home === league.userTeam ? "home" : g.away === league.userTeam ? "away" : "none";
   const setup: GameSetup = {
     awayTeamId: g.away,
@@ -135,10 +136,11 @@ export function buildManualGame(league: League, gameId: number, idx: RosterIndex
     homeStarter: 0,
     manager: true,
     abs: true,
+    postseason: !!g.ps,
   };
   const teams = new Map<number, TeamModel>([
-    [g.away, teamModel(away.roster)],
-    [g.home, teamModel(home.roster)],
+    [g.away, teamModel(away)],
+    [g.home, teamModel(home)],
   ]);
   return { setup, teams, game: g };
 }

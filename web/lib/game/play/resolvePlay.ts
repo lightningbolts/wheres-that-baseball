@@ -419,6 +419,9 @@ function resolveCaughtFly(
   const liner = kind === "L" || kind === "G" || tCatch < 1.8;
   const pop = !liner && (kind === "P" || deep < 150);
   const outfield = isOutfielder(f.pos);
+  // An infield or shallow pop holds everyone; a towering fly caught deep in the outfield is a
+  // normal tag-up, timed like any other (the runner is already standing on the bag).
+  const shallowPop = pop && (!outfield || deep < 150);
   const transfer = outfield ? 1.0 : liner ? 0.7 : 0.6;
   const tRelease = tCatch + transfer;
   const sit = input.situation;
@@ -520,7 +523,7 @@ function resolveCaughtFly(
     const to = (base + 1) as Base;
     const ahead = tags.find((x) => x.from === to);
     const blocked = to <= 3 && !!runners[to - 1] && !ahead?.advance;
-    if ((!liner || outfield) && !pop && !blocked && (outfield || deep > 200)) {
+    if ((!liner || outfield) && !shallowPop && !blocked && (outfield || deep > 200)) {
       const onBag = off <= 0.5;
       // A rocking start timed to the catch; from halfway he has to get back and touch first.
       const tLeave = Math.max(tCatch, tBack) + (onBag ? 0.05 : 0.3);

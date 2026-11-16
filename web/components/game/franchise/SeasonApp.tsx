@@ -36,6 +36,8 @@ export function SeasonApp() {
   const [sim, setSim] = useState<SimState | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const cancel = useRef(false);
+  // Bumped by each sim run and by Save & exit: a run that no longer owns the token drops its result.
+  const simToken = useRef(0);
 
   useEffect(() => {
     let alive = true;
@@ -103,12 +105,14 @@ export function SeasonApp() {
                 : 32;
       const label = { day: "Simming a day", week: "Simming a week", deadline: "Simming to the deadline", season: "Simming the season", postseason: "Simming the postseason", series: "Simming the series" }[target];
       cancel.current = false;
+      const token = ++simToken.current;
       setSim({ label, done: 0, total });
       let n = 0;
       while (!simDone(l, target, start) && n < 400) {
         if (l.phase !== "regular" && l.phase !== "postseason") break;
         if (cancel.current) break;
-        if (stopAtUserGame && n > 0 && userGameToday(l)) break;
+        // Stop before simming any of the user's games, today's included ("Sim today" passes false).
+        if (stopAtUserGame && userGameToday(l)) break;
         advanceDay(l);
         n += 1;
         if (n % 3 === 0) {
@@ -116,6 +120,7 @@ export function SeasonApp() {
           await new Promise((r) => setTimeout(r, 0));
         }
       }
+      if (token !== simToken.current) return;
       prepareDay(l);
       setSim(null);
       setLeague(l);
@@ -210,6 +215,9 @@ export function SeasonApp() {
             }}
             onPlay={startManual}
             onQuit={async () => {
+              cancel.current = true;
+              simToken.current += 1;
+              setSim(null);
               setLeague(null);
               setSlots(await listSlots());
             }}

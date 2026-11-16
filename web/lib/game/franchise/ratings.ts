@@ -192,7 +192,9 @@ export function slotValue(p: Player, pos: LineupPos): number {
   return batRuns600(p.bat) + (POS_ADJ[pos] ?? 0) + d;
 }
 
-export const isPosPlayer = (p: Player): boolean => !p.pitcher && !!p.bat;
+export const isPosPlayer = (p: Player): boolean => (!p.pitcher || !!p.twoWay) && !!p.bat;
+/** Can take the mound: a pitcher, or a two-way player. */
+export const canPitch = (p: Player): boolean => (p.pitcher || !!p.twoWay) && !!p.pit;
 
 export const fieldPos = (pos: string): Pos => {
   if (pos === "TWP") return "DH";

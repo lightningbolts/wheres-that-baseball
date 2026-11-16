@@ -8,7 +8,7 @@
  * A full 2,430-game season runs in well under a second.
  */
 import { club, LG } from "./data";
-import { defAt, tripleShare } from "./ratings";
+import { canPitch, defAt, isPosPlayer, tripleShare } from "./ratings";
 import type { FRng } from "./rng";
 import { isHealthy } from "./roster";
 import { emptyBat, emptyPit, type BatLine, type League, type PitLine, type Player, type TeamState } from "./types";
@@ -112,7 +112,7 @@ export function chooseStarter(league: League, t: TeamState, day: number, minGap 
 
 function activePitchers(league: League, t: TeamState): Player[] {
   const out: Player[] = [];
-  for (const p of Object.values(league.players)) if (p.team === t.id && p.status === "active" && p.pitcher && p.pit) out.push(p);
+  for (const p of Object.values(league.players)) if (p.team === t.id && p.status === "active" && canPitch(p)) out.push(p);
   return out;
 }
 
@@ -157,7 +157,7 @@ function buildSide(league: League, t: TeamState, starter: Player | null, day: nu
   if (lineup.length < 9) {
     for (const p of Object.values(league.players)) {
       if (lineup.length >= 9) break;
-      if (p.team === t.id && p.status === "active" && !p.pitcher && p.bat && !lineup.some((x) => x.p.id === p.id)) lineup.push({ p, pos: "DH", line: emptyBat() });
+      if (p.team === t.id && p.status === "active" && isPosPlayer(p) && !lineup.some((x) => x.p.id === p.id)) lineup.push({ p, pos: "DH", line: emptyBat() });
     }
   }
   let defRuns = 0;
@@ -480,7 +480,8 @@ export function simGame(input: SimInput): GameOutcome {
   const half = (bat: SimSide, fld: SimSide, inning: number, bottom: boolean): boolean => {
     let outs = 0;
     let bases: Array<Runner | null> = [null, null, null];
-    if (inning > 9) {
+    // Regular-season extras start with a runner on second; postseason extras do not.
+    if (inning > 9 && !post) {
       const prev = bat.lineup[(bat.idx - 1 + bat.lineup.length * 10) % bat.lineup.length];
       bases[1] = { b: prev, pit: fld.pitcher, earned: false };
     }
@@ -488,7 +489,7 @@ export function simGame(input: SimInput): GameOutcome {
     while (outs < 3 && guard++ < 60) {
       changePitcher(fld, inning, outs, !bases[0] && !bases[1] && !bases[2], bat);
       // The automatic runner is charged to whoever is pitching.
-      if (bases[1] && !bases[1].earned && inning > 9) bases[1].pit = fld.pitcher;
+      if (bases[1] && !bases[1].earned && inning > 9 && !post) bases[1].pit = fld.pitcher;
       if (outs < 2 || bases[0]) {
         const st = steal(bat, fld, bases, outs);
         outs = st.outs;

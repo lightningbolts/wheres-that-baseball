@@ -53,7 +53,7 @@ function realPlayer(rp: RosterPlayer, kind: "lineup" | "bench" | "rotation" | "b
   p.pit0 = p.pit ? { ...p.pit } : undefined;
   p.ovr = overall(p);
   const young = Math.max(0, 27 - p.age);
-  p.pot = Math.max(p.ovr, Math.round(p.ovr + young * (1.2 + hashUnit(p.id, "pot") * 1.6) - 1));
+  p.pot = Math.max(p.ovr, Math.min(80, Math.round(p.ovr + young * (1.2 + hashUnit(p.id, "pot") * 1.6) - 1)));
   p.service = estimateService(p);
   p.options = p.service >= 5 ? 0 : Math.max(0, 3 - Math.floor(p.service * 0.7 + hashUnit(p.id, "opt") * 1.2));
   p.contract = synthContract(p, season, teamId);
@@ -171,7 +171,18 @@ export function createLeague(rosters: RosterFile, opts: NewLeagueOpts): League {
     if (!rt) continue;
     for (const kind of ["lineup", "bench", "rotation", "bullpen"] as const) {
       for (const rp of rt[kind]) {
-        if (league.players[rp.id]) continue;
+        const had = league.players[rp.id];
+        if (had) {
+          // A two-way player listed twice (lineup and staff): keep both roles on one player.
+          if ((kind === "rotation" || kind === "bullpen") && !had.pit && rp.pitch?.arsenal?.length && had.team === mt.id) {
+            const asPitcher = realPlayer(rp, kind, mt.id, ageShift, season);
+            had.pit = asPitcher.pit;
+            had.pit0 = asPitcher.pit0;
+            had.twoWay = true;
+            if (kind === "rotation") t.rotation.push(had.id);
+          }
+          continue;
+        }
         const p = realPlayer(rp, kind, mt.id, ageShift, season);
         league.players[p.id] = p;
         if (kind === "lineup") t.lineup.push({ id: p.id, pos: p.pos === "SP" || p.pos === "RP" ? "DH" : (p.pos as TeamState["lineup"][number]["pos"]) });

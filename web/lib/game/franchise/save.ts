@@ -70,9 +70,21 @@ function idb<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest)
         try {
           const tx = db.transaction(STORE, mode);
           const req = fn(tx.objectStore(STORE));
-          req.onsuccess = () => resolve(req.result as T);
-          req.onerror = () => resolve(undefined);
-          tx.oncomplete = () => db.close();
+          // A write can still abort after the request succeeds: report only once the transaction commits.
+          let result: T | undefined;
+          req.onsuccess = () => {
+            result = req.result as T;
+          };
+          tx.oncomplete = () => {
+            db.close();
+            resolve(result);
+          };
+          const fail = () => {
+            db.close();
+            resolve(undefined);
+          };
+          tx.onabort = fail;
+          tx.onerror = fail;
         } catch {
           db.close();
           resolve(undefined);
@@ -103,14 +115,20 @@ export async function saveLeague(league: League, slot: number): Promise<boolean>
 
 async function readSlot(slot: number): Promise<SlotRecord | null> {
   const rec = await idb<SlotRecord>("readonly", (s) => s.get(slot));
-  if (rec?.data) return rec;
+  const db = rec?.data ? rec : null;
+  let ls: SlotRecord | null = null;
   const raw = lsGet(LS_PREFIX + slot);
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as SlotRecord;
-  } catch {
-    return null;
+  if (raw) {
+    try {
+      const r = JSON.parse(raw) as SlotRecord;
+      if (r?.data) ls = r;
+    } catch {
+      ls = null;
+    }
   }
+  // A save may have fallen back to localStorage while IndexedDB was unavailable: the newest wins.
+  if (db && ls) return (ls.meta?.savedAt ?? 0) > (db.meta?.savedAt ?? 0) ? ls : db;
+  return db ?? ls;
 }
 
 export async function loadLeague(slot: number): Promise<League | null> {

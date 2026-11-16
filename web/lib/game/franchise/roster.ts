@@ -3,7 +3,7 @@
  * depth chart (lineup / rotation / bullpen roles) and transactions
  * (call-up, option, DFA + waivers, release, IL activation).
  */
-import { batRuns600, defAt, eligible, isPosPlayer, slotValue } from "./ratings";
+import { batRuns600, canPitch, defAt, eligible, isPosPlayer, slotValue } from "./ratings";
 import { projectedWar } from "./contracts";
 import { FIELD_SPOTS, type League, type LineupPos, type LineupSlot, type Player, type TeamState } from "./types";
 
@@ -82,7 +82,7 @@ export function autoDepth(league: League, teamId: number): void {
   const act = activePlayers(league, teamId).filter(isHealthy);
   const hitters = act.filter(isPosPlayer);
   t.lineup = bestLineup(hitters);
-  const pitchers = act.filter((p) => p.pitcher && p.pit);
+  const pitchers = act.filter(canPitch);
   const starters = [...pitchers].sort((a, b) => starterScore(b) - starterScore(a));
   t.rotation = starters.slice(0, 5).map((p) => p.id);
   const pen = pitchers.filter((p) => !t.rotation.includes(p.id)).sort((a, b) => b.ovr - a.ovr);
@@ -129,16 +129,16 @@ export function repairDepth(league: League, teamId: number): void {
     t.lineup = fixed.length >= 9 ? fixed.slice(0, 9) : bestLineup(act.filter(isPosPlayer));
   }
   // Rotation.
-  const rot = t.rotation.filter((id) => ok(id) && league.players[id].pitcher);
+  const rot = t.rotation.filter((id) => ok(id) && canPitch(league.players[id]));
   if (rot.length < 5) {
     const cands = act
-      .filter((p) => p.pitcher && !rot.includes(p.id) && p.id !== t.closer && !t.setup.includes(p.id))
+      .filter((p) => canPitch(p) && !rot.includes(p.id) && p.id !== t.closer && !t.setup.includes(p.id))
       .sort((a, b) => starterScore(b) - starterScore(a));
     while (rot.length < 5 && cands.length) rot.push(cands.shift()!.id);
   }
   t.rotation = rot;
   if (t.rotIdx >= rot.length) t.rotIdx = 0;
-  const pen = act.filter((p) => p.pitcher && !rot.includes(p.id)).sort((a, b) => b.ovr - a.ovr);
+  const pen = act.filter((p) => p.pitcher && !p.twoWay && !rot.includes(p.id)).sort((a, b) => b.ovr - a.ovr);
   if (t.closer == null || !ok(t.closer) || rot.includes(t.closer)) t.closer = pen[0]?.id ?? null;
   t.setup = t.setup.filter((id) => ok(id) && id !== t.closer && !rot.includes(id));
   for (const p of pen) {

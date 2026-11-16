@@ -3,6 +3,7 @@
  * saved to IndexedDB and restored exactly (the RNG state is a single number).
  */
 import type { MLBDivision, MLBLeague } from "@/lib/mlb/teams";
+import type { RosterTeam } from "@/lib/game/types";
 
 export type Pos = "C" | "1B" | "2B" | "3B" | "SS" | "LF" | "CF" | "RF" | "DH" | "SP" | "RP";
 export const FIELD_SPOTS = ["C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "DH"] as const;
@@ -103,6 +104,8 @@ export interface Player {
   throws: "L" | "R";
   pos: Pos;
   pitcher: boolean;
+  /** Hits and pitches (both `bat` and `pit`): in the lineup and on the staff. */
+  twoWay?: boolean;
   bat?: BatSkill;
   pit?: PitSkill;
   /** Talent at the start of the franchise (real players: physics data is scaled by cur/initial). */
@@ -325,7 +328,11 @@ export interface League {
   nextGameId: number;
   settings: Settings;
   /** A manual game launched but not finished (resume / forfeit). */
-  pending?: { gameId: number; seed: number };
+  /**
+   * A manual game in progress: its seed and the exact rosters it started with, so a
+   * resumed game replays its saved inputs against the same teams even after roster moves.
+   */
+  pending?: { gameId: number; seed: number; away?: RosterTeam; home?: RosterTeam };
   /** Opening usage-weighted talent averages (keeps the run environment stable across seasons). */
   env?: { bat: { k: number; bb: number; hr: number }; pit: { k: number; bb: number; hr: number } };
   /** Realized league rates: the first season (target) and the latest, plus the running correction. */
