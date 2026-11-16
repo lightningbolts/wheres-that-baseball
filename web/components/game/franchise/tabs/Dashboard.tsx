@@ -21,6 +21,7 @@ function GameRow({ league, g, onPlay }: { league: League; g: ScheduledGame; onPl
       <td className={cn(td, "whitespace-nowrap")}>
         {g.ps && <span className="mr-1 rounded bg-emerald-500/15 px-1 text-[10px] uppercase text-emerald-500">{g.ps}</span>}
         {home ? "vs" : "@"} <TeamDot id={opp.id} abbrev={opp.abbrev} />
+        {g.site && <span className="ml-1 text-[10px] text-muted">at {g.site}</span>}
       </td>
       <td className={cn(td, "whitespace-nowrap")}>
         {r ? (

@@ -13,13 +13,31 @@ describe("schedule", () => {
     }
   });
 
-  it("lays out a valid 2027 calendar", () => {
+  it("uses the real published 2027 schedule", () => {
+    const a = buildSchedule(2027, 1);
+    const b = buildSchedule(2027, 99);
+    expect(a.games).toEqual(b.games);
+    expect(a.games.length).toBe(2430);
+    expect(fmtDate(a.calendar, 0, true)).toContain("Mar 25, 2027");
+    expect(fmtDate(a.calendar, a.calendar.endDay, true)).toContain("Sep 26, 2027");
+    expect(a.calendar.asb).toEqual([109, 112]);
+    // Opening Day 2027: Blue Jays at Yankees.
+    expect(a.games.some((g) => g.day === 0 && g.away === 141 && g.home === 147)).toBe(true);
+    expect(a.games.find((g) => g.site === "Field of Dreams")).toMatchObject({ away: 111, home: 118 });
+    for (const t of MLB_TEAMS) {
+      expect(a.games.filter((g) => g.home === t.id || g.away === t.id).length).toBe(162);
+      expect(a.games.filter((g) => g.home === t.id).length).toBe(81);
+    }
+    for (const g of a.games) expect(g.day < a.calendar.asb[0] || g.day > a.calendar.asb[1]).toBe(true);
+  });
+
+  it("lays out a valid generated calendar for later seasons", () => {
     const t0 = Date.now();
-    const { calendar, games } = buildSchedule(2027, 42);
+    const { calendar, games } = buildSchedule(2028, 42);
     const ms = Date.now() - t0;
     expect(ms).toBeLessThan(5000);
     expect(games.length).toBe(2430);
-    expect(fmtDate(calendar, 0, true)).toContain("Mar 25, 2027");
+    expect(fmtDate(calendar, 0, true)).toContain("2028");
     const byDay = new Map<number, Set<number>>();
     const offDays = new Map<number, number>();
     for (const g of games) {

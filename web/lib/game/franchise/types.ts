@@ -228,6 +228,8 @@ export interface ScheduledGame {
   day: number;
   away: number;
   home: number;
+  /** Neutral or alternate venue (e.g. Field of Dreams), from the real schedule. */
+  site?: string;
   /** Postseason series id. */
   ps?: string;
   result?: {
