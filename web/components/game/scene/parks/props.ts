@@ -733,6 +733,246 @@ function tree(b: GeoBuilder, x: number, z: number, kind: "pine" | "palm" | "roun
   b.mat = 0;
 }
 
+/**
+ * Wrigleyville's rooftop clubs: three- and four-storey brick and greystone walk-ups along
+ * Waveland Ave (behind left field) and Sheffield Ave (behind right), each crowned with a
+ * stepped steel bleacher deck looking into the park. The two streets run square to the foul
+ * lines and meet at a corner behind center, so the rows read as city blocks, not an arc.
+ */
+function rooftops(c: PropCtx, f: { from: number; to: number; back: number }): void {
+  const nL = dirXZ(-45);
+  const nR = dirXZ(45);
+  // Put each street's building line clear of the bleachers, plus a sidewalk and the street.
+  let dL = c.park.fence(-45) + f.back * 0.55;
+  let dR = c.park.fence(45) + f.back * 0.55;
+  for (let b = -45; b <= 0; b += 3) {
+    const r = c.park.fence(clampDeg(b)) + c.reach(b).out + 62;
+    dL = Math.max(dL, r * Math.cos(((b + 45) * Math.PI) / 180));
+    dR = Math.max(dR, (c.park.fence(clampDeg(-b)) + c.reach(-b).out + 62) * Math.cos(((45 + b) * Math.PI) / 180));
+  }
+  const D = 62;
+  const row = (along: number[], away: number[], d0: number, t0: number, t1: number, seed: number) => {
+    const yaw = Math.atan2(-away[0], -away[1]);
+    let i = 0;
+    for (let t = t0; t < t1 - 6; i += 1) {
+      const w = Math.min(t1 - t, 30 + Math.round(hash(seed + i * 4.7) * 3) * 8);
+      const m = t + w / 2;
+      const x = away[0] * (d0 + D / 2) + along[0] * m;
+      const z = away[1] * (d0 + D / 2) + along[1] * m;
+      // Raise the deck on a steel frame until it clears the sightline over the bleachers.
+      const beta = clampDeg((Math.atan2(-x, z) * 180) / Math.PI);
+      const rc = c.reach(beta);
+      const rim = c.park.fence(beta) + rc.out;
+      const sight = 5 + ((rc.top - 5) * (Math.hypot(x, z) - D / 2)) / Math.max(1, rim);
+      rowhouse(c, frameYaw(x, z, yaw), w, D, seed + i, sight);
+      t += w;
+    }
+  };
+  // Waveland runs to the corner and turns it; Sheffield stops where Waveland's lots begin.
+  row(nR, nL, dL, -46, dR + D, 11);
+  row(nL, nR, dR, -46, dL, 57);
+}
+
+function rowhouse(c: PropCtx, fr: Frame, w: number, D: number, i: number, sight: number): void {
+  const { st, glow } = c;
+  const floors = hash(i * 3.1 + 5) > 0.68 ? 4 : 3;
+  const h = GROUND_Y + 5 + floors * 11;
+  const FACADES = ["#8a4434", "#9b5a42", "#7a3b2e", "#a69f92", "#c9c1ad", "#6e4a3a", "#e1dacb", "#8f6a4c", "#3f5b48"];
+  const col = FACADES[Math.floor(hash(i * 9.7 + 1) * FACADES.length)];
+  const front = D / 2;
+  st.mat = 1;
+  fbox(st, fr, 0, (h + GROUND_Y) / 2, 0, w - 0.6, h - GROUND_Y, D, col);
+  st.mat = 0;
+  // Cornice and a storefront band at street level.
+  fbox(st, fr, 0, h + 0.9, front - 0.4, w + 0.6, 1.8, 2.6, mix(col, "#1e1f22", 0.4));
+  panel(st, fr, 0, GROUND_Y + 5, front + 0.15, w * 0.84, 7.5, mix("#23272b", col, 0.15));
+  fbox(st, fr, 0, GROUND_Y + 9.6, front + 2, w * 0.86, 0.6, 4, hash(i * 2.3) > 0.5 ? "#2f5b3f" : "#7c2a2a");
+  // Bays of tall sash windows; at night some rooms are lit.
+  const bays = Math.max(2, Math.round(w / 9));
+  for (let fl = 0; fl < floors; fl += 1) {
+    for (let k = 0; k < bays; k += 1) {
+      const on = c.lit && hash(i * 13 + fl * 7 + k * 3) > 0.45;
+      panel(on ? glow : st, fr, ((k + 0.5) / bays - 0.5) * (w - 6), GROUND_Y + 16 + fl * 11, front + 0.2, 4.4, 6.6, on ? WINDOW : "#1d2228", on ? 0.85 : 1);
+    }
+  }
+
+  // The bleacher deck: aluminum risers on a steel frame, stepping up away from the park.
+  const rows = 6 + Math.floor(hash(i * 4.3 + 2) * 4);
+  const run = 3.1;
+  const rise = 2.2;
+  const x0 = -w / 2 + 1.2;
+  const x1 = w / 2 - 1.2;
+  const z0 = front - 2.5;
+  const zEnd = z0 - rows * run;
+  const base = Math.max(h + 2.2, sight - rows * rise * 0.3);
+  const yTop = base + rows * rise;
+  const seat = hash(i * 6.1) > 0.62 ? "#2d6a45" : hash(i * 6.1) > 0.3 ? "#a9afb4" : "#8c939a";
+  const steel = "#4b5056";
+  fbox(st, fr, 0, h + 1.1, (z0 + zEnd) / 2, w - 1, 1, z0 - zEnd + 2, "#5d6166");
+  if (base > h + 3) {
+    // Steel stilts and cross-bracing under a raised deck.
+    for (const x of [x0, 0, x1]) {
+      for (const z of [z0, (z0 + zEnd) / 2, zEnd]) st.beam(loc(fr, x, h, z), loc(fr, x, base, z), 0.8, "#464b51");
+      st.beam(loc(fr, x, h, z0), loc(fr, x, base, zEnd), 0.4, "#464b51");
+    }
+    st.beam(loc(fr, x0, base, z0), loc(fr, x1, base, z0), 0.9, "#464b51");
+    fbox(st, fr, 0, base - 0.5, (z0 + zEnd) / 2, w - 2, 1, z0 - zEnd, "#5d6166");
+  }
+  for (let r = 0; r < rows; r += 1) {
+    const zf = z0 - r * run;
+    const yt = base + (r + 1) * rise;
+    st.quad(loc(fr, x0, yt - rise, zf), loc(fr, x1, yt - rise, zf), loc(fr, x1, yt, zf), loc(fr, x0, yt, zf), steel, 0.8);
+    st.quad(loc(fr, x0, yt, zf), loc(fr, x1, yt, zf), loc(fr, x1, yt, zf - run), loc(fr, x0, yt, zf - run), seat, 1.05);
+  }
+  // Open side frames and the back screen.
+  for (const x of [x0, x1]) {
+    st.quad(loc(fr, x, base, z0), loc(fr, x, base, zEnd), loc(fr, x, yTop, zEnd), loc(fr, x, base + rise, z0), steel, 0.9);
+    st.beam(loc(fr, x, yTop, zEnd), loc(fr, x, yTop + 4, zEnd), 0.5, steel);
+    st.beam(loc(fr, x, base + rise + 3.4, z0), loc(fr, x, yTop + 3.4, zEnd), 0.35, "#b7bcc1");
+  }
+  st.quad(loc(fr, x0, h, zEnd - 0.3), loc(fr, x1, h, zEnd - 0.3), loc(fr, x1, yTop, zEnd - 0.3), loc(fr, x0, yTop, zEnd - 0.3), "#3b3f44", 0.9);
+  st.beam(loc(fr, x0, yTop + 4, zEnd), loc(fr, x1, yTop + 4, zEnd), 0.4, "#b7bcc1");
+  st.beam(loc(fr, x0, base + rise + 3.4, z0 + 0.3), loc(fr, x1, base + rise + 3.4, z0 + 0.3), 0.35, "#b7bcc1");
+
+  const style = hash(i * 7.3 + 4);
+  if (style > 0.62) {
+    // A shade canopy on posts over the top rows.
+    const cz = zEnd + Math.min(rows, 4) * run;
+    const cy = yTop + 9;
+    const awn = ["#2f5b3f", "#1f3456", "#7c2a2a", "#e8e3d6"][Math.floor(hash(i * 1.9) * 4)];
+    for (const x of [x0 + 0.5, x1 - 0.5]) {
+      st.beam(loc(fr, x, yTop, zEnd + 0.4), loc(fr, x, cy + 1.5, zEnd + 0.4), 0.6, steel);
+      st.beam(loc(fr, x, base + (rows - 4) * rise, cz), loc(fr, x, cy, cz), 0.5, steel);
+    }
+    st.quad(loc(fr, x0 - 1, cy - 0.5, cz + 2), loc(fr, x1 + 1, cy - 0.5, cz + 2), loc(fr, x1 + 1, cy + 2, zEnd - 1), loc(fr, x0 - 1, cy + 2, zEnd - 1), awn, 0.95);
+  } else if (style < 0.3) {
+    // A billboard over the back row, like the ad signs that top a few of the clubs.
+    const bw = Math.min(w - 4, 34);
+    const by = yTop + 12;
+    for (const x of [-bw * 0.35, bw * 0.35]) st.beam(loc(fr, x, yTop, zEnd - 1), loc(fr, x, by - 5, zEnd - 1), 0.7, steel);
+    const sign = ["#c8302c", "#1f4f9c", "#f2efe6", "#e3b02a"][Math.floor(hash(i * 3.9) * 4)];
+    fbox(st, fr, 0, by, zEnd - 1.4, bw, 10, 0.8, sign);
+    panel(c.lit ? glow : st, fr, 0, by - 1.4, zEnd - 0.9, bw * 0.78, 2.4, c.lit ? [0.96, 0.95, 0.9] : "#f6f4ee", c.lit ? 0.9 : 1);
+    panel(st, fr, 0, by + 2.4, zEnd - 0.9, bw * 0.6, 2.2, mix(sign, "#101215", 0.55));
+  }
+  if (c.lit) {
+    // String lights along the front rail and a lamp at each back corner.
+    const ly = base + rise + 3.9;
+    st.beam(loc(fr, x0, ly, z0 + 0.4), loc(fr, x1, ly, z0 + 0.4), 0.2, "#202326");
+    for (let k = 0; k <= 4; k += 1) {
+      const p = loc(fr, x0 + ((x1 - x0) * k) / 4, ly, z0 + 0.6);
+      glow.box(p[0], p[1], p[2], 0.8, 0.8, 0.8, fr.yaw, [1, 0.86, 0.55]);
+    }
+    for (const x of [x0, x1]) {
+      const p = loc(fr, x, yTop + 5, zEnd);
+      glow.box(p[0], p[1], p[2], 1.4, 1, 1.4, fr.yaw, LAMP_ON);
+      c.flares.push(p[0], p[1], p[2], 9);
+    }
+  }
+}
+
+/** A fountain jet: a tapering column that opens into a crown of falling streams. */
+function plume(b: GeoBuilder, p: P3, h: number, r: number, spread: number, col: RGB, k: number, n = 7): void {
+  b.cyl(p[0], p[1], p[2], r, r * 0.45, h, col, 6, false);
+  for (let i = 0; i < n; i += 1) {
+    const a = (i / n) * Math.PI * 2 + k * 0.7;
+    let prev: P3 = [p[0], p[1] + h, p[2]];
+    for (let j = 1; j <= 3; j += 1) {
+      const u = j / 3;
+      const q: P3 = [p[0] + Math.cos(a) * spread * u, p[1] + h + spread * 0.35 * u - spread * 1.5 * u * u, p[2] + Math.sin(a) * spread * u];
+      b.beam(prev, q, r * (0.75 - u * 0.2), col, 1 - u * 0.12);
+      prev = q;
+    }
+  }
+}
+
+/**
+ * Kauffman Stadium's Water Spectacular: a shallow pool against the fence, three stepped
+ * waterfalls climbing to a limestone terrace, a row of fountain jets and a tall geyser at the
+ * middle, all lit from below at night.
+ */
+function waterSpectacular(c: PropCtx, f: { from: number; to: number; back: number }, fi: number): void {
+  const { st, glow } = c;
+  const step = 1.5;
+  const tiers: Array<[z: number, top: number]> = [
+    [-11, 5],
+    [-18, 10.5],
+    [-25, 16.5],
+  ];
+  const zBack = -33;
+  const stone = "#b8ad96";
+  const LIGHTS: RGB[] = [
+    [0.45, 0.78, 1],
+    [0.4, 1, 0.92],
+    [0.62, 0.58, 1],
+    [0.42, 0.9, 1],
+  ];
+  const mid = (f.from + f.to) / 2;
+  for (let deg = f.from, s = 0; deg < f.to - 0.01; deg += step, s += 1) {
+    const a = behind(c, deg, f.back);
+    const b = behind(c, Math.min(f.to, deg + step), f.back);
+    const h = a.h;
+    const flat = (z0: number, z1: number, y: number, col: string | RGB, mat: number) => {
+      st.mat = mat;
+      st.quad(loc(a, 0, y, z0), loc(b, 0, y, z0), loc(b, 0, y, z1), loc(a, 0, y, z1), col, 0.95 + 0.1 * hash(deg * 2.3 + z0));
+      st.mat = 0;
+    };
+    const face = (z: number, y0: number, y1: number, col: string | RGB, mat: number) => {
+      st.mat = mat;
+      st.quad(loc(a, 0, y0, z), loc(b, 0, y0, z), loc(b, 0, y1, z), loc(a, 0, y1, z), col);
+      st.mat = 0;
+    };
+    const tint = LIGHTS[Math.floor(s / 3) % LIGHTS.length];
+    // Curb and the lower pool.
+    face(0, 0, h + 0.5, "#38434c", 0);
+    flat(0.4, tiers[0][0], h - 0.8, "#2c79ad", 6);
+    let y = h - 0.8;
+    for (let t = 0; t < tiers.length; t += 1) {
+      const [z, top] = tiers[t];
+      const yt = h + top;
+      face(z - 0.4, y, yt, stone, 1);
+      // The falling sheet leans out from the lip; bright at the lip, bluer where it lands.
+      const sheet: [P3, P3, P3, P3] = [loc(a, 0, yt + 0.25, z + 0.2), loc(b, 0, yt + 0.25, z + 0.2), loc(b, 0, y + 0.1, z + 1.4), loc(a, 0, y + 0.1, z + 1.4)];
+      if (c.lit) glow.quadG(...sheet, tint, 1, 0.55);
+      else st.quadG(...sheet, hash(deg * 7.7 + z) > 0.5 ? "#d4e9f4" : "#c4e0ef", 1.04, 0.72);
+      // Spray where it lands.
+      if (s % 2 === 0) {
+        const p = loc(a, 0, y + 0.6, z + 2.2);
+        st.sphere(p[0], p[1], p[2], 2.1, "#eef6fa", 6, 0.45);
+      }
+      // The next pool up.
+      const zNext = t + 1 < tiers.length ? tiers[t + 1][0] : zBack;
+      flat(z - 0.4, zNext, yt, "#2f80b4", 6);
+      y = yt;
+    }
+    // Limestone terrace wall and its coping.
+    face(zBack, 0, h + 20, stone, 1);
+    flat(zBack, zBack - 4, h + 20, "#e9e4d6", 0);
+    if (c.lit) {
+      // Underwater floods along the base of the lowest fall and the curb.
+      glow.quad(loc(a, 0, h - 0.6, -1), loc(b, 0, h - 0.6, -1), loc(b, 0, h - 0.6, -4), loc(a, 0, h - 0.6, -4), tint, 0.9);
+    }
+    // Fountain jets in the lower pool: a tall plume every other step, short ones between.
+    const tall = s % 2 === 0;
+    const jh = tall ? 18 + hash(deg * 5.1 + fi) * 14 : 6 + hash(deg * 3.7 + fi) * 4;
+    const p = loc(a, 0, h - 0.8, -5.5);
+    const jc: RGB = c.lit ? [0.55 + tint[0] * 0.45, 0.6 + tint[1] * 0.4, 0.7 + tint[2] * 0.3] : [0.84, 0.92, 0.97];
+    plume(c.lit ? glow : st, p, jh, tall ? 0.65 : 0.9, tall ? 3.6 : 2.2, jc, s, 9);
+    st.sphere(p[0], p[1] + 0.2, p[2], tall ? 3.4 : 2.6, "#e2eff6", 6, 0.22);
+  }
+  // The signature geyser at the middle of the run, and stone piers at the ends.
+  const g = loc(behind(c, mid, f.back), 0, behind(c, mid, f.back).h - 0.8, -6);
+  const gh = f.to - f.from > 25 ? 62 : 40;
+  plume(c.lit ? glow : st, g, gh, 1.6, gh * 0.11, c.lit ? [0.85, 0.95, 1] : [0.9, 0.95, 0.98], 7, 16);
+  st.sphere(g[0], g[1] + 0.3, g[2], 6, "#e2eff6", 8, 0.22);
+  for (const deg of [f.from, f.to]) {
+    const e = behind(c, deg, f.back);
+    st.mat = 1;
+    fbox(st, e, 0, (e.h + 21) / 2, zBack / 2, 3.2, e.h + 21, -zBack + 1, stone);
+    st.mat = 0;
+  }
+}
+
 function feature(c: PropCtx, f: Feature, fi: number): void {
   const { st, glow } = c;
   const park = c.park;
@@ -834,24 +1074,12 @@ function feature(c: PropCtx, f: Feature, fi: number): void {
       }
       break;
     }
-    case "rowhouses": {
-      for (let deg = f.from + 3, i = 0; deg < f.to; deg += 6.5, i += 1) {
-        const h = 36 + hash(i * 3.1 + 5) * 16;
-        const fr = behind(c, deg, f.back + 20);
-        const col = mix("#8a4b38", "#b9a488", hash(i * 9.7));
-        fbox(st, fr, 0, GROUND_Y + (h - GROUND_Y) / 2, 0, 44, h - GROUND_Y, 40, col);
-        for (let k = 0; k < 3; k += 1) {
-          for (let r = 0; r < 3; r += 1) {
-            const on = c.lit && hash(i * 5 + k * 3 + r) > 0.5;
-            panel(on ? glow : st, fr, (k - 1) * 13, 8 + r * 10, 20.3, 6, 6, on ? WINDOW : "#222831");
-          }
-        }
-        // Rooftop bleachers looking into the park.
-        st.quad(loc(fr, -20, h + 1, 18), loc(fr, 20, h + 1, 18), loc(fr, 20, h + 15, -16), loc(fr, -20, h + 15, -16), "#6f757c");
-        st.quad(loc(fr, -20, h, -16), loc(fr, 20, h, -16), loc(fr, 20, h + 15, -16), loc(fr, -20, h + 15, -16), "#4c5157");
-      }
+    case "rowhouses":
+      rooftops(c, f);
       break;
-    }
+    case "spectacular":
+      waterSpectacular(c, f, fi);
+      break;
     case "trees": {
       for (let i = 0; i < f.n; i += 1) {
         const deg = f.from + ((f.to - f.from) * (i + 0.5 + (hash(i * 3.7 + fi) - 0.5) * 0.7)) / f.n;

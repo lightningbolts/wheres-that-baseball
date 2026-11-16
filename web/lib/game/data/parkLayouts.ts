@@ -165,10 +165,13 @@ export type Feature =
   | { k: "arch"; deg: number; dist: number; h: number }
   | { k: "needle"; deg: number; dist: number; h: number; style?: "saucer" }
   | { k: "building"; deg: number; back: number; w: number; d: number; h: number; color: string; trim?: string; glass?: boolean; /** Turn the face this many degrees off square-to-home (+ swings it toward right field). */ skew?: number }
+  /** Wrigleyville rooftop clubs along the two streets that meet behind center. */
   | { k: "rowhouses"; from: number; to: number; back: number }
   | { k: "trees"; from: number; to: number; back: number; kind: "pine" | "palm" | "round" | "cherry"; n: number }
   | { k: "rocks"; deg: number; back: number; w: number; water?: boolean }
   | { k: "fountain"; from: number; to: number; back: number }
+  /** Kauffman's Water Spectacular: stepped waterfalls, a pool of jets and a geyser behind the wall. */
+  | { k: "spectacular"; from: number; to: number; back: number }
   | { k: "glass"; from: number; to: number; back: number; h: number }
   | {
       k: "apple" | "bell" | "bottle" | "glove" | "stacks" | "bigA" | "train" | "slide" | "pool" | "pinwheels" | "crown" | "triSign" | "boats" | "flags";
@@ -379,8 +382,8 @@ export const PARK_LAYOUTS: Record<number, ParkLayout> = {
     mow: "arcs",
     features: [
       // Water Spectacular (322 ft wide) behind the right-field fence.
-      { k: "fountain", from: 8, to: 42, back: 16 },
-      { k: "fountain", from: -29, to: -11, back: 16 },
+      { k: "spectacular", from: 8, to: 42, back: 12 },
+      { k: "spectacular", from: -29, to: -11, back: 12 },
       { k: "crown", deg: 0, back: 152, y: 140 },
       { k: "mountains", from: -80, to: 80, dist: 2200, h: 70, color: "#4f6b4a" },
       { k: "trees", from: -50, to: 50, back: 260, kind: "round", n: 30 },
