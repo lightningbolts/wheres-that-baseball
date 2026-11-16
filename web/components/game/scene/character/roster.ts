@@ -12,6 +12,8 @@ export interface Identity {
   num: string;
   /** Build: scales the girth of the trunk and limbs (1 = average). */
   girth: number;
+  /** Height relative to the 5'11" figure the mesh is built as. */
+  stature: number;
   /** Club nickname for the chest wordmark ("Red Sox"), or "" when unknown. */
   team: string;
   /** Skin tone sampled from the player's MLB headshot (0xRRGGBB), or null when unknown. */
@@ -53,6 +55,12 @@ export function girthOf(heightIn: number | null | undefined, weight: number | nu
   return Math.min(1.14, Math.max(0.9, k));
 }
 
+/** Height as a scale of the figure (the mesh stands 5'11"), kept within what the animation can carry. */
+export function statureOf(heightIn: number | null | undefined): number {
+  if (!heightIn) return 1.02;
+  return Math.min(1.1, Math.max(0.93, heightIn / 71.5));
+}
+
 const TWO_WORD = /(Red Sox|White Sox|Blue Jays)$/;
 
 /** "Boston Red Sox" → "Red Sox", "Arizona Diamondbacks" → "Diamondbacks". */
@@ -66,7 +74,7 @@ export function nickname(full: string): string {
 export function identityOf(p: RosterPlayer, team = ""): Identity {
   const num = p.num != null && String(p.num).trim() !== "" ? String(p.num).trim().slice(0, 2) : fallbackNumber(p.id);
   const skin = typeof p.skin === "string" && /^#[0-9a-f]{6}$/i.test(p.skin) ? parseInt(p.skin.slice(1), 16) : null;
-  return { name: p.name ? jerseyName(p.name) : "", num, girth: girthOf(p.heightIn, p.weight), team, skin };
+  return { name: p.name ? jerseyName(p.name) : "", num, girth: girthOf(p.heightIn, p.weight), stature: statureOf(p.heightIn), team, skin };
 }
 
 const table = new Map<number, Identity>();
@@ -108,7 +116,7 @@ export function identity(id: number): Identity {
   let f = fallbacks.get(id);
   if (!f) {
     if (fallbacks.size > 500) fallbacks.clear();
-    f = { name: "", num: fallbackNumber(id), girth: 1, team: "", skin: null };
+    f = { name: "", num: fallbackNumber(id), girth: 1, stature: 1.02, team: "", skin: null };
     fallbacks.set(id, f);
   }
   return f;

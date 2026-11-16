@@ -14,6 +14,17 @@ import type { VOut } from "@/components/game/scene/character/mesh";
 
 export const ATLAS = 512;
 
+/** Deterministic 0..1 from an id and a salt. */
+export function hash01(id: number, salt: number): number {
+  let h = (Math.imul(id | 0, 0x9e3779b1) ^ Math.imul(salt + 1, 0x85ebca6b)) >>> 0;
+  h ^= h >>> 15;
+  h = Math.imul(h, 0x2c1b3c6d) >>> 0;
+  h ^= h >>> 12;
+  h = Math.imul(h, 0x297a2d39) >>> 0;
+  h ^= h >>> 15;
+  return (h >>> 0) / 4294967296;
+}
+
 export interface Rect {
   x: number;
   y: number;

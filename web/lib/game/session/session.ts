@@ -21,6 +21,7 @@ import { batSide, teamModel, type TeamModel } from "@/lib/game/ratings";
 import { buildPark, homeVenueForTeam } from "@/lib/game/physics/park";
 import { Rng } from "@/lib/game/math";
 import type { FieldPos, RosterFile } from "@/lib/game/types";
+import { pitchRecord, type PitchRecord } from "@/lib/game/stats/pitchLog";
 
 export type HumanSide = "away" | "home" | "none";
 export type Difficulty = "rookie" | "pro" | "allstar";
@@ -100,6 +101,8 @@ export class GameSession {
   readonly game: BaseballGame;
   readonly rng: Rng;
   readonly inputs: PitchInput[] = [];
+  /** Statcast-style record of every pitch thrown (rebuilt by replay on resume). */
+  readonly pitchLog: PitchRecord[] = [];
   private pending: Pending | null = null;
 
   constructor(
@@ -280,7 +283,12 @@ export class GameSession {
       }
       this.rng.next();
     }
+    const inning = this.game.inning;
+    const top = this.game.top;
     const events = [...p.pre, ...this.game.apply(o.result, o.play)];
+    this.pitchLog.push(
+      pitchRecord({ ctx: o.ctx, result: o.result, play: o.play, battingSide: o.battingSide, events, inning, top }, this.pitchLog[this.pitchLog.length - 1]),
+    );
     const noContact =
       o.result.kind === "called_strike" || o.result.kind === "swinging_strike" || (o.result.kind === "ball" && !o.result.wildPitch);
     // Runners still on the bags they left (the pitch didn't end the half or move them) race the throw.

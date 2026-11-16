@@ -108,6 +108,7 @@ function teamLogo(teamId: number, size: number) {
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
+        alt=""
         src={mlbTeamShareLogoUrl(teamId)}
         style={{
           objectFit: "contain",

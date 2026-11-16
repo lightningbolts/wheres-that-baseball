@@ -83,6 +83,68 @@ export interface Playback {
   hands: Map<string, Hands>;
   /** Bumped on every camera cut: the scene snaps animation state instead of blending across it. */
   cutSeq: number;
+  /** 1 while the picture is covered (the dip of a broadcast cut, the inning bumper): nobody sees the scene. */
+  curtain: 0 | 1;
+  /** pb.now when a new half-inning's opening shot was asked for (the camera pushes in from wide); −1 = never. */
+  introAt: number;
+  /** Between plays: everyone walks from where the last play left him to where the next one needs him. */
+  trans: Transition | null;
+  /** Men with no part in what is on now (struck out, put out, scored), jogging off to the dugout. */
+  leavers: Leaver[];
+  /** Who was drawn last frame, and where (what a transition starts from). */
+  seen: Map<string, Seen>;
+}
+
+/** One person as last drawn (reused from frame to frame). */
+interface Seen {
+  x: number;
+  z: number;
+  frame: number;
+  gone: boolean;
+  draw: ActorDraw;
+}
+
+/** Somebody on his way to a new spot: his drawn position is the track's plus what is left of the gap. */
+interface Mover {
+  fromX: number;
+  fromZ: number;
+  /** Seconds the walk takes; −1 until his destination is known. */
+  dur: number;
+  state: ActorState;
+  /** Arrives already moving (a newcomer) rather than starting from rest. */
+  easeOut: boolean;
+}
+
+/** Somebody the next play has no part for (struck out, put out, scored): he jogs off to the dugout. */
+interface Leaver {
+  draw: ActorDraw;
+  x: number;
+  z: number;
+  dirX: number;
+  dirZ: number;
+  /** pb.now he set off, and how long he is in view (s). */
+  t0: number;
+  dur: number;
+}
+
+export interface Transition {
+  /** pb.now it began. */
+  t0: number;
+  /** The picture was cut (or covered) at the change: nobody walks across the field, people are simply there. */
+  cut: boolean;
+  /** New half-inning: the defense jogs out to its positions. */
+  takeField: boolean;
+  movers: Map<string, Mover>;
+  /** Keys on the field when it began (anybody else is a newcomer). */
+  known: Set<string>;
+  /** Dugout side the offense comes from (world x); the defense takes the field from the other one. */
+  dugX: number;
+  /** The new cast has been drawn once. */
+  resolved: boolean;
+  /** How long the new batter takes to walk up to his box (s); 0 when the same man is still up. */
+  walkUp: number;
+  /** Longest walk still going (s); past it the transition is dropped. */
+  until: number;
 }
 
 export function createPlayback(): Playback {
@@ -107,6 +169,11 @@ export function createPlayback(): Playback {
     fx: { shake: 0, punch: 0, flashAge: -1, flashP: new THREE.Vector3(), flashPower: 0, umpCallAt: -1 },
     hands: new Map(),
     cutSeq: 0,
+    curtain: 0,
+    introAt: -1,
+    trans: null,
+    leavers: [],
+    seen: new Map(),
   };
 }
 
@@ -231,14 +298,197 @@ function standbyState(key: string, x: number, z: number, yaw: number, action: Ac
   return s;
 }
 
+/** Jog-off pace (ft/s): the same one the timeline uses for a man who has been put out. */
+const JOG_FT_S = 13;
+const DUGOUT_Z = -12;
+/** How far outside his box a new batter is first seen, by camera (just off the edge of each shot). */
+const ENTER_FT: Record<CamMode, number> = { batter: 11, pitcher: 21, broadcast: 30, follow: 20, overview: 20 };
+/** Pace of a batter coming up to the plate (ft/s), and how long a man jogging off stays in the scene (s). */
+const WALK_UP_FT_S = 17;
+const LEAVE_S = 5;
+
+/**
+ * Start a between-plays transition: call it just before the cast or the timeline is
+ * swapped. Everybody on screen then walks from where he stands to where the next play
+ * puts him (instead of jumping there), the men with no part in it jog off, and a new
+ * batter walks up. Across a cut nobody crosses the field; only the new arrivals walk in.
+ */
+export function beginTransition(pb: Playback, opts: { cut: boolean; takeField?: boolean }): void {
+  // One that has not been on screen yet still stands (two changes in the same frame are one change).
+  if (pb.trans && !pb.trans.resolved) {
+    pb.trans.cut ||= opts.cut;
+    pb.trans.takeField ||= !!opts.takeField;
+    return;
+  }
+  if (opts.cut) pb.leavers.length = 0;
+  const tr: Transition = {
+    t0: pb.now,
+    cut: opts.cut,
+    takeField: !!opts.takeField,
+    movers: new Map(),
+    known: new Set(),
+    dugX: pb.cast?.batterHand === "L" ? -60 : 60,
+    resolved: false,
+    until: 0.25,
+    walkUp: 0,
+  };
+  for (const [key, s] of pb.seen) {
+    if (s.frame < pb.frame - 1 || s.gone) continue;
+    // A new half-inning has nine new fielders: all of them come on.
+    if (tr.takeField && s.draw.pos) continue;
+    tr.known.add(key);
+    if (!tr.cut) tr.movers.set(key, { fromX: s.x, fromZ: s.z, dur: -1, state: still(s.x, s.z, 0, "ready"), easeOut: false });
+  }
+  pb.trans = tr;
+}
+
+/** Where a newcomer is first seen: a batter beside his box, a fielder short of his position. */
+function entrance(pb: Playback, tr: Transition, d: ActorDraw): Mover | null {
+  const p = d.state.p;
+  if (d.kind === "batter") {
+    const side = p.x >= 0 ? 1 : -1;
+    const dist = tr.cut ? 9 : ENTER_FT[pb.cam];
+    return { fromX: p.x + side * dist * 0.94, fromZ: p.z - dist * 0.34, dur: -1, state: still(p.x, p.z, 0, "run"), easeOut: true };
+  }
+  if (tr.takeField && d.pos) {
+    const dx = -tr.dugX - p.x;
+    const dz = DUGOUT_Z - p.z;
+    const far = Math.max(1, Math.hypot(dx, dz));
+    const dist = Math.min(22, 0.3 * far);
+    return { fromX: p.x + (dx / far) * dist, fromZ: p.z + (dz / far) * dist, dur: -1, state: still(p.x, p.z, 0, "run"), easeOut: true };
+  }
+  return null;
+}
+
+/** Seconds until the batter walking up to the plate is set in the box (0 when nobody is on his way). */
+export function walkUpLeft(pb: Playback): number {
+  const tr = pb.trans;
+  return tr ? Math.max(0, tr.walkUp - (pb.now - tr.t0)) : 0;
+}
+
+/** Put a drawn actor where the transition has him this frame (his track's state, unless he is still walking). */
+function place(pb: Playback, tr: Transition, d: ActorDraw, el: number): void {
+  let m = tr.movers.get(d.key);
+  if (!m) {
+    if (tr.known.has(d.key)) return;
+    tr.known.add(d.key);
+    const e = entrance(pb, tr, d);
+    if (!e) return;
+    m = e;
+    tr.movers.set(d.key, m);
+  }
+  const base = d.state;
+  const gx = m.fromX - base.p.x;
+  const gz = m.fromZ - base.p.z;
+  const gap = Math.hypot(gx, gz);
+  if (m.dur < 0) {
+    m.dur = gap < 0.5 ? 0 : m.easeOut ? gap / WALK_UP_FT_S + 0.2 : Math.min(1.7, Math.max(0.3, gap / 14));
+    tr.until = Math.max(tr.until, m.dur);
+    if (d.kind === "batter" && m.easeOut) tr.walkUp = m.dur;
+  }
+  if (el >= m.dur) return;
+  const u = el / m.dur;
+  // Newcomers arrive already moving and ease to a stop; everyone else starts from rest too.
+  const left = m.easeOut ? (1 - u) * (1 - u) : 1 - u * u * (3 - 2 * u);
+  const rate = (m.easeOut ? 2 * (1 - u) : 6 * u * (1 - u)) / m.dur;
+  const st = m.state;
+  const speed = gap * rate;
+  st.p.x = base.p.x + gx * left;
+  st.p.y = base.p.y;
+  st.p.z = base.p.z + gz * left;
+  st.speed = speed;
+  st.action = speed > 3 ? "run" : base.action;
+  st.actionT = base.actionT;
+  st.yaw = speed > 2.5 ? Math.atan2(-gx, -gz) : base.yaw;
+  d.state = st;
+}
+
+/** A man who was in the scene a frame ago and has no part in it now jogs off toward the dugout (he never just vanishes). */
+function sendOff(pb: Playback, s: Seen): void {
+  const dugX = pb.cast?.batterHand === "L" ? -60 : 60;
+  const dx = dugX - s.x;
+  const dz = DUGOUT_Z - s.z;
+  const far = Math.hypot(dx, dz);
+  if (far < 8) return;
+  const yaw = Math.atan2(dx, dz);
+  pb.leavers.push({ draw: { ...s.draw, kind: "runner", state: still(s.x, s.z, yaw, "run") }, x: s.x, z: s.z, dirX: dx / far, dirZ: dz / far, t0: pb.now, dur: Math.min(LEAVE_S, far / JOG_FT_S) });
+}
+
 /**
  * Everyone on the field at the current playback time (fielders, batter, runners,
  * umpire, coaches). The returned array and its entries are reused between calls.
  */
 export function actorsAt(pb: Playback): ActorDraw[] {
+  castAt(pb);
+  let tr = pb.trans;
+  const el = tr ? pb.now - tr.t0 : 0;
+  if (tr && tr.resolved && el > tr.until) tr = pb.trans = null;
+  const frame = pb.frame;
+  const seen = pb.seen;
+  for (let i = 0; i < list.length; i += 1) {
+    const d = list[i];
+    // Umpire and coaches stand where they stand.
+    if (d.id === 0 && !d.pos) continue;
+    if (tr) place(pb, tr, d, el);
+    let s = seen.get(d.key);
+    if (!s) {
+      if (seen.size > 80) for (const [k, v] of seen) if (v.frame < frame - 1) seen.delete(k);
+      s = { x: 0, z: 0, frame: -1, gone: false, draw: { ...d } };
+      seen.set(d.key, s);
+    }
+    s.x = d.state.p.x;
+    s.z = d.state.p.z;
+    s.frame = frame;
+    s.gone = d.state.action === "gone";
+    const k = s.draw;
+    k.key = d.key;
+    k.kind = d.kind;
+    k.jersey = d.jersey;
+    k.accent = d.accent;
+    k.uni = d.uni;
+    k.skin = d.skin;
+    k.hand = d.hand;
+    k.helmet = d.helmet;
+    k.pos = d.pos;
+    k.id = d.id;
+  }
+  // Across a cut (or with the picture covered, or in fast-forward) people are simply gone.
+  const quiet = pb.curtain === 1 || pb.turbo || (tr ? tr.cut && !tr.resolved : false);
+  if (tr) tr.resolved = true;
+  const leavers = pb.leavers;
+  if (quiet) leavers.length = 0;
+  else {
+    for (const s of seen.values()) {
+      if (s.frame !== frame - 1 || s.gone || leavers.length >= 4) continue;
+      if (s.draw.kind === "batter" || s.draw.kind === "runner") sendOff(pb, s);
+    }
+  }
+  for (let i = leavers.length - 1; i >= 0; i -= 1) {
+    const l = leavers[i];
+    const t = pb.now - l.t0;
+    const back = seen.get(l.draw.key);
+    if (t >= l.dur || (back && back.frame === frame)) {
+      leavers.splice(i, 1);
+      continue;
+    }
+    // Up to a jog over the first few steps, then steady.
+    const tau = 0.3;
+    const ramp = 1 - Math.exp(-t / tau);
+    const dist = JOG_FT_S * (t - tau * ramp);
+    const st = l.draw.state;
+    st.p.x = l.x + l.dirX * dist;
+    st.p.z = l.z + l.dirZ * dist;
+    st.speed = JOG_FT_S * ramp;
+    list.push(l.draw);
+  }
+  return list;
+}
+
+/** The cast on its tracks (or standing by), before any between-plays walking is applied. */
+function castAt(pb: Playback): void {
   list.length = 0;
   const c = pb.cast;
-  if (!c) return list;
+  if (!c) return;
   const tl = pb.timeline;
   const T = pb.T;
   let n = 0;
@@ -300,9 +550,11 @@ export function actorsAt(pb: Playback): ActorDraw[] {
       d.pos = null;
       list.push(d);
     }
-  } else {
+  }
+  {
     for (const r of c.runners) {
-      if (!r) continue;
+      // A runner the play has no track for holds his base (he never just vanishes).
+      if (!r || (tl && tl.runnerIds.includes(r.id))) continue;
       const bp = BASE_XZ[r.base - 1];
       const d = draw(n);
       n += 1;
@@ -353,5 +605,4 @@ export function actorsAt(pb: Playback): ActorDraw[] {
     d.pos = null;
     list.push(d);
   }
-  return list;
 }

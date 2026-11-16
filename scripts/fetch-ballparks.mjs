@@ -19,11 +19,42 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
-const OUT_DIR = join(ROOT, "web", "data", "ballparks");
-const SVG_DIR = join(ROOT, "web", "public", "ballparks");
+// Output dirs can be redirected (e.g. to diff a fresh fetch against the checked-in data).
+const OUT_DIR = process.env.BALLPARKS_OUT_DIR ?? join(ROOT, "web", "data", "ballparks");
+const SVG_DIR = process.env.BALLPARKS_SVG_DIR ?? join(ROOT, "web", "public", "ballparks");
 
-const MLB_TEAMS_URL =
-  "https://statsapi.mlb.com/api/v1/teams?season=2025&sportId=1&hydrate=venue(fieldInfo)";
+const SEASON = 2026;
+const MLB_TEAMS_URL = `https://statsapi.mlb.com/api/v1/teams?season=${SEASON}&sportId=1&hydrate=venue(fieldInfo)`;
+
+/**
+ * Past home parks kept alongside the current ones so older games still resolve to the
+ * park they were played in. They don't become their club's default (`bySlug`) and don't
+ * write an SVG over the current park's.
+ */
+const EXTRA_VENUES = [
+  // The Rays' 2025 season at George M. Steinbrenner Field while Tropicana Field was repaired.
+  { teamId: 139, season: 2025 },
+];
+/**
+ * Where the Stats API's fieldInfo lags behind a fence change, the published figures win
+ * (merged over the API's numbers).
+ */
+const FIELD_INFO_OVERRIDES = {
+  // Camden Yards, 2025 Orioles ground rules (left-field wall moved back in): 373 LF, 400 CF.
+  2: { left: 373, center: 400 },
+  // Rogers Centre, 2023 outfield rebuild (Blue Jays / SI).
+  14: { left: 368, leftCenter: 381, center: 400, rightCenter: 372, right: 359 },
+  // Comerica Park, 2023 fences moved in (Tigers).
+  2394: { leftLine: 342, center: 412 },
+  // Kauffman Stadium, 2026 fences moved in (Royals release, 13 Jan 2026).
+  7: { leftLine: 330, rightLine: 330 },
+  // T-Mobile Park, 2013 fences moved in (Mariners; Clem's Baseball).
+  680: { leftCenter: 378, center: 401, rightCenter: 381, rightLine: 326 },
+  // Dodger Stadium alleys: 375 (Dodgers / Clem's Baseball; the API still has 385).
+  22: { leftCenter: 375, rightCenter: 375 },
+};
+const teamSeasonUrl = (teamId, season) =>
+  `https://statsapi.mlb.com/api/v1/teams/${teamId}?season=${season}&hydrate=venue(fieldInfo)`;
 const STADIUM_PATHS_URL =
   "https://raw.githubusercontent.com/bdilday/GeomMLBStadiums/main/inst/extdata/mlb_stadia_paths.csv";
 
@@ -265,19 +296,20 @@ async function main() {
   /** @type {Record<string, number>} */
   const bySlug = {};
 
-  for (const team of teamsData.teams) {
+  /** Adds one club's venue; `primary` = its current home (sets bySlug, writes the SVG). */
+  async function addPark(team, primary) {
     const slug = TEAM_ID_TO_SLUG[team.id];
     if (!slug) {
       console.warn(`  skip team id ${team.id} (${team.name}) — no stadium slug mapping`);
-      continue;
+      return;
     }
 
     const venue = team.venue;
-    const fieldInfo = venue.fieldInfo ?? {};
+    const fieldInfo = { ...(venue.fieldInfo ?? {}), ...(FIELD_INFO_OVERRIDES[venue.id] ?? {}) };
     const segments = pathsByTeam[slug];
     if (!segments) {
       console.warn(`  skip ${slug} — no path data in CSV`);
-      continue;
+      return;
     }
 
     const bounds = computeBounds(segments);
@@ -293,6 +325,10 @@ async function main() {
     }
 
     const venueId = venue.id;
+    if (!primary && parks[String(venueId)]) {
+      console.log(`  = ${venue.name} is already a current park`);
+      return;
+    }
     const park = {
       venueId,
       venueName: venue.name,
@@ -319,11 +355,24 @@ async function main() {
     };
 
     parks[String(venueId)] = park;
+    if (!primary) {
+      console.log(`  + ${venue.name} (${team.abbreviation}, past home park)`);
+      return;
+    }
     bySlug[slug] = venueId;
 
     const svg = buildParkSvg(slug, segments, transform, park.fieldInfo);
     await writeFile(join(SVG_DIR, `${slug}.svg`), svg, "utf8");
     console.log(`  ✓ ${venue.name} (${team.abbreviation}) → ${slug}.svg`);
+  }
+
+  for (const team of teamsData.teams) await addPark(team, true);
+
+  for (const extra of EXTRA_VENUES) {
+    const data = await fetchJson(teamSeasonUrl(extra.teamId, extra.season));
+    const team = data.teams?.[0];
+    if (team) await addPark(team, false);
+    else console.warn(`  skip extra venue for team ${extra.teamId} (${extra.season}) — not found`);
   }
 
   const index = {
@@ -332,6 +381,7 @@ async function main() {
       "MLBAM hc_x/hc_y — same as coordX/coordY in live feed hitData. Home plate ≈ (125, 200); y decreases toward outfield.",
     sources: {
       fieldInfo: MLB_TEAMS_URL,
+      extraVenues: EXTRA_VENUES.map((e) => teamSeasonUrl(e.teamId, e.season)),
       wallPaths: STADIUM_PATHS_URL,
     },
     parks,
@@ -339,8 +389,8 @@ async function main() {
   };
 
   await writeFile(join(OUT_DIR, "index.json"), JSON.stringify(index, null, 2), "utf8");
-  console.log(`\nWrote ${Object.keys(parks).length} parks to web/data/ballparks/index.json`);
-  console.log(`Wrote SVG files to web/public/ballparks/`);
+  console.log(`\nWrote ${Object.keys(parks).length} parks to ${join(OUT_DIR, "index.json")}`);
+  console.log(`Wrote SVG files to ${SVG_DIR}`);
 }
 
 main().catch((err) => {

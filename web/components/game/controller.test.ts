@@ -56,6 +56,9 @@ function playGame(human: HumanSide, seed: number) {
       if (m.kind === "pending" && i < snap.pitches.length - 1) throw new Error("unsettled pitch marker");
     });
     marks = Math.max(marks, snap.pitches.length);
+    // Once the third out is made, nobody shows up on a base (or gets a SAFE call) on that play.
+    if (snap.outs >= 3 && snap.bases.some(Boolean)) throw new Error(`runner on base with three out: ${snap.bases}`);
+    if (snap.outs >= 3 && snap.call && snap.call.text !== "OUT") throw new Error(`${snap.call.text} call after the third out`);
     if (snap.phase === "final") return { ctl, swings, marks, catcherCam, steals, chances, longWaits, frames: frame };
     if (snap.phase === "aim") {
       ctl.setAim(rng.range(-0.9, 0.9), rng.range(1.6, 3.4));
@@ -127,5 +130,27 @@ describe("GameController full-game smoke", () => {
     const again = GameSession.replay(ctl.setup, ctl.session.inputs, teams).game;
     expect(again.score).toEqual(g.score);
     expect(again.final).toBe(true);
+  });
+});
+
+describe("pitch call marks", () => {
+  it("calls a batted ball that lands foul a foul, not in play", async () => {
+    const { finalMark } = await import("@/components/game/controller");
+    const s = new GameSession(
+      { awayTeamId: ids[0], homeTeamId: ids[1], human: "none", innings: 9, difficulty: "pro", seed: 7, awayStarter: 0, homeStarter: 1 } as GameSetup,
+      teams,
+    );
+    let seen = 0;
+    for (let i = 0; i < 400 && seen < 3; i += 1) {
+      const c = s.autoPitch();
+      if (c.result.kind === "in_play" && c.play?.foul) {
+        expect(finalMark(c).kind).toBe("foul");
+        seen += 1;
+      } else if (c.result.kind === "in_play" && c.play && !c.play.foul) {
+        expect(["in_play", "in_play_out"]).toContain(finalMark(c).kind);
+      }
+      if (s.game.final) break;
+    }
+    expect(seen).toBeGreaterThan(0);
   });
 });

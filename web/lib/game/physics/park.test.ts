@@ -15,8 +15,9 @@ function nearestMiss(fence: (deg: number) => number, deg: number, ft: number, wi
 }
 
 describe("park fences follow the real outline", () => {
-  it("covers all 30 parks", () => {
-    expect(venues.length).toBe(30);
+  it("covers all 30 clubs' parks (plus Steinbrenner Field, the Rays' 2025 home)", () => {
+    expect(venues.length).toBe(31);
+    expect(new Set(venues.map((v) => v.teamId)).size).toBe(30);
   });
 
   for (const v of venues) {

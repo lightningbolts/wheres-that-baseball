@@ -13,6 +13,7 @@ export const MLB_TEAM_COLORS: Record<number, string> = {
   118: "#004687", // KC
   119: "#005A9C", // LAD
   120: "#AB0003", // WSH
+  121: "#002D72", // NYM
   133: "#003831", // OAK
   134: "#27251F", // PIT
   135: "#2F241D", // SD

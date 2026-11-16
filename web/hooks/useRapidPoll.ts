@@ -16,10 +16,12 @@ export function useRapidPoll(
   onError?: (error: unknown) => void,
 ): void {
   const pollRef = useRef(poll);
+  const onErrorRef = useRef(onError);
 
   useEffect(() => {
     pollRef.current = poll;
-  }, [poll]);
+    onErrorRef.current = onError;
+  }, [poll, onError]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -33,7 +35,7 @@ export function useRapidPoll(
       void pollRef
         .current()
         .catch((err) => {
-          onError?.(err);
+          onErrorRef.current?.(err);
         })
         .finally(() => {
           inFlight -= 1;

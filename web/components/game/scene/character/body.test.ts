@@ -42,10 +42,10 @@ describe("character mesh", () => {
         expect(triFar, `${kind} LOD2`).toBeGreaterThan(500);
         expect(triFar, `${kind} LOD2`).toBeLessThan(2400);
         expect(triFar).toBeLessThan(triLo * 0.75);
-        expect(triHi, `${kind} LOD0`).toBeGreaterThan(3500);
-        expect(triHi, `${kind} LOD0`).toBeLessThan(12000);
+        expect(triHi, `${kind} LOD0`).toBeGreaterThan(8000);
+        expect(triHi, `${kind} LOD0`).toBeLessThan(26000);
         expect(triLo, `${kind} LOD1`).toBeGreaterThan(1500);
-        expect(triLo, `${kind} LOD1`).toBeLessThan(4200);
+        expect(triLo, `${kind} LOD1`).toBeLessThan(6500);
         expect(triLo).toBeLessThan(triHi * 0.45);
       }
     }
@@ -57,8 +57,9 @@ describe("character mesh", () => {
     // Rest pose: soles a little under the ankle joints, the cap about 6 ft above them.
     expect(box.max.y - box.min.y).toBeGreaterThan(5.8);
     expect(box.max.y - box.min.y).toBeLessThan(6.5);
-    expect(box.max.x).toBeLessThan(1.0);
-    expect(box.min.x).toBeGreaterThan(-1.0);
+    // The glove hand hangs widest.
+    expect(box.max.x).toBeLessThan(1.06);
+    expect(box.min.x).toBeGreaterThan(-1.06);
     expect(box.max.z).toBeLessThan(0.9);
     expect(box.min.z).toBeGreaterThan(-0.5);
     expect(box.min.y).toBeCloseTo(DIM.hip + DIM.hipY - DIM.thigh - DIM.shin - DIM.ankle, 2);

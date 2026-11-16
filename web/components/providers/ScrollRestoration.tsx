@@ -19,7 +19,10 @@ export function ScrollRestoration() {
   const searchParams = useSearchParams();
   const scrollKey = buildScrollKey(pathname, searchParams.toString());
   const scrollKeyRef = useRef(scrollKey);
-  scrollKeyRef.current = scrollKey;
+  // Keep the latest value for callbacks; written after render, never during it.
+  useLayoutEffect(() => {
+    scrollKeyRef.current = scrollKey;
+  });
   const prevPathnameRef = useRef(pathname);
 
   useLayoutEffect(() => {

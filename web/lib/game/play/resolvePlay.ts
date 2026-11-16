@@ -110,6 +110,8 @@ const CATCH_REACH = 2.5;
 const DIVE_REACH = 7;
 const GROUND_REACH = 2.2;
 const IF_DIVE_REACH = 4.5;
+/** How far behind an infielder (ft, from the plate) he can still run down a grounder. */
+const PAST_INFIELDER = 14;
 /** Real routes aren't straight lines at full speed: judging the ball costs distance. */
 const ROUTE_EFF = { outfield: 1.13, infield: 1.06 };
 
@@ -187,8 +189,12 @@ function groundChances(path: BattedBallPath, fielders: Fielder[], park: Park, fr
     if (f.pos === "C" && (path.firstLanding?.p.z ?? 0) > 25) continue;
     let found: GroundChance | null = null;
     let diveFound: GroundChance | null = null;
+    // An infielder only plays a grounder he can cut off; once it's through him it belongs
+    // to the outfield (he peels off to cover a bag instead of chasing it into the grass).
+    const cutOff = isInfielder(f.pos) ? horizDist(f.p) + PAST_INFIELDER : Infinity;
     for (const s of path.samples) {
       if (s.t < from || s.p.y > 3 || !inPlayableArea(s, park)) continue;
+      if (horizDist(s.p) > cutOff) break;
       if (slack(f, s, GROUND_REACH) >= 0) {
         found = { f, t: s.t, p: s.p, dive: false };
         break;
@@ -197,14 +203,14 @@ function groundChances(path: BattedBallPath, fielders: Fielder[], park: Park, fr
         diveFound = { f, t: s.t, p: s.p, dive: true };
       }
     }
-    if (!found) {
+    if (!found && horizDist(path.samples[path.samples.length - 1].p) <= cutOff) {
       // The ball eventually stops (or sits at the wall): everyone can get to it.
       const last = path.samples[path.samples.length - 1];
       const d = Math.max(0, horizDist(f.p, last.p) - GROUND_REACH);
       found = { f, t: Math.max(last.t, f.reaction + runTime(d, f.sprint)), p: last.p, dive: false };
     }
-    if (diveFound && diveFound.t < found.t - 0.25) out.push(diveFound);
-    out.push(found);
+    if (diveFound && (!found || diveFound.t < found.t - 0.25)) out.push(diveFound);
+    if (found) out.push(found);
   }
   return out.sort((a, b) => a.t - b.t);
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useLayoutEffect } from "react";
 
 import { isPlayByPlayAtBat } from "@/lib/mlb/liveFeed";
 import type { PlayByPlayEntry } from "@/types/mlb-live";
@@ -41,7 +41,10 @@ export function useAtBatOutcomeToast(
   const hydratedRef = useRef(false);
   const timersRef = useRef<number[]>([]);
   const playsRef = useRef(plays);
-  playsRef.current = plays;
+  // Keep the latest value for callbacks; written after render, never during it.
+  useLayoutEffect(() => {
+    playsRef.current = plays;
+  });
 
   const latestIndex = latestAtBat(plays)?.atBatIndex ?? null;
 

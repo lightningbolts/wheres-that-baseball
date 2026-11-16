@@ -41,9 +41,13 @@ import {
   wallAtlas,
 } from "@/components/game/scene/parks/textures";
 import { timeOfDay, type TimeOfDay } from "@/components/game/scene/parks/tod";
+import { AWAY_FAN_SHARE } from "@/lib/game/crowd/reaction";
 
-/** Shared excitement level (0..1) the crowd reacts to; set by the game view. */
-export const crowdState = { excite: 0 };
+/**
+ * Shared excitement (0..1) the crowd reacts to; set by the game view. `excite` is the home
+ * crowd, `away` the pocket of visiting fans (who only get up for their own team).
+ */
+export const crowdState = { excite: 0, away: 0 };
 
 /** Most fans drawn at once (one instanced draw call of camera-facing sprites). */
 const MAX_FANS = 44000;
@@ -140,7 +144,7 @@ function applyStructureFinish(m: THREE.Material, detail: THREE.Texture, glass: T
  * structure, seating, signage, lights, city, net, decals) and the crowd is one instanced
  * draw, so a park costs about fifteen draw calls.
  */
-export function Ballpark({ park, homeColor }: { park: Park; homeColor: string }) {
+export function Ballpark({ park, homeColor, awayColor }: { park: Park; homeColor: string; awayColor?: string }) {
   const tod = useMemo(() => timeOfDay(park.venueId), [park.venueId]);
   const lit = tod !== "day";
 
@@ -152,6 +156,7 @@ export function Ballpark({ park, homeColor }: { park: Park; homeColor: string })
     const seats = new GeoBuilder(true);
     const led = new GeoBuilder(true);
     const city = new GeoBuilder(true);
+    const veil = new GeoBuilder();
     const flares: number[] = [];
     const stands = buildStands(layout, loop, st, seats, {
       homeColor,
@@ -160,7 +165,7 @@ export function Ballpark({ park, homeColor }: { park: Park; homeColor: string })
       lit,
       skip: (beta, off) => Math.abs(beta) > DUGOUT.from - 1.5 && Math.abs(beta) < DUGOUT.to + 1.5 && off < DUGOUT.depth + 1,
     });
-    const ctx: PropCtx = { park, layout, loop, st, glow, led, city, flares, reach: stands.reach, homeColor, lit };
+    const ctx: PropCtx = { park, layout, loop, st, glow, led, city, flares, reach: stands.reach, homeColor, lit, veil };
     wallCaps(loop, st, layout.trim);
     foulPoles(ctx);
     dugouts(ctx);
@@ -180,16 +185,18 @@ export function Ballpark({ park, homeColor }: { park: Park; homeColor: string })
       layout,
       board,
       slots: stands.slots,
+      yaws: stands.yaws,
       meta: stands.meta,
       geo: {
         grass: fieldGrass(loop),
-        marks: fieldMarks(park, loop),
+        marks: fieldMarks(park, loop, homeColor),
         wall: wallGeometry(loop, layout),
         structure: st.build(),
         seats: seats.build(),
         glow: glow.build(),
         led: led.build(),
         city: city.build(),
+        veil: veil.build(),
         flares: flareGeo,
         net,
       },
@@ -251,6 +258,8 @@ export function Ballpark({ park, homeColor }: { park: Park; homeColor: string })
       city,
       flares,
       net: new THREE.MeshBasicMaterial({ map: netTex, transparent: true, opacity: 0.34, depthWrite: false, side: THREE.DoubleSide }),
+      // Translucent roof fabric (Tropicana Field): daylight glows through it.
+      veil: new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.72, depthWrite: false, side: THREE.DoubleSide, emissive: new THREE.Color(tod === "night" ? "#3a3d44" : "#9a9c9e") }),
       decal: new THREE.MeshLambertMaterial({ map: decals.texture, transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }),
       outside: tod === "night" ? new THREE.MeshBasicMaterial({ map: blocksTex, color: "#8791a8" }) : new THREE.MeshLambertMaterial({ map: blocksTex, color: tod === "dusk" ? "#a89a92" : "#c6cabf" }),
     };
@@ -286,53 +295,69 @@ export function Ballpark({ park, homeColor }: { park: Park; homeColor: string })
       <mesh geometry={geo.glow} material={m.glow} />
       <mesh geometry={geo.led} material={m.led} />
       <mesh geometry={geo.city} material={m.city} />
-      <Crowd seats={built.slots} meta={built.meta} accent={homeColor} capacity={park.capacity} tod={tod} />
+      <Crowd seats={built.slots} yaws={built.yaws} meta={built.meta} accent={homeColor} awayAccent={awayColor} capacity={park.capacity} tod={tod} />
       <mesh geometry={geo.net} material={m.net} renderOrder={2} />
+      {geo.veil.getAttribute("position").count > 0 && <mesh geometry={geo.veil} material={m.veil} renderOrder={1} />}
       {lit && <points geometry={geo.flares} material={m.flares} renderOrder={3} frustumCulled={false} />}
-      <Scoreboard at={built.board} />
+      <Scoreboard at={built.board} accent={homeColor} />
     </group>
   );
 }
 
 const CROWD_LIGHT: Record<TimeOfDay, number> = { day: 1, dusk: 0.92, night: 0.86 };
+const CROWD_SUN: Record<TimeOfDay, [number, number, number]> = { day: [170, 320, -90], dusk: [250, 175, -150], night: [60, 340, -200] };
 const SHIRTS = ["#f2f0ea", "#e9e4d6", "#20283a", "#8c9299", "#b32a33", "#1f4f9a", "#2f6a43", "#d9792b", "#c9b26b", "#23252a", "#7fb2d9", "#f2f0ea"];
 
 /**
  * Instanced crowd: one draw call of camera-facing sprites cut from a painted atlas of fans.
  * Clothes in the atlas are grey and take a per-fan tint; skin and hair keep their color.
- * `crowdState.excite` gets fans out of their seats, arms up, on big moments.
+ * `crowdState.excite` gets the home fans out of their seats, arms up, on big moments;
+ * `crowdState.away` does the same for the blocks of visiting fans in road colours.
  */
-function Crowd({ seats, meta, accent, capacity, tod }: { seats: Float32Array; meta: Float32Array; accent: string; capacity: number; tod: TimeOfDay }) {
-  const uniforms = useMemo(() => ({ uTime: { value: 0 }, uExcite: { value: 0 }, uLight: { value: 1 } }), []);
+function Crowd({ seats, yaws, meta, accent, awayAccent, capacity, tod }: { seats: Float32Array; yaws: Float32Array; meta: Float32Array; accent: string; awayAccent?: string; capacity: number; tod: TimeOfDay }) {
+  const uniforms = useMemo(() => ({ uTime: { value: 0 }, uExcite: { value: 0 }, uAwayExcite: { value: 0 }, uLight: { value: 1 }, uSun: { value: new THREE.Vector3(0.4, 0.8, -0.3) } }), []);
   const atlas = useMemo(() => (typeof document === "undefined" ? null : crowdAtlas()), []);
   const material = useMemo(() => {
     const m = new THREE.MeshBasicMaterial({ map: atlas });
     m.onBeforeCompile = (shader) => {
       shader.uniforms.uTime = uniforms.uTime;
       shader.uniforms.uExcite = uniforms.uExcite;
+      shader.uniforms.uAwayExcite = uniforms.uAwayExcite;
       shader.uniforms.uLight = uniforms.uLight;
+      shader.uniforms.uSun = uniforms.uSun;
       shader.vertexShader = shader.vertexShader
         .replace(
           "#include <common>",
-          "#include <common>\nuniform float uTime;\nuniform float uExcite;\nattribute vec3 aPos;\nattribute vec3 aTint;\nattribute vec4 aInfo;\nvarying vec3 vTint;\nvarying float vShade;",
+          "#include <common>\nuniform float uTime;\nuniform float uExcite;\nuniform float uAwayExcite;\nuniform vec3 uSun;\nattribute vec3 aPos;\nattribute float aTeam;\nattribute vec3 aTint;\nattribute vec4 aInfo;\nattribute vec3 aMove;\nvarying vec3 vTint;\nvarying float vShade;\nvarying vec2 vCard;\nvarying vec3 vSun;",
         )
         .replace(
           "#include <project_vertex>",
           `vec3 rgt = normalize(vec3(viewMatrix[0][0], 0.0, viewMatrix[2][0]));
+          // Lean the card back toward a high camera so fans never read as upright cut-outs.
+          vec3 upv = normalize(mix(vec3(0.0, 1.0, 0.0), vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]), 0.6));
+          vec3 fwd = normalize(cross(rgt, vec3(0.0, 1.0, 0.0)));
           float sd = aInfo.z;
-          float cheer = step(1.0 - uExcite * 1.15, fract(sd * 7.31));
-          float bob = sin(uTime * 1.3 + sd * 40.0) * 0.04 + cheer * (0.9 + max(0.0, sin(uTime * 9.0 + sd * 17.0)) * 0.7);
-          vec3 wp = aPos + rgt * (position.x * ${FAN_W.toFixed(2)} * aInfo.w) + vec3(0.0, position.y * ${FAN_H.toFixed(2)} * aInfo.w + bob, 0.0);
+          float walker = step(0.0001, aMove.z);
+          float ex = mix(uExcite, uAwayExcite, aTeam);
+          float cheer = step(1.0 - ex * 1.15, fract(sd * 7.31)) * (1.0 - walker);
+          float stand = max(cheer, step(0.965, fract(sd * 11.13)));
+          float bob = sin(uTime * 1.3 + sd * 40.0) * 0.04 + cheer * (max(0.0, sin(uTime * 9.0 + sd * 17.0)) * 0.7) + stand * 1.05 + walker * abs(sin(uTime * 5.0 + sd * 9.0)) * 0.12;
+          float sway = sin(uTime * (0.45 + fract(sd * 3.1) * 0.5) + sd * 31.0) * 0.07 * position.y;
+          vec3 base = aPos + vec3(aMove.x, 0.0, aMove.y) * sin(uTime * aMove.z + sd * 50.0);
+          vec3 wp = base + rgt * (position.x * ${FAN_W.toFixed(2)} * aInfo.w + sway) + upv * (position.y * ${FAN_H.toFixed(2)} * aInfo.w) + vec3(0.0, bob, 0.0);
           vec4 mvPosition = viewMatrix * vec4(wp, 1.0);
           gl_Position = projectionMatrix * mvPosition;
           float cell = mix(aInfo.x, ${CROWD.seated.toFixed(1)} + floor(fract(sd * 3.7) * ${(CROWD.cols * CROWD.rows - CROWD.seated).toFixed(1)}), cheer);
           vec2 cr = vec2(mod(cell, ${CROWD.cols.toFixed(1)}), floor(cell / ${CROWD.cols.toFixed(1)}));
-          vMapUv = vec2((cr.x + 0.025 + 0.95 * uv.x) / ${CROWD.cols.toFixed(1)}, 1.0 - (cr.y * ${CROWD.ch.toFixed(1)} + 2.5 + (1.0 - uv.y) * ${(CROWD.ch - 4).toFixed(1)}) / ${CROWD.size.toFixed(1)});
+          float fu = mix(uv.x, 1.0 - uv.x, step(0.5, fract(sd * 5.37)));
+          vMapUv = vec2((cr.x + 0.025 + 0.95 * fu) / ${CROWD.cols.toFixed(1)}, 1.0 - (cr.y * ${CROWD.ch.toFixed(1)} + 2.5 + (1.0 - uv.y) * ${(CROWD.ch - 4).toFixed(1)}) / ${CROWD.size.toFixed(1)});
+          vCard = uv;
+          vSun = vec3(dot(uSun, rgt), uSun.y, dot(uSun, fwd));
           vTint = aTint;
           vShade = aInfo.y;`,
         );
       shader.fragmentShader = shader.fragmentShader
-        .replace("#include <common>", "#include <common>\nuniform float uLight;\nvarying vec3 vTint;\nvarying float vShade;")
+        .replace("#include <common>", "#include <common>\nuniform float uLight;\nvarying vec3 vTint;\nvarying float vShade;\nvarying vec2 vCard;\nvarying vec3 vSun;")
         .replace(
           "#include <map_fragment>",
           `vec4 tx = texture2D(map, vMapUv);
@@ -341,7 +366,12 @@ function Crowd({ seats, meta, accent, capacity, tod }: { seats: Float32Array; me
           float mx = max(tx.r, max(tx.g, tx.b));
           float mn = min(tx.r, min(tx.g, tx.b));
           float cloth = 1.0 - smoothstep(0.07, 0.22, (mx - mn) / max(mx, 0.02));
-          diffuseColor.rgb = mix(tx.rgb, tx.rgb * vTint, cloth) * vShade * uLight;`,
+          // Round the card: a cylinder normal across it, lit by the sun, with the lap in shade.
+          float nx = (vCard.x - 0.5) * 1.9;
+          float nz = sqrt(max(0.08, 1.0 - nx * nx));
+          float lit = clamp(0.66 + 0.4 * (nx * vSun.x + nz * vSun.z * 0.55) + 0.22 * vSun.y * smoothstep(0.5, 0.95, vCard.y), 0.5, 1.22);
+          lit *= mix(0.7, 1.0, smoothstep(0.02, 0.4, vCard.y));
+          diffuseColor.rgb = mix(tx.rgb, tx.rgb * vTint, cloth) * vShade * uLight * lit;`,
         );
     };
     return m;
@@ -354,26 +384,52 @@ function Crowd({ seats, meta, accent, capacity, tod }: { seats: Float32Array; me
     const fill = Math.min(0.95, Math.max(0.66, 0.68 + capacity / 150000));
     const chance = (rank: number) => Math.min(0.97, fill * (1.14 - 0.1 * rank));
     let expect = 0;
-    for (let i = 0; i < total; i += 1) expect += chance(meta[i * 2 + 1]);
+    for (let i = 0; i < total; i += 1) expect += meta[i * 2 + 1] >= 100 ? 1 : chance(meta[i * 2 + 1]);
     const thin = Math.min(1, MAX_FANS / Math.max(1, expect));
     const pos: number[] = [];
     const tint: number[] = [];
     const info: number[] = [];
+    const move: number[] = [];
+    const team: number[] = [];
     const c = new THREE.Color();
+    const road = awayAccent ? new THREE.Color(awayAccent).lerp(new THREE.Color("#ffffff"), 0.12) : null;
     const acc = new THREE.Color(accent).lerp(new THREE.Color("#ffffff"), 0.12);
     const palette = SHIRTS.map((x) => new THREE.Color(x));
     let s = 12345;
     const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+    // Seats sell in blocks: whole groups of neighbours turn up, or don't.
+    const block = (i: number) => {
+      const h = Math.sin(Math.floor(i / 17) * 127.1) * 43758.5453;
+      return 0.72 + 0.5 * (h - Math.floor(h));
+    };
+    const awayBlock = (i: number) => {
+      const h = Math.sin(Math.floor(i / 23) * 311.7 + 17.3) * 24634.6345;
+      return h - Math.floor(h) < AWAY_FAN_SHARE;
+    };
     for (let i = 0; i < total && pos.length < MAX_FANS * 3; i += 1) {
       const r = rnd();
       const k = [rnd(), rnd(), rnd(), rnd(), rnd()];
-      if (r > chance(meta[i * 2 + 1]) * thin) continue;
-      pos.push(seats[i * 3] + (k[0] - 0.5) * 0.35, seats[i * 3 + 1] + 1.25 + (k[1] - 0.5) * 0.2, seats[i * 3 + 2] + (k[0] - 0.5) * 0.35);
-      // A third of the crowd wears the home team's color.
-      if (k[2] < 0.34) c.copy(acc).multiplyScalar(0.8 + k[3] * 0.4);
+      const rank = meta[i * 2 + 1];
+      const walker = rank >= 100;
+      if (!walker && r > Math.min(0.985, chance(rank) * block(i)) * thin) continue;
+      pos.push(seats[i * 3] + (k[0] - 0.5) * 0.35, seats[i * 3 + 1] + (walker ? 2.9 : 1.25) + (k[1] - 0.5) * 0.2, seats[i * 3 + 2] + (k[0] - 0.5) * 0.35);
+      // Visiting fans sit together in a few blocks (about one seat in eight), in road colours.
+      const awayFan = !!road && !walker && awayBlock(i);
+      team.push(awayFan ? 1 : 0);
+      // Home colours dominate: jerseys and caps in the club colour, plus plenty of white.
+      if (awayFan && k[2] < 0.6) c.copy(road!).multiplyScalar(0.8 + k[3] * 0.4);
+      else if (k[2] < 0.4) c.copy(acc).multiplyScalar(0.8 + k[3] * 0.4);
+      else if (k[2] < 0.52) c.set("#f4f2ec").multiplyScalar(0.9 + k[3] * 0.1);
       else c.copy(palette[Math.floor(k[3] * palette.length) % palette.length]).multiplyScalar(0.82 + k[4] * 0.3);
       tint.push(c.r, c.g, c.b);
-      info.push(Math.floor(k[4] * CROWD.seated) % CROWD.seated, meta[i * 2] * (0.9 + k[1] * 0.2), k[2] * 0.731 + k[0], 0.93 + k[3] * 0.14);
+      // A few children, the odd tall fan.
+      const size = k[1] < 0.07 ? 0.74 + k[3] * 0.08 : 0.92 + k[3] * 0.17;
+      info.push(Math.floor(k[4] * CROWD.seated) % CROWD.seated, meta[i * 2] * (0.9 + k[1] * 0.2), k[2] * 0.731 + k[0], size);
+      if (walker) {
+        const yaw = yaws[i];
+        const amp = 6 + k[3] * 16;
+        move.push(Math.cos(yaw) * amp, -Math.sin(yaw) * amp, 0.12 + k[4] * 0.16);
+      } else move.push(0, 0, 0);
     }
     const plane = new THREE.PlaneGeometry(1, 1);
     plane.translate(0, 0.5, 0);
@@ -384,9 +440,11 @@ function Crowd({ seats, meta, accent, capacity, tod }: { seats: Float32Array; me
     g.setAttribute("aPos", new THREE.InstancedBufferAttribute(new Float32Array(pos), 3));
     g.setAttribute("aTint", new THREE.InstancedBufferAttribute(new Float32Array(tint), 3));
     g.setAttribute("aInfo", new THREE.InstancedBufferAttribute(new Float32Array(info), 4));
+    g.setAttribute("aMove", new THREE.InstancedBufferAttribute(new Float32Array(move), 3));
+    g.setAttribute("aTeam", new THREE.InstancedBufferAttribute(new Float32Array(team), 1));
     g.instanceCount = pos.length / 3;
     return g;
-  }, [seats, meta, accent, capacity]);
+  }, [seats, yaws, meta, accent, awayAccent, capacity]);
   useEffect(() => () => geom.dispose(), [geom]);
   useEffect(() => () => material.dispose(), [material]);
   useEffect(() => () => atlas?.dispose(), [atlas]);
@@ -394,9 +452,12 @@ function Crowd({ seats, meta, accent, capacity, tod }: { seats: Float32Array; me
   useFrame((state, dt) => {
     uniforms.uTime.value = state.clock.elapsedTime;
     uniforms.uLight.value = CROWD_LIGHT[tod];
+    uniforms.uSun.value.set(...CROWD_SUN[tod]).normalize();
     const target = crowdState.excite;
     uniforms.uExcite.value += (target - uniforms.uExcite.value) * Math.min(1, dt * 3);
     crowdState.excite = Math.max(0, crowdState.excite - dt * 0.12);
+    uniforms.uAwayExcite.value += (crowdState.away - uniforms.uAwayExcite.value) * Math.min(1, dt * 3);
+    crowdState.away = Math.max(0, crowdState.away - dt * 0.12);
   });
 
   if (!atlas) return null;
@@ -409,17 +470,67 @@ export const scoreboardCanvas: { canvas: HTMLCanvasElement | null; texture: THRE
   texture: null,
 };
 
-function Scoreboard({ at }: { at: BoardPlacement }) {
+/** Idle board graphics, shown until the game draws its own (and in the park lab). */
+function drawIdleBoard(c: HTMLCanvasElement, accent: string): void {
+  const g = c.getContext("2d");
+  if (!g) return;
+  const { width: w, height: h } = c;
+  const bg = g.createLinearGradient(0, 0, 0, h);
+  bg.addColorStop(0, "#0b1220");
+  bg.addColorStop(1, "#05080f");
+  g.fillStyle = bg;
+  g.fillRect(0, 0, w, h);
+  g.fillStyle = accent;
+  g.fillRect(0, 0, w, 30);
+  g.fillStyle = "#f5f3ea";
+  g.font = "700 20px system-ui, sans-serif";
+  g.textBaseline = "middle";
+  g.fillText("WELCOME TO THE BALLPARK", 14, 16);
+  g.font = "600 13px system-ui, sans-serif";
+  g.fillStyle = "#9fb0c8";
+  const x0 = 120;
+  const dx = 30;
+  ["1", "2", "3", "4", "5", "6", "7", "8", "9", "R", "H", "E"].forEach((t, i) => g.fillText(t, x0 + i * dx + (i > 8 ? 14 : 0), 48));
+  [["VISITORS", "#c9d3e4"], ["HOME", "#ffffff"]].forEach(([name, col], r) => {
+    const y = 78 + r * 34;
+    g.fillStyle = r ? accent : "#1a2334";
+    g.fillRect(8, y - 14, 100, 28);
+    g.fillStyle = col;
+    g.font = "700 15px system-ui, sans-serif";
+    g.fillText(name, 14, y + 1);
+    g.font = "700 19px system-ui, sans-serif";
+    g.fillStyle = "#f6d24a";
+    for (let i = 0; i < 12; i += 1) g.fillText(i < 9 ? "" : "0", x0 + i * dx + (i > 8 ? 14 : 0), y + 1);
+  });
+  g.fillStyle = "#121a29";
+  g.fillRect(0, 150, w, 42);
+  g.font = "700 16px system-ui, sans-serif";
+  ["BALL", "STRIKE", "OUT"].forEach((t, i) => {
+    g.fillStyle = "#9fb0c8";
+    g.fillText(t, 16 + i * 150, 172);
+    for (let k = 0; k < (i === 0 ? 3 : 2); k += 1) {
+      g.beginPath();
+      g.arc(86 + i * 150 + k * 18 + (i === 1 ? 10 : 0), 171, 6, 0, Math.PI * 2);
+      g.fillStyle = "#26324a";
+      g.fill();
+    }
+  });
+  g.fillStyle = "#f5f3ea";
+  g.fillText("PLAY BALL", w - 110, 172);
+}
+
+function Scoreboard({ at, accent }: { at: BoardPlacement; accent: string }) {
   const tex = useMemo(() => {
     if (typeof document === "undefined") return null;
     const c = document.createElement("canvas");
     c.width = 512;
     c.height = 192;
+    drawIdleBoard(c, accent);
     const t = new THREE.CanvasTexture(c);
     t.colorSpace = THREE.SRGBColorSpace;
     t.anisotropy = 4;
     return t;
-  }, []);
+  }, [accent]);
   // Published from an effect (not the memo) so it survives React's dev double-mount.
   useEffect(() => {
     if (!tex) return undefined;

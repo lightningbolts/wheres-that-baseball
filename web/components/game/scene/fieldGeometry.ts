@@ -119,7 +119,7 @@ function circlePts(cx: number, cz: number, r: number, n: number, a0: number, a1:
 }
 
 /** Infield skin outline: the 95 ft arc around the rubber inside the foul lines (+6 ft). */
-function infieldOutline(): Array<[number, number]> {
+export function infieldOutline(): Array<[number, number]> {
   const R = 95;
   const margin = 6;
   const lineEnd = (sideSign: number): [number, number] => {
@@ -155,7 +155,7 @@ export function onDeckSpots(loop: WallLoop): Array<[number, number]> {
  * Everything painted or laid on the grass, merged into one vertex-colored mesh: infield
  * skin, base cutouts, mound, warning tracks, on-deck circles, chalk, bases and the plate.
  */
-export function fieldMarks(park: Park, loop: WallLoop): THREE.BufferGeometry {
+export function fieldMarks(park: Park, loop: WallLoop, homeColor = "#1d3a6b"): THREE.BufferGeometry {
   const b = new GeoBuilder();
   const turf = park.turf;
   const dirt = turf ? "#8a7361" : "#b8845c";
@@ -174,13 +174,19 @@ export function fieldMarks(park: Park, loop: WallLoop): THREE.BufferGeometry {
   // Infield skin with the grass square cut out.
   const hole = [diamond(4, 4), diamond(86, 4), diamond(86, 86), diamond(4, 86)];
   b.poly(infieldOutline(), [hole], 0.04, dirt);
-  b.disc(0, 0.05, 0, 13, dirt, 36);
+  b.disc(0, 0.05, 0, 13, dirt, 36, 1.04);
   for (const base of [BASES.first, BASES.second, BASES.third]) b.disc(base.x, 0.045, base.z, 9, dirt, 28);
   // Pitcher's mound: a low dome, 10 in high at the rubber.
-  b.cyl(MOUND.x, 0.04, MOUND.z, 9, 1.2, 0.83, dirt, 32);
+  // (a gentle shoulder, then the table the rubber sits on).
+  const clay = turf ? "#84694f" : "#ad7850";
+  b.cyl(MOUND.x, 0.04, MOUND.z, 9, 5.6, 0.44, dirt, 36, false);
+  b.cyl(MOUND.x, 0.48, MOUND.z, 5.6, 2.7, 0.35, clay, 36);
+  // On-deck circles in the club's color.
   for (const [x, z] of onDeckSpots(loop)) {
-    b.disc(x, 0.05, z, 2.6, dirt, 16);
-    b.disc(x, 0.07, z, 1.1, chalk, 12, 0.92);
+    b.disc(x, 0.05, z, 3.1, dirt, 20);
+    b.disc(x, 0.065, z, 2.6, chalk, 20, 0.95);
+    b.disc(x, 0.08, z, 2.35, homeColor, 20, 1.5);
+    b.disc(x, 0.095, z, 0.9, chalk, 12, 0.95);
   }
 
   // Chalk.
@@ -213,6 +219,9 @@ export function fieldMarks(park: Park, loop: WallLoop): THREE.BufferGeometry {
     strip(c0[0], c0[1], c1[0], c1[1], 0.25);
   }
   strip(-1.8, -8, 1.8, -8, 0.25);
+  // Runner's lane up the first-base line.
+  strip(-48 * S2, 42 * S2, -93 * S2, 87 * S2, 0.25);
+  strip(-45 * S2, 45 * S2, -48 * S2, 42 * S2, 0.25);
 
   // Bases, plate, rubber.
   for (const base of [BASES.first, BASES.second, BASES.third]) b.box(base.x, 0.14, base.z, 1.5, 0.24, 1.5, Math.PI / 4, "#fbfbf8");

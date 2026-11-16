@@ -13,11 +13,12 @@ export interface GameSceneProps {
   park: Park;
   pb: Playback;
   homeColor: string;
+  awayColor?: string;
   onAim: (px: number, pz: number) => void;
   onPrimary: () => void;
 }
 
-export default function GameScene({ park, pb, homeColor, onAim, onPrimary }: GameSceneProps) {
+export default function GameScene({ park, pb, homeColor, awayColor, onAim, onPrimary }: GameSceneProps) {
   return (
     <Canvas
       shadows="soft"
@@ -32,7 +33,7 @@ export default function GameScene({ park, pb, homeColor, onAim, onPrimary }: Gam
     >
       <Director pb={pb} />
       <Environment park={park} />
-      <Ballpark park={park} homeColor={homeColor} />
+      <Ballpark park={park} homeColor={homeColor} awayColor={awayColor} />
       <Players pb={pb} />
       <Ball pb={pb} />
       <ContactFx pb={pb} />

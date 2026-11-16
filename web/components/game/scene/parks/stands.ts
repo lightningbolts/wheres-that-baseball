@@ -217,6 +217,10 @@ export function buildStands(layout: ParkLayout, loop: WallLoop, st: GeoBuilder, 
       // A cross-aisle splits a deep lower bowl into field boxes and terrace.
       const walk = lower && !deck.berm && rows >= 22 ? Math.round(rows * 0.42) : -1;
       if (d.i1 - d.i0 < 1) return;
+      // Vomitories: tunnel mouths every sixth bay, opening onto the cross-aisle if there is one.
+      const nv = Math.min(8, Math.max(3, Math.ceil(7.5 / hRow)));
+      const v0 = walk >= 0 ? walk + 1 : Math.round(rows * 0.3);
+      const vomOk = !deck.berm && rows >= 12 && v0 + nv <= rows - 2;
 
       for (let i = d.i0; i < d.i1; i += 1) {
         const p = sm[i];
@@ -232,6 +236,8 @@ export function buildStands(layout: ParkLayout, loop: WallLoop, st: GeoBuilder, 
         top = Math.max(top, ypB + (d.roof ? d.roof.h : 4));
         const mid: Sample = i % 2 ? p : q;
 
+        const vomBay = vomOk && i % 6 === 3 && i > d.i0 && i < d.i1 - 1 && nR === rows;
+        const bayShade = 0.95 + 0.1 * hash(Math.floor(i / 3) * 7 + di * 13 + 3);
         if (deck.berm) {
           st.mat = 2;
           st.quadG(at(p, off0, yp), at(q, off0, yq), at(q, off1, yqB), at(p, off1, ypB), "#4f9143", 0.86 + 0.06 * hash(i + di * 31), 1.04);
@@ -242,6 +248,31 @@ export function buildStands(layout: ParkLayout, loop: WallLoop, st: GeoBuilder, 
             const o1 = o0 + dRow;
             const y0 = r * hRow;
             const sh = light(d, i, mid, o0 + dRow * 0.5, yF(d, mid) + y0);
+            if (vomBay && r >= v0 && r < v0 + nv) {
+              if (r === v0) {
+                // Vomitory: a tunnel mouth cut into the rake, with a landing and side walls.
+                const oB = off0 + (v0 + nv) * dRow;
+                const oT = Math.min(oB + 9, off0 + nR * dRow - 0.6);
+                const H = nv * hRow;
+                const fy = (yb: number) => yb + y0;
+                st.mat = 1;
+                st.quadG(at(p, o0, fy(yp)), at(q, o0, fy(yq)), at(q, oT, fy(yq)), at(p, oT, fy(yp)), concrete, 0.62 * sh, 0.2);
+                for (const e of [p, q]) {
+                  const yb = fy(e === p ? yp : yq);
+                  st.quad(at(e, o0, yb), at(e, oB, yb), at(e, oB, yb + H + 1.4), at(e, o0, yb + 1.4), concrete, 0.74 * sh);
+                  st.quadG(at(e, oB, yb), at(e, oT, yb), at(e, oT, yb + H), at(e, oB, yb + H), concrete, 0.42, 0.16);
+                }
+                st.quadG(at(p, oB, fy(yp) + H), at(q, oB, fy(yq) + H), at(q, oT, fy(yq) + H), at(p, oT, fy(yp) + H), concrete, 0.4, 0.14);
+                st.quad(at(p, oB, fy(yp) + H - 0.6), at(q, oB, fy(yq) + H - 0.6), at(q, oB, fy(yq) + H + 1.4), at(p, oB, fy(yp) + H + 1.4), concrete, 0.86 * sh);
+                st.mat = 0;
+                st.quad(at(p, oT, fy(yp)), at(q, oT, fy(yq)), at(q, oT, fy(yq) + H), at(p, oT, fy(yp) + H), opts.lit ? "#4a3a22" : "#0d0e11", 1);
+                // Section sign over the mouth.
+                const sa = lerp3(at(p, oB - 0.1, fy(yp) + H - 0.35), at(q, oB - 0.1, fy(yq) + H - 0.35), 0.3);
+                const sb = lerp3(at(p, oB - 0.1, fy(yp) + H - 0.35), at(q, oB - 0.1, fy(yq) + H - 0.35), 0.7);
+                st.quad(sa, sb, [sb[0], sb[1] + 1.3, sb[2]], [sa[0], sa[1] + 1.3, sa[2]], layout.trim, 1.25);
+              }
+              continue;
+            }
             const a0 = at(p, o0, yp + y0);
             const b0 = at(q, o0, yq + y0);
             const a1 = at(p, o1, yp + y0);
@@ -251,17 +282,24 @@ export function buildStands(layout: ParkLayout, loop: WallLoop, st: GeoBuilder, 
             seats.quadUv(a0, b0, b1, a1, [u0, SEAT_V.slab[1]], [u1, SEAT_V.slab[1]], [u1, SEAT_V.slab[0]], [u0, SEAT_V.slab[0]], slab, sh);
             const len = Math.hypot(b1[0] - a1[0], b1[2] - a1[2]);
             if (r === walk) {
-              seats.quadUv(a1, b1, [b1[0], b1[1] + hRow, b1[2]], [a1[0], a1[1] + hRow, a1[2]], [0, 0.3], [0.3, 0.3], [0.3, 0.42], [0, 0.42], slab, sh * 0.8);
+              seats.quadUv(a1, b1, [b1[0], b1[1] + hRow, b1[2]], [a1[0], a1[1] + hRow, a1[2]], [0, SEAT_V.slab[0]], [0.3, SEAT_V.slab[0]], [0.3, SEAT_V.slab[0] + 0.1], [0, SEAT_V.slab[0] + 0.1], slab, sh * 0.8);
               continue;
             }
-            // Seat backs along the riser, broken by an aisle every third bay.
+            // Seats along the riser (backs, and pans seen from above), broken by an aisle
+            // every third bay.
             const g0 = i % 3 === 0 ? AISLE / len : 0;
             const g1 = i % 3 === 2 ? 1 - AISLE / len : 1;
             const count = Math.max(1, Math.round((len * (g1 - g0)) / PITCH));
             const sa = lerp3(a1, b1, g0);
             const sb = lerp3(a1, b1, g1);
             const hS = Math.max(2.7, hRow + 1.3);
-            seats.quadUv(sa, sb, [sb[0], sb[1] + hS, sb[2]], [sa[0], sa[1] + hS, sa[2]], [0, SEAT_V.seat[0]], [count, SEAT_V.seat[0]], [count, SEAT_V.seat[1]], [0, SEAT_V.seat[1]], r === purple ? "#6a48b0" : tint, sh);
+            const tintR = r === purple ? "#6a48b0" : tint;
+            seats.quadUv(sa, sb, [sb[0], sb[1] + hS, sb[2]], [sa[0], sa[1] + hS, sa[2]], [0, SEAT_V.seat[0]], [count, SEAT_V.seat[0]], [count, SEAT_V.seat[1]], [0, SEAT_V.seat[1]], tintR, sh * bayShade);
+            const f0 = at(p, o1 - Math.min(1.6, dRow * 0.55), yp + y0 + 1.35);
+            const f1 = at(q, o1 - Math.min(1.6, dRow * 0.55), yq + y0 + 1.35);
+            const pa = lerp3(f0, f1, g0);
+            const pb = lerp3(f0, f1, g1);
+            seats.quadUv(pa, pb, [sb[0], sb[1] + 1.5, sb[2]], [sa[0], sa[1] + 1.5, sa[2]], [0, SEAT_V.pan[0]], [count, SEAT_V.pan[0]], [count, SEAT_V.pan[1]], [0, SEAT_V.pan[1]], tintR, sh * bayShade * 1.06);
             for (const [ga, gb] of [
               [0, g0],
               [g1, 1],
@@ -269,8 +307,15 @@ export function buildStands(layout: ParkLayout, loop: WallLoop, st: GeoBuilder, 
               if (gb - ga < 1e-4) continue;
               const ra = lerp3(a1, b1, ga);
               const rb = lerp3(a1, b1, gb);
-              seats.quadUv(ra, rb, [rb[0], rb[1] + hRow, rb[2]], [ra[0], ra[1] + hRow, ra[2]], [0, 0.3], [0.3, 0.3], [0.3, 0.42], [0, 0.42], slab, sh * 0.82);
+              seats.quadUv(ra, rb, [rb[0], rb[1] + hRow, rb[2]], [ra[0], ra[1] + hRow, ra[2]], [0, SEAT_V.step[0]], [0.3, SEAT_V.step[0]], [0.3, SEAT_V.step[1]], [0, SEAT_V.step[1]], slab, sh * 0.9);
             }
+          }
+          // Aisle handrail up a steep deck.
+          if (!lower && i % 3 === 0 && hRow > 1.5 && nR > 6) {
+            const e = (AISLE * 0.5) / SEG;
+            const ra = lerp3(at(p, off0 + 2 * dRow, yp + 2 * hRow + 2.9), at(q, off0 + 2 * dRow, yq + 2 * hRow + 2.9), e);
+            const rb = lerp3(at(p, off0 + (nR - 1) * dRow, yp + (nR - 1) * hRow + 2.9), at(q, off0 + (nR - 1) * dRow, yq + (nR - 1) * hRow + 2.9), e);
+            st.beam(ra, rb, 0.22, "#c9ccd0", 1);
           }
         }
 
@@ -288,6 +333,16 @@ export function buildStands(layout: ParkLayout, loop: WallLoop, st: GeoBuilder, 
           // Soffit: open air at the lip, deep shade at the back.
           st.quadG(at(p, off0, yp - SLAB), at(q, off0, yq - SLAB), at(q, off1, yqB - SLAB), at(p, off1, ypB - SLAB), concrete, 0.8, 0.36);
           if (i % 3 === 0) st.beam(at(p, off0 + 1, yp - SLAB - 0.8), at(p, off1, ypB - SLAB - 0.8), 1.6, concrete, 0.46);
+          // Soffit lighting: a downlight strip a few feet in from the lip.
+          if (glow && off1 - off0 > 12) {
+            const oL = off0 + 4;
+            const yL = (yb: number) => yb - SLAB + (rise * 4) / (off1 - off0) - 0.12;
+            const la = lerp3(at(p, oL, yL(yp)), at(q, oL, yL(yq)), 0.3);
+            const lb = lerp3(at(p, oL, yL(yp)), at(q, oL, yL(yq)), 0.7);
+            const lc = lerp3(at(p, oL + 1.4, yL(yp)), at(q, oL + 1.4, yL(yq)), 0.7);
+            const ld = lerp3(at(p, oL + 1.4, yL(yp)), at(q, oL + 1.4, yL(yq)), 0.3);
+            glow.quad(la, lb, lc, ld, opts.lit ? [1, 0.95, 0.82] : [0.62, 0.64, 0.66]);
+          }
           if (led && di === 1) {
             const r = LED_ROW.ribbon;
             led.quadUv(at(p, off0 - 0.2, yp - SLAB + 0.7), at(q, off0 - 0.2, yq - SLAB + 0.7), at(q, off0 - 0.2, yq + PARAPET - 0.9), at(p, off0 - 0.2, yp + PARAPET - 0.9), [p.s / r.ft, r.v[0]], [q.s / r.ft, r.v[0]], [q.s / r.ft, r.v[1]], [p.s / r.ft, r.v[1]], ribbon);
@@ -344,11 +399,27 @@ export function buildStands(layout: ParkLayout, loop: WallLoop, st: GeoBuilder, 
           const lip = Math.min(d.roof.lip, off1 - 6);
           const yl = (yb: number) => yb + h - drop;
           const face = layout.frieze ? 5.5 : 2.2;
+          // Folded-plate roofs (Dodger Stadium's pavilions) zigzag from bay to bay.
+          const zp = layout.canopyStyle === "zigzag" ? (i % 2 ? 3.4 : -3.4) : 0;
+          const zq = -zp;
+          const roofC = layout.canopy ?? layout.trim;
           st.mat = 5;
-          st.quad(at(p, off1 + 1, ypB + h), at(q, off1 + 1, yqB + h), at(q, lip, yl(yqB)), at(p, lip, yl(ypB)), layout.canopy ?? layout.trim, 0.98);
+          st.quad(at(p, off1 + 1, ypB + h + zp), at(q, off1 + 1, yqB + h + zq), at(q, lip, yl(yqB) + zq), at(p, lip, yl(ypB) + zp), roofC, zp > 0 ? 0.9 : 1.02);
           st.mat = 0;
-          st.quadG(at(p, lip, yl(ypB) - 1.4), at(q, lip, yl(yqB) - 1.4), at(q, off1 + 1, yqB + h - 1.4), at(p, off1 + 1, ypB + h - 1.4), mix(layout.canopy ?? layout.trim, "#9aa0a6", 0.35), 0.82, 0.5);
-          st.quad(at(p, lip, yl(ypB) + 0.3), at(q, lip, yl(yqB) + 0.3), at(q, lip, yl(yqB) - face), at(p, lip, yl(ypB) - face), layout.frieze ? "#f4f2ea" : mix(layout.canopy ?? layout.trim, "#ffffff", 0.12), 1.05);
+          st.quadG(at(p, lip, yl(ypB) - 1.4 + zp), at(q, lip, yl(yqB) - 1.4 + zq), at(q, off1 + 1, yqB + h - 1.4 + zq), at(p, off1 + 1, ypB + h - 1.4 + zp), mix(roofC, "#9aa0a6", 0.35), 0.82, 0.5);
+          st.quad(at(p, lip, yl(ypB) + 0.3 + zp), at(q, lip, yl(yqB) + 0.3 + zq), at(q, lip, yl(yqB) - face + zq), at(p, lip, yl(ypB) - face + zp), layout.frieze ? "#f4f2ea" : mix(roofC, "#ffffff", 0.12), 1.05);
+          if (layout.frieze) {
+            // The frieze: a hanging arcade of narrow arched openings.
+            const fa = at(p, lip - 0.08, yl(ypB));
+            const fb = at(q, lip - 0.08, yl(yqB));
+            for (let k = 0; k < 5; k += 1) {
+              const c0 = lerp3(fa, fb, (k + 0.22) / 5);
+              const c1 = lerp3(fa, fb, (k + 0.78) / 5);
+              const cm = lerp3(fa, fb, (k + 0.5) / 5);
+              st.quad([c0[0], c0[1] - face, c0[2]], [c1[0], c1[1] - face, c1[2]], [c1[0], c1[1] - 2.3, c1[2]], [c0[0], c0[1] - 2.3, c0[2]], "#59626e", 0.9);
+              st.tri([c0[0], c0[1] - 2.3, c0[2]], [c1[0], c1[1] - 2.3, c1[2]], [cm[0], cm[1] - 1.3, cm[2]], "#59626e", 0.9);
+            }
+          }
           st.mat = 1;
           st.quad(at(p, off1, ypB + 3.5), at(q, off1, yqB + 3.5), at(q, off1, yqB + h), at(p, off1, ypB + h), facade, 0.7);
           st.mat = 0;
@@ -369,11 +440,23 @@ export function buildStands(layout: ParkLayout, loop: WallLoop, st: GeoBuilder, 
         if (deck.berm && deck.depth < 20) continue;
         const yaw = Math.atan2(-(p.ox + q.ox), -(p.oz + q.oz));
         for (let r = 0; r < nR; r += 1) {
-          if (r === walk) continue;
+          if (vomBay && r >= v0 && r < v0 + nv) continue;
           const o = off0 + (r + 0.6) * dRow;
           const y0 = r * hRow;
           const a = at(p, o, yp + y0);
           const b = at(q, o, yq + y0);
+          if (r === walk) {
+            // People on the cross-aisle (rank ≥ 100 marks them as walkers).
+            for (let k = 0; k < 2; k += 1) {
+              seed += 1;
+              if (hash(seed) > 0.3) continue;
+              const g = hash(seed + 0.37);
+              slots.push(a[0] + (b[0] - a[0]) * g, a[1] + (b[1] - a[1]) * g, a[2] + (b[2] - a[2]) * g);
+              yaws.push(yaw);
+              meta.push(light(d, i, mid, o, yF(d, mid) + y0), 100 + di);
+            }
+            continue;
+          }
           const len = Math.hypot(b[0] - a[0], b[2] - a[2]);
           const g0 = !deck.berm && i % 3 === 0 ? AISLE / len : 0;
           const g1 = !deck.berm && i % 3 === 2 ? 1 - AISLE / len : 1;

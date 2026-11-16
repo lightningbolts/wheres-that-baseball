@@ -16,10 +16,13 @@ import { batSide, type BatterModel, type PitcherModel, type TeamModel } from "@/
 import { Rng, clamp } from "@/lib/game/math";
 import { homeWinProbability } from "@/lib/mlb/winExpectancy";
 import { getTeamColor } from "@/lib/mlb/teamColors";
-import type { CamMode, Playback } from "@/components/game/scene/playback";
+import { beginTransition, walkUpLeft, type CamMode, type Playback } from "@/components/game/scene/playback";
+import { camCut } from "@/components/game/scene/camera";
+import type { PitchRecord } from "@/lib/game/stats/pitchLog";
 import { MARK_COLOR, plateHud, type MarkKind, type PitchMark, type PlateHud } from "@/components/game/scene/view";
 import { crowdState, scoreboardCanvas } from "@/components/game/scene/Ballpark";
 import { sfx } from "@/components/game/audio";
+import { crowdReaction, crowdRise, crowdVolume, type CrowdInput } from "@/lib/game/crowd/reaction";
 import { saveGame, clearSave } from "@/components/game/save";
 
 export type Phase = "aim" | "meter" | "ready" | "pitch" | "play" | "between" | "final";
@@ -66,6 +69,8 @@ export interface HudSnapshot {
   readout: { id: number; type: string; mph: number; result: string | null; kind: MarkKind } | null;
   /** This at-bat's pitches (where each crossed the plate), oldest first. */
   pitches: PitchMark[];
+  /** Statcast-style record of every pitch so far (a pitch shows once its play is over). */
+  pitchLog: PitchRecord[];
   zone: { bottom: number; top: number };
   /** The human may make a substitution now (between pitches, his own club). */
   canManage: boolean;
@@ -82,7 +87,16 @@ export interface HudSnapshot {
     /** Where the bat's coverage box was and where the ball crossed (Statcast px / pz, ft). */
     swing?: { pci: { px: number; pz: number; w: number; h: number }; ball: { px: number; pz: number }; zone: { bottom: number; top: number } };
   } | null;
+  /** The picture is covered: the quick dip to black of a broadcast cut, or the inning bumper. */
+  curtain: boolean;
+  /** Between half-innings: the card that covers the teams changing sides. */
+  bumper: { title: string; sub: string } | null;
 }
+
+/** A broadcast cut dips to black for this long before the shot changes (ms). */
+const DIP_MS = 150;
+/** How long the inning bumper holds the screen (ms). */
+const BUMPER_MS = 800;
 
 /** What the HUD shows of the game state. It trails the session, which knows a pitch's outcome before the pitch is shown. */
 type Board = Pick<
@@ -107,6 +121,18 @@ type Board = Pick<
 > & { runnerIds: (number | null)[] };
 
 const markKind = (k: string): MarkKind => (k === "foul_tip" ? "swinging_strike" : k in MARK_COLOR ? (k as MarkKind) : "ball");
+/** Gameday's call for a pitch put in play: out(s) (purple), no out or run(s) (blue). */
+function inPlayCall(c: CommittedPitch): { kind: MarkKind; text: string } | null {
+  const p = c.play;
+  if (c.result.kind !== "in_play" || !p || p.foul) return null;
+  if (p.runs.length) return { kind: p.hit === 0 && p.outs > 0 ? "in_play_out" : "in_play", text: "In play, run(s)" };
+  if (p.hit === 0 && p.outs > 0) return { kind: "in_play_out", text: "In play, out(s)" };
+  return { kind: "in_play", text: "In play, no out" };
+}
+/** A batted ball that lands foul is a foul (red), never "in play". */
+const isFoulBall = (c: Pick<CommittedPitch, "result" | "play">) => c.result.kind === "foul" || (c.result.kind === "in_play" && !!c.play?.foul);
+export const finalMark = (c: CommittedPitch) =>
+  inPlayCall(c) ?? (isFoulBall(c) ? { kind: "foul" as MarkKind, text: RESULT_TEXT.foul ?? "Foul" } : { kind: markKind(c.result.kind), text: RESULT_TEXT[c.result.kind] ?? c.result.kind });
 /** Approach ring on the zone: the whole flight for rookies, the last stretch on pro, off on all-star. */
 const ASSIST_FROM: Record<GameSetup["difficulty"], number | null> = { rookie: 0, pro: 0.5, allstar: null };
 /** Pre-pitch read on the catcher's setup: spot radius and how far its center may be off (ft). */
@@ -191,9 +217,13 @@ export class GameController {
   session: GameSession;
   private listeners = new Set<() => void>();
   private timers: ReturnType<typeof setTimeout>[] = [];
+  /** Pitches in the log the HUD may show (the one being played out is held back). */
+  private logShown = 0;
   private inputRng = new Rng((Date.now() & 0x7fffffff) || 7);
   private snap!: HudSnapshot;
   private phase: Phase = "between";
+  /** Game state just before the committed pitch (for the crowd's read of the play). */
+  private pre: Pick<CrowdInput, "top" | "inning" | "outsBefore" | "basesBefore" | "scoreBefore"> | null = null;
   private pitchIdx = 0;
   private power = false;
   private steals = new Set<StealFrom>();
@@ -225,6 +255,8 @@ export class GameController {
   private shown = new WeakSet<GameEvent>();
   private marked = false;
   private revealed = false;
+  private curtain = false;
+  private bumper: HudSnapshot["bumper"] = null;
 
   constructor(
     readonly setup: GameSetup,
@@ -268,12 +300,60 @@ export class GameController {
     this.timers.push(id);
   }
 
-  /** Switch camera; a change of camera is a cut, and the scene snaps animation across it. */
-  private setCam(mode: CamMode) {
+  /** Switch camera: a cut snaps the camera and everybody's animation across it; otherwise the camera moves there. */
+  private setCam(mode: CamMode, cut = true) {
     if (this.pb.cam === mode) return;
     this.pb.cam = mode;
-    this.pb.cutSeq += 1;
+    if (cut) this.pb.cutSeq += 1;
     this.syncCast();
+  }
+
+  /** Change the scene out of sight: dip to black, run `swap`, come back up. */
+  private cover(swap: () => void, hold = DIP_MS) {
+    this.curtain = true;
+    this.emit();
+    this.later(hold, () => {
+      this.pb.curtain = 1;
+      swap();
+      this.later(50, () => this.uncover());
+    });
+  }
+
+  /** A new timeline is about to start: anybody it puts somewhere else walks there instead of jumping. */
+  private settle() {
+    if (this.turbo || this.pb.turbo) this.pb.trans = null;
+    else beginTransition(this.pb, { cut: false });
+  }
+
+  private uncover() {
+    this.pb.curtain = 0;
+    if (!this.curtain && !this.bumper) return;
+    this.curtain = false;
+    this.bumper = null;
+    this.emit();
+  }
+
+  /**
+   * On to the next pitch. Where the shot stays on the same side of the field the camera
+   * moves and the players walk; a change of ends (or coming back from a ball in play,
+   * with fielders all over the park) is a broadcast cut behind a quick dip to black.
+   */
+  private advance() {
+    const s = this.session;
+    const from = this.pb.cam;
+    const to: CamMode = s.game.final ? "overview" : s.humanPitching ? "pitcher" : s.humanBatting ? "batter" : "broadcast";
+    const cut = from !== to && (camCut(from, to) || from === "overview" || (from === "follow") !== (to === "overview"));
+    if (cut && !this.turbo) this.cover(() => this.next(true));
+    else this.next(cut);
+  }
+
+  /** Three out: a short bumper covers the teams changing sides, and the new half opens on a push-in. */
+  private changeSides() {
+    const g = this.session.game;
+    const ord = ordinal(g.inning);
+    this.bumper = { title: g.top ? `Middle of the ${ord}` : `End of the ${ord}`, sub: `${abbrevFor(g.top ? this.setup.homeTeamId : this.setup.awayTeamId)} coming to bat` };
+    this.banner = null;
+    this.cover(() => this.next(true, true), BUMPER_MS);
   }
 
   /** The catcher cam looks out from the catcher's own eyes, so he is not drawn in it. */
@@ -296,14 +376,19 @@ export class GameController {
       this.emit();
       return;
     }
-    this.later(400, () => this.next());
+    // Come up from black on the defense taking the field.
+    this.cover(() => this.next(true, true), 400);
   }
 
-  private next() {
+  /**
+   * Set up the next pitch. `cut`: the shot changes with a cut, so nobody walks across it.
+   * `opening`: a half-inning starts (the defense takes the field, the camera pushes in).
+   */
+  private next(cut = false, opening = false) {
     const s = this.session;
     if (s.game.final) {
       this.phase = "final";
-      this.setCam("overview");
+      this.setCam("overview", cut);
       clearSave();
       this.board = this.readBoard();
       this.emit();
@@ -322,6 +407,10 @@ export class GameController {
         }
       });
     }
+    // Everyone walks from where the last play left him to where this one starts.
+    if (this.turbo) this.pb.trans = null;
+    else beginTransition(this.pb, { cut, takeField: opening });
+    if (opening && !this.turbo) this.pb.introAt = this.pb.now;
     this.refreshCast();
     this.pb.timeline = null;
     this.pb.paused = false;
@@ -352,7 +441,7 @@ export class GameController {
     a.zoneTop = ctx.batter.zoneTop;
     a.showZone = true;
     if (s.humanPitching) {
-      this.setCam("pitcher");
+      this.setCam("pitcher", cut || this.turbo);
       this.phase = "aim";
       this.pitchIdx = Math.min(this.pitchIdx, ctx.pitcher.arsenal.length - 1);
       a.kind = "target";
@@ -364,7 +453,7 @@ export class GameController {
         a.pz = (ctx.batter.zoneBottom + ctx.batter.zoneTop) / 2;
       }
     } else if (s.humanBatting) {
-      this.setCam("batter");
+      this.setCam("batter", cut || this.turbo);
       this.phase = "ready";
       a.kind = "pci";
       a.visible = true;
@@ -372,12 +461,18 @@ export class GameController {
       // The pitcher waits for the batter: the action button calls for the pitch, so
       // there is time to set the aim, pick a power swing or send the runner.
     } else {
-      this.setCam("broadcast");
+      this.setCam("broadcast", cut || this.turbo);
       this.phase = "ready";
       a.visible = false;
-      this.later(this.turbo ? 150 : 700, () => {
-        if (this.phase === "ready" && this.pitchSeq === seq) this.throwPitch({});
-      });
+      // The pitcher waits for a new batter to step in (and for a new half-inning to come up on screen).
+      const pitchWhenSet = (ms: number) =>
+        this.later(ms, () => {
+          if (this.phase !== "ready" || this.pitchSeq !== seq) return;
+          const left = this.turbo ? 0 : walkUpLeft(this.pb);
+          if (left > 0.05) pitchWhenSet(left * 1000);
+          else this.throwPitch({});
+        });
+      pitchWhenSet(this.turbo ? 150 : opening ? 1500 : 700);
     }
     this.emit();
   }
@@ -415,6 +510,7 @@ export class GameController {
     if (s.humanPitching) this.pb.aim.visible = false;
     if (s.humanBatting) {
       const tl = this.pitchOnlyTimeline(flight);
+      this.settle();
       this.pb.timeline = tl;
       // The pitch always comes in at the difficulty's speed, fast-forward or not.
       this.pb.turbo = false;
@@ -534,6 +630,8 @@ export class GameController {
   /** The defense fields and throws on its own: the play is committed and simply played out. */
   private afterSwing(outcome: PitchOutcome, fresh: boolean, swingStartT?: number) {
     this.outcome = outcome;
+    const g = this.session.game;
+    this.pre = { top: g.top, inning: g.inning, outsBefore: g.outs, basesBefore: [!!g.bases[0], !!g.bases[1], !!g.bases[2]], scoreBefore: { ...g.score } };
     const committed = this.session.commit();
     const tl = buildTimeline(committed, { swingStartT });
     this.pb.turbo = this.turbo;
@@ -544,16 +642,19 @@ export class GameController {
 
   private mountTimeline(tl: Timeline, fresh: boolean, c: CommittedPitch) {
     const T = fresh ? tl.releaseT - (this.turbo ? 0.9 : 1.25) : this.pb.T;
+    this.settle();
     this.pb.timeline = tl;
     this.pb.T = T;
     const cues = this.pb.cues.filter((q) => q.done);
     const r = c.result;
     const flight = r.flight;
     const cross = flight.cross.t;
-    const kind = markKind(r.kind);
+    // A ball in play is called (out / no out) once the play is over, not at contact.
+    const foulBall = isFoulBall(c);
+    const kind: MarkKind = foulBall ? "foul" : r.kind === "in_play" ? "pending" : markKind(r.kind);
     const settle = () => {
       this.markPitch(flight, kind);
-      this.showReadout(flight, kind, RESULT_TEXT[r.kind] ?? r.kind);
+      this.showReadout(flight, kind, foulBall ? (RESULT_TEXT.foul ?? "Foul") : (RESULT_TEXT[r.kind] ?? r.kind));
     };
     // Pitching or watching: the pitch is called as it leaves the hand.
     if (fresh) cues.push({ T: tl.releaseT, fn: () => this.showReadout(flight) });
@@ -577,8 +678,12 @@ export class GameController {
           fx.flashPower = tip ? 0.15 : 0.35 + 0.9 * power;
           if (!tip) {
             if (!this.pb.turbo) this.pb.hitstop = 0.035 + 0.06 * power;
-            fx.shake = Math.max(fx.shake, tl.inPlay ? 0.05 + 0.15 * power : 0.04);
-            fx.punch = Math.max(fx.punch, tl.inPlay ? 0.3 + 0.7 * power : 0.2);
+            // The camera only feels the ones that are really hit (95 mph and up), and only for a moment.
+            if (ev >= HARD_HIT_MPH && tl.inPlay) {
+              const hard = clamp((ev - HARD_HIT_MPH) / 15, 0, 1);
+              fx.shake = Math.max(fx.shake, 0.03 + 0.07 * hard);
+              fx.punch = Math.max(fx.punch, 0.2 + 0.4 * hard);
+            }
           }
           if (!tip && r.contact) {
             const stat = `${ev.toFixed(0)} mph · ${Math.round(la)}°`;
@@ -597,7 +702,11 @@ export class GameController {
             this.pb.aim.visible = false;
             this.pb.aim.showZone = false;
             this.phase = "play";
-            sfx.swell(ev > 100 ? 0.6 : 0.25, 2.5);
+            // The crowd rises at the crack on a deep drive, before anyone knows if it's caught.
+            const rise = crowdRise(ev, la, r.path?.distance ?? null, !(this.pre?.top ?? true));
+            crowdState.excite = Math.max(crowdState.excite, rise.home * 0.6);
+            crowdState.away = Math.max(crowdState.away, rise.away * 0.6);
+            sfx.swell(Math.max(0.15, crowdVolume(rise)), 2.5);
           }
           settle();
           this.emit();
@@ -657,6 +766,8 @@ export class GameController {
           T: tl.contactT + Math.max(0.05, r.t),
           fn: () => {
             const b = this.board;
+            // The third out ends the half: nobody reaches a base (or scores) after it.
+            if (b.outs >= 3) return;
             at.delete(r.playerId);
             let outs = b.outs;
             const score = { ...b.score };
@@ -669,7 +780,7 @@ export class GameController {
               }
             } else at.set(r.playerId, r.to);
             const ids: (number | null)[] = [null, null, null];
-            for (const [id, base] of at) if (base >= 1 && base <= 3) ids[base - 1] = id;
+            if (outs < 3) for (const [id, base] of at) if (base >= 1 && base <= 3) ids[base - 1] = id;
             this.board = { ...b, outs, score, line, runnerIds: ids, bases: [ids[0] != null, ids[1] != null, ids[2] != null] };
             const ev = callAt(r.playerId, r.t);
             if (r.out) flash("OUT", r.to, false);
@@ -704,23 +815,34 @@ export class GameController {
     const important = c.events.filter((e) => e.kind !== "pitch" && !this.shown.has(e));
     for (const e of important) this.pushLog(e);
     this.banner = this.bannerFor(c, important);
-    if (c.play?.hit === 4) {
-      crowdState.excite = 1;
-      sfx.swell(1, 6);
-    } else if (c.play && c.play.hit > 0) {
-      crowdState.excite = Math.max(crowdState.excite, 0.35);
-      sfx.swell(0.45, 3);
-    } else if (important.some((e) => e.kind === "strikeout")) sfx.swell(0.3, 2);
+    this.react(c);
     this.board = this.readBoard();
     this.drawScoreboard();
   }
 
+  /** The crowd's answer to the play: home fans cheer their team and groan at the other one. */
+  private react(c: CommittedPitch) {
+    if (!this.pre) return;
+    const g = this.session.game;
+    const r = crowdReaction({ ...this.pre, events: c.events, play: c.play, regulation: g.regulation, scoreAfter: { ...g.score } });
+    if (r.home > 0) crowdState.excite = Math.max(crowdState.excite, r.home);
+    if (r.away > 0) crowdState.away = Math.max(crowdState.away, r.away);
+    // The bed goes back down when the home crowd has nothing to cheer.
+    if (r.homeGroan > 0) crowdState.excite = Math.min(crowdState.excite, 0.05);
+    if (r.awayGroan > 0) crowdState.away = Math.min(crowdState.away, 0.05);
+    const vol = crowdVolume(r);
+    if (vol > 0.05) sfx.swell(vol, 1.5 + 4.5 * vol);
+    if (r.homeGroan > 0) sfx.groan(r.homeGroan * 0.9);
+  }
+
   private finish(c: CommittedPitch) {
     const s = this.session;
+    this.logShown = s.pitchLog.length;
     const r = c.result;
     const early = this.revealed;
-    this.markPitch(r.flight, markKind(r.kind));
-    this.showReadout(r.flight, markKind(r.kind), RESULT_TEXT[r.kind] ?? r.kind);
+    const fm = finalMark(c);
+    this.markPitch(r.flight, fm.kind);
+    this.showReadout(r.flight, fm.kind, fm.text);
     this.reveal(c);
     const important = c.events.some((e) => e.kind !== "pitch");
     saveGame(this.setup, s.inputs);
@@ -731,16 +853,28 @@ export class GameController {
     this.pb.slow = null;
     if (s.game.final) {
       this.emit();
-      this.later(this.turbo ? 600 : 1800, () => this.next());
+      this.later(this.turbo ? 600 : 1800, () => this.advance());
       return;
     }
-    if (inningOver) this.setCam("overview");
     this.emit();
     // A call that went up as the pitch crossed has already had its moment on screen.
-    const wait = this.turbo ? 250 : inningOver ? (early ? 1700 : 2400) : important ? (early ? 550 : 1300) : 300;
+    // Outs move on quickly: the banner stays up while the next pitch is set.
+    const out = !c.play?.hit && !c.play?.error && !c.play?.runs.length && c.events.some((e) => e.kind === "in_play" || e.kind === "strikeout" || e.kind === "caught_stealing");
+    const wait = this.turbo
+      ? 250
+      : inningOver
+        ? early ? 500 : 850
+        : out
+          ? early ? 350 : 600
+          : important ? (early ? 550 : 1300) : 300;
     this.later(wait, () => {
+      if (inningOver && !this.turbo) {
+        this.changeSides();
+        return;
+      }
       this.banner = null;
-      this.next();
+      if (inningOver) this.next(true, true);
+      else this.advance();
     });
   }
 
@@ -893,6 +1027,8 @@ export class GameController {
     if (this.phase === "final" || this.phase === "pitch" || this.phase === "play") return;
     this.timers.forEach(clearTimeout);
     this.timers = [];
+    this.uncover();
+    this.pb.trans = null;
     const pitches = this.session.simHalfInning();
     for (const c of pitches) for (const e of c.events) if (e.kind !== "pitch") this.pushLog(e);
     saveGame(this.setup, this.session.inputs);
@@ -913,7 +1049,8 @@ export class GameController {
     this.emit();
     this.later(900, () => {
       this.banner = null;
-      this.next();
+      if (this.turbo) this.next(true, true);
+      else this.cover(() => this.next(true, true));
     });
   }
 
@@ -1078,8 +1215,9 @@ export class GameController {
       outs: g.outs,
       balls: g.balls,
       strikes: g.strikes,
-      bases: [!!g.bases[0], !!g.bases[1], !!g.bases[2]],
-      runnerIds: g.bases.map((r) => r?.playerId ?? null),
+      // Three out: the half is over and the bases are cleared, like a broadcast scorebug.
+      bases: g.outs >= 3 ? [false, false, false] : [!!g.bases[0], !!g.bases[1], !!g.bases[2]],
+      runnerIds: g.outs >= 3 ? [null, null, null] : g.bases.map((r) => r?.playerId ?? null),
       score: { ...g.score },
       line: { away: [...g.line.away], home: [...g.line.home] },
       batterName: ctx.batter.name,
@@ -1096,6 +1234,7 @@ export class GameController {
 
   private buildSnap(): HudSnapshot {
     const a = this.pb.aim;
+    if (this.phase !== "pitch" && this.phase !== "play") this.logShown = this.session.pitchLog.length;
     return {
       ...this.board,
       phase: this.phase,
@@ -1115,9 +1254,12 @@ export class GameController {
       turbo: this.turbo,
       readout: this.readout,
       pitches: this.hud.marks.slice(),
+      pitchLog: this.session.pitchLog.slice(0, this.logShown),
       zone: { bottom: a.zoneBottom, top: a.zoneTop },
       feedback: this.feedback,
       canManage: this.canManage(),
+      curtain: this.curtain,
+      bumper: this.bumper,
       pitcherTired: this.pitcherTired(),
     };
   }
@@ -1174,6 +1316,15 @@ export class GameController {
     x.textBaseline = "alphabetic";
     tex.needsUpdate = true;
   }
+}
+
+/** Balls hit at least this hard get a touch of camera shake at contact. */
+const HARD_HIT_MPH = 95;
+
+function ordinal(n: number): string {
+  const t = n % 100;
+  const s = t >= 11 && t <= 13 ? "th" : n % 10 === 1 ? "st" : n % 10 === 2 ? "nd" : n % 10 === 3 ? "rd" : "th";
+  return `${n}${s}`;
 }
 
 /** Team abbreviation lookup is injected by the view (keeps this module data-free). */

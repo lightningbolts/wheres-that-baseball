@@ -32,6 +32,11 @@ export interface BattedBallPath {
   /** Distance where it landed / left the park (Statcast-style projected distance for HRs). */
   distance: number;
   hitWall: boolean;
+  /**
+   * Render-only continuation after the ball leaves play (home runs and foul balls into the
+   * seats): it carries on, clatters off the seats and comes to rest. Not part of `endT`.
+   */
+  tail: BallSample[];
 }
 
 const DT = 1 / 480;
@@ -131,7 +136,10 @@ export function simulateBattedBall(start: BallState, park: Park): BattedBallPath
   }
 
   const last = samples[samples.length - 1];
-  const distance = homeRun ? horizDist(last.p) : firstLanding ? horizDist(firstLanding.p) : horizDist(last.p);
+  const leftPlay = homeRun || foulOut || grd;
+  const tail = leftPlay ? seatTail(s, t, park, homeRun || grd) : [];
+  // Statcast's projected distance for a homer: where it would have come down at field level.
+  const distance = homeRun ? projectedDistance(s, park) : firstLanding ? horizDist(firstLanding.p) : horizDist(last.p);
   return {
     samples,
     firstLanding,
@@ -142,7 +150,53 @@ export function simulateBattedBall(start: BallState, park: Park): BattedBallPath
     apex,
     distance,
     hitWall,
+    tail,
   };
+}
+
+/** Rake of a seating bowl: feet of rise per foot back. */
+const SEAT_RAKE = 0.45;
+
+/** Height of the seats under a point beyond the wall (fair: over the fence; foul: past the rail). */
+function seatHeight(p: V3, park: Park, fair: boolean): number {
+  const spray = sprayAngleDeg(p);
+  const wall = park.wallDist(spray) || park.fence(Math.max(-45, Math.min(45, spray)));
+  const base = fair ? park.wallHeight(Math.max(-45, Math.min(45, spray))) : 4;
+  const back = horizDist(p) - wall;
+  if (back < 3) return -Infinity;
+  return base + 1.5 + (back - 3) * SEAT_RAKE;
+}
+
+/** The ball's flight on into the stands, then a couple of clattering hops and rest. */
+function seatTail(from: BallState, t0: number, park: Park, fair: boolean): BallSample[] {
+  let s = from;
+  let t = t0;
+  let bounces = 0;
+  const out: BallSample[] = [];
+  for (let step = 1; t < t0 + 3.5; step += 1) {
+    s = stepFlight(s, DT, park.air);
+    t += DT;
+    const floor = seatHeight(s.p, park, fair);
+    if (s.p.y <= floor && s.v.y < 0) {
+      bounces += 1;
+      const vy = -s.v.y * 0.32;
+      if (vy < 4 || bounces > 3) {
+        // Comes to rest among the seats (a fan has it).
+        out.push({ t, p: { ...s.p, y: floor }, v: v3(), phase: "dead" });
+        return out;
+      }
+      s = { p: { ...s.p, y: floor }, v: v3(s.v.x * 0.42, vy, s.v.z * 0.42), w: v3() };
+    }
+    if (step % SAMPLE_EVERY === 0) out.push({ t, p: s.p, v: s.v, phase: bounces ? "bounce" : "air" });
+  }
+  if (out.length) out[out.length - 1] = { ...out[out.length - 1], phase: "dead" };
+  return out;
+}
+
+function projectedDistance(from: BallState, park: Park): number {
+  let s = from;
+  for (let i = 0; i < 480 * 6 && s.p.y > 0; i += 1) s = stepFlight(s, DT, park.air);
+  return horizDist(s.p);
 }
 
 /** Perpendicular horizontal distance outside the nearer foul line (0 if fair). */

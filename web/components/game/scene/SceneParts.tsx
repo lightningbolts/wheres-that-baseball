@@ -7,6 +7,7 @@ import { PLATE_FRONT_Z } from "@/lib/game/physics/pitch";
 import { MAX_FRAME_DT, advancePlayback, fielderKey, type Playback } from "@/components/game/scene/playback";
 import { MARK_COLOR, MAX_MARKS, plateCam, plateHud, zoneBox } from "@/components/game/scene/view";
 import { BALL_RADIUS_FT } from "@/lib/game/physics/ballFlight";
+import { newCamState, stepCamera } from "@/components/game/scene/camera";
 
 /** Advances playback time and fires cues. Mount first so it runs before readers. */
 export function Director({ pb }: { pb: Playback }) {
@@ -213,149 +214,15 @@ export function ContactFx({ pb }: { pb: Playback }) {
   );
 }
 
-/** Critically damped spring toward a target (frame-rate independent, no overshoot). */
-function springTo(cur: THREE.Vector3, vel: THREE.Vector3, to: THREE.Vector3, smoothTime: number, dt: number) {
-  const omega = 2 / smoothTime;
-  const x = omega * dt;
-  const e = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
-  const cx = cur.x - to.x;
-  const cy = cur.y - to.y;
-  const cz = cur.z - to.z;
-  const tx = (vel.x + omega * cx) * dt;
-  const ty = (vel.y + omega * cy) * dt;
-  const tz = (vel.z + omega * cz) * dt;
-  vel.set((vel.x - omega * tx) * e, (vel.y - omega * ty) * e, (vel.z - omega * tz) * e);
-  cur.set(to.x + (cx + tx) * e, to.y + (cy + ty) * e, to.z + (cz + tz) * e);
-}
-
-/** Camera presets with spring-damped motion; "follow" tracks (and leads) the play's focus point. */
+/** The game camera: the shots and the moves between them live in camera.ts; this applies them, plus contact shake. */
 export function CameraRig({ pb }: { pb: Playback }) {
   const { camera, size } = useThree();
-  const narrow = size.width < size.height;
   const aspect = size.width / Math.max(1, size.height);
-  const st = useMemo(
-    () => ({
-      pos: new THREE.Vector3(9, 22, 340),
-      look: new THREE.Vector3(0, 3.4, 0),
-      vPos: new THREE.Vector3(),
-      vLook: new THREE.Vector3(),
-      fov: 6,
-      toPos: new THREE.Vector3(),
-      toLook: new THREE.Vector3(),
-      focus: new THREE.Vector3(0, 3, 30),
-      vFocus: new THREE.Vector3(),
-      aim: new THREE.Vector3(0, 3, 30),
-      focusInit: false,
-      speed: 0,
-      frameH: 0,
-      tl: null as Playback["timeline"],
-      mode: "" as string,
-      // Seconds since the camera started gliding into the follow view.
-      glide: 10,
-    }),
-    [],
-  );
+  const st = useMemo(() => newCamState(), []);
 
   useFrame((_, rawDt) => {
-    const dt = Math.min(Math.max(rawDt, 0), MAX_FRAME_DT);
     const cam = camera as THREE.PerspectiveCamera;
-    const wide = narrow ? 1.45 : 1;
-    let fov: number;
-    let near = 0.3;
-    let cut = false;
-    if (st.mode !== pb.cam || st.tl !== pb.timeline) {
-      // New shot or new play: the follow state starts over.
-      st.focusInit = false;
-      st.frameH = 0;
-      st.speed = 0;
-      st.tl = pb.timeline;
-    }
-    switch (pb.cam) {
-      case "batter":
-      case "pitcher": {
-        const c = plateCam(pb.cam, aspect);
-        st.toPos.set(c.pos[0], c.pos[1], c.pos[2]);
-        st.toLook.set(c.look[0], c.look[1], c.look[2]);
-        fov = c.fov;
-        near = c.near;
-        break;
-      }
-      case "overview":
-        st.toPos.set(-40, 230, -170);
-        st.toLook.set(0, 0, 170);
-        fov = 50 * wide;
-        break;
-      case "follow": {
-        const tl = pb.timeline;
-        if (tl) {
-          // Lead the ball a little so it never outruns the frame.
-          const ahead = tl.focus(pb.T + 0.3);
-          const f = tl.focus(pb.T);
-          st.aim.set(f.x + (ahead.x - f.x) * 0.55, Math.max(0, f.y + (ahead.y - f.y) * 0.4), f.z + (ahead.z - f.z) * 0.55);
-          // Speed of the action, smoothed (the raw value jumps on every catch and throw).
-          const b = tl.focus(pb.T + 0.1);
-          const speed = Math.hypot(b.x - f.x, b.y - f.y, b.z - f.z) / 0.1;
-          st.speed += (speed - st.speed) * (1 - Math.exp(-dt / 0.35));
-        }
-        // When the story moves somewhere else (ball gone into the seats, now the trot),
-        // cut to it like a TV director instead of whipping the camera across the park.
-        if (st.focusInit && st.aim.distanceTo(st.focus) > 90) cut = true;
-        if (!st.focusInit || cut) {
-          st.focus.copy(st.aim);
-          st.vFocus.set(0, 0, 0);
-          st.focusInit = true;
-        } else springTo(st.focus, st.vFocus, st.aim, 0.22, dt);
-        const fx = st.focus.x;
-        const fy = st.focus.y;
-        const fz = Math.max(30, st.focus.z);
-        const dist = Math.hypot(fx, fz);
-        st.toPos.set(fx * 0.22, 32 + dist * 0.16 + fy * 0.25, -38 + fz * 0.18);
-        st.toLook.set(fx, fy * 0.7, st.focus.z);
-        // Zoom like a TV camera: frame a patch of field around the play (wider while the
-        // ball is fast or high, so it never outruns the frame), not the whole park. Zoom
-        // out quickly when the play opens up, settle back in slowly.
-        const camDist = Math.hypot(st.toLook.x - st.toPos.x, st.toLook.y - st.toPos.y, st.toLook.z - st.toPos.z);
-        const want = Math.min(150, Math.max(40, 0.2 * dist + 0.2 * st.speed + 0.5 * fy));
-        if (cut || st.frameH <= 0) st.frameH = want;
-        else st.frameH += (want - st.frameH) * (1 - Math.exp(-dt / (want > st.frameH ? 0.25 : 0.9)));
-        fov = Math.min(50, ((2 * Math.atan(st.frameH / 2 / Math.max(1, camDist))) / DEG) * wide);
-        break;
-      }
-      case "broadcast":
-      default:
-        st.toPos.set(9, 22, 340);
-        st.toLook.set(0, 3.4, 0);
-        fov = 5.4 * wide;
-    }
-    if (cut && st.mode === pb.cam) {
-      st.pos.copy(st.toPos);
-      st.look.copy(st.toLook);
-      st.vPos.set(0, 0, 0);
-      st.vLook.set(0, 0, 0);
-      st.fov = fov;
-      pb.cutSeq += 1;
-    }
-    if (st.mode !== pb.cam) {
-      // Broadcast-style hard cuts, except the crane up from the batter's view into the play.
-      const glide = st.mode === "batter" && pb.cam === "follow";
-      if (glide) st.glide = 0;
-      else {
-        st.pos.copy(st.toPos);
-        st.look.copy(st.toLook);
-        st.vPos.set(0, 0, 0);
-        st.vLook.set(0, 0, 0);
-        st.fov = fov;
-        st.glide = 10;
-      }
-      st.mode = pb.cam;
-    }
-    st.glide += dt;
-    const follow = pb.cam === "follow";
-    // The crane move starts gently and tightens up once the camera is in position.
-    const ease = follow ? Math.min(1, st.glide / 1.2) : 1;
-    springTo(st.pos, st.vPos, st.toPos, follow ? 0.75 - 0.3 * ease : 0.25, dt);
-    springTo(st.look, st.vLook, st.toLook, follow ? 0.3 - 0.08 * ease : 0.25, dt);
-    st.fov += (fov - st.fov) * (1 - Math.exp(-dt / (follow ? 0.3 : 0.12)));
+    stepCamera(st, pb, rawDt, aspect);
     cam.position.copy(st.pos);
     cam.lookAt(st.look);
     const shake = pb.fx.shake;
@@ -366,9 +233,9 @@ export function CameraRig({ pb }: { pb: Playback }) {
       cam.rotateZ(shake * 0.012 * Math.sin(t * 61.7 + 0.4));
     }
     const f = st.fov * (1 - 0.045 * pb.fx.punch);
-    if (Math.abs(cam.fov - f) > 1e-4 || cam.near !== near) {
+    if (Math.abs(cam.fov - f) > 1e-4 || cam.near !== st.near) {
       cam.fov = f;
-      cam.near = near;
+      cam.near = st.near;
       cam.updateProjectionMatrix();
     }
   });

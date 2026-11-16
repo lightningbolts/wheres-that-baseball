@@ -3,7 +3,7 @@
  */
 import * as THREE from "three";
 import type { ParkLayout } from "@/lib/game/data/parkLayouts";
-import { TURF_SPAN, TURF_X0, TURF_Z0 } from "@/components/game/scene/fieldGeometry";
+import { infieldOutline, TURF_SPAN, TURF_X0, TURF_Z0 } from "@/components/game/scene/fieldGeometry";
 import { hash } from "@/components/game/scene/parks/geo";
 
 function canvas(w: number, h: number): [HTMLCanvasElement, CanvasRenderingContext2D] {
@@ -126,33 +126,37 @@ export function wallAtlas(): THREE.CanvasTexture {
 }
 
 /**
- * Seating texture, 64 × 128: the top half is one seat seen from the field (tiles once per
- * seat along a row, tinted by the deck's seat color), the bottom half is bare concrete for
- * treads, aisle steps and walkways.
+ * Seating texture, 64 × 256, four bands (top to bottom): one seat seen from the field (tiles
+ * once per seat along a row, tinted by the deck's seat color), the same seat's pan and
+ * armrests seen from above, bare concrete for treads and walkways, and aisle steps with a
+ * painted safety nosing.
  */
-export const SEAT_V = { seat: [0.515, 0.985], slab: [0.02, 0.48] } as const;
+export const SEAT_V = { seat: [0.757, 0.993], pan: [0.508, 0.742], slab: [0.26, 0.49], step: [0.012, 0.238] } as const;
 
 export function seatTexture(): THREE.CanvasTexture {
-  const [c, g] = canvas(64, 128);
-  // Seat: dark gap, backrest with a top highlight, folded-up seat pan, armrests.
-  g.fillStyle = "#17181a";
+  const [c, g] = canvas(64, 256);
+  // Seat from the front: dark gap, slatted backrest with a top highlight, pan, armrests.
+  g.fillStyle = "#15161a";
   g.fillRect(0, 0, 64, 64);
-  const back = g.createLinearGradient(0, 3, 0, 40);
+  const back = g.createLinearGradient(0, 2, 0, 44);
   back.addColorStop(0, "#ffffff");
-  back.addColorStop(0.12, "#e6e6e6");
-  back.addColorStop(1, "#a9a9a9");
+  back.addColorStop(0.1, "#ececec");
+  back.addColorStop(0.55, "#c4c4c4");
+  back.addColorStop(1, "#9d9d9d");
   g.fillStyle = back;
   g.beginPath();
-  g.roundRect(5, 3, 54, 37, [9, 9, 3, 3]);
+  g.roundRect(5, 2, 54, 40, [10, 10, 3, 3]);
   g.fill();
-  g.fillStyle = "rgba(0,0,0,0.16)";
-  for (const y of [14, 22, 30]) g.fillRect(9, y, 46, 1.5);
-  const pan = g.createLinearGradient(0, 41, 0, 58);
+  g.fillStyle = "rgba(0,0,0,0.15)";
+  for (const y of [12, 20, 28, 36]) g.fillRect(9, y, 46, 1.4);
+  g.fillStyle = "rgba(255,255,255,0.35)";
+  g.fillRect(12, 4, 40, 1.5);
+  const pan = g.createLinearGradient(0, 43, 0, 60);
   pan.addColorStop(0, "#8d8d8d");
-  pan.addColorStop(1, "#5c5c5c");
+  pan.addColorStop(1, "#565656");
   g.fillStyle = pan;
   g.beginPath();
-  g.roundRect(7, 41, 50, 17, 3);
+  g.roundRect(7, 43, 50, 16, 3);
   g.fill();
   g.fillStyle = "#3c3d40";
   g.fillRect(0, 30, 5, 16);
@@ -160,15 +164,45 @@ export function seatTexture(): THREE.CanvasTexture {
   g.fillStyle = "#2a2b2d";
   g.fillRect(1, 46, 3, 18);
   g.fillRect(60, 46, 3, 18);
-  // Concrete slab: light nosing at the front edge (top), darker toward the back.
-  const slab = g.createLinearGradient(0, 64, 0, 128);
-  slab.addColorStop(0, "#f1f1f1");
-  slab.addColorStop(0.12, "#d0d0d0");
-  slab.addColorStop(0.7, "#bdbdbd");
-  slab.addColorStop(1, "#8f8f8f");
-  g.fillStyle = slab;
+  // Seat from above: the pan (front edge at the bottom of the band), armrests either side.
+  g.fillStyle = "#1b1c20";
   g.fillRect(0, 64, 64, 64);
-  speckle(g, 0, 64, 64, 64, 14, 9);
+  const top = g.createLinearGradient(0, 66, 0, 126);
+  top.addColorStop(0, "#b9b9b9");
+  top.addColorStop(0.25, "#e2e2e2");
+  top.addColorStop(0.8, "#f6f6f6");
+  top.addColorStop(1, "#cfcfcf");
+  g.fillStyle = top;
+  g.beginPath();
+  g.roundRect(7, 68, 50, 56, [4, 4, 12, 12]);
+  g.fill();
+  g.fillStyle = "rgba(0,0,0,0.1)";
+  g.fillRect(12, 84, 40, 1.5);
+  g.fillRect(12, 100, 40, 1.5);
+  g.fillStyle = "#36373b";
+  g.fillRect(0, 70, 4, 44);
+  g.fillRect(60, 70, 4, 44);
+  // Concrete slab: light nosing at the front edge (top), darker toward the back.
+  const slab = g.createLinearGradient(0, 128, 0, 192);
+  slab.addColorStop(0, "#f1f1f1");
+  slab.addColorStop(0.12, "#cfcfcf");
+  slab.addColorStop(0.7, "#b9b9b9");
+  slab.addColorStop(1, "#8c8c8c");
+  g.fillStyle = slab;
+  g.fillRect(0, 128, 64, 64);
+  speckle(g, 0, 128, 64, 64, 14, 9);
+  // Aisle steps: two risers per row, each with a yellow nosing.
+  for (let k = 0; k < 2; k += 1) {
+    const y = 192 + k * 32;
+    const st = g.createLinearGradient(0, y, 0, y + 32);
+    st.addColorStop(0, "#e8c53a");
+    st.addColorStop(0.16, "#e0bb30");
+    st.addColorStop(0.17, "#b4b4b4");
+    st.addColorStop(1, "#7d7d7d");
+    g.fillStyle = st;
+    g.fillRect(0, y, 64, 32);
+  }
+  speckle(g, 0, 192, 64, 64, 10, 5);
   const t = finish(c, true, 8);
   t.wrapT = THREE.ClampToEdgeWrapping;
   return t;
@@ -189,12 +223,12 @@ export function detailTexture(): THREE.CanvasTexture {
   return t;
 }
 
-/** Whole-field mowing pattern (one 1024² image over the playing surface). */
+/** Whole-field mowing pattern and grass detail (one 2048² image over the playing surface). */
 export function mowTexture(mow: ParkLayout["mow"], turf: boolean): THREE.CanvasTexture {
-  const N = 1024;
+  const N = 2048;
   const [c, g] = canvas(N, N);
   const k = N / TURF_SPAN;
-  const [a, b] = turf ? ["#3b7a3d", "#40823f"] : ["#3d7c38", "#4b8f42"];
+  const [a, b] = turf ? ["#3a783c", "#3f803e"] : ["#3a7836", "#4c9143"];
   g.fillStyle = a;
   g.fillRect(0, 0, N, N);
   // World (x, z) → canvas: the texture's v axis runs up the canvas.
@@ -202,12 +236,31 @@ export function mowTexture(mow: ParkLayout["mow"], turf: boolean): THREE.CanvasT
   g.translate(-TURF_X0 * k, N + TURF_Z0 * k);
   g.scale(k, -k);
   g.fillStyle = b;
+  const infield = () => {
+    g.beginPath();
+    g.moveTo(0, 0);
+    g.lineTo(63.64, 63.64);
+    g.lineTo(0, 127.28);
+    g.lineTo(-63.64, 63.64);
+    g.closePath();
+  };
   if (mow === "checker") {
     g.rotate(Math.PI / 4);
     const sz = 30;
     for (let i = -24; i < 24; i += 1) for (let j = -24; j < 24; j += 1) if ((i + j) % 2 === 0) g.fillRect(i * sz, j * sz, sz, sz);
+    g.rotate(-Math.PI / 4);
   } else if (mow === "stripes") {
     for (let i = -20; i < 20; i += 2) g.fillRect(i * 18, -200, 18, 900);
+    // The infield is cut on the diagonal, in narrower passes.
+    g.save();
+    infield();
+    g.clip();
+    g.fillStyle = a;
+    g.fillRect(-100, -10, 200, 150);
+    g.rotate(Math.PI / 4);
+    g.fillStyle = b;
+    for (let i = -12; i < 24; i += 2) g.fillRect(i * 9, -200, 9, 500);
+    g.restore();
   } else if (mow === "arcs") {
     for (let r = 720; r > 0; r -= 18) {
       g.fillStyle = Math.round(r / 18) % 2 ? b : a;
@@ -220,7 +273,65 @@ export function mowTexture(mow: ParkLayout["mow"], turf: boolean): THREE.CanvasT
     g.fillStyle = "rgba(255,255,255,0.035)";
     for (let i = -20; i < 20; i += 2) g.fillRect(i * 15, -200, 15, 900);
   }
+  // Uneven growth and wear: soft light and dark patches, worn spots where fielders stand.
+  let seed = 77;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  for (let i = 0; i < 260; i += 1) {
+    const x = TURF_X0 + rnd() * TURF_SPAN;
+    const z = TURF_Z0 + rnd() * TURF_SPAN;
+    const r = 14 + rnd() * 46;
+    const gr = g.createRadialGradient(x, z, 0, x, z, r);
+    const dark = rnd() < 0.5;
+    gr.addColorStop(0, dark ? "rgba(18,52,20,0.10)" : "rgba(190,225,120,0.07)");
+    gr.addColorStop(1, dark ? "rgba(18,52,20,0)" : "rgba(190,225,120,0)");
+    g.fillStyle = gr;
+    g.fillRect(x - r, z - r, r * 2, r * 2);
+  }
+  if (!turf) {
+    for (const [x, z, r] of [[-150, 235, 13], [0, 305, 14], [150, 235, 13], [-38, 148, 9], [38, 148, 9]] as const) {
+      const gr = g.createRadialGradient(x, z, 0, x, z, r);
+      gr.addColorStop(0, "rgba(150,140,80,0.2)");
+      gr.addColorStop(1, "rgba(150,140,80,0)");
+      g.fillStyle = gr;
+      g.fillRect(x - r, z - r, r * 2, r * 2);
+    }
+  }
+  // Grass lips: a darker, thicker edge wherever turf meets dirt.
+  g.lineJoin = "round";
+  const lip = (w: number, style: string) => {
+    g.strokeStyle = style;
+    g.lineWidth = w;
+    const out = infieldOutline();
+    g.beginPath();
+    out.forEach(([x, z], i) => (i ? g.lineTo(x, z) : g.moveTo(x, z)));
+    g.closePath();
+    g.stroke();
+    g.beginPath();
+    g.moveTo(0, 4 * Math.SQRT2);
+    g.lineTo(41 * Math.SQRT2, 45 * Math.SQRT2);
+    g.lineTo(0, 86 * Math.SQRT2);
+    g.lineTo(-41 * Math.SQRT2, 45 * Math.SQRT2);
+    g.closePath();
+    g.stroke();
+    for (const [x, z, r] of [[0, 0, 13], [63.64, 63.64, 9], [0, 127.28, 9], [-63.64, 63.64, 9], [0, 60.5, 9]] as const) {
+      g.beginPath();
+      g.arc(x, z, r, 0, Math.PI * 2);
+      g.stroke();
+    }
+  };
+  lip(3.4, "rgba(24,62,24,0.1)");
+  lip(2.2, turf ? "rgba(24,62,24,0.3)" : "rgba(22,58,22,0.6)");
   g.restore();
+  // Blade grain.
+  const img = g.getImageData(0, 0, N, N);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const n = (rnd() - 0.5) * 16;
+    d[i] += n * 0.6;
+    d[i + 1] += n;
+    d[i + 2] += n * 0.5;
+  }
+  g.putImageData(img, 0, 0);
   const t = finish(c, false, 8);
   return t;
 }
@@ -663,17 +774,281 @@ export function crowdAtlas(): THREE.DataTexture {
   return dataTexture(c, img, 4);
 }
 
-/** Rows of the signage atlas (1024 × 256, four 64 px rows): [v0, v1] and feet per tile. */
+/**
+ * LED atlas rows (v range inside the 2048 × 512 texture, and feet of wall per horizontal
+ * tile). The backstop row is the tall one: `center` is the u of the middle of its lockup panel
+ * and `panels` are the u spans of its four panels (side mark, lockup, side mark, monogram).
+ */
 export const LED_ROW = {
-  ribbon: { v: [0.765, 0.985], ft: 110 },
-  backstop: { v: [0.515, 0.735], ft: 72 },
-  suites: { v: [0.265, 0.485], ft: 96 },
-  lamps: { v: [0.015, 0.235], ft: 32 },
+  ribbon: { v: [0.883, 0.992], ft: 110 },
+  suites: { v: [0.758, 0.867], ft: 96 },
+  lamps: { v: [0.633, 0.742], ft: 32 },
+  backstop: {
+    v: [0.006, 0.619],
+    ft: 44,
+    center: 0.375,
+    panels: [
+      [0, 0.1875],
+      [0.1875, 0.5625],
+      [0.5625, 0.75],
+      [0.75, 1],
+    ],
+  },
 } as const;
+
+/** Where's That Baseball brand palette (see scripts/generate-wtbb-logo.mjs and globals.css). */
+const BRAND = { ink: "#1c2b2a", field: "#1b4332", cream: "#ede6d6", ball: "#f4f1ea", stitch: "#c41e3a", sage: "#9cc79c" } as const;
+
+interface BrandArt {
+  lockup: HTMLCanvasElement | null;
+  monogram: HTMLCanvasElement | null;
+  mark: HTMLImageElement | null;
+  serif: string;
+  sans: string;
+}
+
+function loadImage(src: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    if (typeof Image === "undefined") return resolve(null);
+    const img = new Image();
+    img.decoding = "async";
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
+/**
+ * Reverse a brand graphic for a dark board: its paper background drops out, ink becomes
+ * `light` and the green parts become `accent`.
+ */
+function knockout(img: HTMLImageElement, sx: number, sy: number, sw: number, sh: number, dw: number, dh: number, light: string, accent: string): HTMLCanvasElement | null {
+  try {
+    const [c, g] = canvas(dw, dh);
+    g.imageSmoothingQuality = "high";
+    g.drawImage(img, sx, sy, sw, sh, 0, 0, dw, dh);
+    const d = g.getImageData(0, 0, dw, dh);
+    const px = d.data;
+    const paper = px[3] > 10 ? [px[0], px[1], px[2]] : null;
+    const L = new THREE.Color(light);
+    const A = new THREE.Color(accent);
+    for (let i = 0; i < px.length; i += 4) {
+      const r = px[i];
+      const gr = px[i + 1];
+      const b = px[i + 2];
+      let alpha = px[i + 3] / 255;
+      if (paper) alpha *= Math.min(1, (Math.max(Math.abs(r - paper[0]), Math.abs(gr - paper[1]), Math.abs(b - paper[2])) / 255) * 3.4);
+      const k = gr > r + 12 && gr > b + 8 ? A : L;
+      px[i] = k.r * 255;
+      px[i + 1] = k.g * 255;
+      px[i + 2] = k.b * 255;
+      px[i + 3] = alpha * 255;
+    }
+    g.putImageData(d, 0, 0);
+    return c;
+  } catch {
+    return null;
+  }
+}
+
+function cssFont(name: string, fallback: string): string {
+  try {
+    const v = getComputedStyle(document.body).getPropertyValue(name).trim();
+    return v ? `${v}, ${fallback}` : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+let brandArt: Promise<BrandArt> | null = null;
+
+/** The brand marks from /public/brand and the site's IBM Plex faces, loaded once. */
+function loadBrandArt(): Promise<BrandArt> {
+  if (brandArt) return brandArt;
+  const serif = cssFont("--font-ibm-plex-serif", '"IBM Plex Serif", Georgia, serif');
+  const sans = cssFont("--font-ibm-plex-sans", '"IBM Plex Sans", Helvetica, Arial, sans-serif');
+  const fonts =
+    typeof document !== "undefined" && document.fonts
+      ? Promise.all([document.fonts.load(`600 32px ${sans}`), document.fonts.load(`700 32px ${sans}`), document.fonts.load(`600 32px ${serif}`)]).catch(() => null)
+      : Promise.resolve(null);
+  brandArt = Promise.all([loadImage("/brand/wtbb-logo-lockup.png"), loadImage("/brand/wtbb-monogram-mark.png"), loadImage("/brand/wtbb-mark.svg"), fonts]).then(([lockup, mono, mark]) => ({
+    // The lockup sits in the middle of a 1536 × 1024 sheet of paper; crop to the artwork.
+    lockup: lockup ? knockout(lockup, 92, 366, 1368, 268, 684, 134, BRAND.cream, BRAND.sage) : null,
+    monogram: mono ? knockout(mono, 30, 130, 452, 252, 290, 162, BRAND.cream, BRAND.sage) : null,
+    mark,
+    serif,
+    sans,
+  }));
+  return brandArt;
+}
+
+function spaced(g: CanvasRenderingContext2D, text: string, x: number, y: number, tracking: number, maxW: number): void {
+  const ctx = g as CanvasRenderingContext2D & { letterSpacing?: string };
+  const can = "letterSpacing" in ctx;
+  if (can) ctx.letterSpacing = `${tracking}px`;
+  const w = g.measureText(text).width;
+  g.save();
+  g.translate(x + (can ? tracking / 2 : 0), y);
+  if (w > maxW) g.scale(maxW / w, 1);
+  g.fillText(text, 0, 0);
+  g.restore();
+  if (can) ctx.letterSpacing = "0px";
+}
+
+/**
+ * The backstop board behind the plate, 2048 × 320 at (0, y0): a padded field-green wall in the
+ * Where's That Baseball identity. The reversed lockup sits on the centre panel, flanked by the
+ * ball-and-spray mark and the BB monogram, with stitched seams between panels.
+ */
+function paintBackstop(g: CanvasRenderingContext2D, y0: number, art: BrandArt | null): void {
+  const W = 2048;
+  const H = 320;
+  const serif = art?.serif ?? "Georgia, serif";
+  const sans = art?.sans ?? "Helvetica, Arial, sans-serif";
+  g.save();
+  g.beginPath();
+  g.rect(0, y0, W, H);
+  g.clip();
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  const base = g.createLinearGradient(0, y0, 0, y0 + H);
+  base.addColorStop(0, "#22543f");
+  base.addColorStop(0.45, BRAND.field);
+  base.addColorStop(1, "#12301f");
+  g.fillStyle = base;
+  g.fillRect(0, y0, W, H);
+  // Pad seams every 128 px (about 2.75 ft): a shadowed joint with a soft rolled highlight.
+  for (let x = 0; x < W; x += 128) {
+    const seam = g.createLinearGradient(x, 0, x + 128, 0);
+    seam.addColorStop(0, "rgba(0,0,0,0.30)");
+    seam.addColorStop(0.035, "rgba(255,255,255,0.07)");
+    seam.addColorStop(0.2, "rgba(255,255,255,0)");
+    seam.addColorStop(0.9, "rgba(0,0,0,0)");
+    seam.addColorStop(1, "rgba(0,0,0,0.26)");
+    g.fillStyle = seam;
+    g.fillRect(x, y0, 128, H);
+  }
+  // Cap rail piping and a scuffed kick band.
+  g.fillStyle = BRAND.cream;
+  g.fillRect(0, y0 + 12, W, 5);
+  g.fillStyle = "rgba(237,230,214,0.45)";
+  g.fillRect(0, y0 + 22, W, 2);
+  g.fillStyle = "rgba(0,0,0,0.30)";
+  g.fillRect(0, y0 + H - 20, W, 20);
+  g.fillStyle = "rgba(237,230,214,0.5)";
+  g.fillRect(0, y0 + H - 22, W, 2);
+
+  const edges = [0, 384, 1152, 1536, 2048];
+  // Baseball stitching down each panel joint.
+  g.lineCap = "round";
+  for (const ex of edges) {
+    for (const x of ex === 0 ? [0, W] : [ex]) {
+      g.strokeStyle = "rgba(237,230,214,0.55)";
+      g.lineWidth = 2;
+      g.beginPath();
+      g.moveTo(x, y0 + 40);
+      g.lineTo(x, y0 + H - 38);
+      g.stroke();
+      g.strokeStyle = "#e23a55";
+      g.lineWidth = 4;
+      for (let y = y0 + 52; y < y0 + H - 44; y += 19) {
+        g.beginPath();
+        g.moveTo(x - 13, y - 6);
+        g.lineTo(x - 3, y + 3);
+        g.moveTo(x + 13, y - 6);
+        g.lineTo(x + 3, y + 3);
+        g.stroke();
+      }
+    }
+  }
+
+  // Side panels: the ball-and-spray mark on its cream plate over PLAY BALL.
+  for (const [x0, x1] of [
+    [edges[0], edges[1]],
+    [edges[2], edges[3]],
+  ]) {
+    const cx = (x0 + x1) / 2;
+    const size = 168;
+    const top = y0 + 44;
+    g.fillStyle = "rgba(0,0,0,0.28)";
+    g.beginPath();
+    g.roundRect(cx - size / 2 + 3, top + 5, size, size, 30);
+    g.fill();
+    if (art?.mark) {
+      g.drawImage(art.mark, cx - size / 2, top, size, size);
+    } else {
+      g.fillStyle = BRAND.cream;
+      g.beginPath();
+      g.roundRect(cx - size / 2, top, size, size, 30);
+      g.fill();
+      g.fillStyle = BRAND.ball;
+      g.strokeStyle = BRAND.ink;
+      g.lineWidth = 7;
+      g.beginPath();
+      g.arc(cx - 20, top + size / 2 + 6, 44, 0, Math.PI * 2);
+      g.fill();
+      g.stroke();
+    }
+    g.fillStyle = BRAND.cream;
+    g.font = `700 40px ${sans}`;
+    spaced(g, "PLAY BALL", cx, y0 + 252, 9, x1 - x0 - 90);
+  }
+  // Centre panel: the reversed lockup over a ruled strapline.
+  {
+    const cx = (edges[1] + edges[2]) / 2;
+    if (art?.lockup) {
+      g.drawImage(art.lockup, cx - art.lockup.width / 2, y0 + 56);
+    } else {
+      g.fillStyle = BRAND.cream;
+      g.font = `500 96px ${serif}`;
+      g.fillText("Where’s That BB", cx, y0 + 124);
+    }
+    g.fillStyle = "rgba(237,230,214,0.7)";
+    g.fillRect(cx - 330, y0 + 246, 150, 2);
+    g.fillRect(cx + 180, y0 + 246, 150, 2);
+    g.fillStyle = "#e23a55";
+    for (const sx of [-1, 1]) {
+      g.beginPath();
+      g.arc(cx + sx * 166, y0 + 247, 5, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.fillStyle = BRAND.cream;
+    g.font = `600 30px ${sans}`;
+    spaced(g, "PLAY BALL", cx, y0 + 248, 12, 300);
+  }
+  // Fourth panel: the BB monogram over the spelled-out name.
+  {
+    const cx = (edges[3] + edges[4]) / 2;
+    if (art?.monogram) {
+      g.drawImage(art.monogram, cx - art.monogram.width / 2, y0 + 48);
+    } else {
+      g.fillStyle = BRAND.cream;
+      g.font = `700 150px ${serif}`;
+      g.fillText("BB", cx, y0 + 132);
+    }
+    g.fillStyle = BRAND.cream;
+    g.font = `600 27px ${sans}`;
+    spaced(g, "WHERE’S THAT BASEBALL", cx, y0 + 252, 6, 420);
+  }
+  // Gloss off the vinyl and a faint LED line structure.
+  const gloss = g.createLinearGradient(0, y0, 0, y0 + H);
+  gloss.addColorStop(0, "rgba(255,255,255,0.13)");
+  gloss.addColorStop(0.3, "rgba(255,255,255,0.03)");
+  gloss.addColorStop(0.55, "rgba(255,255,255,0)");
+  gloss.addColorStop(1, "rgba(0,0,0,0.12)");
+  g.fillStyle = gloss;
+  g.fillRect(0, y0, W, H);
+  g.fillStyle = "rgba(0,0,0,0.05)";
+  for (let y = y0 + 1; y < y0 + H; y += 4) g.fillRect(0, y, W, 1);
+  g.restore();
+}
 
 /** Self-lit signage: ribbon boards, the backstop ad board, suite windows and lamp racks. */
 export function ledAtlas(lit: boolean): THREE.CanvasTexture {
-  const [c, g] = canvas(1024, 256);
+  const [c, g] = canvas(2048, 512);
+  // The three thin rows are laid out on a 1024-wide grid and drawn at double width.
+  g.save();
+  g.scale(2, 1);
   g.textBaseline = "middle";
   g.textAlign = "center";
   // Ribbon board (tinted by the home color): messages between block graphics.
@@ -698,21 +1073,7 @@ export function ledAtlas(lit: boolean): THREE.CanvasTexture {
   });
   g.fillStyle = "rgba(0,0,0,0.22)";
   for (let y = 1; y < 64; y += 3) g.fillRect(0, y, 1024, 1);
-  // Backstop board: dark green with quiet white wordmarks (easy on the hitter's eye).
-  g.fillStyle = "#0f3526";
-  g.fillRect(0, 64, 1024, 64);
-  g.strokeStyle = "rgba(255,255,255,0.5)";
-  g.lineWidth = 2;
-  for (let i = 0; i < 4; i += 1) {
-    g.strokeRect(i * 256 + 6, 72, 244, 48);
-    g.fillStyle = i % 2 ? "#f2f4ee" : "#ffd75a";
-    g.font = "bold 30px Arial, Helvetica, sans-serif";
-    g.save();
-    g.translate(i * 256 + 128, 97);
-    g.scale(0.58, 1);
-    g.fillText(i % 2 ? "WHERE'S THAT BASEBALL" : "PLAY BALL", 0, 0);
-    g.restore();
-  }
+  g.translate(0, -64);
   // Suite level: glazed bays, most with warm interior light.
   g.fillStyle = "#1a2029";
   g.fillRect(0, 128, 1024, 64);
@@ -765,8 +1126,14 @@ export function ledAtlas(lit: boolean): THREE.CanvasTexture {
     g.arc(cx, 224, 27, 0, Math.PI * 2);
     g.fill();
   }
+  g.restore();
+  paintBackstop(g, 192, null);
   const t = finish(c, true, 8);
   t.wrapT = THREE.ClampToEdgeWrapping;
+  void loadBrandArt().then((art) => {
+    paintBackstop(g, 192, art);
+    t.needsUpdate = true;
+  });
   return t;
 }
 

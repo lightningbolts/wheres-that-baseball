@@ -3,7 +3,8 @@
  * bat–ball collision → batted-ball path. Decisions come from Controllers so a
  * human (UI input) and the CPU (AI) drive the exact same physics.
  */
-import { throwPitch, crossesZone, pitchStateAt, PLATE_FRONT_Z, type PitchFlight } from "@/lib/game/physics/pitch";
+import { throwPitch, crossesZone, pitchStateAt, zoneContact, PLATE_FRONT_Z, PLATE_HALF_WIDTH, type PitchFlight } from "@/lib/game/physics/pitch";
+import { BALL_RADIUS_FT } from "@/lib/game/physics/ballFlight";
 import { battedBallFromLaunch } from "@/lib/game/physics/batBall";
 import { resolveContact, type ContactResult } from "@/lib/game/physics/batBall";
 import { simulateBattedBall, type BattedBallPath } from "@/lib/game/physics/battedBall";
@@ -122,6 +123,39 @@ export function idealContactTime(flight: PitchFlight): number {
 }
 
 /** Take or swing: umpire, HBP, bat–ball collision, batted-ball path. */
+/** Umpire's spread at the zone edge, ft (1 SD): tighter on the sides than at the top and bottom. */
+export const UMP_SD_SIDE_FT = 0.075;
+export const UMP_SD_HEIGHT_FT = 0.12;
+
+/**
+ * The umpire's call on a taken pitch. Well inside or well outside the zone he is never
+ * wrong; within a couple of inches of the edge he is a person — each call has its own
+ * scatter (wider at the knees and letters than on the corners), and the count leans on
+ * him a little (a wider zone at 3-0, a tighter one at 0-2), as Statcast shows real umps do.
+ * `g1`, `g2` are standard normal draws.
+ */
+export function umpireCall(
+  flight: PitchFlight,
+  zoneBottom: number,
+  zoneTop: number,
+  inZone: boolean,
+  count: Count,
+  g1: number,
+  g2: number,
+): boolean {
+  const at = inZone ? (zoneContact(flight, zoneBottom, zoneTop) ?? { px: flight.px, pz: flight.pz }) : { px: flight.px, pz: flight.pz };
+  const r = BALL_RADIUS_FT;
+  const side = PLATE_HALF_WIDTH + r - Math.abs(at.px);
+  const height = Math.min(at.pz - (zoneBottom - r), zoneTop + r - at.pz);
+  // Signed distance to the deciding edge (+ inside: the nearest one; − outside: the one missed by most).
+  const nearSide = side <= height;
+  const margin = Math.min(side, height);
+  const sd = nearSide ? UMP_SD_SIDE_FT : UMP_SD_HEIGHT_FT;
+  const lean = count.balls === 3 && count.strikes === 0 ? 0.035 : count.strikes === 2 && count.balls < 2 ? -0.035 : 0;
+  // A different draw per edge, so corners aren't called by one coin.
+  return margin + lean + (nearSide ? g1 : g2) * sd > 0;
+}
+
 export function resolveSwingPhase(
   ctx: PitchContext,
   decision: PitchDecision,
@@ -141,11 +175,7 @@ export function resolveSwingPhase(
   if (swing.swing && swing.bunt) return resolveBunt(ctx, decision, flight, swing, rng, inZone);
 
   if (!swing.swing) {
-    // Umpire: the rulebook zone, called exactly — any part of the ball over any part of
-    // the plate is a strike. (Two draws are still taken so the RNG stream keeps its shape.)
-    rng.gauss(0, 1);
-    rng.gauss(0, 1);
-    const called = inZone;
+    const called = umpireCall(flight, ctx.batter.zoneBottom, ctx.batter.zoneTop, inZone, ctx.count, rng.gauss(0, 1), rng.gauss(0, 1));
     let wildPitch = false;
     if (!called && ctx.runnersOn > 0) {
       const pWild = flight.pz < -0.2 ? 0.4 : flight.pz < 0.4 ? 0.12 : Math.abs(flight.px) > 2.0 ? 0.12 : 0.006;
