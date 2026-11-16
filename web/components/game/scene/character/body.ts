@@ -143,29 +143,33 @@ const rings = (rows: Row[], uv: UVFn, grow = 0): Ring[] =>
   rows.map((r, i) => ({ y: Y0 + r[0], rx: r[1] + grow, rz: r[2] + grow, cz: r[3] ?? 0, uv: i === 0 ? uv : undefined }));
 
 const JERSEY: Row[] = [
-  [JERSEY_TOP, 0.21, 0.2, -0.01],
-  [2.03, 0.4, 0.225, -0.01],
-  [1.97, 0.62, 0.265, -0.01],
-  [1.9, 0.76, 0.3, -0.008],
-  [1.82, 0.815, 0.325, -0.004],
-  [1.72, 0.825, 0.35],
-  [1.58, 0.77, 0.378, 0.012],
-  [1.42, 0.71, 0.388, 0.02],
-  [1.24, 0.655, 0.375, 0.02],
-  [1.05, 0.605, 0.352, 0.014],
-  [0.86, 0.565, 0.335, 0.008],
-  [0.68, 0.535, 0.326],
-  [0.54, 0.528, 0.328],
-  [0.45, 0.52, 0.326],
+  // Open collar, then the trapezius sloping out to the shoulders.
+  [JERSEY_TOP, 0.22, 0.205, -0.03],
+  [2.035, 0.36, 0.238, -0.035],
+  [1.985, 0.5, 0.27, -0.035],
+  [1.925, 0.63, 0.303, -0.03],
+  [1.85, 0.735, 0.334, -0.018],
+  [1.76, 0.79, 0.36, -0.004],
+  [1.68, 0.795, 0.38, 0.008],
+  // Chest standing proud in front, shoulder blades behind.
+  [1.6, 0.77, 0.4, 0.018],
+  [1.44, 0.715, 0.418, 0.03],
+  [1.26, 0.655, 0.402, 0.032],
+  // Ribs narrowing into the waist; the small of the back curves in.
+  [1.06, 0.592, 0.37, 0.028],
+  [0.86, 0.55, 0.345, 0.022],
+  [0.68, 0.527, 0.334, 0.014],
+  [0.54, 0.524, 0.332, 0.006],
+  [0.45, 0.52, 0.326, 0.002],
   [JERSEY_HEM, 0.498, 0.312],
 ];
 /** Outline of the seat of the trousers, from under the belt down past the crotch. */
 const SEAT: Row[] = [
   [0.285, 0.49, 0.31, 0],
-  [0.18, 0.51, 0.322, -0.002],
-  [0.0, 0.535, 0.348, -0.014],
-  [-0.2, 0.535, 0.356, -0.03],
-  [-0.4, 0.525, 0.335, -0.03],
+  [0.18, 0.51, 0.326, -0.008],
+  [0.0, 0.53, 0.362, -0.03],
+  [-0.2, 0.532, 0.372, -0.048],
+  [-0.4, 0.522, 0.345, -0.04],
   [-0.7, 0.5, 0.3, -0.02],
 ];
 const SEAT_N = 2.5;
@@ -183,28 +187,41 @@ function trunk(b: MeshBuilder, lod: Lod) {
       panelUV(o, r, 1 - t, (JERSEY_TOP - (o.y - Y0)) / span);
   const rows = lod === 2 ? JERSEY.filter((_, i) => i % 2 === 0 || i === JERSEY.length - 1) : JERSEY;
   // The jersey is two half-wraps, so the front and the back each get a panel of their own.
-  loft(b, rings(rows, panel(PANEL.front)), { seg: half, skin: torsoSkin, theta0: 0, arc: PI, n: 2.5, shade });
-  loft(b, rings(rows, panel(PANEL.back)), { seg: half, skin: torsoSkin, theta0: PI, arc: PI, n: 2.5, shade });
-  // Collar band and neck.
+  loft(b, rings(rows, panel(PANEL.front)), { seg: half, skin: torsoSkin, theta0: 0, arc: PI, n: 2.25, shade });
+  loft(b, rings(rows, panel(PANEL.back)), { seg: half, skin: torsoSkin, theta0: PI, arc: PI, n: 2.25, shade });
+  // Undershirt collar (a low crew neck) and the neck: thick, with the trapezius running into the shoulders.
   loft(
     b,
     [
-      { y: Y0 + 2.125, rx: 0.205, rz: 0.195, cz: -0.01, uv: U.collar },
-      { y: Y0 + 2.125, rx: 0.226, rz: 0.214, cz: -0.01 },
-      { y: Y0 + 2.05, rx: 0.238, rz: 0.226, cz: -0.01 },
+      { y: Y0 + 2.085, rx: 0.218, rz: 0.205, cz: -0.025, uv: U.collar },
+      { y: Y0 + 2.085, rx: 0.236, rz: 0.222, cz: -0.025 },
+      { y: Y0 + 2.03, rx: 0.25, rz: 0.234, cz: -0.03 },
     ],
     { seg, skin: torsoSkin },
   );
   loft(
     b,
     [
-      { y: Y0 + 2.4, rx: 0.185, rz: 0.195, cz: 0.02, uv: U.skin, ao: 0.7 },
-      { y: Y0 + 2.28, rx: 0.183, rz: 0.19, cz: 0.008, ao: 0.78 },
-      { y: Y0 + 2.18, rx: 0.188, rz: 0.19, cz: -0.004, ao: 0.86 },
-      { y: Y0 + 2.08, rx: 0.2, rz: 0.195, cz: -0.02, ao: 0.92 },
-      { y: Y0 + 1.98, rx: 0.215, rz: 0.2, cz: -0.02 },
+      { y: Y0 + 2.4, rx: 0.19, rz: 0.2, cz: 0.02, uv: U.skin, ao: 0.7 },
+      { y: Y0 + 2.29, rx: 0.192, rz: 0.198, cz: 0.006, ao: 0.78 },
+      { y: Y0 + 2.18, rx: 0.2, rz: 0.2, cz: -0.012, ao: 0.86 },
+      { y: Y0 + 2.09, rx: 0.214, rz: 0.205, cz: -0.024, ao: 0.92 },
+      { y: Y0 + 1.98, rx: 0.235, rz: 0.215, cz: -0.03 },
     ],
-    { seg: Math.max(8, half), skin: neckSkin },
+    {
+      seg: Math.max(8, half),
+      skin: neckSkin,
+      // Sternocleidomastoids in front, the trapezius flaring behind as the neck meets the back.
+      post: (o, th) => {
+        const y = o.y - Y0;
+        const s = Math.sin(th);
+        const c = Math.cos(th);
+        const scm = 0.012 * gauss(Math.abs(c) - 0.55, 0.25) * Math.max(0, s) * smoothstep(2.35, 2.12, y);
+        const trap = 0.03 * Math.max(0, -s) * (0.4 + 0.6 * c * c) * smoothstep(2.25, 2.02, y);
+        o.x += c * (scm + trap * 0.6);
+        o.z += s * scm - Math.max(0, -s) * trap * 0.25;
+      },
+    },
   );
   // Belt, a touch proud of the trousers, with its loops and buckle.
   loft(
@@ -255,29 +272,34 @@ function arm(b: MeshBuilder, side: number, lod: Lod) {
   const HEM = 0.62;
   // The sleeve unwraps from the armpit, so the outside of the arm is the middle of its panel.
   const sleeve: UVFn = (o, t) => panelUV(o, PANEL.sleeve, t, (ys - o.y + 0.17) / (HEM + 0.17));
-  const r = (d: number, rad: number, uv?: UVFn, ao?: number, cz = 0, keep = true): Ring & { keep: boolean } => ({ y: ys - d, rx: rad, rz: rad * 1.05, cx: x0, cz, uv, ao, keep });
+  // rx across the arm, rz front-to-back (k = rz / rx): the arm is not a cylinder.
+  const r = (d: number, rad: number, uv?: UVFn, ao?: number, cz = 0, keep = true, k = 1.05, dx = 0): Ring & { keep: boolean } => ({ y: ys - d, rx: rad, rz: rad * k, cx: x0 + side * dx, cz, uv, ao, keep });
   const all = [
-    r(-0.17, 0, sleeve),
-    r(-0.145, 0.1),
-    r(-0.09, 0.165, undefined, undefined, 0, false),
-    r(-0.01, 0.203),
-    r(0.12, 0.214),
-    r(0.3, 0.21, undefined, undefined, 0, false),
-    r(0.48, 0.2),
-    // Sleeve hem, then the arm (or undershirt) coming out of it.
-    r(HEM, 0.198, U.sleeve),
-    r(HEM, 0.158, undefined, 0.5),
-    r(0.7, 0.156, undefined, 0.82, 0.004, false),
-    r(0.8, 0.148, undefined, 1, 0.004),
-    r(0.9, 0.14, undefined, 1, 0, false),
-    r(E, 0.136, undefined, 1, -0.006),
-    r(1.1, 0.143, undefined, 1, 0, false),
-    r(1.22, 0.147),
-    r(1.42, 0.126, undefined, 1, 0, false),
-    r(1.6, 0.103),
-    r(1.68, 0.098, U.wrist),
-    r(E + DIM.wrist, 0.094, U.hand),
-    r(E + DIM.wrist + 0.04, 0),
+    // Deltoid: a rounded cap that sits low on the shoulder and widens outward.
+    r(-0.13, 0, sleeve, undefined, 0, true, 1, -0.02),
+    r(-0.115, 0.095, undefined, undefined, 0, true, 1, -0.012),
+    r(-0.065, 0.165, undefined, undefined, 0, false, 1.02, 0.004),
+    r(0.02, 0.205, undefined, undefined, 0, true, 1.05, 0.016),
+    r(0.14, 0.218, undefined, undefined, 0, true, 1.08, 0.02),
+    r(0.3, 0.212, undefined, undefined, 0, false, 1.08, 0.012),
+    r(0.48, 0.2, undefined, undefined, 0, true, 1.06, 0.004),
+    // Sleeve hem, then the arm (or undershirt) coming out of it: biceps in front, triceps behind.
+    r(HEM, 0.198, U.sleeve, undefined, 0, true, 1.06),
+    r(HEM, 0.16, undefined, 0.5, 0.01, true, 1.12),
+    r(0.72, 0.157, undefined, 0.82, 0.016, false, 1.16),
+    r(0.82, 0.148, undefined, 1, 0.014, true, 1.14),
+    r(0.92, 0.136, undefined, 1, 0.004, false, 1.08),
+    // Elbow: narrow across, the point of the olecranon behind.
+    r(E, 0.128, undefined, 1, -0.012, true, 1.1),
+    // Forearm: the muscle belly just below the elbow, tapering to a flat wrist.
+    r(1.1, 0.146, undefined, 1, 0.006, false, 1.0),
+    r(1.2, 0.148, undefined, 1, 0.006, true, 0.94),
+    r(1.34, 0.132, undefined, 1, 0.003, false, 0.9),
+    r(1.48, 0.112, undefined, 1, 0, true, 0.88),
+    r(1.6, 0.092, undefined, 1, 0, true, 1.12),
+    r(1.68, 0.088, U.wrist, undefined, 0, true, 1.18),
+    r(E + DIM.wrist, 0.086, U.hand, undefined, 0, true, 1.2),
+    r(E + DIM.wrist + 0.04, 0, undefined, undefined, 0, true, 1.2),
   ];
   loft(b, lod > 0 ? all.filter((x) => x.keep) : all, { seg, skin, theta0: side > 0 ? PI : 0 });
 }
@@ -358,7 +380,8 @@ function leg(b: MeshBuilder, side: number, lod: Lod) {
   };
   const upper: UVFn = (o, t) => panelUV(o, PANEL.pants, t, (yh - o.y - TOP) / (T - TOP));
   const lower: UVFn = (o, t) => panelUV(o, PANEL.lower, t, (yh - o.y - T) / DIM.shin);
-  const r = (d: number, rad: number, cz = 0, keep = true, uv?: UVFn, ao?: number): Ring & { keep: boolean } => ({ y: yh - d, rx: rad, rz: rad * 1.06, cx: x0, cz, uv, ao, keep });
+  // k = rz / rx: thighs deeper than wide, the calf a deep oval behind a flat shin.
+  const r = (d: number, rad: number, cz = 0, keep = true, uv?: UVFn, ao?: number, k = 1.06): Ring & { keep: boolean } => ({ y: yh - d, rx: rad, rz: rad * k, cx: x0, cz, uv, ao, keep });
   const cuff = T + CUFF_AT * DIM.shin;
   const all = [
     r(TOP, 0.29, 0, true, upper),
@@ -367,26 +390,28 @@ function leg(b: MeshBuilder, side: number, lod: Lod) {
     r(0.06, 0.29, 0, false),
     r(0.2, 0.29),
     r(0.33, 0.288, -0.005, false),
-    r(CROTCH, 0.284, -0.008),
-    r(0.6, 0.272, -0.008, false),
-    r(0.8, 0.25, -0.004),
-    r(1.0, 0.228, 0, false),
-    r(1.16, 0.213),
-    r(1.28, 0.204, 0.004, false),
-    r(1.38, 0.199, 0.01),
-    r(T, 0.196, 0.016, true, lower),
-    r(1.58, 0.187, 0.012),
-    r(1.68, 0.18, 0.004, false),
-    r(1.78, 0.18),
-    // Trousers bloused over the top of the calf, then the sock.
-    r(cuff, 0.184),
-    r(cuff, 0.153, -0.01, true, undefined, 0.55),
-    r(2.12, 0.164, -0.03),
-    r(2.3, 0.15, -0.024, false),
-    r(2.5, 0.124, -0.012),
-    r(2.7, 0.104, -0.004, false),
-    r(2.85, 0.096),
-    r(T + DIM.shin, 0.092),
+    r(CROTCH, 0.282, -0.004, true, undefined, undefined, 1.08),
+    // Quadriceps filling the front of the trousers, tapering to the knee.
+    r(0.6, 0.268, 0.008, false, undefined, undefined, 1.1),
+    r(0.8, 0.246, 0.016, true, undefined, undefined, 1.1),
+    r(1.0, 0.222, 0.02, false, undefined, undefined, 1.08),
+    r(1.16, 0.205, 0.02, true, undefined, undefined, 1.06),
+    r(1.28, 0.194, 0.022, false, undefined, undefined, 1.04),
+    // Knee: the kneecap in front.
+    r(1.38, 0.19, 0.03, true, undefined, undefined, 1.06),
+    r(T, 0.19, 0.03, true, lower, undefined, 1.06),
+    r(1.58, 0.184, 0.018),
+    r(1.68, 0.178, 0.006, false),
+    r(1.78, 0.178, -0.004),
+    // Trousers bloused over the top of the calf, then the sock over the calf muscle.
+    r(cuff, 0.184, -0.01),
+    r(cuff, 0.152, -0.018, true, undefined, 0.55, 1.12),
+    r(2.1, 0.158, -0.04, true, undefined, undefined, 1.2),
+    r(2.28, 0.148, -0.036, false, undefined, undefined, 1.18),
+    r(2.48, 0.122, -0.016, true, undefined, undefined, 1.1),
+    r(2.68, 0.1, -0.004, false, undefined, undefined, 1.04),
+    r(2.85, 0.094, 0, true, undefined, undefined, 1.1),
+    r(T + DIM.shin, 0.092, 0, true, undefined, undefined, 1.1),
   ];
   const dth = (2 * PI) / seg;
   const inner = side > 0 ? PI : 0;
@@ -461,14 +486,22 @@ function shoe(b: MeshBuilder, side: number, lod: Lod) {
 /** Shape of the head (and of everything worn on it): jaw, brow, eye sockets, cheeks. */
 function headDeform(o: VOut, dx: number, dy: number, dz: number) {
   const f = Math.max(0, dz);
+  const back = Math.max(0, -dz);
+  // Jaw: the skull narrows to the angle of the jaw, then the jawline runs in to the chin.
   const jaw = smoothstep(0.15, 0.95, -dy);
-  o.x *= 1 - 0.2 * jaw;
-  o.z += 0.045 * jaw * (0.4 + 0.6 * f);
-  let z = 0.02 * gauss(dy - 0.22, 0.1);
-  z -= 0.024 * gauss(Math.abs(dx) - 0.38, 0.16) * gauss(dy - 0.09, 0.1);
-  z += 0.012 * gauss(Math.abs(dx) - 0.45, 0.2) * gauss(dy + 0.15, 0.15);
-  z += 0.03 * gauss(dx, 0.14) * gauss(dy + 0.06, 0.15);
-  z += 0.016 * gauss(dx, 0.3) * gauss(dy + 0.5, 0.12);
+  const chin = smoothstep(0.55, 1, -dy) * smoothstep(-0.2, 0.7, dz);
+  o.x *= 1 - 0.12 * jaw - 0.22 * chin;
+  o.z += 0.05 * jaw * (0.3 + 0.7 * f);
+  // The back of the skull bulges over the nape; the face is flatter across than the cranium.
+  o.z -= 0.035 * back * gauss(dy - 0.05, 0.4);
+  o.z += 0.04 * back * smoothstep(0.1, 0.8, -dy) * 0.6;
+  o.x *= 1 - 0.06 * f * f * smoothstep(-0.4, 0.3, dy);
+  let z = 0.026 * gauss(dy - 0.22, 0.09) * gauss(dx, 0.5); // brow ridge
+  z -= 0.03 * gauss(Math.abs(dx) - 0.36, 0.14) * gauss(dy - 0.1, 0.09); // eye sockets
+  z += 0.02 * gauss(Math.abs(dx) - 0.5, 0.16) * gauss(dy + 0.06, 0.12); // cheekbones
+  z += 0.012 * gauss(dx, 0.22) * gauss(dy + 0.32, 0.08); // upper lip
+  z += 0.03 * gauss(dx, 0.22) * gauss(dy + 0.72, 0.12); // chin
+  z -= 0.012 * gauss(dx, 0.3) * gauss(dy + 0.55, 0.06); // under the lip
   o.z += z * f;
 }
 
@@ -496,26 +529,39 @@ function head(b: MeshBuilder, o: Outfit, lod: Lod) {
   });
   blob(b, { c: HEAD, r: HEAD_R, seg: pick(lod, 12, 8, 5), rows: pick(lod, 12, 8, 5), theta0: PI, arc: PI, uv: U.skin, skin: headSkin, deform: headDeform });
   if (lod < 2) {
-    // Nose.
+    // Nose: a narrow bridge from between the eyes, widening and lifting at the tip and wings.
     blob(b, {
-      c: [0, HEAD[1] - 0.07, HEAD[2] + 0.315],
-      r: [0.043, 0.09, 0.062],
-      seg: pick(lod, 8, 6, 6),
-      rows: pick(lod, 6, 5, 5),
+      c: [0, HEAD[1] - 0.06, HEAD[2] + 0.285],
+      r: [0.04, 0.1, 0.05],
+      seg: pick(lod, 10, 6, 6),
+      rows: pick(lod, 8, 5, 5),
       uv: U.skin,
       skin: headSkin,
-      deform: (v, dx, dy) => {
-        if (dy > 0) {
-          v.x -= 0.02 * dx * dy;
-          v.z -= 0.045 * dy;
-        }
-        v.ao = 0.97;
+      deform: (v, dx, dy, dz) => {
+        const tip = smoothstep(0.2, -0.8, dy);
+        v.x = HEAD[0] + 0.04 * dx * (0.45 + 0.75 * tip);
+        if (dz > 0) v.z += 0.022 * dz * tip * (1 - 0.5 * Math.abs(dx));
+        if (dy < -0.6) v.z -= 0.02 * (-dy - 0.6);
+        v.ao = 0.9 + 0.08 * Math.max(0, dz);
       },
     });
   }
   if (!covered) {
     for (const s of [1, -1]) {
-      blob(b, { c: [s * 0.25, HEAD[1] - 0.02, HEAD[2] - 0.03], r: [0.035, 0.085, 0.06], seg: pick(lod, 6, 6, 4), rows: pick(lod, 5, 4, 3), uv: U.skin, skin: headSkin, deform: (v) => void (v.ao = 0.88) });
+      // Ears: level with the eyes and nose, behind the jaw, standing a little off the head.
+      blob(b, {
+        c: [s * 0.248, HEAD[1] - 0.04, HEAD[2] - 0.05],
+        r: [0.03, 0.105, 0.068],
+        seg: pick(lod, 8, 6, 4),
+        rows: pick(lod, 6, 4, 3),
+        uv: U.skin,
+        skin: headSkin,
+        deform: (v, dx, dy, dz) => {
+          v.x += s * 0.018 * Math.max(0, -dz) * (0.5 + 0.5 * dy);
+          v.z -= 0.025 * dy;
+          v.ao = dx * s > 0 ? 0.8 + 0.12 * Math.abs(dz) : 0.72;
+        },
+      });
     }
   }
   // Hair: over the top and down to the nape, with a hairline across the forehead.

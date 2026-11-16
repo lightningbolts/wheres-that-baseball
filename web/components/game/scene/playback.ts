@@ -5,6 +5,7 @@
  */
 import type { Uniform } from "@/components/game/scene/character/uniforms";
 import * as THREE from "three";
+import { identity } from "@/components/game/scene/character/roster";
 import type { Timeline, ActorState } from "@/lib/game/anim/timeline";
 import type { FieldPos } from "@/lib/game/types";
 import type { ActorDraw } from "@/components/game/scene/rig";
@@ -162,7 +163,18 @@ export function advancePlayback(pb: Playback, rawDt: number): void {
 }
 
 const RUNNER_SKIN = ["#e8c4a0", "#c99a74", "#8d5a3b", "#5e3b26", "#f1d3b5", "#a87454"].map((c) => new THREE.Color(c));
-export const skinFor = (id: number) => RUNNER_SKIN[Math.abs(id * 7919) % RUNNER_SKIN.length];
+const realSkin = new Map<number, THREE.Color>();
+/** The player's own skin tone (sampled from his headshot) once the roster is in; a stand-in until then. */
+export function skinFor(id: number): THREE.Color {
+  const tone = id > 0 ? identity(id).skin : null;
+  if (tone === null) return RUNNER_SKIN[Math.abs(id * 7919) % RUNNER_SKIN.length];
+  let c = realSkin.get(id);
+  if (!c || c.getHex() !== tone) {
+    c = new THREE.Color(tone);
+    realSkin.set(id, c);
+  }
+  return c;
+}
 
 const UMP = { jersey: new THREE.Color("#1d2026"), accent: new THREE.Color("#2a2d35") };
 const FIELD_KEYS: Record<FieldPos, string> = { P: "f-P", C: "f-C", "1B": "f-1B", "2B": "f-2B", "3B": "f-3B", SS: "f-SS", LF: "f-LF", CF: "f-CF", RF: "f-RF" };

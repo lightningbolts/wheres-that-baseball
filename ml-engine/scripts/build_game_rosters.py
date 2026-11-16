@@ -287,6 +287,8 @@ def main() -> None:
     # Savant player metrics: sprint speed, arm, OAA, pop time, bat tracking, expected stats.
     import subprocess
     subprocess.run([sys.executable, str(Path(__file__).with_name("enrich_game_rosters.py")), "--season", str(args.season)], check=False)
+    # Skin tones for the 3D players, read from each player's MLB headshot.
+    subprocess.run([sys.executable, str(Path(__file__).with_name("sample_skin_tones.py"))], check=False)
 
 
 if __name__ == "__main__":

@@ -334,40 +334,58 @@ function face(ctx: Ctx, skin: RGB, hair: RGB, beard: number, shaded: boolean, se
   const brow = mix(hair, BLACK, 0.35);
   for (const s of [-1, 1]) {
     const ex = cx + s * eyeX;
-    // Socket shade, eye white, iris, pupil, upper lid.
-    ctx.fillStyle = css(shadow, 0.28);
+    // Socket shade, then an almond eye (little white showing), iris, pupil, upper lid and crease.
+    ctx.fillStyle = css(shadow, 0.22);
     ctx.beginPath();
-    ctx.ellipse(ex, eyeY - 1, 11, 7, 0, 0, Math.PI * 2);
+    ctx.ellipse(ex, eyeY - 1.5, 10.5, 6.5, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = "rgb(236,232,224)";
+    const almond = () => {
+      ctx.beginPath();
+      ctx.moveTo(ex - 7.5, eyeY + 0.6);
+      ctx.quadraticCurveTo(ex - 1, eyeY - 4.6, ex + 7.5, eyeY - 0.2);
+      ctx.quadraticCurveTo(ex + 1, eyeY + 3.4, ex - 7.5, eyeY + 0.6);
+      ctx.closePath();
+    };
+    ctx.save();
+    almond();
+    ctx.clip();
+    ctx.fillStyle = "rgb(222,214,204)";
+    ctx.fillRect(ex - 9, eyeY - 6, 18, 11);
+    ctx.fillStyle = css(hash01(seed, 21) < 0.75 ? [52, 34, 22] : [66, 92, 112]);
     ctx.beginPath();
-    ctx.ellipse(ex, eyeY, 8.6, 4.7, 0, 0, Math.PI * 2);
+    ctx.arc(ex + s * 0.4, eyeY - 0.4, 3.5, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = css(hash01(seed, 21) < 0.75 ? [58, 38, 24] : [70, 98, 120]);
+    ctx.fillStyle = "rgb(10,8,8)";
     ctx.beginPath();
-    ctx.arc(ex, eyeY, 4.3, 0, Math.PI * 2);
+    ctx.arc(ex + s * 0.4, eyeY - 0.4, 1.5, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = "rgb(12,10,10)";
+    // The upper lid shades the top of the eye.
+    ctx.fillStyle = "rgba(0,0,0,0.22)";
+    ctx.fillRect(ex - 9, eyeY - 6, 18, 3.4);
+    ctx.restore();
+    ctx.fillStyle = "rgba(255,255,255,0.7)";
     ctx.beginPath();
-    ctx.arc(ex, eyeY, 2.1, 0, Math.PI * 2);
+    ctx.arc(ex + s * 0.4 - 1.2, eyeY - 1.6, 0.7, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.strokeStyle = css(mix(skin, BLACK, 0.72));
+    ctx.lineWidth = 1.6;
     ctx.beginPath();
-    ctx.arc(ex - 1.5, eyeY - 1.5, 0.9, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = css(mix(skin, BLACK, 0.7));
-    ctx.lineWidth = 2.4;
+    ctx.moveTo(ex - 7.8, eyeY + 0.6);
+    ctx.quadraticCurveTo(ex - 1, eyeY - 4.9, ex + 7.8, eyeY - 0.2);
+    ctx.stroke();
+    ctx.strokeStyle = css(mix(skin, BLACK, 0.35), 0.5);
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(ex - 9.5, eyeY + 0.5);
-    ctx.quadraticCurveTo(ex, eyeY - 7.5, ex + 9.5, eyeY + 0.5);
+    ctx.moveTo(ex - 6.5, eyeY - 3.2);
+    ctx.quadraticCurveTo(ex, eyeY - 7.2, ex + 7, eyeY - 2.6);
     ctx.stroke();
     // Eyebrow.
     ctx.strokeStyle = css(brow, 0.96);
-    ctx.lineWidth = 4.4;
+    ctx.lineWidth = 3.2;
     ctx.lineCap = "round";
     ctx.beginPath();
-    ctx.moveTo(ex - s * 10, eyeY - 10.5);
-    ctx.quadraticCurveTo(ex + s * 2, eyeY - 15, ex + s * 12, eyeY - 10);
+    ctx.moveTo(ex - s * 9, eyeY - 9.5);
+    ctx.quadraticCurveTo(ex + s * 2, eyeY - 12.5, ex + s * 11.5, eyeY - 9.5);
     ctx.stroke();
   }
   // Shade beside the nose and under it.
