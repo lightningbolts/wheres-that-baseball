@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import rosters from "@/data/game/rosters.json";
 import { GameSession, teamsFromRosters } from "@/lib/game/session/session";
-import { buildTimeline, basePathPoint, BATTER_HANDOFF_S, MAX_RUN_FT_S, SMOOTH_H } from "@/lib/game/anim/timeline";
+import { buildTimeline, basePathPoint, BATTER_HANDOFF_S, MAX_RUN_FT_S, SMOOTH_H, outPlayEnd, OUT_HOLD_S } from "@/lib/game/anim/timeline";
 import { BASE_POS } from "@/lib/game/play/movement";
 import { FIELD_POSITIONS, type RosterFile } from "@/lib/game/types";
 
@@ -30,7 +30,8 @@ describe("animation timeline", () => {
           expect(Number.isFinite(f.x + f.z)).toBe(true);
         }
       }
-      if (tl.inPlay && c.play) {
+      // A third out ends the play on the spot: runners still moving don't matter.
+      if (tl.inPlay && c.play && !c.events.some((e) => e.kind === "inning_end" || e.kind === "game_over")) {
         plays++;
         for (const ro of c.play.runners) {
           if (ro.out || ro.to === 4) continue;
@@ -133,5 +134,47 @@ describe("animation timeline", () => {
       }
     }
     expect(held).toBeGreaterThan(200);
+  });
+});
+
+describe("out pacing", () => {
+  const base = { foul: false, outs: 1, runs: [], hit: 0 as const, error: false, caught: false, fieldedBy: null, scoring: "", sacFly: false, doublePlay: false, fieldersChoice: false, events: [], endT: 9 };
+  it("ends a groundout right after the putout instead of waiting on the throw-around", () => {
+    const play = { ...base, runners: [{ playerId: 1, from: 0 as const, to: 1 as const, out: true, t: 4.1 }] };
+    expect(outPlayEnd(play, false)).toBeCloseTo(4.1 + OUT_HOLD_S);
+  });
+  it("ends a caught fly at the catch, and a third out the moment it is made", () => {
+    const fly = { ...base, caught: true, events: [{ t: 3.2, type: "catch" as const }], runners: [{ playerId: 1, from: 0 as const, to: 1 as const, out: true, t: 3.2 }] };
+    expect(outPlayEnd(fly, false)).toBeCloseTo(3.2 + OUT_HOLD_S);
+    const hitAndOut = { ...base, hit: 1 as const, runners: [{ playerId: 2, from: 1 as const, to: 3 as const, out: true, t: 6 }] };
+    expect(outPlayEnd(hitAndOut, false)).toBe(Infinity);
+    expect(outPlayEnd(hitAndOut, true)).toBeCloseTo(6 + OUT_HOLD_S);
+  });
+
+  it("home-run balls fly on into the seats smoothly instead of stopping at the wall", () => {
+    let homers = 0;
+    for (const seed of [3, 11, 19, 27]) {
+      const s = new GameSession({ awayTeamId: ids[seed % ids.length], homeTeamId: ids[(seed + 5) % ids.length], human: "none", innings: 9, seed, difficulty: "pro", awayStarter: 0, homeStarter: 0 }, teams);
+      while (!s.game.final && homers < 4) {
+        const c = s.autoPitch();
+        if (!c.result.path?.homeRun || c.play?.hit !== 4) continue;
+        homers++;
+        const tl = buildTimeline(c);
+        const path = c.result.path;
+        const wallT = tl.contactT! + path.endT;
+        // No frame-to-frame jump, and still moving after it clears the wall.
+        let prev = tl.ball(tl.contactT!).p;
+        for (let T = tl.contactT! + 1 / 60; T < wallT + 0.6; T += 1 / 60) {
+          const p = tl.ball(T).p;
+          expect(Math.hypot(p.x - prev.x, p.y - prev.y, p.z - prev.z)).toBeLessThan(4);
+          prev = p;
+        }
+        const atWall = tl.ball(wallT).p;
+        const later = tl.ball(wallT + 0.3).p;
+        expect(Math.hypot(later.x - atWall.x, later.z - atWall.z)).toBeGreaterThan(5);
+        expect(tl.ball(wallT + 0.3).visible).toBe(true);
+      }
+    }
+    expect(homers).toBeGreaterThan(0);
   });
 });

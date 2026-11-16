@@ -8,8 +8,10 @@ import { MAX_FRAME_DT, actorsAt, type Playback } from "@/components/game/scene/p
 import { Person, Wardrobe } from "@/components/game/scene/character/person";
 import { Animator, type AnimEnv } from "@/components/game/scene/character/animator";
 import { hash01 } from "@/components/game/scene/character/paint";
+import { identity } from "@/components/game/scene/character/roster";
 import { BAT_COLORS, batGeometry, batMaterial } from "@/components/game/scene/character/bat";
 import { loadRoster } from "@/components/game/scene/character/roster";
+import { loadScriptFont } from "@/components/game/scene/character/scriptFont";
 
 const MAX = 24;
 const env: AnimEnv = { tl: null, ball: null, T: 0, dA: 0, now: 0, frame: 0, cut: false, callAge: -1 };
@@ -49,6 +51,7 @@ export function Players({ pb }: { pb: Playback }) {
   }, []);
   useEffect(() => {
     loadRoster();
+    loadScriptFont();
     return () => {
       for (const p of kit.people) p.dispose();
       kit.wardrobe.dispose();
@@ -118,7 +121,8 @@ export function Players({ pb }: { pb: Playback }) {
       // Size on screen picks the level of detail; distant people also grow smoothly up to
       // BIG_MAX about the spot they stand on. Known before posing, so reaches account for it.
       const frac = 6 / (2 * Math.max(1, cam.position.distanceTo(_at.set(a.state.p.x, 3, a.state.p.z))) * tanHalf);
-      const big = Math.min(BIG_MAX, Math.max(1, BIG_BELOW / frac));
+      // ...and everybody stands his own height.
+      const big = Math.min(BIG_MAX, Math.max(1, BIG_BELOW / frac)) * (a.id && a.kind !== "umpire" ? identity(a.id).stature : 1.02);
       let h = pb.hands.get(a.key);
       if (!h) {
         if (pb.hands.size > 200) pb.hands.clear();
@@ -151,7 +155,7 @@ export function Players({ pb }: { pb: Playback }) {
         person.mesh.visible = ready;
         if (ready) person.pose(out, big, fx, an.gy, fz);
         if (ready && out.hasBat && nBats < MAX) {
-          if (big > 1) {
+          if (big !== 1) {
             _big.makeScale(big, big, big).setPosition(fx * (1 - big), an.gy * (1 - big), fz * (1 - big));
             out.bat.premultiply(_big);
           }

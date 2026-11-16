@@ -121,6 +121,28 @@ export const sfx = {
     crowdGain.gain.linearRampToValueAtTime(0.05 + 0.4 * amount, t + 0.4);
     crowdGain.gain.linearRampToValueAtTime(0.05, t + seconds);
   },
+  /** A disappointed crowd: a low "aww" that falls away (no lift of the crowd bed). */
+  groan(amount: number) {
+    const c = ac();
+    if (!c || !master || amount <= 0) return;
+    noise = noise ?? noiseBuffer(c, 2);
+    const src = c.createBufferSource();
+    src.buffer = noise;
+    src.loop = true;
+    const f = c.createBiquadFilter();
+    f.type = "bandpass";
+    f.Q.value = 1.6;
+    const t = c.currentTime;
+    f.frequency.setValueAtTime(520, t);
+    f.frequency.exponentialRampToValueAtTime(240, t + 1.8);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.35 * amount, t + 0.25);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 2);
+    src.connect(f).connect(g).connect(master);
+    src.start(t, Math.random());
+    src.stop(t + 2.1);
+  },
   stopCrowd() {
     crowdGain?.disconnect();
     crowdGain = null;

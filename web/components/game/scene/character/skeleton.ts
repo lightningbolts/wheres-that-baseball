@@ -27,7 +27,7 @@ export const BONE_COUNT = 17;
 
 /**
  * Helper joints, derived from the solved bones when the skinning matrices are written:
- * each sits at a hip, knee or elbow and is turned half-way between the two bones that
+ * each sits at a hip, knee, elbow or shoulder and is turned half-way between the two bones that
  * meet there, so a deep bend is shared by two gentle ones and the joint keeps its volume.
  */
 export const HELPER = {
@@ -37,9 +37,12 @@ export const HELPER = {
   kneeR: 20,
   elbowL: 21,
   elbowR: 22,
+  /** Shoulder girdle: carries the deltoid and the sleeve head, half-way between the chest and the upper arm. */
+  shoulderL: 23,
+  shoulderR: 24,
 } as const;
 /** Bones the mesh is skinned to: the solved skeleton plus the helpers. */
-export const SKIN_COUNT = 23;
+export const SKIN_COUNT = 25;
 
 /** Body dimensions, ft. Heights are relative to the pelvis origin unless noted. */
 export const DIM = {
@@ -49,11 +52,11 @@ export const DIM = {
   shoulderY: 1.82,
   hipX: 0.3,
   hipY: -0.05,
-  upperArm: 1.0,
+  upperArm: 1.08,
   /** Elbow to the centre of the palm. */
-  foreArm: 0.98,
+  foreArm: 1.05,
   /** Elbow to the wrist (where the forearm mesh ends). */
-  wrist: 0.8,
+  wrist: 0.87,
   thigh: 1.48,
   shin: 1.45,
   /** Neck and head pivots. */
@@ -100,6 +103,7 @@ for (let i = 0; i < 2; i += 1) {
   rest(i === 0 ? HELPER.hipL : HELPER.hipR, s * DIM.hipX, hy, 0);
   rest(i === 0 ? HELPER.kneeL : HELPER.kneeR, s * DIM.hipX, hy - DIM.thigh, 0);
   rest(i === 0 ? HELPER.elbowL : HELPER.elbowR, s * DIM.shoulderX, sy - DIM.upperArm, 0);
+  rest(i === 0 ? HELPER.shoulderL : HELPER.shoulderR, s * DIM.shoulderX, sy, 0);
 }
 
 const RIGID_GIRTH = new Set<number>([BONE.head, BONE.neck, BONE.handL, BONE.handR, BONE.footL, BONE.footR]);
@@ -112,6 +116,8 @@ const HELPERS: Array<[number, number, number, number]> = [
   [HELPER.kneeR, BONE.thighR, BONE.shinR, 1],
   [HELPER.elbowL, BONE.armL, BONE.foreL, 1],
   [HELPER.elbowR, BONE.armR, BONE.foreR, 1],
+  [HELPER.shoulderL, BONE.chest, BONE.armL, 0],
+  [HELPER.shoulderR, BONE.chest, BONE.armR, 0],
 ];
 
 const qa = [0, 0, 0, 1];

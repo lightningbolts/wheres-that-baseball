@@ -5,6 +5,13 @@
 import { PLATE_FRONT_Z, PLATE_HALF_WIDTH } from "@/lib/game/physics/pitch";
 import { BALL_RADIUS_FT } from "@/lib/game/physics/ballFlight";
 import type { Playback } from "@/components/game/scene/playback";
+import {
+  PITCH_BALL_COLOR,
+  PITCH_IN_PLAY_OUT_COLOR,
+  PITCH_IN_PLAY_SAFE_COLOR,
+  PITCH_NEUTRAL_COLOR,
+  PITCH_STRIKE_COLOR,
+} from "@/lib/mlb/strikeZoneMath";
 
 export interface CamPreset {
   pos: [number, number, number];
@@ -61,7 +68,7 @@ export function zoneBox(zoneBottom: number, zoneTop: number): { x0: number; x1: 
 /** Ball radius, ft (markers on the zone are drawn this size). */
 export const MARK_BALL_R = BALL_RADIUS_FT;
 
-export type MarkKind = "pending" | "ball" | "called_strike" | "swinging_strike" | "foul" | "in_play" | "hbp";
+export type MarkKind = "pending" | "ball" | "called_strike" | "swinging_strike" | "foul" | "in_play" | "in_play_out" | "hbp";
 
 /** Where a pitch crossed the front of the plate (Statcast px / pz) and what came of it. */
 export interface PitchMark {
@@ -74,14 +81,16 @@ export interface PitchMark {
   mph: number;
 }
 
+/** The same pitch-result colours as the rest of WTBB (Gameday): balls green, strikes red, in play blue / purple. */
 export const MARK_COLOR: Record<MarkKind, string> = {
   pending: "#ffffff",
-  ball: "#3ea6ff",
-  called_strike: "#ff4d43",
-  swinging_strike: "#ff4d43",
-  foul: "#ffb020",
-  in_play: "#39d98a",
-  hbp: "#b98cff",
+  ball: PITCH_BALL_COLOR,
+  called_strike: PITCH_STRIKE_COLOR,
+  swinging_strike: PITCH_STRIKE_COLOR,
+  foul: PITCH_STRIKE_COLOR,
+  in_play: PITCH_IN_PLAY_SAFE_COLOR,
+  in_play_out: PITCH_IN_PLAY_OUT_COLOR,
+  hbp: PITCH_NEUTRAL_COLOR,
 };
 
 export const MAX_MARKS = 14;

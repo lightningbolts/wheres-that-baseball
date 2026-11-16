@@ -10,10 +10,10 @@
  */
 import { add, clamp, horizDist, lerp3, scale, sub, v3, type V3 } from "@/lib/game/math";
 import { pitchStateAt } from "@/lib/game/physics/pitch";
-import { sampleAt } from "@/lib/game/physics/battedBall";
+import { sampleAt, type BattedBallPath } from "@/lib/game/physics/battedBall";
 import { BASE_POS } from "@/lib/game/play/movement";
 import { idealContactTime } from "@/lib/game/engine/atBat";
-import type { PlayEvent } from "@/lib/game/play/resolvePlay";
+import type { PlayEvent, PlayResult } from "@/lib/game/play/resolvePlay";
 import type { CommittedPitch } from "@/lib/game/session/session";
 import type { FieldPos } from "@/lib/game/types";
 
@@ -127,6 +127,31 @@ function lerpAngle(a: number, b: number, t: number): number {
 }
 
 /** Base-path distance → point (home → 1st → 2nd → 3rd → home). */
+/**
+ * A batted ball no one is holding, `u` s after contact. Once it leaves play it carries on
+ * into the seats (the path's render-only tail) and stays put for `linger` s before a fan
+ * has it, rather than freezing in mid-air at the wall.
+ */
+function looseBall(path: BattedBallPath, u: number, linger: number): BallState {
+  if (u <= path.endT || !path.tail.length) {
+    const s = sampleAt(path, Math.min(u, path.endT));
+    const left = path.homeRun || path.outOfPlayFoul || path.groundRuleDouble;
+    return { p: s.p, visible: !(left && !path.tail.length && u > path.endT + 0.6), held: false, holder: null };
+  }
+  const tail = path.tail;
+  const last = tail[tail.length - 1];
+  if (u >= last.t) return { p: last.p, visible: u < last.t + linger, held: false, holder: null };
+  let a = { t: path.endT, p: sampleAt(path, path.endT).p };
+  for (const s of tail) {
+    if (s.t >= u) {
+      const f = (u - a.t) / (s.t - a.t || 1);
+      return { p: lerp3(a.p, s.p, f), visible: true, held: false, holder: null };
+    }
+    a = s;
+  }
+  return { p: last.p, visible: true, held: false, holder: null };
+}
+
 export function basePathPoint(s: number): V3 {
   const seg = clamp(Math.floor(s / 90), 0, 3);
   const f = clamp((s - seg * 90) / 90, 0, 1);
@@ -298,6 +323,26 @@ function routeTo(tr: Track, spot: V3, arrive: number, earliest: number): void {
   tr.pts.push({ t: leave, p: from }, { t: Math.max(arrive, leave + 0.05), p: spot });
 }
 
+/** How long the play stays on screen after it is decided by an out, s. */
+export const OUT_HOLD_S = 0.75;
+
+/**
+ * Plays that end in outs don't wait for everyone to jog back: a third out ends the play
+ * as soon as it is made, and an all-out play (no hit, run or error) as soon as the last
+ * runner is retired or reaches his bag. Returns play-relative time, or Infinity.
+ */
+export function outPlayEnd(play: PlayResult, inningOver: boolean): number {
+  const outs = play.runners.filter((r) => r.out);
+  if (!outs.length) return Infinity;
+  if (inningOver) return Math.max(...outs.map((r) => r.t)) + OUT_HOLD_S;
+  if (play.hit > 0 || play.error || play.runs.length > 0) return Infinity;
+  const moved = play.runners.filter((r) => r.out || r.to !== r.from);
+  const decided = Math.max(...moved.map((r) => r.t));
+  // A caught fly: the batter is out at the catch; runners just go back or tag.
+  const catchT = play.caught ? (play.events.find((e) => e.type === "catch" || e.type === "dive")?.t ?? 0) : 0;
+  return Math.max(decided, catchT) + OUT_HOLD_S;
+}
+
 export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Timeline {
   const { result, play, fielders, runners, battingSide } = c;
   const flight = result.flight;
@@ -382,11 +427,7 @@ export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Ti
 
   const ballInPlay = (u: number): BallState => {
     if (!path) return { p: mittP, visible: false, held: false, holder: null };
-    if (!gather || u < gatherT) {
-      const s = sampleAt(path, Math.min(u, path.endT));
-      const gone = (homeRun || path.outOfPlayFoul) && u > path.endT + 0.6;
-      return { p: s.p, visible: !gone, held: false, holder: null };
-    }
+    if (!gather || u < gatherT) return looseBall(path, u, 3);
     let p = gatherP;
     let holder: FieldPos | null = gather.pos ?? null;
     for (const th of throws) {
@@ -422,11 +463,7 @@ export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Ti
     if (contactT != null && T >= contactT) {
       if (result.kind === "foul_tip") return { p: mittP, visible: true, held: true, holder: "C" };
       if (inPlay) return ballInPlay(T - contactT);
-      if (path) {
-        const u = T - contactT;
-        const s = sampleAt(path, Math.min(u, path.endT));
-        return { p: s.p, visible: u < Math.min(path.endT + 0.4, 4), held: false, holder: null };
-      }
+      if (path) return looseBall(path, T - contactT, 1.2);
     }
     if (T < flight.samples[0].t) return { p: lerp3(releaseP, flight.samples[0].p, (T - releaseT) / -releaseT), visible: true, held: false, holder: null };
     if (result.kind === "hbp") return { p: pitchAt(Math.min(T, crossT)), visible: T < crossT + 0.5, held: false, holder: null };
@@ -483,6 +520,7 @@ export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Ti
   }
   if (inPlay && contactT != null) {
     const fieldedBy = gather?.pos;
+    const outfieldBall = fieldedBy === "LF" || fieldedBy === "CF" || fieldedBy === "RF";
     for (const f of fielders) {
       const tr = tracks.get(f.pos)!;
       tr.face = undefined;
@@ -509,6 +547,19 @@ export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Ti
         const h = myAttempts[0];
         tr.pts.push({ t: toFlight(h.t), p: v3(h.to!.x, 0, h.to!.z) });
         tr.actions.push({ t: toFlight(h.t) - 0.25, dur: 1.0, action: "dive" });
+      } else if (outfieldBall && (f.pos === "1B" || f.pos === "2B" || f.pos === "SS" || f.pos === "3B")) {
+        // The ball is through to the outfield: infielders don't chase it, they take their
+        // bases and the middle infielder on the ball's side goes out as the cutoff.
+        const leftSide = landing.x > 0;
+        const bag = (b: 1 | 2 | 3) => BASE_POS[b];
+        let spot: V3;
+        if (f.pos === "1B") spot = v3(bag(1).x + 2, 0, bag(1).z - 2);
+        else if (f.pos === "3B") spot = v3(bag(3).x - 2, 0, bag(3).z - 2);
+        else if ((f.pos === "SS") === leftSide) spot = lerp3(v3(bag(2).x, 0, bag(2).z), v3(landing.x, 0, landing.z), 0.38);
+        else spot = v3(bag(2).x, 0, bag(2).z - 1.5);
+        const d = Math.hypot(spot.x - pStart.x, spot.z - pStart.z);
+        tr.pts.push({ t: react + 0.15 + d / 21, p: spot });
+        tr.face = v3(landing.x, 0, landing.z);
       } else {
         // Back up the play: drift toward the ball, outfielders more.
         const k = f.pos === "LF" || f.pos === "CF" || f.pos === "RF" ? 0.35 : f.pos === "P" ? 0.15 : 0.08;
@@ -671,22 +722,33 @@ export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Ti
   // ---- Timing ----
   let endT = crossT + 1.3;
   if (stealEvent) endT = crossT + 3.2;
-  if (contactT != null && path && !inPlay) endT = contactT + Math.min(3, path.endT + 0.4);
+  if (contactT != null && path && !inPlay) endT = contactT + Math.min(3, Math.max(path.endT + 0.4, Math.min((path.tail.at(-1)?.t ?? 0) + 0.3, path.endT + 1.2)));
   if (result.kind === "foul_tip") endT = crossT + 1.2;
   if (inPlay && play && contactT != null) {
     let last = play.endT + 1.2;
     for (const tr of runTracks.values()) last = Math.max(last, tr.pts[tr.pts.length - 1].t - contactT + 0.4);
-    if (homeRun) last = Math.max(last, path!.endT + 1.5);
+    if (homeRun) last = Math.max(last, path!.endT + 1.5, (path!.tail.at(-1)?.t ?? 0) + 0.6);
+    // Outs move on, but safe runners still get to their bags first — unless the third
+    // out has already ended the half, when nobody's trip to a base counts any more.
+    const halfOver = c.events.some((e) => e.kind === "inning_end" || e.kind === "game_over");
+    let safeEnd = 0;
+    if (!halfOver) for (const ro of play.runners) {
+      const tr = runTracks.get(ro.playerId);
+      if (tr && !ro.out && ro.to !== 4) safeEnd = Math.max(safeEnd, tr.pts[tr.pts.length - 1].t - contactT + 0.25);
+    }
+    last = Math.min(last, Math.max(safeEnd, outPlayEnd(play, halfOver)));
     endT = contactT + Math.min(last, 24);
   }
 
   const focus = (T: number): V3 => {
     const b = ballMemo(T);
     if (!inPlay || contactT == null) return b.p;
-    // Home run: hold on the ball landing in the seats, then pick up the trot.
-    if (homeRun && path && T > toFlight(path.endT + 0.9)) {
-      const br = runner(batterId, T);
-      if (br) return br.p;
+    // Home run: follow the ball into the seats, then ease over to the trot.
+    if (homeRun && path) {
+      const restT = path.tail.length ? path.tail[path.tail.length - 1].t : path.endT;
+      const k = clamp((T - toFlight(Math.min(restT, path.endT + 1.2) + 0.2)) / 1.1, 0, 1);
+      const br = k > 0 ? runner(batterId, T) : null;
+      if (br) return lerp3(b.p, br.p, k * k * (3 - 2 * k));
     }
     if (!b.held) return b.p;
     // Ball held: frame the lead runner still moving, else the ball.

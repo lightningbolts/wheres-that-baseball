@@ -29,6 +29,8 @@ export interface PropCtx {
   homeColor: string;
   /** Stadium lights and windows on (dusk and night games). */
   lit: boolean;
+  /** Translucent fabric (Tropicana Field's roof); casts no shadow. */
+  veil?: GeoBuilder;
 }
 
 /** A local frame on the ground: +lx to the viewer's right seen from home, +lz toward home. */
@@ -88,7 +90,9 @@ export function foulPoles(c: PropCtx): void {
     // Screen on the fair side.
     const [ix, iz] = dirXZ(a - Math.sign(a) * 90);
     const yaw = Math.atan2(ix, iz);
-    c.st.box(dx * f + ix * 1.6, h - 22, dz * f + iz * 1.6, 0.25, 40, 3, yaw, color, 0.86);
+    c.st.box(dx * f + ix * 2.2, h - 24, dz * f + iz * 2.2, 0.2, 44, 4, yaw, color, 0.86);
+    for (let k = 0; k <= 4; k += 1) c.st.box(dx * f + ix * 2.2, h - 46 + k * 11, dz * f + iz * 2.2, 0.32, 0.5, 4.3, yaw, color, 0.7);
+    c.st.box(dx * f + ix * 4.3, h - 24, dz * f + iz * 4.3, 0.34, 44.5, 0.4, yaw, color, 0.74);
   }
 }
 
@@ -139,6 +143,10 @@ export function dugouts(c: PropCtx): void {
 /** LED ad boards across the backstop and a padded rail cap, so the wall behind the plate reads. */
 export function backstop(c: PropCtx): void {
   const r = LED_ROW.backstop;
+  // Signed distance from dead behind the plate, so the lockup panel is centred there.
+  // The board keeps its artwork's proportions (2048 × 320 px) whatever the wall height.
+  const ft = Math.max(8, (c.loop.at(0).h - 1.6) * 6.4);
+  const u = (d: number) => (d > c.loop.length / 2 ? d - c.loop.length : d) / ft + r.center;
   const spans: Array<[number, number]> = [
     [0, c.loop.sOf(-156)],
     [c.loop.sOf(156), c.loop.length],
@@ -149,7 +157,7 @@ export function backstop(c: PropCtx): void {
       const p = c.loop.at(s0 + ((s1 - s0) * i) / n);
       const q = c.loop.at(s0 + ((s1 - s0) * (i + 1)) / n);
       const at = (w: typeof p, y: number): P3 => [w.x - w.nx * 0.14, y, w.z - w.nz * 0.14];
-      c.led.quadUv(at(p, 0.9), at(q, 0.9), at(q, q.h - 0.7), at(p, p.h - 0.7), [p.s / r.ft, r.v[0]], [q.s / r.ft, r.v[0]], [q.s / r.ft, r.v[1]], [p.s / r.ft, r.v[1]], "#ffffff");
+      c.led.quadUv(at(p, 0.9), at(q, 0.9), at(q, q.h - 0.7), at(p, p.h - 0.7), [u(p.s), r.v[0]], [u(q.s), r.v[0]], [u(q.s), r.v[1]], [u(p.s), r.v[1]], "#ffffff");
     }
   }
 }
@@ -378,10 +386,96 @@ export function scoreboard(c: PropCtx): BoardPlacement {
     for (const sx of [-1, 1]) c.st.tri(loc(f, sx * (w / 2 + 4), s.y - h / 2 - 4, 0), loc(f, sx * (w / 2 + 4), s.y + h / 2 + 4, 0), loc(f, sx * (w / 2 + 22), s.y, 0), "#1b3e7c");
   } else {
     fbox(c.st, f, 0, s.y + h / 2 + 8.5, -3, w + 8, 9, 5, c.homeColor);
-    fbox(c.st, f, 0, s.y - h / 2 - 7, -3, w + 8, 6, 5, mix(c.homeColor, "#101214", 0.6));
+    fbox(c.st, f, 0, s.y - h / 2 - 7.5, -3, w + 8, 7, 5, mix(c.homeColor, "#101214", 0.6));
+    // Sponsor boards under and beside the main screen.
+    const r = LED_ROW.backstop;
+    const ad = (lx: number, y: number, bw: number, bh: number, u0: number, u1: number) => {
+      c.led.quadUv(loc(f, lx - bw / 2, y - bh / 2, 0.3), loc(f, lx + bw / 2, y - bh / 2, 0.3), loc(f, lx + bw / 2, y + bh / 2, 0.3), loc(f, lx - bw / 2, y + bh / 2, 0.3), [u0, r.v[0]], [u1, r.v[0]], [u1, r.v[1]], [u0, r.v[1]], "#ffffff");
+    };
+    // Under the screen: whole tiles of the board, centred on its lockup panel.
+    const reps = Math.max(1, Math.round((w + 4) / 5.4 / 6.4));
+    ad(0, s.y - h / 2 - 7.5, w + 4, 5.4, r.center - reps / 2, r.center + reps / 2);
+    const sw = Math.max(16, w * 0.16);
+    for (const sx of [-1, 1]) {
+      fbox(c.st, f, sx * (w / 2 + 6 + sw / 2), s.y, -3, sw + 4, h + 8, 5, frame);
+      for (let k = 0; k < 3; k += 1) {
+        const pn = r.panels[[0, 3, 2][k]];
+        ad(sx * (w / 2 + 6 + sw / 2), s.y + (k - 1) * (h / 3), sw, h / 3 - 1.5, pn[0], pn[1]);
+      }
+    }
   }
   const p = loc(f, 0, s.y, 0.25);
   return { position: [p[0], p[1], p[2]], yaw: f.yaw, w, h };
+}
+
+/**
+ * Fixed cable dome (Tropicana Field): translucent fabric stepping down in concentric bands
+ * from a peak over second base to a rim on the top of the stands, the whole roof tilted
+ * about 6.5° down toward center field. Catwalk rings A–D hang under the ridges (A over the
+ * infield at ~194 ft above home and ~181 ft above center, D at ~121 / ~59 ft), tied by
+ * radial ridge cables.
+ */
+function cableDome(c: PropCtx, peak: number, color: string): void {
+  const st = c.st;
+  const veil = c.veil;
+  const C = { x: 0, z: 170 };
+  const tilt = Math.tan((6.5 * Math.PI) / 180);
+  const n = 72;
+  // Ridge rings as fractions of the centre-to-rim run (catwalks A–D sit just under them).
+  const ridges = [0, 0.19, 0.45, 0.69, 0.9, 1];
+  const rim: Array<{ x: number; z: number; y: number }> = [];
+  for (let i = 0; i < n; i += 1) {
+    const beta = -180 + (360 * i) / n;
+    const w = c.loop.atBeta(beta);
+    const rr = c.reach(beta);
+    const out = rr.out + 8;
+    rim.push({ x: w.x + w.nx * out, z: w.z + w.nz * out, y: Math.max(rr.top + 10, 34) });
+  }
+  const top = (z: number) => peak - tilt * (z - C.z);
+  const pt = (i: number, t: number, sag: number): P3 => {
+    const e = rim[((i % n) + n) % n];
+    const x = C.x + (e.x - C.x) * t;
+    const z = C.z + (e.z - C.z) * t;
+    return [x, e.y + (top(z) - e.y) * (1 - t ** 1.35) - sag, z];
+  };
+  if (veil) {
+    for (let b = 0; b < ridges.length - 1; b += 1) {
+      const t0 = ridges[b];
+      const t1 = ridges[b + 1];
+      const steps = b === 0 ? 2 : 3;
+      for (let k = 0; k < steps; k += 1) {
+        const u0 = k / steps;
+        const u1 = (k + 1) / steps;
+        const ta = t0 + (t1 - t0) * u0;
+        const tb = t0 + (t1 - t0) * u1;
+        // Fabric sags between the ridge cables.
+        const sa = 7 * Math.sin(Math.PI * u0) * (t1 - t0) * 4;
+        const sb = 7 * Math.sin(Math.PI * u1) * (t1 - t0) * 4;
+        for (let i = 0; i < n; i += 1) {
+          const shade = 0.9 + 0.1 * Math.cos(Math.PI * (u0 + u1)) + 0.04 * (i % 2);
+          veil.quad(pt(i, ta, sa), pt(i + 1, ta, sa), pt(i + 1, tb, sb), pt(i, tb, sb), color, shade);
+        }
+      }
+    }
+  }
+  const steel = "#9aa1a8";
+  // Radial ridge cables and the ridge rings.
+  for (let i = 0; i < n; i += 3) for (let b = 0; b < ridges.length - 1; b += 1) st.beam(pt(i, ridges[b], 0), pt(i, ridges[b + 1], 0), 0.8, steel, 0.9);
+  for (let b = 1; b < ridges.length; b += 1) {
+    for (let i = 0; i < n; i += 1) {
+      st.beam(pt(i, ridges[b], 0), pt(i + 1, ridges[b], 0), b === ridges.length - 1 ? 9 : 1.2, b === ridges.length - 1 ? "#e4e2dc" : steel, 0.92);
+    }
+  }
+  // Catwalks A–D: walkway trusses hung below the ridge rings, lights along A and B.
+  for (let b = 1; b <= 4; b += 1) {
+    for (let i = 0; i < n; i += 1) {
+      const a = pt(i, ridges[b], 14);
+      const q = pt(i + 1, ridges[b], 14);
+      st.beam(a, q, 5, "#7d848b", 0.85);
+      st.beam([a[0], a[1] + 6, a[2]], pt(i, ridges[b], 0), 0.6, steel, 0.8);
+      if (b <= 2 && i % 2 === 0) (c.lit ? c.glow : st).box(a[0], a[1] - 3, a[2], 4, 2, 4, 0, c.lit ? "#fff6dc" : "#c9ccd0");
+    }
+  }
 }
 
 /**
@@ -416,6 +510,10 @@ export function roof(c: PropCtx): void {
     }
     st.mat = 0;
   };
+  if (kind === "cable") {
+    cableDome(c, r.h, r.color);
+    return;
+  }
   if (kind === "dome") {
     // Nested shells stacked over center field, the largest outermost.
     for (let k = 0; k < 3; k += 1) {
@@ -699,13 +797,23 @@ function feature(c: PropCtx, f: Feature, fi: number): void {
         const [bx, bz] = dirXZ(d1);
         const r0a = fenceAt(deg) + f.back;
         const r0b = fenceAt(d1) + f.back;
-        const bands: Array<[number, number, string]> = [
-          [0, 420, "#2f6e97"],
-          [420, 1500, "#3f7fa6"],
-          [1500, 3400, "#5a93b6"],
-        ];
+        const bands: Array<[number, number, string]> = f.w
+          ? [[0, f.w, "#3a7395"]]
+          : [
+              [0, 420, "#2f6e97"],
+              [420, 1500, "#3f7fa6"],
+              [1500, 3400, "#5a93b6"],
+            ];
         for (const [o0, o1, col] of bands) {
           st.quad([ax * (r0a + o0), y, az * (r0a + o0)], [bx * (r0b + o0), y, bz * (r0b + o0)], [bx * (r0b + o1), y, bz * (r0b + o1)], [ax * (r0a + o1), y, az * (r0a + o1)], col);
+        }
+        if (f.w) {
+          // A river's far bank.
+          st.mat = 1;
+          const e0 = r0a + f.w;
+          const e1 = r0b + f.w;
+          st.quad([ax * e0, GROUND_Y + 0.2, az * e0], [bx * e1, GROUND_Y + 0.2, bz * e1], [bx * (e1 + 14), GROUND_Y + 0.2, bz * (e1 + 14)], [ax * (e0 + 14), GROUND_Y + 0.2, az * (e0 + 14)], "#b5b1a6");
+          st.mat = 6;
         }
         // Quay wall and promenade along the near bank.
         st.mat = 1;
@@ -746,7 +854,14 @@ function feature(c: PropCtx, f: Feature, fi: number): void {
       const [dx, dz] = dirXZ(f.deg);
       const x = dx * f.dist;
       const z = dz * f.dist;
-      if (f.h > 700) {
+      if (f.style === "saucer") {
+        // Space Needle: a waisted white tower, the halo saucer near the top, a spire.
+        st.cyl(x, GROUND_Y, z, 34, 9, f.h * 0.42, "#ecebe6", 8, false);
+        st.cyl(x, GROUND_Y + f.h * 0.42, z, 9, 16, f.h * 0.33, "#ecebe6", 8, false);
+        st.cyl(x, GROUND_Y + f.h * 0.75, z, 34, 62, f.h * 0.05, "#d9d6cc", 16);
+        st.cyl(x, GROUND_Y + f.h * 0.8, z, 62, 40, f.h * 0.05, "#c9a24a", 16);
+        st.cyl(x, GROUND_Y + f.h * 0.85, z, 10, 2, f.h * 0.15, "#ecebe6", 6);
+      } else if (f.h > 700) {
         st.cyl(x, GROUND_Y, z, 30, 11, f.h * 0.62, "#b9bcc0", 8, false);
         st.cyl(x, GROUND_Y + f.h * 0.62, z, 34, 30, 46, "#8f949b", 10);
         st.cyl(x, GROUND_Y + f.h * 0.62 + 46, z, 9, 2, f.h * 0.38 - 46, "#d5d7da", 6);
@@ -757,7 +872,9 @@ function feature(c: PropCtx, f: Feature, fi: number): void {
       break;
     }
     case "building": {
-      const fr = behind(c, f.deg, f.back + f.d / 2);
+      const base = behind(c, f.deg, f.back + f.d / 2);
+      // A skewed face points at bearing deg + skew instead of straight at the plate.
+      const fr = f.skew ? { ...frameYaw(base.x, base.z, base.yaw - (f.skew * Math.PI) / 180), h: base.h } : base;
       st.mat = f.glass ? 4 : 3;
       st.aux = f.h;
       fbox(st, fr, 0, GROUND_Y + (f.h - GROUND_Y) / 2, 0, f.w, f.h - GROUND_Y, f.d, f.color);

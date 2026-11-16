@@ -6,7 +6,7 @@
 import * as THREE from "three";
 import type { ActorDraw, ActorKind, RigOut } from "@/components/game/scene/rig";
 import { ATLAS } from "@/components/game/scene/character/atlas";
-import { buildBody, outfitFor, outfitKey, type Lod, type Outfit } from "@/components/game/scene/character/body";
+import { buildBody, outfitFor, outfitKey, styleOf, type Lod, type Outfit } from "@/components/game/scene/character/body";
 import type { MeshData } from "@/components/game/scene/character/mesh";
 import { hash01, paintFinish, paintLook, type Look } from "@/components/game/scene/character/paint";
 import { identity, rosterVersion } from "@/components/game/scene/character/roster";
@@ -107,12 +107,13 @@ export class Person {
   seen = -1;
   lod: Lod = 0;
   girth = 1;
+  private who = -1;
 
   private skeleton: THREE.Skeleton;
   private material: THREE.MeshStandardMaterial;
   private texture: THREE.CanvasTexture;
   private ctx: CanvasRenderingContext2D;
-  private look: Look = { kind: "fielder", id: -1, seed: 0, jersey: -1, accent: -1, skin: -1, name: "", num: "", team: "", teamId: 0, cap: -1, letter: -1, stripe: -1 };
+  private look: Look = { kind: "fielder", id: -1, seed: 0, jersey: -1, accent: -1, skin: -1, name: "", num: "", team: "", teamId: 0, cap: -1, letter: -1, stripe: -1, kit: null };
   private painted = false;
   private version = -1;
   private outfit = "";
@@ -173,6 +174,7 @@ export class Person {
     l.cap = a.uni?.cap ?? -1;
     l.letter = a.uni?.letter ?? -1;
     l.stripe = a.uni?.stripe ?? -1;
+    l.kit = a.uni?.kit ?? null;
     if (a.kind === "umpire") {
       l.name = "";
       l.num = "";
@@ -198,8 +200,11 @@ export class Person {
 
   /** Pick the mesh for the actor's role and the level of detail. */
   dress(a: ActorDraw, lod: Lod): void {
-    if (a.kind !== this.kind || a.hand !== this.hand || lod !== this.shownLod) {
-      const o = outfitFor(a.kind, a.hand);
+    const who = a.id ?? 0;
+    if (a.kind !== this.kind || a.hand !== this.hand || lod !== this.shownLod || who !== this.who) {
+      // Players wear their trousers and helmets their own way; umpires and coaches by the book.
+      const o = outfitFor(a.kind, a.hand, who ? styleOf(who) : undefined);
+      this.who = who;
       const k = outfitKey(o);
       if (k !== this.outfit || lod !== this.shownLod) this.mesh.geometry = this.wardrobe.body(o, lod);
       this.outfit = k;

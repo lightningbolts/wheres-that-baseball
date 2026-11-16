@@ -14,6 +14,7 @@ import { MARK_BALL_R, MARK_COLOR, zoneBox } from "@/components/game/scene/view";
 import { createPlayback } from "@/components/game/scene/playback";
 import { sfx } from "@/components/game/audio";
 import { BoxScore } from "@/components/game/BoxScore";
+import { PitchTracker } from "@/components/game/PitchTracker";
 
 const GameScene = dynamic(() => import("@/components/game/scene/GameScene"), {
   ssr: false,
@@ -40,6 +41,7 @@ export function GameView({
   const [showLog, setShowLog] = useState(false);
   const [muted, setMuted] = useState(sfx.muted);
   const [showBox, setShowBox] = useState(false);
+  const [showPitches, setShowPitches] = useState(false);
   const [showMgr, setShowMgr] = useState(false);
 
   useEffect(() => {
@@ -71,6 +73,7 @@ export function GameView({
       else if (k === "s" || k === "S") ctl.toggleSteal();
       else if (k === "b" || k === "B") ctl.toggleBunt();
       else if (k === "t" || k === "T") ctl.toggleTurbo();
+      else if (k === "i" || k === "I") setShowPitches((v) => !v);
       else if (k === "m" || k === "M") {
         if (ctl.getSnapshot().canManage) setShowMgr((v) => !v);
       }
@@ -105,7 +108,10 @@ export function GameView({
 
   return (
     <div className="relative min-h-0 w-full flex-1 select-none overflow-hidden bg-[#0d1a12] text-white">
-      <GameScene park={g.park} pb={pb} homeColor={getTeamColor(homeId)} onAim={onAim} onPrimary={onPrimary} />
+      <GameScene park={g.park} pb={pb} homeColor={getTeamColor(homeId)} awayColor={getTeamColor(awayId)} onAim={onAim} onPrimary={onPrimary} />
+      {/* A broadcast cut dips to black (quick down, a little slower up); the inning bumper sits on it. */}
+      <div aria-hidden className={`pointer-events-none absolute inset-0 bg-black transition-opacity ${snap.curtain ? "opacity-100 duration-[130ms] ease-in" : "opacity-0 duration-300 ease-out"}`} />
+      <Bumper snap={snap} awayId={awayId} homeId={homeId} />
 
       <div className="pointer-events-none absolute left-2 top-2 flex flex-col items-start gap-1.5 sm:left-3 sm:top-3">
         <ScoreBug snap={snap} awayId={awayId} homeId={homeId} />
@@ -127,6 +133,9 @@ export function GameView({
         )}
         <HudButton onClick={() => setShowBox((v) => !v)} active={showBox} title="Box score">
           Box
+        </HudButton>
+        <HudButton onClick={() => setShowPitches((v) => !v)} active={showPitches} title="Pitch tracker: velocity, spin, movement, whiffs (I)">
+          Pitches
         </HudButton>
         <HudButton onClick={() => setShowLog((v) => !v)} active={showLog} title="Play-by-play">
           Log
@@ -152,6 +161,9 @@ export function GameView({
       <Controls snap={snap} ctl={ctl} touch={touch} />
 
       {showLog && <PlayLog snap={snap} onClose={() => setShowLog(false)} />}
+      {showPitches && !snap.final && (
+        <PitchTracker log={snap.pitchLog} zone={snap.zone} currentPitcherId={ctl.session.currentContext?.pitcher.id ?? null} onClose={() => setShowPitches(false)} />
+      )}
       {showMgr && !snap.final && <ManagerPanel ctl={ctl} snap={snap} onClose={() => setShowMgr(false)} />}
       {(snap.final || showBox) && (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/60 p-3">
@@ -206,6 +218,47 @@ function HudButton({ children, onClick, active, title, pulse }: { children: Reac
   );
 }
 
+/** Keep showing something for a moment after it is gone, so it can animate out instead of popping off. */
+function useLinger<T>(value: T | null, ms = 200): { item: T | null; leaving: boolean } {
+  const [held, setHeld] = useState<T | null>(value);
+  if (value !== null && value !== held) setHeld(value);
+  useEffect(() => {
+    if (value !== null) return;
+    const id = setTimeout(() => setHeld(null), ms);
+    return () => clearTimeout(id);
+  }, [value, ms]);
+  return { item: value ?? held, leaving: value === null && held !== null };
+}
+
+const HUD_IN = "animate-play_in";
+const HUD_OUT = "animate-toast_out [animation-duration:200ms]";
+
+/** Between half-innings: the line score card that covers the teams changing sides. */
+function Bumper({ snap, awayId, homeId }: { snap: HudSnapshot; awayId: number; homeId: number }) {
+  const { item: b, leaving } = useLinger(snap.bumper, 260);
+  if (!b) return null;
+  const side = (id: number, runs: number) => (
+    <div className="flex items-center gap-2.5">
+      <TeamMark id={id} size={40} />
+      <span className="text-lg font-semibold tracking-wide text-white/80">{abbrev(id)}</span>
+      <span className="text-4xl font-extrabold tabular-nums">{runs}</span>
+    </div>
+  );
+  return (
+    <div className={`pointer-events-none absolute inset-0 flex items-center justify-center px-4 transition-opacity duration-200 ${leaving ? "opacity-0" : "opacity-100"}`} aria-live="polite">
+      <div className="animate-play_in rounded-2xl border border-white/10 bg-white/[0.06] px-7 py-5 text-center shadow-2xl">
+        <div className="text-xs font-semibold uppercase tracking-[0.25em] text-amber-300">{b.title}</div>
+        <div className="mt-3 flex items-center justify-center gap-6">
+          {side(awayId, snap.score.away)}
+          <span className="text-white/30">–</span>
+          {side(homeId, snap.score.home)}
+        </div>
+        <div className="mt-3 text-xs text-white/60">{b.sub}</div>
+      </div>
+    </div>
+  );
+}
+
 function ScoreBug({ snap, awayId, homeId }: { snap: HudSnapshot; awayId: number; homeId: number }) {
   const row = (id: number, runs: number, batting: boolean) => (
     <div className="flex items-center gap-2 rounded-md pr-1" style={{ background: `linear-gradient(90deg, ${getTeamColor(id)}cc, ${getTeamColor(id)}33 70%, transparent)` }}>
@@ -224,7 +277,7 @@ function ScoreBug({ snap, awayId, homeId }: { snap: HudSnapshot; awayId: number;
     <div className="flex items-center gap-1">
       <span className="w-2.5">{label}</span>
       {Array.from({ length: max }, (_, i) => (
-        <span key={i} className={`h-2 w-2 rounded-full ${n > i ? on : "bg-white/20"}`} />
+        <span key={i} className={`h-2 w-2 rounded-full transition-colors duration-200 ${n > i ? on : "bg-white/20"}`} />
       ))}
     </div>
   );
@@ -235,14 +288,14 @@ function ScoreBug({ snap, awayId, homeId }: { snap: HudSnapshot; awayId: number;
         {row(homeId, snap.score.home, !snap.top)}
       </div>
       <div className="flex flex-col items-center justify-center border-l border-white/10 pl-3">
-        <div className="text-xs font-semibold">
+        <div key={`${snap.top}-${snap.inning}`} className="animate-play_in text-xs font-semibold">
           {snap.top ? "▲" : "▼"} {ordinal(snap.inning)}
         </div>
         <Diamond bases={snap.bases} />
       </div>
       <div className="flex flex-col justify-center gap-1 border-l border-white/10 pl-3 text-[10px] font-semibold text-white/60" aria-label={`Count ${snap.balls} and ${snap.strikes}, ${snap.outs} out`}>
-        {pips("B", snap.balls, 3, "bg-sky-400")}
-        {pips("S", snap.strikes, 2, "bg-rose-500")}
+        {pips("B", snap.balls, 3, "bg-green-500")}
+        {pips("S", snap.strikes, 2, "bg-red-500")}
         {pips("O", snap.outs, 2, "bg-amber-300")}
       </div>
     </div>
@@ -271,7 +324,7 @@ function BasesPanel({ snap, ctl }: { snap: HudSnapshot; ctl: GameController }) {
     [28, 62],
   ];
   const label = ["2nd", "3rd", "home"];
-  const call = snap.call;
+  const { item: call, leaving: callLeaving } = useLinger(snap.call);
   return (
     <div className="pointer-events-none absolute bottom-2 right-2 z-10 w-[148px] select-none sm:bottom-3 sm:right-3 sm:w-[170px]" aria-label="Runners on base">
       <div className="pointer-events-auto relative rounded-xl border border-white/10 bg-black/60 p-2 shadow-xl backdrop-blur">
@@ -343,7 +396,7 @@ function BasesPanel({ snap, ctl }: { snap: HudSnapshot; ctl: GameController }) {
         {call && (
           <div
             key={call.id}
-            className={`pointer-events-none absolute inset-x-0 top-1/3 animate-play_in text-center text-xl font-black italic tracking-wider drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] ${
+            className={`pointer-events-none absolute inset-x-0 top-1/3 ${callLeaving ? HUD_OUT : HUD_IN} text-center text-xl font-black italic tracking-wider drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] ${
               call.tone === "good" ? "text-emerald-300" : call.tone === "bad" ? "text-rose-400" : "text-white"
             }`}
           >
@@ -357,7 +410,7 @@ function BasesPanel({ snap, ctl }: { snap: HudSnapshot; ctl: GameController }) {
 
 function Diamond({ bases }: { bases: [boolean, boolean, boolean] }) {
   const b = (on: boolean, x: number, y: number) => (
-    <rect x={x} y={y} width={8} height={8} transform={`rotate(45 ${x + 4} ${y + 4})`} fill={on ? "#fcd34d" : "transparent"} stroke="#fff" strokeOpacity={0.6} />
+    <rect x={x} y={y} width={8} height={8} transform={`rotate(45 ${x + 4} ${y + 4})`} fill="#fcd34d" fillOpacity={on ? 1 : 0} stroke="#fff" strokeOpacity={0.6} className="transition-[fill-opacity] duration-200" />
   );
   return (
     <svg width={34} height={26} viewBox="0 0 34 26" className="mt-1" aria-label="Runners on base">
@@ -374,7 +427,7 @@ function WinProb({ p, awayId, homeId }: { p: number; awayId: number; homeId: num
     <div className="hidden items-center gap-1.5 rounded-md border border-white/15 bg-black/45 px-2 py-1 text-[11px] backdrop-blur md:flex" title="Win probability">
       <span>{abbrev(awayId)}</span>
       <div className="relative h-1.5 w-20 overflow-hidden rounded-full" style={{ background: getTeamColor(awayId) }}>
-        <div className="absolute inset-y-0 right-0" style={{ width: `${pct}%`, background: getTeamColor(homeId) }} />
+        <div className="absolute inset-y-0 right-0 transition-[width] duration-500 ease-out" style={{ width: `${pct}%`, background: getTeamColor(homeId) }} />
       </div>
       <span>
         {abbrev(homeId)} {pct}%
@@ -383,22 +436,24 @@ function WinProb({ p, awayId, homeId }: { p: number; awayId: number; homeId: num
   );
 }
 
+/** Same result colours as the zone markers (WTBB / Gameday). */
 const RESULT_TONE: Record<string, string> = {
-  ball: "text-sky-300",
-  called_strike: "text-rose-300",
-  swinging_strike: "text-rose-300",
-  foul: "text-amber-300",
-  in_play: "text-emerald-300",
-  hbp: "text-violet-300",
+  ball: "text-green-400",
+  called_strike: "text-red-400",
+  swinging_strike: "text-red-400",
+  foul: "text-red-400",
+  in_play: "text-blue-400",
+  in_play_out: "text-purple-400",
+  hbp: "text-neutral-300",
   pending: "text-white/70",
 };
 
 /** The pitch on its way (type and speed), then the call. */
 function PitchReadout({ snap }: { snap: HudSnapshot }) {
-  const r = snap.readout;
+  const { item: r, leaving } = useLinger(snap.readout);
   if (!r) return null;
   return (
-    <div key={r.id} className="animate-play_in rounded-lg border border-white/10 bg-black/60 px-3 py-1.5 text-sm shadow-lg backdrop-blur" aria-live="polite">
+    <div key={r.id} className={`${leaving ? HUD_OUT : HUD_IN} rounded-lg border border-white/10 bg-black/60 px-3 py-1.5 text-sm shadow-lg backdrop-blur`} aria-live="polite">
       <span className="font-mono text-base font-bold tabular-nums">{r.mph}</span>
       <span className="text-[10px] text-white/60"> mph </span>
       <span className="font-semibold">{pitchName(r.type)}</span>
@@ -438,13 +493,17 @@ function PitchChart({ snap }: { snap: HudSnapshot }) {
 
 function MatchupCard({ snap }: { snap: HudSnapshot }) {
   const last = snap.pitches[snap.pitches.length - 1];
+  const rec = snap.pitchLog[snap.pitchLog.length - 1];
   return (
     <div className="pointer-events-none absolute bottom-2 left-2 flex max-w-[calc(100vw-180px)] sm:max-w-[58vw] items-center gap-2.5 rounded-lg border border-white/10 bg-black/55 px-3 py-2 text-xs shadow-lg backdrop-blur sm:bottom-3 sm:left-3">
       <PitchChart snap={snap} />
       <div className="min-w-0">
         <div className="truncate">
           <span className="text-white/55">AB </span>
-          <span className="font-semibold">{snap.batterName}</span>
+          {/* Keyed on the name: a new batter eases in. */}
+          <span key={snap.batterName} className="inline-block animate-play_in font-semibold">
+            {snap.batterName}
+          </span>
           <span className="text-white/55"> · {snap.batterLine}</span>
         </div>
         <div className="truncate">
@@ -455,6 +514,11 @@ function MatchupCard({ snap }: { snap: HudSnapshot }) {
         {last && last.kind !== "pending" && (
           <div className="truncate text-white/60">
             #{last.n}: {pitchName(last.type)} {last.mph} mph
+            {rec && rec.paPitch === last.n && rec.type === last.type && (
+              <span className="font-mono text-[11px] tabular-nums text-white/45">
+                {" "}· {Math.round(rec.spinRpm)} rpm · IVB {rec.ivb.toFixed(0)}″ · HB {Math.abs(rec.hb).toFixed(0)}″
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -463,12 +527,12 @@ function MatchupCard({ snap }: { snap: HudSnapshot }) {
 }
 
 function Banner({ snap }: { snap: HudSnapshot }) {
-  const b = snap.banner;
+  const { item: b, leaving } = useLinger(snap.banner);
   if (!b) return null;
   const tone = b.tone === "good" ? "text-emerald-300" : b.tone === "bad" ? "text-rose-300" : "text-white";
   return (
     <div className="pointer-events-none absolute inset-x-0 top-[18%] flex justify-center px-4">
-      <div key={b.text} className="max-w-xl animate-play_in rounded-xl bg-black/50 px-5 py-2 text-center shadow-xl backdrop-blur">
+      <div key={b.text} className={`max-w-xl ${leaving ? HUD_OUT : HUD_IN} rounded-xl bg-black/50 px-5 py-2 text-center shadow-xl backdrop-blur`}>
         <div className={`text-2xl font-extrabold tracking-tight sm:text-3xl ${tone}`}>{b.text}</div>
         {b.sub && <div className="mt-0.5 text-xs text-white/75 sm:text-sm">{b.sub}</div>}
       </div>
@@ -482,7 +546,7 @@ function Banner({ snap }: { snap: HudSnapshot }) {
  * It sits beside the plate, so it stays readable when the camera leaves for the play.
  */
 function Feedback({ snap }: { snap: HudSnapshot }) {
-  const f = snap.feedback;
+  const { item: f, leaving } = useLinger(snap.feedback);
   if (!f) return null;
   const tone = f.tone === "good" ? "text-emerald-300" : f.tone === "bad" ? "text-amber-300" : "text-white";
   const sw = f.swing;
@@ -490,7 +554,7 @@ function Feedback({ snap }: { snap: HudSnapshot }) {
   const covered = sw ? Math.abs(sw.ball.px - sw.pci.px) <= sw.pci.w && Math.abs(sw.ball.pz - sw.pci.pz) <= sw.pci.h : false;
   return (
     <div className="pointer-events-none absolute right-2 top-[26%] flex justify-end sm:right-[max(0.75rem,calc(50%-21rem))]">
-      <div key={f.id} className="flex animate-play_in items-center gap-2.5 rounded-lg border border-white/10 bg-black/60 px-3 py-2 shadow-lg backdrop-blur">
+      <div key={f.id} className={`flex ${leaving ? HUD_OUT : HUD_IN} items-center gap-2.5 rounded-lg border border-white/10 bg-black/60 px-3 py-2 shadow-lg backdrop-blur`}>
         {sw && (
           <svg width={62} height={77} viewBox="4 6 92 116" className="shrink-0" role="img" aria-label={covered ? "The ball was inside your coverage box" : "The ball was outside your coverage box"}>
             <ZoneFrame zone={sw.zone} />
@@ -543,7 +607,7 @@ function Meter({ start }: { start: number }) {
 }
 
 function Controls({ snap, ctl, touch }: { snap: HudSnapshot; ctl: GameController; touch: boolean }) {
-  const panel = "rounded-xl border border-white/10 bg-black/60 px-3 py-2 shadow-xl backdrop-blur";
+  const panel = "animate-play_in rounded-xl border border-white/10 bg-black/60 px-3 py-2 shadow-xl backdrop-blur";
   const wrap = "pointer-events-none absolute inset-x-0 bottom-2 flex justify-center px-2 sm:bottom-3";
   // The big action button: always on touch devices, and on narrow screens.
   const action = `rounded-md bg-emerald-500 px-6 py-2.5 text-sm font-bold text-black hover:bg-emerald-400 ${touch ? "" : "sm:hidden"}`;

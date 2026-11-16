@@ -6,7 +6,7 @@ export default defineConfig({
     environment: "node",
     // Whole-game simulations take several seconds each under parallel load.
     testTimeout: 30_000,
-    include: ["lib/**/*.test.ts", "components/game/**/*.test.ts"],
+    include: ["lib/**/*.test.ts", "components/game/**/*.test.ts", "hooks/**/*.test.tsx"],
   },
   resolve: {
     alias: {

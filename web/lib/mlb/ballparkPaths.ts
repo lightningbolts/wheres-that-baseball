@@ -21,8 +21,8 @@ export function resolveBallparkVenueId(
   _homeTeamId?: number | null,
 ): number | null {
   if (venueId == null) return null;
-  // Rays home games still report Tropicana Field (12); index only has Steinbrenner (2523).
-  if (venueId === 12) return 2523;
+  // Tropicana Field (12) has its own entry again (the Rays' 2026 home); Steinbrenner Field
+  // (2523) stays for their 2025 games.
   return venueId;
 }
 

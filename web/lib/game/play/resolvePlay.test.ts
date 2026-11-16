@@ -130,4 +130,19 @@ describe("fielders stay on the field", () => {
     // Foul pops near the field are still caught.
     expect(caughtFoul).toBeGreaterThan(5);
   });
+
+  it("leaves a ball that's through the infield to the outfielders", () => {
+    // Soft rollers and bloopers that get past the infielders, line to line.
+    for (const ev of [60, 70]) {
+      for (const la of [5, 7, 9]) {
+        for (let spray = -44; spray <= 44; spray += 8) {
+          const r = play(ev, la, spray, { spin: 800 });
+          const field = r.events.find((e) => e.type === "field" || e.type === "error");
+          if (!field?.to || ["LF", "CF", "RF"].includes(r.fieldedBy ?? "")) continue;
+          // An infielder only fields what he can cut off, a step or two behind his spot at most.
+          expect(Math.hypot(field.to.x, field.to.z), `${ev}/${la}/${spray} ${r.fieldedBy}`).toBeLessThan(165);
+        }
+      }
+    }
+  });
 });

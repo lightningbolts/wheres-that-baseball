@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useLayoutEffect } from "react";
 
 /**
  * Runs `poll` in a loop with at least `minGapVisibleMs` / `minGapHiddenMs` between
@@ -16,7 +16,12 @@ export function useChainedPoll(
   onError?: (error: unknown) => void,
 ): void {
   const pollRef = useRef(poll);
-  pollRef.current = poll;
+  const onErrorRef = useRef(onError);
+  // Keep the latest value for callbacks; written after render, never during it.
+  useLayoutEffect(() => {
+    pollRef.current = poll;
+    onErrorRef.current = onError;
+  });
 
   useEffect(() => {
     if (!enabled) return;
@@ -43,7 +48,7 @@ export function useChainedPoll(
       try {
         await pollRef.current();
       } catch (err) {
-        onError?.(err);
+        onErrorRef.current?.(err);
       } finally {
         running = false;
       }

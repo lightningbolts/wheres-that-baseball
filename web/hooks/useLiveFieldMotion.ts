@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
 
 import {
   buildHitPath,
@@ -67,7 +67,10 @@ export function useLiveFieldMotion(
   const actorTweensRef = useRef<Map<string, ActorTween>>(new Map());
   const actorPosRef = useRef<Map<string, Vec3>>(new Map());
   const defenseRef = useRef(targets.defense);
-  defenseRef.current = targets.defense;
+  // Keep the latest value for callbacks; written after render, never during it.
+  useLayoutEffect(() => {
+    defenseRef.current = targets.defense;
+  });
 
   const [ball, setBall] = useState<LiveBallState>({
     phase: "idle",
