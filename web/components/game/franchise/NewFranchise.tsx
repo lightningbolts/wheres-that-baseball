@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { MLB_TEAMS } from "@/lib/mlb/teams";
-import { getTeamColor } from "@/lib/mlb/teamColors";
+import { TeamLogo } from "@/components/ui/TeamLogo";
 import type { NewLeagueOpts } from "@/lib/game/franchise/league";
 import type { SlotMeta } from "@/lib/game/franchise/save";
 import { cn } from "@/lib/utils";
@@ -102,7 +102,7 @@ export function NewFranchise({
                     team === t.id ? "border-emerald-500 bg-emerald-500/10" : "border-border hover:bg-hover",
                   )}
                 >
-                  <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: getTeamColor(t.id) }} />
+                  <TeamLogo teamId={t.id} size={20} />
                   <span className="truncate">{t.name}</span>
                 </button>
               ))}

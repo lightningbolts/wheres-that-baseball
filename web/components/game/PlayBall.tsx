@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AppNav } from "@/components/features/AppNav";
+import { TeamLogo } from "@/components/ui/TeamLogo";
 import { MLB_TEAMS, getTeamById } from "@/lib/mlb/teams";
-import { getTeamColor } from "@/lib/mlb/teamColors";
 import { teamsFromRosters, type Difficulty, type GameSetup, type HumanSide, type PitchInput } from "@/lib/game/session/session";
 import type { RosterFile } from "@/lib/game/types";
 import type { TeamModel } from "@/lib/game/ratings";
@@ -174,7 +174,7 @@ function SetupForm({ rosters, onStart }: { rosters: RosterFile; onStart: (s: Gam
     <label className="block">
       <span className="mb-1 block text-xs font-medium text-secondary">{label}</span>
       <div className="flex items-center gap-2">
-        <span className="h-8 w-1.5 shrink-0 rounded" style={{ background: getTeamColor(value) }} />
+        <TeamLogo teamId={value} size={32} />
         <select className={sel} value={value} onChange={(e) => set(Number(e.target.value))}>
           {available
             .filter((t) => t.id !== exclude)

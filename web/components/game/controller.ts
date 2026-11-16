@@ -4,7 +4,7 @@
  * outside React so per-frame scene code and input handlers share one source of truth.
  */
 import * as THREE from "three";
-import { uniformFor } from "@/components/game/scene/character/uniforms";
+import { capLogo, capLogoVersion, uniformFor } from "@/components/game/scene/character/uniforms";
 import { buildTimeline, type Timeline } from "@/lib/game/anim/timeline";
 import { GameSession, type CommittedPitch, type GameSetup, type PitchInput, type PitchOutcome } from "@/lib/game/session/session";
 import { DIFFICULTY, humanPitch, humanSwing, meterAt, pciHalfSize } from "@/lib/game/session/humanInput";
@@ -254,6 +254,8 @@ export class GameController {
   private feedbackId = 0;
   /** The scoreboard canvas last drawn (the scene publishes it after the controller starts). */
   private boardCanvas: HTMLCanvasElement | null = null;
+  /** Cap-logo load count the board was last drawn with (redraw once marks arrive). */
+  private boardLogos = -1;
   private disposed = false;
   private board!: Board;
   private hud: PlateHud;
@@ -450,7 +452,7 @@ export class GameController {
     // Last pitch's swing / contact readout is stale once the next pitch is set up.
     this.feedback = null;
     this.hud.hint = null;
-    if (scoreboardCanvas.canvas !== this.boardCanvas) this.drawScoreboard();
+    if (scoreboardCanvas.canvas !== this.boardCanvas || this.boardLogos !== capLogoVersion()) this.drawScoreboard();
     this.board = this.readBoard();
     // A fresh count is a new at-bat: its pitch chart starts empty.
     if (s.game.balls === 0 && s.game.strikes === 0 && this.hud.marks.length) this.hud.marks = [];
@@ -1451,6 +1453,7 @@ export class GameController {
     const tex = scoreboardCanvas.texture;
     if (!c || !tex) return;
     this.boardCanvas = c;
+    this.boardLogos = capLogoVersion();
     const g = this.session.game;
     const x = c.getContext("2d")!;
     const W = c.width;
@@ -1465,7 +1468,7 @@ export class GameController {
     x.lineWidth = 4;
     x.strokeRect(2, 2, W - 4, H - 4);
     const innings = Math.max(9, g.line.away.length, g.line.home.length);
-    const left = 96;
+    const left = 132;
     const colW = (W - left - 70) / innings;
     const rowY = [H * 0.5, H * 0.84];
     x.textAlign = "center";
@@ -1483,9 +1486,18 @@ export class GameController {
       const team = side === "away" ? g.away.team.teamId : g.home.team.teamId;
       x.fillStyle = getTeamColor(team);
       x.fillRect(8, y - H * 0.13, left - 16, H * 0.26);
+      // The club's real mark beside its abbreviation (the abbreviation alone until it loads).
+      const logo = capLogo(team);
+      const s = H * 0.24;
+      if (logo) {
+        const k = s / Math.max(logo.naturalWidth, logo.naturalHeight);
+        const lw = logo.naturalWidth * k;
+        const lh = logo.naturalHeight * k;
+        x.drawImage(logo, 12 + (s - lw) / 2, y - lh / 2, lw, lh);
+      }
       x.fillStyle = "#fff";
-      x.font = `bold ${Math.round(H * 0.17)}px ui-sans-serif, system-ui, sans-serif`;
-      x.fillText(abbrevFor(team), left / 2, y + 1);
+      x.font = `bold ${Math.round(H * 0.15)}px ui-sans-serif, system-ui, sans-serif`;
+      x.fillText(abbrevFor(team), logo ? (12 + s + left - 8) / 2 : left / 2, y + 1);
       x.font = `bold ${Math.round(H * 0.22)}px ui-monospace, Menlo, monospace`;
       x.fillStyle = "#f4f1e6";
       const arr = g.line[side];

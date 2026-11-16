@@ -2,6 +2,7 @@
 
 import type { BaseballGame } from "@/lib/game/rules/game";
 import { getTeamById } from "@/lib/mlb/teams";
+import { TeamLogo } from "@/components/ui/TeamLogo";
 
 const ip = (outs: number) => `${Math.floor(outs / 3)}.${outs % 3}`;
 
@@ -33,7 +34,12 @@ export function BoxScore({ game, awayId, homeId }: { game: BaseballGame; awayId:
           <tbody>
             {sides.map((s) => (
               <tr key={s.key} className="border-t border-white/10">
-                <td className="py-1 text-left font-semibold">{name(s.id)}</td>
+                <td className="py-1 text-left font-semibold">
+                  <span className="inline-flex items-center gap-1.5">
+                    <TeamLogo teamId={s.id} size={16} surface="dark" />
+                    {name(s.id)}
+                  </span>
+                </td>
                 {Array.from({ length: innings }, (_, i) => (
                   <td key={i}>{game.line[s.key][i] ?? (game.final && s.key === "home" && i === game.line.home.length ? "x" : "")}</td>
                 ))}
