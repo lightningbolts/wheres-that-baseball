@@ -1,9 +1,10 @@
 "use client";
 
-import { Fragment, useMemo, type ReactNode } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { TeamLogo } from "@/components/ui/TeamLogo";
 import { describePlay, errors, isPA, lineScore, PLAY, unpackPlay, type BoxBat, type BoxPit, type GameBox, type Play } from "@/lib/game/franchise/boxscore";
 import { fmtDate } from "@/lib/game/franchise/schedule";
+import { shareUrl } from "@/lib/game/franchise/share";
 import type { League, ScheduledGame } from "@/lib/game/franchise/types";
 import { venueNameForTeam } from "@/lib/game/physics/park";
 import { cn } from "@/lib/utils";
@@ -53,7 +54,8 @@ function rows(box: GameBox, post: boolean): Row[] {
   return out;
 }
 
-export function GamePage({ league, game, openPlayer, openTeam }: { league: League; game: ScheduledGame; openPlayer: (id: number) => void; openTeam: (id: number) => void }) {
+/** Without openPlayer/openTeam (a shared link: no save loaded) names are plain text and there's no Share button. */
+export function GamePage({ league, game, openPlayer, openTeam }: { league: League; game: ScheduledGame; openPlayer?: (id: number) => void; openTeam?: (id: number) => void }) {
   const r = game.result;
   const box = game.box;
   const away = league.teams[game.away];
@@ -63,16 +65,22 @@ export function GamePage({ league, game, openPlayer, openTeam }: { league: Leagu
   if (!r) return <p className="text-sm text-secondary">This game hasn&apos;t been played yet.</p>;
 
   const name = (id: number) => league.players[id]?.name ?? "—";
-  const P = ({ id, className }: { id: number; className?: string }) => (
-    <button type="button" className={cn("text-left hover:text-emerald-500 hover:underline", className)} onClick={() => openPlayer(id)}>
-      {name(id)}
-    </button>
-  );
-  const T = ({ id, children, className }: { id: number; children: ReactNode; className?: string }) => (
-    <button type="button" className={cn("text-left hover:text-emerald-500 hover:underline", className)} onClick={() => openTeam(id)}>
-      {children}
-    </button>
-  );
+  const P = ({ id, className }: { id: number; className?: string }) =>
+    !openPlayer ? (
+      <span className={className}>{name(id)}</span>
+    ) : (
+      <button type="button" className={cn("text-left hover:text-emerald-500 hover:underline", className)} onClick={() => openPlayer(id)}>
+        {name(id)}
+      </button>
+    );
+  const T = ({ id, children, className }: { id: number; children: ReactNode; className?: string }) =>
+    !openTeam ? (
+      <span className={className}>{children}</span>
+    ) : (
+      <button type="button" className={cn("text-left hover:text-emerald-500 hover:underline", className)} onClick={() => openTeam(id)}>
+        {children}
+      </button>
+    );
   const awayWon = r.as > r.hs;
   const series = post ? league.bracket?.series.find((s) => s.id === game.ps) : undefined;
   const venue = game.site ?? venueNameForTeam(home.id);
@@ -113,6 +121,7 @@ export function GamePage({ league, game, openPlayer, openTeam }: { league: Leagu
           {r.inn > 9 ? ` · ${r.inn} innings` : ""}
           {r.manual ? " · ★ played in the ballpark" : ""}
         </p>
+        {openPlayer && <ShareButton league={league} game={game} />}
       </header>
 
       <div className="-mx-1 overflow-x-auto px-1">
@@ -200,6 +209,40 @@ type TComp = (props: { id: number; children: ReactNode; className?: string }) =>
 
 const thc = "border-b border-border px-1.5 py-1 text-right text-[11px] font-semibold uppercase tracking-wide text-secondary";
 const tdc = "border-b border-border/40 px-1.5 py-[3px] text-right";
+
+function ShareButton({ league, game }: { league: League; game: ScheduledGame }) {
+  const [state, setState] = useState<{ msg: string; url?: string } | null>(null);
+  const share = async () => {
+    const url = await shareUrl(league, game, window.location.origin);
+    const a = league.teams[game.away].abbrev;
+    const h = league.teams[game.home].abbrev;
+    const title = `${a} ${game.result?.as}, ${h} ${game.result?.hs} · ${fmtDate(league.calendar, game.day, true)}`;
+    try {
+      if (navigator.share && matchMedia("(pointer: coarse)").matches) {
+        await navigator.share({ title, url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      setState({ msg: "Link copied. It carries the whole box score, so it opens for anyone." });
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") return;
+      setState({ msg: "Copy this link:", url });
+    }
+  };
+  return (
+    <div className="text-xs">
+      <button type="button" onClick={share} className="rounded-md border border-border px-2 py-0.5 hover:border-emerald-500/60 hover:bg-hover/60">
+        Share game link
+      </button>
+      {state && (
+        <span className="ml-2 text-secondary">
+          {state.msg}
+          {state.url && <input readOnly value={state.url} onFocus={(e) => e.currentTarget.select()} className="ml-1 w-64 rounded border border-border bg-transparent px-1" />}
+        </span>
+      )}
+    </div>
+  );
+}
 
 function BattingBox({ title, rows, P }: { title: ReactNode; rows: BoxBat[]; P: PComp }) {
   const tot = rows.reduce((t, b) => t.map((v, i) => v + (b[i + 2] as number)), [0, 0, 0, 0, 0, 0]);
