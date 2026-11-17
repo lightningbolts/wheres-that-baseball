@@ -119,6 +119,12 @@ export interface PlateHud {
    * rewinds T shows the zone). null = shown as usual.
    */
   zoneHiddenUntil: number | null;
+  /**
+   * ABS: a human club is deciding whether to challenge the call. The zone and its marks
+   * stay off from playback T >= this (the ball reaching the plate) until the decision
+   * clears it, so the zone never answers the question for them. null = no hold.
+   */
+  zoneHeldFrom: number | null;
 }
 
 const huds = new WeakMap<Playback, PlateHud>();
@@ -127,7 +133,7 @@ const huds = new WeakMap<Playback, PlateHud>();
 export function plateHud(pb: Playback): PlateHud {
   let h = huds.get(pb);
   if (!h) {
-    h = { marks: [], markAt: -1, assistFrom: null, cross: null, hint: null, zoneHiddenUntil: null };
+    h = { marks: [], markAt: -1, assistFrom: null, cross: null, hint: null, zoneHiddenUntil: null, zoneHeldFrom: null };
     huds.set(pb, h);
   }
   return h;

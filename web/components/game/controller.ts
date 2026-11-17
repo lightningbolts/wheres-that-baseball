@@ -501,6 +501,7 @@ export class GameController {
     a.zoneTop = ctx.batter.zoneTop;
     a.showZone = true;
     this.hud.zoneHiddenUntil = null;
+    this.hud.zoneHeldFrom = null;
     this.lockedPitch = null;
     this.challengeWin = null;
     this.challengeResolve = null;
@@ -905,6 +906,8 @@ export class GameController {
     if (challenger) {
       const provisional: CommittedPitch = { ...outcome, events: [] };
       this.provisional = true;
+      // No zone from the moment the ball reaches the plate until the club decides.
+      this.hud.zoneHeldFrom = outcome.result.flight.cross.t;
       const tl = buildTimeline(provisional, { swingStartT });
       this.pb.turbo = this.turbo;
       this.mountTimeline(tl, fresh, provisional);
@@ -946,6 +949,8 @@ export class GameController {
     this.challengeResolve = (yes) => {
       this.challengeWin = null;
       this.challengeResolve = null;
+      // Decided: the zone comes back (for the review, or before the next pitch).
+      this.hud.zoneHeldFrom = null;
       this.provisional = false;
       this.revealed = false;
       this.reviewAbs = this.session.game.abs ? { ...this.session.game.abs } : null;
@@ -988,6 +993,7 @@ export class GameController {
     // Everyone sees where it crossed while the zone is consulted.
     this.pb.aim.showZone = true;
     this.hud.zoneHiddenUntil = null;
+    this.hud.zoneHeldFrom = null;
     // The murmur builds: both sets of fans on edge, more so when the count is on the line.
     const big = a.call === "strike" ? committed.ctx.count.strikes === 2 : committed.ctx.count.balls === 3;
     const late = abs.inning >= g.regulation - 1;

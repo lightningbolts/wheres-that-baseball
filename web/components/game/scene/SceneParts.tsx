@@ -20,6 +20,79 @@ const DEG = Math.PI / 180;
 const TRAIL = 16;
 const IDENT_Q = new THREE.Quaternion();
 
+/** Catcher cam mitt: up into place this long before the pitch arrives (timeline s). */
+const MITT_REACH_S = 0.18;
+/** ...held with the ball in it this long... */
+const MITT_HOLD_S = 0.8;
+/** ...then lowered out of the shot over this long. */
+const MITT_DROP_S = 0.35;
+
+/**
+ * The catcher is left out of the catcher cam (from just behind him he would fill the
+ * shot), but his mitt is not: it comes up to where the pitch arrives, gives as the ball
+ * smacks into it, holds it, and goes back down. Writes the mitt's position into `out`
+ * and returns how much of it shows (0 = none). Only a pitch that ends up in the mitt.
+ */
+function catcherMitt(pb: Playback, out: THREE.Vector3): number {
+  const tl = pb.timeline;
+  if (!tl || pb.cam !== "batter") return 0;
+  const r = tl.receive;
+  const T = pb.T;
+  if (T < r.t - MITT_REACH_S || T > r.t + MITT_HOLD_S + MITT_DROP_S) return 0;
+  if (tl.ball(Math.max(T, r.t + 0.005)).holder !== "C") return 0;
+  const rise = smooth01((T - (r.t - MITT_REACH_S)) / MITT_REACH_S);
+  const drop = smooth01((T - r.t - MITT_HOLD_S) / MITT_DROP_S);
+  const since = T - r.t;
+  // The pocket gives toward the camera at the catch, then the mitt settles back.
+  const give = since >= 0 ? 0.3 * Math.sin(Math.min(1, since / 0.22) * Math.PI) * Math.exp(-since / 0.2) : 0;
+  out.set(r.p.x, r.p.y - 1.3 * (1 - rise) - 1.4 * drop, r.p.z - give);
+  return rise * (1 - drop);
+}
+
+/** The catcher's mitt, seen from behind, in the catcher cam (see catcherMitt). */
+export function CatcherMitt({ pb }: { pb: Playback }) {
+  const group = useRef<THREE.Group>(null);
+  const mats = useMemo(
+    () => [
+      new THREE.MeshStandardMaterial({ color: "#6b3a1e", roughness: 0.75, transparent: true }),
+      new THREE.MeshStandardMaterial({ color: "#2b170b", roughness: 0.8, transparent: true }),
+    ],
+    [],
+  );
+  const at = useMemo(() => new THREE.Vector3(), []);
+  useEffect(() => () => mats.forEach((m) => m.dispose()), [mats]);
+  useFrame(() => {
+    const g = group.current;
+    if (!g) return;
+    const alpha = catcherMitt(pb, at);
+    g.visible = alpha > 0.01;
+    if (!g.visible) return;
+    g.position.copy(at);
+    for (const m of mats) {
+      m.opacity = alpha;
+      m.depthWrite = alpha > 0.98;
+    }
+  });
+  const [leather, lacing] = mats;
+  return (
+    <group ref={group} visible={false}>
+      {/* Back of the mitt: a rounded pad, binding round the edge, the thumb, the wrist. */}
+      <mesh material={leather} scale={[0.5, 0.56, 0.2]}>
+        <sphereGeometry args={[1, 24, 16]} />
+      </mesh>
+      <mesh material={lacing} position={[0, 0, -0.02]} scale={[1, 1.1, 1]}>
+        <torusGeometry args={[0.48, 0.045, 8, 32]} />
+      </mesh>
+      <mesh material={leather} position={[0.44, -0.12, 0.02]} scale={[0.15, 0.3, 0.14]}>
+        <sphereGeometry args={[1, 14, 10]} />
+      </mesh>
+      <mesh material={lacing} position={[0.05, -0.56, -0.08]} rotation-x={0.35}>
+        <cylinderGeometry args={[0.15, 0.17, 0.32, 14]} />
+      </mesh>
+    </group>
+  );
+}
+
 export function Ball({ pb }: { pb: Playback }) {
   const ball = useRef<THREE.Mesh>(null);
   const shadow = useRef<THREE.Mesh>(null);
@@ -33,6 +106,7 @@ export function Ball({ pb }: { pb: Playback }) {
       count: 0,
       off: new THREE.Vector3(),
       shown: new THREE.Vector3(),
+      mitt: new THREE.Vector3(),
       wasVisible: false,
       mode: "",
       cut: -1,
@@ -72,8 +146,9 @@ export function Ball({ pb }: { pb: Playback }) {
         p.copy(h.ballP);
         visible = true;
       } else if (tl && pb.cam === "batter" && mode === fielderKey("C")) {
-        // The catcher is not drawn from his own eye line, and neither is the ball in his mitt.
-        visible = false;
+        // The catcher is not drawn in the catcher cam, only his mitt: the ball sits in its pocket.
+        visible = catcherMitt(pb, st.mitt) > 0.5;
+        if (visible) p.set(st.mitt.x, st.mitt.y, st.mitt.z + 0.08);
       }
     }
     b.visible = visible;
@@ -301,6 +376,9 @@ const smooth01 = (t: number) => {
   const c = Math.min(1, Math.max(0, t));
   return c * c * (3 - 2 * c);
 };
+/** Seconds for the strike zone to fade in / out (eased, on the real clock so slow motion does not drag it). */
+const ZONE_FADE_IN_S = 0.32;
+const ZONE_FADE_OUT_S = 0.22;
 
 /** Radial falloff for the pre-pitch read spot (null on the server). */
 function softSpotTexture(): THREE.Texture | null {
@@ -347,6 +425,8 @@ export function PlateOverlay({
   const hint = useRef<THREE.Group>(null);
   const hintTex = useMemo(() => softSpotTexture(), []);
   const marks = useRef<Array<THREE.Group | null>>([]);
+  /** Zone fade progress 0 (off) → 1 (on), eased for display; snaps on a camera cut. */
+  const zoneFade = useRef({ level: 0, cut: -1 });
   const grab = useRef<{ x: number; y: number } | null>(null);
   const zoneGeo = useMemo(() => frameGeometry(), []);
   const pciGeo = useMemo(() => frameGeometry(), []);
@@ -367,7 +447,7 @@ export function PlateOverlay({
     [zoneGeo, pciGeo, gridGeo, numerals, hintTex],
   );
 
-  useFrame(() => {
+  useFrame((_, rawDt) => {
     const a = pb.aim;
     const z = PLATE_FRONT_Z;
     const cam = camera as THREE.PerspectiveCamera;
@@ -377,11 +457,26 @@ export function PlateOverlay({
     const line = 2.6 * ftPerPx;
     // All-Star: no zone while the pitcher winds up and the ball is in the air.
     if (hud.zoneHiddenUntil != null && (!pb.timeline || pb.T >= hud.zoneHiddenUntil)) hud.zoneHiddenUntil = null;
-    const zoneOn = a.showZone && hud.zoneHiddenUntil == null;
+    // ABS: nothing to go on while a club decides whether to challenge.
+    const held = hud.zoneHeldFrom != null && (!pb.timeline || pb.T >= hud.zoneHeldFrom);
+    const zoneOn = a.showZone && hud.zoneHiddenUntil == null && !held;
+    // The zone fades in and out rather than popping (a camera cut just shows the new state).
+    const zf = zoneFade.current;
+    if (zf.cut !== pb.cutSeq) {
+      zf.cut = pb.cutSeq;
+      zf.level = zoneOn ? 1 : 0;
+    } else {
+      const dt = Math.min(Math.max(rawDt, 0), MAX_FRAME_DT);
+      zf.level = zoneOn ? Math.min(1, zf.level + dt / ZONE_FADE_IN_S) : Math.max(0, zf.level - dt / ZONE_FADE_OUT_S);
+    }
+    const zoneAlpha = smooth01(zf.level);
+    const zoneShown = zoneAlpha > 0.004;
     if (zone.current && grid.current) {
-      zone.current.visible = zoneOn;
-      grid.current.visible = zoneOn;
-      if (zoneOn) {
+      zone.current.visible = zoneShown;
+      grid.current.visible = zoneShown;
+      (zone.current.material as THREE.MeshBasicMaterial).opacity = 0.9 * zoneAlpha;
+      (grid.current.material as THREE.LineBasicMaterial).opacity = 0.3 * zoneAlpha;
+      if (zoneShown) {
         const { x0, x1, y0, y1 } = zoneBox(a.zoneBottom, a.zoneTop);
         writeFrame(zoneGeo, x0, y0, x1, y1, line, z);
         const pos = gridGeo.attributes.position as THREE.BufferAttribute;
@@ -427,7 +522,7 @@ export function PlateOverlay({
       const g = marks.current[i];
       if (!g) continue;
       const m = list[first + i];
-      g.visible = zoneOn && !!m;
+      g.visible = zoneShown && !!m;
       if (!g.visible || !m) continue;
       const newest = first + i === list.length - 1;
       g.position.set(-m.px, m.pz, z);
@@ -435,11 +530,11 @@ export function PlateOverlay({
       g.scale.setScalar(r * (newest ? 1 + 0.9 * Math.exp(-age / 0.12) : 1));
       const disc = (g.children[1] as THREE.Mesh).material as THREE.MeshBasicMaterial;
       disc.color.copy(MARK_COLORS[m.kind]);
-      disc.opacity = newest ? 0.95 : 0.55;
-      ((g.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = newest ? 0.9 : 0.35;
+      disc.opacity = (newest ? 0.95 : 0.55) * zoneAlpha;
+      ((g.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = (newest ? 0.9 : 0.35) * zoneAlpha;
       const num = (g.children[2] as THREE.Mesh).material as THREE.MeshBasicMaterial;
       num.map = numerals[(m.n - 1) % MAX_MARKS];
-      num.opacity = newest ? 1 : 0.7;
+      num.opacity = (newest ? 1 : 0.7) * zoneAlpha;
     }
     // Pre-pitch read: a soft glow where the catcher set up, faded in as the pitcher
     // comes set and gone as the ball leaves the hand.
