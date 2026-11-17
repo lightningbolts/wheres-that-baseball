@@ -7,6 +7,7 @@ import type { GameSetup } from "@/lib/game/session/session";
 import type { GameSession } from "@/lib/game/session/session";
 import { teamModel, type TeamModel } from "@/lib/game/ratings";
 import type { RosterFile, RosterPlayer, RosterTeam } from "@/lib/game/types";
+import { packPlay, PLAY, type BoxBat, type BoxPit, type GameBox, type PlayCode } from "./boxscore";
 import { hash32, FRng } from "./rng";
 import { isHealthy } from "./roster";
 import { applyGameResult } from "./season";
@@ -157,6 +158,8 @@ export interface BoxInput {
   /** Pitchers used in order, per side. */
   awayStaff: number[];
   homeStaff: number[];
+  /** Box score and play-by-play from the engine's log. */
+  box?: GameBox;
 }
 
 export function boxFromSession(session: GameSession, awayRuns: number, homeRuns: number): BoxInput {
@@ -169,6 +172,101 @@ export function boxFromSession(session: GameSession, awayRuns: number, homeRuns:
     pit: g.pit,
     awayStaff: g.away.staff.map((p) => p.id),
     homeStaff: g.home.staff.map((p) => p.id),
+    box: sessionBox(session),
+  };
+}
+
+/** The franchise box score for a game played in the ballpark, from the engine's own log. */
+export function sessionBox(session: GameSession): GameBox {
+  const g = session.game;
+  const sides = [g.away, g.home] as const;
+  const order = sides.map((sd) => sd.slots.flat());
+  const sb = new Map<number, number>();
+  const cs = new Map<number, number>();
+  const nameOf = new Map<string, number>();
+  for (const list of order) for (const b of list) nameOf.set(b.name, b.id);
+  const runnerId = (text: string) => [...nameOf.entries()].find(([n]) => text.startsWith(n))?.[1];
+  const pbp: number[] = [];
+  const txt: string[] = [];
+  const cur: [number, number] = [0, 0];
+  let outs = 0;
+  let half = "";
+  for (const e of g.log) {
+    const key = `${e.inning}${e.top}`;
+    if (key !== half) {
+      half = key;
+      outs = 0;
+    }
+    const bat = e.top ? 0 : 1;
+    const fld = 1 - bat;
+    const staff = sides[fld].staff;
+    if (e.pitcherId != null) {
+      const i = staff.findIndex((p) => p.id === e.pitcherId);
+      if (i >= 0) cur[fld] = i;
+    }
+    let code: PlayCode | null = null;
+    let o = 0;
+    switch (e.kind) {
+      case "strikeout":
+        code = PLAY.K;
+        o = 1;
+        break;
+      case "walk":
+        code = PLAY.BB;
+        break;
+      case "hbp":
+        code = PLAY.HBP;
+        break;
+      case "in_play": {
+        const pl = e.play;
+        if (!pl || pl.foul) break;
+        o = pl.outs;
+        code = pl.hit === 4 ? PLAY.HR : pl.hit === 3 ? PLAY.T : pl.hit === 2 ? PLAY.D : pl.hit === 1 ? PLAY.S : pl.error ? PLAY.E : pl.doublePlay ? PLAY.GDP : pl.sacFly ? PLAY.SF : pl.fieldersChoice ? PLAY.FC : pl.caught ? PLAY.FO : PLAY.GO;
+        break;
+      }
+      case "stolen_base":
+      case "caught_stealing": {
+        code = e.kind === "stolen_base" ? PLAY.SB : PLAY.CS;
+        o = code === PLAY.CS ? 1 : 0;
+        const id = runnerId(e.text);
+        if (id != null) (code === PLAY.SB ? sb : cs).set(id, ((code === PLAY.SB ? sb : cs).get(id) ?? 0) + 1);
+        break;
+      }
+      case "wild_pitch":
+        code = PLAY.WP;
+        break;
+      case "picked_off":
+        code = PLAY.PO;
+        o = 1;
+        break;
+      case "balk":
+      case "pickoff_error":
+        code = PLAY.ADV;
+        break;
+      default:
+        break;
+    }
+    if (code == null) continue;
+    outs = Math.min(3, outs + o);
+    const bi = e.batterId != null ? order[bat].findIndex((b) => b.id === e.batterId) : -1;
+    pbp.push(packPlay({ inning: e.inning, bottom: !e.top, batter: Math.max(0, bi), pitcher: cur[fld], code, runs: e.runs ?? 0, outs, bases: 0 }));
+    txt.push(e.text);
+  }
+  const line = (id: number, pos: string): BoxBat => {
+    const l = g.bat.get(id);
+    return [id, pos, l?.ab ?? 0, l?.r ?? 0, l?.h ?? 0, l?.rbi ?? 0, l?.bb ?? 0, l?.k ?? 0, l?.hr ?? 0, l?.d ?? 0, l?.t ?? 0, sb.get(id) ?? 0, cs.get(id) ?? 0, l?.hbp ?? 0, l?.sf ?? 0];
+  };
+  const pit = (id: number): BoxPit => {
+    const l = g.pit.get(id);
+    return [id, l?.outs ?? 0, l?.h ?? 0, l?.r ?? 0, l?.r ?? 0, l?.bb ?? 0, l?.k ?? 0, l?.hr ?? 0, l?.pitches ?? 0, l?.bf ?? 0];
+  };
+  return {
+    bat: order.map((list) => list.map((b) => line(b.id, b.pos))) as GameBox["bat"],
+    pit: sides.map((sd) => sd.staff.map((p) => pit(p.id))) as GameBox["pit"],
+    pbp,
+    txt,
+    manual: true,
+    line: [[...g.line.away], [...g.line.home]],
   };
 }
 
@@ -219,6 +317,7 @@ export function outcomeFromBox(box: BoxInput): GameOutcome {
     lp,
     sv,
     hits: [ah, hh],
+    box: box.box,
   };
 }
 

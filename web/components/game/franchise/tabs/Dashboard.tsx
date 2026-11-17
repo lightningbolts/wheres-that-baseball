@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { Btn, Card, Segmented, Stat, Table, TeamDot, td, th, type TabProps } from "../ui";
 
 function GameRow({ league, g, onPlay }: { league: League; g: ScheduledGame; onPlay?: (id: number) => void }) {
+  const { openGame } = useProfiles();
   const me = league.userTeam;
   const home = g.home === me;
   const opp = league.teams[home ? g.away : g.home];
@@ -28,11 +29,11 @@ function GameRow({ league, g, onPlay }: { league: League; g: ScheduledGame; onPl
       </td>
       <td className={cn(td, "whitespace-nowrap")}>
         {r ? (
-          <span className={won ? "text-emerald-500" : "text-red-500"}>
+          <button type="button" title="Box score & play-by-play" onClick={() => openGame(g.id)} className={cn("hover:underline", won ? "text-emerald-500" : "text-red-500")}>
             {won ? "W" : "L"} {home ? `${r.hs}-${r.as}` : `${r.as}-${r.hs}`}
             {r.inn > 9 ? ` (${r.inn})` : ""}
             {r.manual ? " ★" : ""}
-          </span>
+          </button>
         ) : g.day === league.day && onPlay ? (
           <Btn tone="primary" className="px-2 py-0.5 text-xs" onClick={() => onPlay(g.id)}>
             Play
@@ -62,7 +63,7 @@ export function Dashboard({ league, onPlay }: TabProps & { onPlay: (id: number) 
   const news = league.news.slice(-40).reverse();
   const exp = league.expected?.[me.id];
   const proj = useMemo(() => projectedRecord(league)[me.id], [league, me.id, me.w, me.l]);
-  const { proj: projFile } = useProfiles();
+  const { proj: projFile, openGame } = useProfiles();
   const fgw = useMemo(() => (league.season === projFile?.projSeason ? steamerWins(league, projFile)?.[me.id] : undefined), [league, projFile, me.id]);
   const fgTxt = fgw ? ` · FanGraphs ${fgw.w} W` : "";
   const projSub =
@@ -120,7 +121,14 @@ export function Dashboard({ league, onPlay }: TabProps & { onPlay: (id: number) 
                 const a = league.teams[g.away];
                 const h = league.teams[g.home];
                 return (
-                  <div key={g.id} className="rounded-md border border-border px-2 py-1 text-xs tabular-nums">
+                  <button
+                    type="button"
+                    key={g.id}
+                    disabled={!g.result}
+                    title={g.result ? "Box score & play-by-play" : undefined}
+                    onClick={() => openGame(g.id)}
+                    className="rounded-md border border-border px-2 py-1 text-left text-xs tabular-nums enabled:hover:border-emerald-500/60 enabled:hover:bg-hover/60"
+                  >
                     <div className="flex justify-between">
                       <TeamDot id={a.id} abbrev={a.abbrev} />
                       <span>{g.result?.as ?? ""}</span>
@@ -129,7 +137,7 @@ export function Dashboard({ league, onPlay }: TabProps & { onPlay: (id: number) 
                       <TeamDot id={h.id} abbrev={h.abbrev} />
                       <span>{g.result?.hs ?? ""}</span>
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>

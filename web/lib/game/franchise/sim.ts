@@ -7,6 +7,7 @@
  * with day-to-day fatigue. Produces full box-score lines and W/L/SV decisions.
  * A full 2,430-game season runs in well under a second.
  */
+import { packPlay, PLAY, type BoxBat, type BoxPit, type GameBox, type PlayCode } from "./boxscore";
 import { club, LG } from "./data";
 import { canPitch, defAt, isPosPlayer, tripleShare } from "./ratings";
 import type { FRng } from "./rng";
@@ -70,6 +71,8 @@ export interface GameOutcome {
   lp?: number;
   sv?: number;
   hits: [number, number];
+  /** Box score and play-by-play (simulated and hand-played games). */
+  box?: GameBox;
 }
 
 // ---------------------------------------------------------------------------
@@ -194,6 +197,15 @@ export function simGame(input: SimInput): GameOutcome {
 
   const lead = (s: SimSide) => (s === away ? away.runs - home.runs : home.runs - away.runs);
 
+  // Play-by-play (recording only: no random draws, so results are unchanged).
+  const pbp: number[] = [];
+  let curInning = 1;
+  let curBottom = false;
+  const mask = (b: Array<Runner | null>) => (b[0] ? 1 : 0) | (b[1] ? 2 : 0) | (b[2] ? 4 : 0);
+  const log = (bat: SimSide, fld: SimSide, who: SBat, code: PlayCode, runs: number, outs: number, bases: Array<Runner | null>) => {
+    pbp.push(packPlay({ inning: curInning, bottom: curBottom, batter: Math.max(0, bat.lineup.indexOf(who)), pitcher: Math.max(0, fld.used.indexOf(fld.pitcher)), code, runs, outs: Math.min(3, outs), bases: mask(bases) }));
+  };
+
   const checkLead = (batting: SimSide, fielding: SimSide) => {
     const now: 0 | 1 | 2 = away.runs > home.runs ? 1 : home.runs > away.runs ? 2 : 0;
     if (now !== leader) {
@@ -293,7 +305,9 @@ export function simGame(input: SimInput): GameOutcome {
     let nb: Array<Runner | null> = [...bases];
     const r = rng.next();
     let pitches: number;
+    let code: PlayCode = PLAY.OUT;
     if (r < kP) {
+      code = PLAY.K;
       bl.ab += 1;
       bl.k += 1;
       pl.k += 1;
@@ -301,6 +315,7 @@ export function simGame(input: SimInput): GameOutcome {
       pitches = 4.8;
     } else if (r < kP + bbP + hbpP) {
       const hbp = r >= kP + bbP;
+      code = hbp ? PLAY.HBP : PLAY.BB;
       if (hbp) {
         bl.hbp += 1;
         pitches = 3.4;
@@ -325,6 +340,7 @@ export function simGame(input: SimInput): GameOutcome {
       pl.h += 1;
       pl.hr += 1;
       cap = Infinity;
+      code = PLAY.HR;
       for (const x of nb) score(x);
       score(me);
       nb = [null, null, null];
@@ -340,6 +356,7 @@ export function simGame(input: SimInput): GameOutcome {
         const two = outs === 2;
         if (!xb) {
           // Single.
+          code = PLAY.S;
           const r1 = nb[0];
           const r2 = nb[1];
           const r3 = nb[2];
@@ -355,10 +372,12 @@ export function simGame(input: SimInput): GameOutcome {
           }
         } else if (rng.next() < tripleShare(bs.spd) * (input.home.id === 115 || input.home.id === 111 ? 1.5 : 1)) {
           bl.t += 1;
+          code = PLAY.T;
           for (const x of nb) score(x);
           nb = [null, null, me];
         } else {
           bl.d += 1;
+          code = PLAY.D;
           const r1 = nb[0];
           score(nb[2]);
           score(nb[1]);
@@ -370,6 +389,7 @@ export function simGame(input: SimInput): GameOutcome {
         }
       } else if (rng.next() < 0.015) {
         // Reached on error: everyone moves up a base; runs and the batter unearned.
+        code = PLAY.E;
         const r3 = nb[2];
         if (r3) {
           r3.earned = false;
@@ -381,6 +401,7 @@ export function simGame(input: SimInput): GameOutcome {
         if (gb) {
           if (nb[0] && outs < 2 && rng.chance(Math.max(0.15, 0.4 - (bs.spd - 27) * 0.05))) {
             // Double play.
+            code = PLAY.GDP;
             outs += 2;
             pitches = 3.1;
             const r2 = nb[1];
@@ -392,12 +413,14 @@ export function simGame(input: SimInput): GameOutcome {
             }
           } else {
             outs += 1;
+            code = PLAY.GO;
             if (outs < 3) {
               const r1 = nb[0];
               const r2 = nb[1];
               const r3 = nb[2];
               if (r1 && rng.chance(0.3)) {
                 // Fielder's choice: lead runner forced, batter safe.
+                code = PLAY.FC;
                 nb = [me, null, null];
                 if (r2) nb[2] = r2;
                 if (r3) {
@@ -420,9 +443,11 @@ export function simGame(input: SimInput): GameOutcome {
           }
         } else {
           outs += 1;
+          code = PLAY.FO;
           if (outs < 3 && nb[2] && outsIn < 2 && rng.chance(0.5 + (nb[2].b.p.bat!.spd - 27) * 0.04)) {
             bl.ab -= 1;
             bl.sf += 1;
+            code = PLAY.SF;
             score(nb[2]);
             nb[2] = null;
           }
@@ -442,6 +467,7 @@ export function simGame(input: SimInput): GameOutcome {
       pit.outs += o;
     }
     bat.runs += runs;
+    log(bat, fld, b, code, runs, outs, nb);
     if (bl.h && runs >= 0) bat.hits = bat.lineup.reduce((s, x) => s + x.line.h, 0);
     return { outs, runs, bases: nb };
   };
@@ -454,11 +480,13 @@ export function simGame(input: SimInput): GameOutcome {
       if (rng.chance(Math.min(0.4, s.sbA * 5.5))) {
         if (rng.chance(Math.max(0.4, s.sbS - fld.catcherArm))) {
           r1.b.line.sb += 1;
+          log(bat, fld, r1.b, PLAY.SB, 0, outs, [null, r1, bases[2]]);
           return { outs, bases: [null, r1, bases[2]] };
         }
         r1.b.line.cs += 1;
         fld.pitcher.line.outs += 1;
         fld.pitcher.outs += 1;
+        log(bat, fld, r1.b, PLAY.CS, 0, outs + 1, [null, null, bases[2]]);
         return { outs: outs + 1, bases: [null, null, bases[2]] };
       }
     } else if (r2 && !bases[2] && outs < 2) {
@@ -466,11 +494,13 @@ export function simGame(input: SimInput): GameOutcome {
       if (rng.chance(Math.min(0.1, s.sbA * 0.7))) {
         if (rng.chance(Math.max(0.4, s.sbS + 0.03 - fld.catcherArm))) {
           r2.b.line.sb += 1;
+          log(bat, fld, r2.b, PLAY.SB, 0, outs, [bases[0], null, r2]);
           return { outs, bases: [bases[0], null, r2] };
         }
         r2.b.line.cs += 1;
         fld.pitcher.line.outs += 1;
         fld.pitcher.outs += 1;
+        log(bat, fld, r2.b, PLAY.CS, 0, outs + 1, [bases[0], null, null]);
         return { outs: outs + 1, bases: [bases[0], null, null] };
       }
     }
@@ -480,6 +510,8 @@ export function simGame(input: SimInput): GameOutcome {
   const half = (bat: SimSide, fld: SimSide, inning: number, bottom: boolean): boolean => {
     let outs = 0;
     let bases: Array<Runner | null> = [null, null, null];
+    curInning = inning;
+    curBottom = bottom;
     // Regular-season extras start with a runner on second; postseason extras do not.
     if (inning > 9 && !post) {
       const prev = bat.lineup[(bat.idx - 1 + bat.lineup.length * 10) % bat.lineup.length];
@@ -562,6 +594,11 @@ export function simGame(input: SimInput): GameOutcome {
     lp: lp.p.id,
     sv: sv?.p.id,
     hits: [away.lineup.reduce((s, x) => s + x.line.h, 0), home.lineup.reduce((s, x) => s + x.line.h, 0)],
+    box: {
+      bat: [away, home].map((s) => s.lineup.map(({ p, pos, line: l }): BoxBat => [p.id, pos, l.ab, l.r, l.h, l.rbi, l.bb, l.k, l.hr, l.d, l.t, l.sb, l.cs, l.hbp, l.sf])) as GameBox["bat"],
+      pit: [away, home].map((s) => s.used.map(({ p, line: l }): BoxPit => [p.id, l.outs, l.h, l.r, l.er, l.bb, l.k, l.hr, l.pit, l.bf])) as GameBox["pit"],
+      pbp,
+    },
   };
 }
 

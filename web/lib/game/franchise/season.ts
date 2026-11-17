@@ -76,6 +76,7 @@ export function applyGameResult(league: League, g: ScheduledGame, out: GameOutco
   // Postseason dates sell out.
   const att = post ? club(home.id).capacity : attendance(league, home, g.day, rng);
   g.result = { as: out.awayRuns, hs: out.homeRuns, inn: out.innings, wp: out.wp, lp: out.lp, sv: out.sv, manual: manual || undefined, att };
+  if (out.box) g.box = out.box;
   recordLines(league, out, g.day, post);
   if (!post) {
     const homeWon = out.homeRuns > out.awayRuns;

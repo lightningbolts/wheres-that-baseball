@@ -2,6 +2,7 @@
  * Franchise ("2027 Season") state. Everything is plain JSON so a league can be
  * saved to IndexedDB and restored exactly (the RNG state is a single number).
  */
+import type { GameBox } from "./boxscore";
 import type { MLBDivision, MLBLeague } from "@/lib/mlb/teams";
 import type { RosterTeam } from "@/lib/game/types";
 
@@ -241,6 +242,8 @@ export interface ScheduledGame {
     manual?: boolean;
     att?: number;
   } & GameDecisions;
+  /** Box score and play-by-play (current season). */
+  box?: GameBox;
 }
 
 export interface Series {

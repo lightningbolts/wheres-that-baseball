@@ -9,12 +9,16 @@ import { avg, batWar, era, fip, obp, pitWar, slg, whip } from "@/lib/game/franch
 import type { BatLine, League, PitLine, Player } from "@/lib/game/franchise/types";
 import type { RosterFile } from "@/lib/game/types";
 import { cn } from "@/lib/utils";
+import { fmtDate } from "@/lib/game/franchise/schedule";
+import { GamePage } from "./GamePage";
 import { contractStr, injuryStr, Ovr, Segmented } from "./ui";
 import { f1, f2, f3, ipFmt } from "./StatTable";
 
 interface Ctx {
   openPlayer: (id: number) => void;
   openTeam: (id: number) => void;
+  /** Box score and play-by-play of a played game (schedule id). */
+  openGame: (id: number) => void;
   /** Multi-year + Steamer projection file and the real-roster snapshot, when loaded. */
   proj?: ProjectionFile;
   rosters?: RosterFile | null;
@@ -23,18 +27,20 @@ interface Ctx {
 const ProfileCtx = createContext<Ctx>({
   openPlayer: () => {},
   openTeam: () => {},
+  openGame: () => {},
 });
 
 export const useProfiles = (): Ctx => useContext(ProfileCtx);
 
-type Open = { kind: "player"; id: number } | { kind: "team"; id: number } | null;
+type Open = { kind: "player" | "team" | "game"; id: number } | null;
 
 /** Click any player or club name inside to open its Baseball Savant-style profile. */
 export function ProfilesProvider({ league, rosters, proj, children }: { league: League; rosters?: RosterFile | null; proj?: ProjectionFile; children: ReactNode }) {
   const [stack, setStack] = useState<Open[]>([]);
   const openPlayer = useCallback((id: number) => setStack((s) => [...s, { kind: "player", id }]), []);
   const openTeam = useCallback((id: number) => setStack((s) => [...s, { kind: "team", id }]), []);
-  const ctx = useMemo(() => ({ openPlayer, openTeam, proj, rosters }), [openPlayer, openTeam, proj, rosters]);
+  const openGame = useCallback((id: number) => setStack((s) => [...s, { kind: "game", id }]), []);
+  const ctx = useMemo(() => ({ openPlayer, openTeam, openGame, proj, rosters }), [openPlayer, openTeam, openGame, proj, rosters]);
   const top = stack[stack.length - 1] ?? null;
   const back = () => setStack((s) => s.slice(0, -1));
   const close = () => setStack([]);
@@ -60,7 +66,12 @@ export function ProfilesProvider({ league, rosters, proj, children }: { league: 
                 ✕ Close
               </button>
             </div>
-            {top.kind === "player" ? (
+            {top.kind === "game" ? (
+              (() => {
+                const g = league.schedule.find((x) => x.id === top.id);
+                return g ? <GamePage key={`g${top.id}`} league={league} game={g} openPlayer={openPlayer} openTeam={openTeam} /> : <p className="text-sm text-secondary">Game not found.</p>;
+              })()
+            ) : top.kind === "player" ? (
               <PlayerProfile key={`p${top.id}`} league={league} id={top.id} rosters={rosters ?? undefined} proj={proj} />
             ) : (
               <TeamProfile key={`t${top.id}`} league={league} id={top.id} rosters={rosters ?? undefined} proj={proj} />
@@ -555,6 +566,62 @@ function TeamProfile({ league, id, rosters, proj }: { league: League; id: number
           </table>
         </Section>
       </div>
+      <TeamGames league={league} id={id} />
     </div>
+  );
+}
+
+/** Baseball-Reference style schedule & results: every played game opens its box score. */
+function TeamGames({ league, id }: { league: League; id: number }) {
+  const { openGame } = useProfiles();
+  const [all, setAll] = useState(false);
+  const played = league.schedule.filter((g) => g.result && (g.away === id || g.home === id));
+  if (!played.length) return null;
+  const shown = all ? played : played.slice(-15);
+  let w = 0;
+  let l = 0;
+  const rec = new Map<number, string>();
+  for (const g of played) {
+    if (g.ps) continue;
+    const won = (g.home === id) === g.result!.hs > g.result!.as;
+    if (won) w += 1;
+    else l += 1;
+    rec.set(g.id, `${w}-${l}`);
+  }
+  return (
+    <Section title={`${league.season} schedule & results`} sub="Click a game for its box score and play-by-play.">
+      <div className="-mx-1 overflow-x-auto px-1">
+        <table className="w-full min-w-max text-xs tabular-nums">
+          <tbody>
+            {[...shown].reverse().map((g) => {
+              const home = g.home === id;
+              const opp = league.teams[home ? g.away : g.home];
+              const r = g.result!;
+              const won = home ? r.hs > r.as : r.as > r.hs;
+              return (
+                <tr key={g.id} className="cursor-pointer hover:bg-hover/60" onClick={() => openGame(g.id)}>
+                  <td className="py-0.5 pr-2 text-secondary">{fmtDate(league.calendar, g.day)}</td>
+                  <td className="py-0.5 pr-2">
+                    {g.ps && <span className="mr-1 rounded bg-emerald-500/15 px-1 text-[10px] uppercase text-emerald-500">{g.ps}</span>}
+                    {home ? "vs" : "@"} {opp.abbrev}
+                  </td>
+                  <td className={cn("py-0.5 pr-2 font-semibold", won ? "text-emerald-500" : "text-red-500")}>
+                    {won ? "W" : "L"} {home ? `${r.hs}-${r.as}` : `${r.as}-${r.hs}`}
+                    {r.inn > 9 ? ` (${r.inn})` : ""}
+                  </td>
+                  <td className="py-0.5 pr-2 text-secondary">{rec.get(g.id) ?? ""}</td>
+                  <td className="py-0.5 text-right text-emerald-500 hover:underline">Box score ›</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {played.length > 15 && (
+        <button type="button" className="mt-1 text-xs text-secondary hover:text-foreground" onClick={() => setAll((v) => !v)}>
+          {all ? "Show last 15" : `Show all ${played.length}`}
+        </button>
+      )}
+    </Section>
   );
 }

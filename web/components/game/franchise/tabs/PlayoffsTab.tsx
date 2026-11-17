@@ -5,9 +5,12 @@ import { playoffSeeds } from "@/lib/game/franchise/standings";
 import type { League, Series } from "@/lib/game/franchise/types";
 import type { MLBLeague } from "@/lib/mlb/teams";
 import { cn } from "@/lib/utils";
+import { useProfiles } from "../Profiles";
 import { Card, TeamDot, type TabProps } from "../ui";
 
 function SeriesCard({ league, s }: { league: League; s: Series }) {
+  const { openGame } = useProfiles();
+  const played = s.games.map((id) => league.schedule.find((g) => g.id === id)).filter((g): g is NonNullable<typeof g> => !!g?.result);
   const row = (id: number, seed: number, w: number) => {
     const t = league.teams[id];
     const won = s.winner === id;
@@ -30,6 +33,25 @@ function SeriesCard({ league, s }: { league: League; s: Series }) {
       </div>
       {row(s.hi, s.hiSeed, s.wins[0])}
       {row(s.lo, s.loSeed, s.wins[1])}
+      {played.length > 0 && (
+        <div className="mt-1.5 flex flex-wrap gap-1 border-t border-border/60 pt-1.5">
+          {played.map((g, i) => {
+            const r = g.result!;
+            const winner = r.hs > r.as ? g.home : g.away;
+            return (
+              <button
+                key={g.id}
+                type="button"
+                title={`Game ${i + 1}: box score & play-by-play`}
+                onClick={() => openGame(g.id)}
+                className="rounded border border-border px-1 text-[10px] tabular-nums text-secondary hover:border-emerald-500/60 hover:text-foreground"
+              >
+                G{i + 1} {league.teams[winner]?.abbrev} {Math.max(r.as, r.hs)}-{Math.min(r.as, r.hs)}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

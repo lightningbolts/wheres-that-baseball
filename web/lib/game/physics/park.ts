@@ -370,6 +370,12 @@ export function homeVenueForTeam(teamId: number): number | null {
   return null;
 }
 
+/** A club's home ballpark name (null when unknown). */
+export function venueNameForTeam(teamId: number): string | null {
+  const v = homeVenueForTeam(teamId);
+  return v != null ? (index.parks[String(v)]?.venueName ?? null) : null;
+}
+
 /** Fair territory test (on or inside the foul lines), horizontal position only. */
 export function isFairPosition(p: V3): boolean {
   return p.z >= 0 && Math.abs(sprayAngleDeg(p)) <= 45;
