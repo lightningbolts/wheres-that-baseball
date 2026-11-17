@@ -152,6 +152,34 @@ def statcast_extras(ids: set[str], refresh: bool) -> dict[str, dict]:
     return keep
 
 
+def load_steamer() -> tuple[dict[int, dict], dict[int, dict]]:
+    """FanGraphs Steamer projections for the projection season, if saved in the cache.
+
+    FanGraphs blocks scripted requests, so these are exported from a browser session as compact
+    `;`-separated rows (see STEAMER_FIELDS) into franchise_hist_cache/steamer_<year>_{bat,pit}.json.
+    """
+    out = []
+    for kind, fields in (("bat", ("pa", "k", "bb", "hr", "woba", "slg", "war", "def", "bsr")),
+                         ("pit", ("bf", "gs", "g", "k", "bb", "hr", "fip", "war"))):
+        f = CACHE / f"steamer_{LAST_YEAR + 1}_{kind}.json"
+        rows: dict[int, dict] = {}
+        if f.exists():
+            for line in f.read_text().split(";"):
+                parts = line.split(",")
+                if len(parts) != len(fields) + 1:
+                    continue
+                rows[int(parts[0])] = {k: num(v) for k, v in zip(fields, parts[1:])}
+        out.append(rows)
+    print(f"steamer: {len(out[0])} hitters, {len(out[1])} pitchers")
+    return out[0], out[1]
+
+
+def steamer_weight(eff: float) -> float:
+    """Share given to Steamer: half for an established player, more for a thin MLB record
+    (Steamer also sees minor-league and Japanese stats, which this projection doesn't)."""
+    return max(0.5, min(0.85, 0.5 + 0.35 * (1 - eff / 1200)))
+
+
 def num(x) -> float | None:
     try:
         v = float(x)
@@ -231,6 +259,7 @@ def main() -> None:
         for p in d.get("people", []):
             people[p["id"]] = p
 
+    st_bat, st_pit = load_steamer()
     sav = {k: {y: savant_csv(k, y, args.refresh) for y in range(FIRST_YEAR, LAST_YEAR + 1)}
            for k in ("xbat", "xpit", "brlbat", "brlpit", "sprint")}
 
@@ -315,6 +344,13 @@ def main() -> None:
                 b["sprint"] = round(sprint / sprint_w, 1)
             b["sbRate"] = round((acc["sb"] + acc["cs"]) / max(1.0, acc["opp"]), 4)
             b["sbPct"] = round((acc["sb"] + 6) / (acc["sb"] + acc["cs"] + 8), 3)
+            st = st_bat.get(pid)
+            if st and st.get("pa"):
+                ws = steamer_weight(b["pa"])
+                for ours, theirs in (("k", "k"), ("bb", "bb"), ("hr", "hr"), ("xwoba", "woba"), ("xslg", "slg")):
+                    if b.get(ours) is not None and st.get(theirs) is not None:
+                        b[ours] = round((1 - ws) * b[ours] + ws * st[theirs], 4)
+                b["pa"] = round(b["pa"] + 0.5 * st["pa"])
             entry["bat"] = b
 
         # ---- pitching
@@ -364,7 +400,22 @@ def main() -> None:
                 pi["gsShare"] = round(gs / g, 2)
                 pi["ipPerGs"] = round(outs_gs / 3 / gs, 2) if gs else 0
                 pi["sv"] = int(sv_n)
+            st = st_pit.get(pid)
+            if st and st.get("bf"):
+                ws = steamer_weight(pi["bf"])
+                for k in ("k", "bb", "hr"):
+                    if st.get(k) is not None:
+                        pi[k] = round((1 - ws) * pi[k] + ws * st[k], 4)
+                pi["bf"] = round(pi["bf"] + 0.5 * st["bf"])
             entry["pit"] = pi
+        fg = {}
+        sb_, sp_ = st_bat.get(pid), st_pit.get(pid)
+        if sb_ and sb_.get("war") is not None:
+            fg.update(bwar=sb_["war"], pa=int(sb_["pa"] or 0), defr=sb_.get("def"), bsr=sb_.get("bsr"), woba=sb_.get("woba"))
+        if sp_ and sp_.get("war") is not None:
+            fg.update(pwar=sp_["war"], bf=int(sp_["bf"] or 0), gs=int(sp_["gs"] or 0), fip=sp_.get("fip"))
+        if fg:
+            entry["fg"] = {k: v for k, v in fg.items() if v is not None}
         if "bat" in entry or "pit" in entry:
             out_players[str(pid)] = entry
 

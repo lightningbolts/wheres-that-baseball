@@ -76,12 +76,48 @@ export function teamStrength(league: League, teamId: number): number {
   return hitters.reduce((s, x, i) => s + x * (i < 9 ? 1 : 0.4), 0) + sps.reduce((s, x) => s + x, 0) + rps.reduce((s, x) => s + x, 0);
 }
 
-/** Expected wins from roster strength (≈ 48 + total WAR, spread to MLB-like range). */
-export function expectedWins(league: League): Record<number, number> {
+/**
+ * Wins per point of roster WAR above the league mean, fit on simulated seasons (6 leagues × 30
+ * clubs: slope 1.07, residual SD 6.8 wins ≈ pure 162-game luck). The old 0.85 squeezed clubs
+ * toward .500.
+ */
+const WINS_PER_WAR = 1.05;
+
+/** Full-season win expectation (162 games) for every club from its current roster. */
+function talentWins(league: League): Record<number, number> {
   const s = Object.values(league.teams).map((t) => [t.id, teamStrength(league, t.id)] as const);
   const mean = s.reduce((a, [, v]) => a + v, 0) / s.length;
   const out: Record<number, number> = {};
-  for (const [id, v] of s) out[id] = Math.round(81 + (v - mean) * 0.85);
+  for (const [id, v] of s) out[id] = Math.max(40, Math.min(122, 81 + (v - mean) * WINS_PER_WAR));
+  return out;
+}
+
+/** Expected wins from roster strength (the preseason projection, stored as league.expected). */
+export function expectedWins(league: League): Record<number, number> {
+  const t = talentWins(league);
+  const out: Record<number, number> = {};
+  for (const id of Object.keys(t)) out[+id] = Math.round(t[+id]);
+  return out;
+}
+
+/**
+ * Rest-of-season projection: wins so far plus the remaining regular-season games at the
+ * current roster's talent level (trades, injuries and development count; past luck doesn't).
+ */
+export function projectedRecord(league: League): Record<number, { w: number; l: number; left: number }> {
+  const t = talentWins(league);
+  const left: Record<number, number> = {};
+  for (const g of league.schedule) {
+    if (g.ps || g.result) continue;
+    left[g.home] = (left[g.home] ?? 0) + 1;
+    left[g.away] = (left[g.away] ?? 0) + 1;
+  }
+  const out: Record<number, { w: number; l: number; left: number }> = {};
+  for (const team of Object.values(league.teams)) {
+    const n = left[team.id] ?? 0;
+    const w = Math.round(team.w + (n * t[team.id]) / 162);
+    out[team.id] = { w, l: team.w + team.l + n - w, left: n };
+  }
   return out;
 }
 

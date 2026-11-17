@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { TeamLogo } from "@/components/ui/TeamLogo";
 import { awardTags } from "@/lib/game/franchise/awards";
-import type { ProjectionFile } from "@/lib/game/franchise/projections";
+import { steamerWins, type ProjectionFile } from "@/lib/game/franchise/projections";
 import { projProfile, realProfile, scProfile, talentProfile, teamProfile, type Metric, type TeamMetric } from "@/lib/game/franchise/statcast";
 import { avg, batWar, era, fip, obp, pitWar, slg, whip } from "@/lib/game/franchise/stats";
 import type { BatLine, League, PitLine, Player } from "@/lib/game/franchise/types";
@@ -15,6 +15,9 @@ import { f1, f2, f3, ipFmt } from "./StatTable";
 interface Ctx {
   openPlayer: (id: number) => void;
   openTeam: (id: number) => void;
+  /** Multi-year + Steamer projection file and the real-roster snapshot, when loaded. */
+  proj?: ProjectionFile;
+  rosters?: RosterFile | null;
 }
 
 const ProfileCtx = createContext<Ctx>({
@@ -31,7 +34,7 @@ export function ProfilesProvider({ league, rosters, proj, children }: { league: 
   const [stack, setStack] = useState<Open[]>([]);
   const openPlayer = useCallback((id: number) => setStack((s) => [...s, { kind: "player", id }]), []);
   const openTeam = useCallback((id: number) => setStack((s) => [...s, { kind: "team", id }]), []);
-  const ctx = useMemo(() => ({ openPlayer, openTeam }), [openPlayer, openTeam]);
+  const ctx = useMemo(() => ({ openPlayer, openTeam, proj, rosters }), [openPlayer, openTeam, proj, rosters]);
   const top = stack[stack.length - 1] ?? null;
   const back = () => setStack((s) => s.slice(0, -1));
   const close = () => setStack([]);
@@ -156,6 +159,7 @@ function PlayerProfile({ league, id, rosters, proj }: { league: League; id: numb
   const pitAbs = pitcher && p.real ? scProfile(proj, undefined, p.id) : null;
   const talent = talentProfile(league, p, pitcher);
   const inj = injuryStr(p);
+  const fg = proj?.players[String(p.id)]?.fg;
   const lastYear = (proj?.projSeason ?? league.season) - 1;
   const absRows = [...(sc?.abs ?? []), ...(pitAbs?.abs.filter((a) => a.role === "Pitcher") ?? [])];
 
@@ -183,6 +187,22 @@ function PlayerProfile({ league, id, rosters, proj }: { league: League; id: numb
             {contractStr(p)} · {p.service.toFixed(1)} yrs service
             {p.real ? "" : " · generated player"}
           </p>
+          {fg && (
+            <p className="text-xs text-secondary">
+              FanGraphs Steamer {proj?.projSeason}:{" "}
+              {fg.bwar != null && (
+                <>
+                  <b>{fg.bwar.toFixed(1)} WAR</b> in {fg.pa} PA ({f3(fg.woba ?? 0)} wOBA, Def {fg.defr != null ? (fg.defr > 0 ? "+" : "") + fg.defr.toFixed(1) : "—"}, BsR {fg.bsr != null ? (fg.bsr > 0 ? "+" : "") + fg.bsr.toFixed(1) : "—"})
+                </>
+              )}
+              {fg.bwar != null && fg.pwar != null ? " · " : ""}
+              {fg.pwar != null && (
+                <>
+                  <b>{fg.pwar.toFixed(1)} WAR</b> in {fg.bf} BF{fg.gs ? `, ${fg.gs} GS` : ""} ({fg.fip?.toFixed(2)} FIP)
+                </>
+              )}
+            </p>
+          )}
         </div>
         <div className="flex gap-4 text-center">
           <div>
@@ -453,6 +473,7 @@ function TeamProfile({ league, id, rosters, proj }: { league: League; id: number
   const prof = useMemo(() => (t ? teamProfile(league, id, rosters, proj) : null), [league, id, rosters, proj, t]);
   if (!t || !prof) return <p className="text-sm text-secondary">Club not found.</p>;
   const lastYear = (proj?.projSeason ?? league.season) - 1;
+  const fgw = steamerWins(league, proj)?.[id];
   const active = Object.values(league.players).filter((p) => p.team === id && p.status === "active");
   const hitters = t.lineup.map((s) => ({ s, p: league.players[s.id] })).filter((x) => x.p);
   const rot = t.rotation.map((x) => league.players[x]).filter(Boolean);
@@ -472,6 +493,9 @@ function TeamProfile({ league, id, rosters, proj }: { league: League; id: number
           <h2 className="text-xl font-bold leading-tight">{t.name}</h2>
           <p className="text-xs text-secondary">
             {t.league} {t.division} · {g ? `${t.w}–${t.l} (${f3(t.w / g)}) · ${t.rs - t.ra >= 0 ? "+" : ""}${t.rs - t.ra} run diff.` : "Season not started"}
+          </p>
+          <p className="text-xs text-secondary">
+            Preseason projection {league.expected?.[t.id] ?? "—"} W{fgw ? ` · FanGraphs Steamer ${fgw.w} W (${fgw.war.toFixed(1)} roster WAR)` : ""}
           </p>
         </div>
       </header>

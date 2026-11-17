@@ -4,6 +4,7 @@
  * aged to the first franchise season and weighted toward recent years. A 2026 slump or
  * an injury-shortened season no longer defines a player; his track record does.
  */
+import type { League } from "./types";
 import type { RosterPlayer } from "@/lib/game/types";
 import { LG } from "./data";
 
@@ -38,11 +39,45 @@ export type ExtraRole = "lineup" | "bench" | "rotation" | "bullpen";
 export interface ProjectionFile {
   projSeason: number;
   years: [number, number];
-  players: Record<string, { born?: string; bat?: BatProj; pit?: PitProj }>;
+  players: Record<string, { born?: string; bat?: BatProj; pit?: PitProj; fg?: SteamerLine }>;
   /** Current 40-man players missing from the 2026 roster snapshot (mostly injured stars). */
   extras: Record<string, Array<RosterPlayer & { role: ExtraRole }>>;
   /** Latest-season Savant fielding / baserunning / ABS challenge value, by player id. */
   sc?: Record<string, ScExtra>;
+}
+
+/** FanGraphs Steamer projection for the franchise's first season (also blended into the ratings). */
+export interface SteamerLine {
+  bwar?: number;
+  pa?: number;
+  /** Fielding and baserunning runs (FanGraphs Def / BsR). */
+  defr?: number;
+  bsr?: number;
+  woba?: number;
+  pwar?: number;
+  bf?: number;
+  gs?: number;
+  fip?: number;
+}
+
+/**
+ * FanGraphs-style team projection: Steamer WAR of each club's current active roster (plus IL),
+ * wins = 81 + (club WAR − league-average club WAR). Uses each player's Steamer playing time.
+ */
+export function steamerWins(league: League, proj: ProjectionFile | undefined): Record<number, { w: number; war: number }> | null {
+  if (!proj || !Object.values(proj.players).some((p) => p.fg)) return null;
+  const war: Record<number, number> = {};
+  for (const t of Object.values(league.teams)) war[t.id] = 0;
+  for (const p of Object.values(league.players)) {
+    if (!(p.team in war) || (p.status !== "active" && p.status !== "il")) continue;
+    const fg = proj.players[String(p.id)]?.fg;
+    if (fg) war[p.team] += (fg.bwar ?? 0) + (fg.pwar ?? 0);
+  }
+  const ids = Object.keys(war).map(Number);
+  const mean = ids.reduce((s, id) => s + war[id], 0) / ids.length;
+  const out: Record<number, { w: number; war: number }> = {};
+  for (const id of ids) out[id] = { w: Math.round(81 + war[id] - mean), war: war[id] };
+  return out;
 }
 
 export interface AbsLine {
