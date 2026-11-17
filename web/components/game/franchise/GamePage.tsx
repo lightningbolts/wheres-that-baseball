@@ -68,8 +68,8 @@ export function GamePage({ league, game, openPlayer, openTeam }: { league: Leagu
       {name(id)}
     </button>
   );
-  const T = ({ id, children }: { id: number; children: ReactNode }) => (
-    <button type="button" className="hover:underline" onClick={() => openTeam(id)}>
+  const T = ({ id, children, className }: { id: number; children: ReactNode; className?: string }) => (
+    <button type="button" className={cn("text-left hover:text-emerald-500 hover:underline", className)} onClick={() => openTeam(id)}>
       {children}
     </button>
   );
@@ -92,7 +92,9 @@ export function GamePage({ league, game, openPlayer, openTeam }: { league: Leagu
             const tm = t as typeof away;
             return (
               <div key={tm.id} className="flex items-center gap-2">
-                <TeamLogo teamId={tm.id} size={36} title={tm.abbrev} />
+                <T id={tm.id}>
+                  <TeamLogo teamId={tm.id} size={36} title={tm.abbrev} />
+                </T>
                 <div>
                   <T id={tm.id}>
                     <span className={cn("text-lg font-semibold", won ? "text-foreground" : "text-secondary")}>{tm.name}</span>
@@ -132,10 +134,10 @@ export function GamePage({ league, game, openPlayer, openTeam }: { league: Leagu
             {[away, home].map((t, s) => (
               <tr key={t.id} className="border-t border-border/60">
                 <td className="whitespace-nowrap px-2 py-1 font-medium">
-                  <span className="inline-flex items-center gap-1.5">
+                  <T id={t.id} className="inline-flex items-center gap-1.5">
                     <TeamLogo teamId={t.id} size={16} title={t.abbrev} />
                     {t.abbrev}
-                  </span>
+                  </T>
                 </td>
                 {Array.from({ length: n }, (_, i) => {
                   const v = line?.[s][i];
@@ -177,16 +179,16 @@ export function GamePage({ league, game, openPlayer, openTeam }: { league: Leagu
         <>
           <div className="grid gap-4 lg:grid-cols-2">
             {[away, home].map((t, s) => (
-              <BattingBox key={t.id} title={`${t.name} Batting`} rows={box.bat[s as 0 | 1]} P={P} />
+              <BattingBox key={t.id} title={<><T id={t.id}>{t.name}</T> Batting</>} rows={box.bat[s as 0 | 1]} P={P} />
             ))}
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
             {[away, home].map((t, s) => (
-              <PitchingBox key={t.id} title={`${t.name} Pitching`} rows={box.pit[s as 0 | 1]} P={P} dec={r} />
+              <PitchingBox key={t.id} title={<><T id={t.id}>{t.name}</T> Pitching</>} rows={box.pit[s as 0 | 1]} P={P} dec={r} />
             ))}
           </div>
-          <ScoringPlays box={box} rows={plays} league={league} game={game} P={P} />
-          <PlayByPlay box={box} rows={plays} league={league} game={game} P={P} />
+          <ScoringPlays box={box} rows={plays} league={league} game={game} P={P} T={T} />
+          <PlayByPlay box={box} rows={plays} league={league} game={game} P={P} T={T} />
         </>
       )}
     </div>
@@ -194,11 +196,12 @@ export function GamePage({ league, game, openPlayer, openTeam }: { league: Leagu
 }
 
 type PComp = (props: { id: number; className?: string }) => ReactNode;
+type TComp = (props: { id: number; children: ReactNode; className?: string }) => ReactNode;
 
 const thc = "border-b border-border px-1.5 py-1 text-right text-[11px] font-semibold uppercase tracking-wide text-secondary";
 const tdc = "border-b border-border/40 px-1.5 py-[3px] text-right";
 
-function BattingBox({ title, rows, P }: { title: string; rows: BoxBat[]; P: PComp }) {
+function BattingBox({ title, rows, P }: { title: ReactNode; rows: BoxBat[]; P: PComp }) {
   const tot = rows.reduce((t, b) => t.map((v, i) => v + (b[i + 2] as number)), [0, 0, 0, 0, 0, 0]);
   const notes: Array<[string, number]> = [
     ["2B", 9],
@@ -269,7 +272,7 @@ function BattingBox({ title, rows, P }: { title: string; rows: BoxBat[]; P: PCom
   );
 }
 
-function PitchingBox({ title, rows, P, dec }: { title: string; rows: BoxPit[]; P: PComp; dec: { wp?: number; lp?: number; sv?: number } }) {
+function PitchingBox({ title, rows, P, dec }: { title: ReactNode; rows: BoxPit[]; P: PComp; dec: { wp?: number; lp?: number; sv?: number } }) {
   const tot = rows.reduce((t, p) => t.map((v, i) => v + p[i + 1]), [0, 0, 0, 0, 0, 0, 0, 0, 0]);
   const tag = (id: number) => (id === dec.wp ? ", W" : id === dec.lp ? ", L" : id === dec.sv ? ", S" : "");
   const cells = (p: number[]) => [ipFmt(p[0] / 3), p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8]];
@@ -321,6 +324,7 @@ interface PlaysProps {
   league: League;
   game: ScheduledGame;
   P: PComp;
+  T: TComp;
 }
 
 /** Names of everyone in the box, longest first, for linking names inside play text. */
@@ -370,7 +374,7 @@ function playText(box: GameBox, row: Row, game: ScheduledGame, league: League, P
 const batterId = (box: GameBox, p: Play) => box.bat[p.bottom ? 1 : 0][p.batter]?.[0];
 const pitcherId = (box: GameBox, p: Play, idx = p.pitcher) => box.pit[p.bottom ? 0 : 1][idx]?.[0];
 
-function ScoringPlays({ box, rows, league, game, P }: PlaysProps) {
+function ScoringPlays({ box, rows, league, game, P, T }: PlaysProps) {
   const names = useMemo(() => (box.txt ? boxNames(box, league) : []), [box, league]);
   const scoring = rows.filter((r) => r.play.runs > 0);
   if (!scoring.length) return null;
@@ -399,7 +403,7 @@ function ScoringPlays({ box, rows, league, game, P }: PlaysProps) {
                   {r.play.inning}
                 </td>
                 <td className={cn(tdc, "whitespace-nowrap text-left tabular-nums")}>
-                  {abbr[0]} {after[0]}, {abbr[1]} {after[1]}
+                  <T id={game.away}>{abbr[0]}</T> {after[0]}, <T id={game.home}>{abbr[1]}</T> {after[1]}
                 </td>
                 <td className={cn(tdc, "whitespace-nowrap text-left")}>{b != null && <P id={b} />}</td>
                 <td className={cn(tdc, "text-left")}>{playText(box, r, game, league, P, names)}</td>
@@ -412,7 +416,7 @@ function ScoringPlays({ box, rows, league, game, P }: PlaysProps) {
   );
 }
 
-function PlayByPlay({ box, rows, league, game, P }: PlaysProps) {
+function PlayByPlay({ box, rows, league, game, P, T }: PlaysProps) {
   const names = useMemo(() => (box.txt ? boxNames(box, league) : []), [box, league]);
   const away = league.teams[game.away];
   const home = league.teams[game.home];
@@ -426,12 +430,13 @@ function PlayByPlay({ box, rows, league, game, P }: PlaysProps) {
     if (key !== half) {
       half = key;
       const [a, h] = r.score;
-      const lead = a === h ? `Tied ${a}-${h}` : `${a > h ? away.name : home.name} ${Math.max(a, h)}-${Math.min(a, h)}`;
+      const leader = a > h ? away : home;
+      const lead = a === h ? <>Tied {a}-{h}</> : <><T id={leader.id}>{leader.name}</T> {Math.max(a, h)}-{Math.min(a, h)}</>;
       const pid = pitcherId(box, p);
       out.push(
         <tr key={`h${key}`} className="bg-hover/70">
           <td colSpan={7} className="px-1.5 py-1 text-xs font-semibold">
-            {p.bottom ? "Bottom" : "Top"} of the {ordinal(p.inning)}, {bat.name} Batting, {lead}, {fld.abbrev}&apos;{fld.abbrev.endsWith("s") ? "" : "s"} {pid != null ? <P id={pid} /> : "—"} facing
+            {p.bottom ? "Bottom" : "Top"} of the {ordinal(p.inning)}, <T id={bat.id}>{bat.name}</T> Batting, {lead}, <T id={fld.id}>{fld.abbrev}</T>&apos;{fld.abbrev.endsWith("s") ? "" : "s"} {pid != null ? <P id={pid} /> : "—"} facing
           </td>
         </tr>,
       );
