@@ -323,14 +323,44 @@ interface PlaysProps {
   P: PComp;
 }
 
-function playText(box: GameBox, row: Row, game: ScheduledGame, league: League): string {
-  if (box.txt) return box.txt[row.i];
+/** Names of everyone in the box, longest first, for linking names inside play text. */
+function boxNames(box: GameBox, league: League): Array<[string, number]> {
+  const ids = new Set<number>();
+  for (const side of [0, 1] as const) {
+    for (const b of box.bat[side]) ids.add(b[0]);
+    for (const q of box.pit[side]) ids.add(q[0]);
+  }
+  return [...ids].map((id) => [league.players[id]?.name ?? "", id] as [string, number]).filter(([n]) => n.length > 3).sort((a, b) => b[0].length - a[0].length);
+}
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** Text with each player's full name turned into a profile link. */
+function linkNames(text: string, names: Array<[string, number]>, P: PComp): ReactNode {
+  if (!names.length) return text;
+  const byName = new Map(names);
+  const re = new RegExp(`(${names.map(([n]) => escapeRe(n)).join("|")})`, "g");
+  const parts = text.split(re);
+  if (parts.length === 1) return text;
+  return parts.map((part, i) => {
+    const id = i % 2 === 1 ? byName.get(part) : undefined;
+    return id != null ? <P key={i} id={id} /> : part;
+  });
+}
+
+function playText(box: GameBox, row: Row, game: ScheduledGame, league: League, P: PComp, names: Array<[string, number]>): ReactNode {
+  if (box.txt) return linkNames(box.txt[row.i], names, P);
   const p = row.play;
   if (p.code === PLAY.SB || p.code === PLAY.CS) {
     // The runner went from first to second unless first was empty before the play.
     const bag = row.bases != null && row.bases & 1 ? "2B" : "3B";
-    const runner = name(league, batterId(box, p) ?? 0);
-    return p.code === PLAY.SB ? `${runner} steals ${bag}` : `${runner} caught stealing ${bag}`;
+    const rid = batterId(box, p);
+    const runner = rid != null ? <P id={rid} /> : "Runner";
+    return (
+      <>
+        {runner} {p.code === PLAY.SB ? "steals" : "caught stealing"} {bag}
+      </>
+    );
   }
   const base = describePlay(p, game.id * 131 + row.i);
   if (p.code === PLAY.HR || !p.runs) return base;
@@ -341,6 +371,7 @@ const batterId = (box: GameBox, p: Play) => box.bat[p.bottom ? 1 : 0][p.batter]?
 const pitcherId = (box: GameBox, p: Play, idx = p.pitcher) => box.pit[p.bottom ? 0 : 1][idx]?.[0];
 
 function ScoringPlays({ box, rows, league, game, P }: PlaysProps) {
+  const names = useMemo(() => (box.txt ? boxNames(box, league) : []), [box, league]);
   const scoring = rows.filter((r) => r.play.runs > 0);
   if (!scoring.length) return null;
   const abbr = [league.teams[game.away].abbrev, league.teams[game.home].abbrev];
@@ -371,7 +402,7 @@ function ScoringPlays({ box, rows, league, game, P }: PlaysProps) {
                   {abbr[0]} {after[0]}, {abbr[1]} {after[1]}
                 </td>
                 <td className={cn(tdc, "whitespace-nowrap text-left")}>{b != null && <P id={b} />}</td>
-                <td className={cn(tdc, "text-left")}>{playText(box, r, game, league)}</td>
+                <td className={cn(tdc, "text-left")}>{playText(box, r, game, league, P, names)}</td>
               </tr>
             );
           })}
@@ -382,6 +413,7 @@ function ScoringPlays({ box, rows, league, game, P }: PlaysProps) {
 }
 
 function PlayByPlay({ box, rows, league, game, P }: PlaysProps) {
+  const names = useMemo(() => (box.txt ? boxNames(box, league) : []), [box, league]);
   const away = league.teams[game.away];
   const home = league.teams[game.home];
   const out: ReactNode[] = [];
@@ -399,7 +431,7 @@ function PlayByPlay({ box, rows, league, game, P }: PlaysProps) {
       out.push(
         <tr key={`h${key}`} className="bg-hover/70">
           <td colSpan={7} className="px-1.5 py-1 text-xs font-semibold">
-            {p.bottom ? "Bottom" : "Top"} of the {ordinal(p.inning)}, {bat.name} Batting, {lead}, {fld.abbrev}&apos;{fld.abbrev.endsWith("s") ? "" : "s"} {pid != null ? name(league, pid) : "—"} facing
+            {p.bottom ? "Bottom" : "Top"} of the {ordinal(p.inning)}, {bat.name} Batting, {lead}, {fld.abbrev}&apos;{fld.abbrev.endsWith("s") ? "" : "s"} {pid != null ? <P id={pid} /> : "—"} facing
           </td>
         </tr>,
       );
@@ -409,7 +441,7 @@ function PlayByPlay({ box, rows, league, game, P }: PlaysProps) {
       out.push(
         <tr key={`c${r.i}`}>
           <td colSpan={7} className="border-b border-border/40 px-1.5 py-[3px] text-xs italic text-secondary">
-            Pitching change: {to != null ? name(league, to) : "—"} replaces {from != null ? name(league, from) : "—"}.
+            Pitching change: {to != null ? <P id={to} /> : "—"} replaces {from != null ? <P id={from} /> : "—"}.
           </td>
         </tr>,
       );
@@ -430,7 +462,7 @@ function PlayByPlay({ box, rows, league, game, P }: PlaysProps) {
         <td className={cn(tdc, "text-center font-mono text-[12px]")}>{r.bases == null ? "" : robStr(r.bases)}</td>
         <td className={cn(tdc, "whitespace-nowrap text-left")}>{b != null && pa ? <P id={b} /> : ""}</td>
         <td className={cn(tdc, "whitespace-nowrap text-left")}>{pid != null && pa ? <P id={pid} className="text-secondary" /> : ""}</td>
-        <td className={cn(tdc, "text-left", p.runs > 0 && "font-semibold")}>{playText(box, r, game, league)}</td>
+        <td className={cn(tdc, "text-left", p.runs > 0 && "font-semibold")}>{playText(box, r, game, league, P, names)}</td>
       </tr>,
     );
   }
