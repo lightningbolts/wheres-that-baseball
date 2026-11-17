@@ -81,6 +81,10 @@ export interface ContractFile {
   built: string;
   source: string;
   players: Record<string, ContractEntry>;
+  /** Real free agents this winter (elected free agency / released): MLBAM id → club they left. */
+  fa?: Record<string, { from: number; date?: string | null }>;
+  /** Players now in a different organization than the roster snapshot (trades, claims, signings). */
+  org?: Record<string, number>;
 }
 
 const r2 = (x: number): number => Math.round(x * 100) / 100;

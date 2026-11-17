@@ -177,6 +177,10 @@ export function finishFreeAgency(league: League): void {
 export function startNextSeason(league: League): void {
   if (league.phase !== "freeagency" && league.phase !== "preseason") return;
   if (!faFinished(league)) finishFreeAgency(league);
+  if (league.opening) {
+    openFirstSeason(league);
+    return;
+  }
   league.season += 1;
   const { calendar, games } = buildSchedule(league.season, league.seed + league.season, 1);
   league.calendar = calendar;
@@ -200,6 +204,20 @@ export function startNextSeason(league: League): void {
   // Rookie eligibility for the new season.
   for (const p of Object.values(league.players)) if (p.service < 1 && p.status !== "retired") p.rookie = p.rookie ?? true;
   normalizeEnvironment(league);
+  assignStrategies(league);
+  league.expected = expectedWins(league);
+  news(league, `Opening Day ${league.season}! ${league.teams[league.userTeam].name} projected for ${league.expected[league.userTeam]} wins.`, league.userTeam, "info");
+}
+
+/** The winter market before the first season is done: the already-built season begins. */
+function openFirstSeason(league: League): void {
+  league.opening = undefined;
+  league.phase = "regular";
+  league.fa = undefined;
+  for (const t of Object.values(league.teams)) {
+    normalizeRoster(league, t.id, { offseason: true });
+    autoDepth(league, t.id);
+  }
   assignStrategies(league);
   league.expected = expectedWins(league);
   news(league, `Opening Day ${league.season}! ${league.teams[league.userTeam].name} projected for ${league.expected[league.userTeam]} wins.`, league.userTeam, "info");

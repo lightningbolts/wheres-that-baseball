@@ -13,6 +13,16 @@ season onward:
 B-Ref ids are mapped to MLBAM ids through the Chadwick Bureau register, falling back to a
 name match against rosters.json (+ the 40-man extras in franchise-proj.json).
 
+Then every rostered player's offseason transactions come from the MLB Stats API, so the
+league opens the way the winter actually stands:
+
+  * players who elected free agency / were released (and haven't signed with a club since)
+    are listed under "fa" and start on the open market,
+  * players who changed organizations (trades, waiver claims, signings) are listed under
+    "org" with their new club,
+  * a few deals B-Ref's payroll pages miss (club options picked up, opt-outs not taken —
+    the page shows those players as free agents, but they never left) come from OVERRIDES.
+
 Pages are cached in ml-engine/data/franchise_hist_cache/ like the other franchise builders.
 B-Ref allows ~20 requests a minute, so a fresh run takes about two minutes.
 
@@ -57,6 +67,36 @@ SLUG = {108: "los-angeles-angels", 109: "arizona-diamondbacks", 110: "baltimore-
         139: "tampa-bay-rays", 140: "texas-rangers", 141: "toronto-blue-jays", 142: "minnesota-twins",
         143: "philadelphia-phillies", 144: "atlanta-braves", 145: "chicago-white-sox", 146: "miami-marlins",
         147: "new-york-yankees", 158: "milwaukee-brewers"}
+# Deals the payroll pages drop: the 2027 option was exercised (or an opt-out not taken), so the
+# Stats API shows no free agency, but B-Ref lists the player as a 2027 free agent. Terms from
+# Cot's Baseball Contracts. Keyed by name; only used when B-Ref has no deal for the player.
+OVERRIDES: dict[str, dict] = {
+    "Ronald Acuña Jr.": {"sal": [17.0], "total": 100.0, "len": 8, "first": 2019, "last": 2027,
+                         "opt": {"season": 2028, "type": "team", "salary": 17.0, "buyout": 0},
+                         "summary": "8 yrs/$100M (19-26), 27 club option exercised & 28 club option"},
+    "Ozzie Albies": {"sal": [7.0], "total": 35.0, "len": 7, "first": 2019, "last": 2027,
+                     "summary": "7 yrs/$35M (19-25), 26-27 club options exercised"},
+    "Sandy Alcantara": {"sal": [21.0], "total": 56.0, "len": 5, "first": 2022, "last": 2027,
+                        "summary": "5 yrs/$56M (22-26), 27 club option exercised"},
+    "Bo Bichette": {"sal": [42.0], "total": 126.0, "len": 3, "first": 2026, "last": 2027,
+                    "opt": {"season": 2028, "type": "player", "salary": 42.0, "buyout": 0},
+                    "summary": "3 yrs/$126M (26-28), opt-out after 27"},
+    "Andrés Muñoz": {"sal": [6.0], "total": 7.5, "len": 4, "first": 2023, "last": 2027,
+                     "opt": {"season": 2028, "type": "team", "salary": 8.0, "buyout": 0},
+                     "summary": "4 yrs/$7.5M (23-26), 27 club option exercised, 28-29 club options"},
+    "Garrett Whitlock": {"sal": [10.0], "total": 18.75, "len": 4, "first": 2022, "last": 2027,
+                         "summary": "4 yrs/$18.75M (22-25), 26-27 club options exercised"},
+    "Luis Severino": {"sal": [22.33], "total": 67.0, "len": 3, "first": 2025, "last": 2027,
+                      "summary": "3 yrs/$67M (25-27), opt-out after 26 not exercised"},
+    "Ryan Helsley": {"sal": [14.0], "total": 28.0, "len": 2, "first": 2026, "last": 2027,
+                     "summary": "2 yrs/$28M (26-27), opt-out after 26 not exercised"},
+}
+
+STATSAPI = "https://statsapi.mlb.com/api/v1"
+# Offseason moves: leaving an organization / joining one. Within a day, outrights and
+# assignments happen before the player elects free agency, and signings come last.
+LEAVE = ("Declared Free Agency", "Released", "Retired", "Voluntarily Retired")
+JOIN = ("Signed as Free Agent", "Trade", "Claimed Off Waivers", "Signed", "Rule 5 Draft")
 OPT_TYPES = {"team": "team", "club": "team", "player": "player", "mutual": "mutual", "vesting": "vesting"}
 
 
@@ -218,6 +258,70 @@ def known_players() -> dict[str, list[tuple[int, int]]]:
     return by
 
 
+def fetch_json(url: str) -> dict:
+    for attempt in range(4):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (wtbb-franchise-builder)"})
+            return json.loads(urllib.request.urlopen(req, timeout=60).read())
+        except Exception as e:  # noqa: BLE001
+            if attempt == 3:
+                raise
+            print(f"  retry {url[:80]}: {e}")
+            time.sleep(5 * (attempt + 1))
+    return {}
+
+
+def parent_orgs(season: int) -> dict[int, int]:
+    """Every MLB and affiliated minor-league club id → its MLB parent (MLB clubs map to themselves)."""
+    out: dict[int, int] = {}
+    d = fetch_json(f"{STATSAPI}/teams?sportIds=1,11,12,13,14,16&season={season}")
+    for t in d.get("teams", []):
+        if t.get("sport", {}).get("id") == 1:
+            out[t["id"]] = t["id"]
+        elif t.get("parentOrgId"):
+            out[t["id"]] = t["parentOrgId"]
+    return out
+
+
+def offseason_status(ids: dict[int, int], season: int) -> tuple[dict[str, dict], dict[str, int]]:
+    """
+    Where each rostered player stands this winter (since the end of the regular season):
+    free agents (with the club they left) and players now in another organization.
+    `ids` maps MLBAM id → the club rosters.json has him on.
+    """
+    orgs = parent_orgs(season - 1)
+    since = f"{season - 1}-09-28"
+    fa: dict[str, dict] = {}
+    moved: dict[str, int] = {}
+    order = {**{k: 1 for k in LEAVE}, **{k: 2 for k in JOIN}}
+    keys = list(ids)
+    for i in range(0, len(keys), 60):
+        q = ",".join(str(k) for k in keys[i:i + 60])
+        d = fetch_json(f"{STATSAPI}/people?personIds={q}&hydrate=transactions")
+        for p in d.get("people", []):
+            pid = p["id"]
+            home = ids[pid]
+            org: int | None = home
+            left: str | None = None
+            txs = [t for t in p.get("transactions", []) if (t.get("date") or "") >= since]
+            txs.sort(key=lambda t: (t.get("date") or "", order.get(t.get("typeDesc", ""), 0)))
+            for t in txs:
+                kind = t.get("typeDesc", "")
+                to = (t.get("toTeam") or {}).get("id")
+                if kind in LEAVE:
+                    org, left = None, t.get("date")
+                elif kind in JOIN and to in orgs:
+                    org = orgs[to]
+                elif kind in ("Outrighted", "Assigned", "Optioned", "Selected", "Recalled", "Status Change") and org is not None and to in orgs:
+                    org = orgs[to]
+            if org is None:
+                fa[str(pid)] = {"from": home, "date": left}
+            elif org != home:
+                moved[str(pid)] = org
+        time.sleep(0.2)
+    return fa, moved
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--season", type=int, default=2027, help="first franchise season (B-Ref page year is the one before)")
@@ -263,11 +367,42 @@ def main() -> None:
             continue
         players[str(mid)] = e
 
+    # Payroll pages that dropped a deal (option picked up / opt-out not taken).
+    by_name = {norm_name(n): n for n in OVERRIDES}
+    for nm, cands in names.items():
+        if nm not in by_name or len({c[0] for c in cands}) != 1:
+            continue
+        mid, tid = cands[0]
+        if str(mid) in players and players[str(mid)]["kind"] == "guar":
+            continue
+        o = OVERRIDES[by_name[nm]]
+        players[str(mid)] = {"team": players.get(str(mid), {}).get("team", tid), "kind": "guar",
+                             **({"svc": players[str(mid)]["svc"]} if "svc" in players.get(str(mid), {}) else {}), **o}
+
+    # The winter so far: free agents and changes of organization.
+    rostered: dict[int, int] = {}
+    for nm, cands in names.items():
+        for mid, tid in cands:
+            rostered.setdefault(mid, tid)
+    fa, moved = offseason_status(rostered, season)
+    for k in fa:
+        # A free agent's old deal is over (a released player's remaining salary stays with the
+        # club as dead money — keep the entry so the game can charge it).
+        e = players.get(k)
+        if e and e["kind"] != "guar":
+            del players[k]
+    for k, org in moved.items():
+        if k in players:
+            players[k]["team"] = org
+    print(f"  offseason: {len(fa)} free agents, {len(moved)} changed organizations")
+
     payload = {
         "season": season,
         "built": date.today().isoformat(),
         "source": "Baseball-Reference team payrolls (Cot's Baseball Contracts; MLBTR arbitration estimates)",
         "players": players,
+        "fa": fa,
+        "org": moved,
     }
     OUT.write_text(json.dumps(payload, separators=(",", ":"), ensure_ascii=False))
     kinds: dict[str, int] = {}
