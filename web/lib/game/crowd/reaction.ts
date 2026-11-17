@@ -70,8 +70,31 @@ function worth(i: CrowdInput): { bat: number; field: number; why: string | null 
   if (before <= 0 && after > 0) take(bat + 0.3, "go-ahead", "bat");
   else if (before < 0 && after === 0) take(bat + 0.2, "tying run", "bat");
 
+  // ABS: the building waits on the zone, then whoever it helps lets loose — loudest when
+  // the overturn rings up strike three or ball four, and the other side's fans enjoy a
+  // challenge that comes up empty.
+  const abs = i.events.find((e) => e.kind === "abs_challenge")?.abs;
+  if (abs) {
+    const byBatting = (abs.side === "away") === i.top;
+    const side = byBatting ? "bat" : "field";
+    const other = byBatting ? "field" : "bat";
+    if (abs.overturned) {
+      const flip = abs.strikeout || abs.walk;
+      // A walk with men on (or a K with runners in scoring position) is bigger.
+      const traffic = abs.walk ? 0.05 * onBase : abs.strikeout && risp ? 0.1 : 0;
+      take(flip ? 0.6 + traffic : 0.32, flip ? (abs.strikeout ? "overturned to strike three" : "overturned to ball four") : "overturned", side);
+    } else {
+      take(abs.left === 0 ? 0.36 : 0.26, abs.left === 0 ? "out of challenges" : "challenge denied", other);
+    }
+  }
   if (kinds.has("strikeout")) take(0.2 + (risp ? 0.12 : 0) + (i.outsBefore === 2 ? 0.08 : 0), "strikeout", "field");
   if (kinds.has("caught_stealing")) take(0.3, "caught stealing", "field");
+  // Pickoffs: the defense's fans love a runner caught napping (more so after a rundown);
+  // a balk or a throw that gets away is the offense's gift.
+  const po = i.events.find((e) => e.kind === "picked_off");
+  if (po) take(po.pickoff?.outcome === "rundown_out" ? 0.5 : 0.42, po.pickoff?.outcome === "rundown_out" ? "run down" : "picked off", "field");
+  if (kinds.has("balk")) take(0.3, "balk", "bat");
+  if (kinds.has("pickoff_error")) take(0.32, "pickoff gets away", "bat");
   if (p?.doublePlay) take(p.outs >= 3 ? 0.9 : 0.5, p.outs >= 3 ? "triple play" : "double play", "field");
   // Stranding runners: the third out with men in scoring position.
   if (kinds.has("inning_end") && risp && runs === 0) take(field + 0.18 + 0.05 * onBase, "strands runners", "field");

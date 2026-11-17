@@ -47,6 +47,15 @@ const config: Config = {
           "60%": { opacity: "0.85", transform: "translateY(-1px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
+        absScan: {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(250%)" },
+        },
+        verdictPop: {
+          "0%": { opacity: "0", transform: "scale(1.6)", letterSpacing: "0.3em" },
+          "55%": { opacity: "1", transform: "scale(0.96)" },
+          "100%": { opacity: "1", transform: "scale(1)", letterSpacing: "0.02em" },
+        },
         toastIn: {
           "0%": { opacity: "0", transform: "translateY(12px) scale(0.98)" },
           "100%": { opacity: "1", transform: "translateY(0) scale(1)" },
@@ -60,6 +69,8 @@ const config: Config = {
         pulse_slow: "pulse 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite",
         pitch_in: "pitchIn 0.16s ease-out forwards",
         play_in: "playIn 0.38s cubic-bezier(0.22, 1, 0.36, 1) forwards",
+        abs_scan: "absScan 0.9s ease-in-out infinite",
+        verdict_pop: "verdictPop 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards",
         toast_in: "toastIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards",
         toast_out: "toastOut 0.42s cubic-bezier(0.4, 0, 0.2, 1) forwards",
       },

@@ -85,7 +85,9 @@ export function stealRace(game: BaseballGame, froms: readonly StealFrom[] = [0])
   if (!legal.length) return null;
   const legs: StealLeg[] = legal.map((from) => {
     const r = game.bases[from]!;
-    return { from, runnerId: r.playerId, time: legTime(from, r.sprint, craftOf(game, r.playerId)) };
+    // Out of free throw-overs, the pitcher can't hold him: a longer lead (~1.5 ft).
+    const extra = game.disengagements >= 2 ? 0.05 : 0;
+    return { from, runnerId: r.playerId, time: legTime(from, r.sprint, craftOf(game, r.playerId)) - extra };
   });
   const lead = legs[0];
   const { arm, pop } = catcherPop(game);
@@ -108,12 +110,17 @@ export function cpuWantsSteal(game: BaseballGame, rng: Rng): StealFrom[] | null 
   if (game.outs === 2 && Math.abs(game.score.home - game.score.away) > 3) return null;
   const b = game.bases;
   const roll = rng.next();
+  // A pitcher who has used his throw-overs can't keep the runner close: he gets a bigger
+  // lead (see stealRace), and he knows it (Statcast: attempts per pitch roughly 4x after
+  // one disengagement, 7x after two; partly selection, so this is milder).
+  const dis = Math.min(2, game.disengagements);
+  const boost = [1, 1.4, 1.9][dis];
   // Steal of second (also the trailing half of a double steal).
   const second = b[0] && !b[1] ? stealRace(game, [0]) : null;
   if (second) {
     const edge = second.defense - second.runner;
     const aggr = craftOf(game, b[0]!.playerId).aggr;
-    if (edge >= -0.05 && roll < Math.min(0.16, (0.025 + edge * 0.2) * Math.sqrt(aggr))) return [0];
+    if (edge >= -0.05 && roll < Math.min(0.16 * boost, (0.025 + edge * 0.2) * Math.sqrt(aggr) * boost)) return [0];
     return null;
   }
   // Steal of third (never with two outs — a runner on second already scores on a single).

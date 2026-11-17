@@ -96,3 +96,21 @@ describe("crowd reaction", () => {
     expect(crowdRise(80, -10, 40, true).home).toBe(0);
   });
 });
+
+describe("crowd reaction to ABS challenges", () => {
+  const absEv = (top: boolean, abs: NonNullable<GameEvent["abs"]>) => ev("abs_challenge", top, { abs });
+  it("an overturn to strike three by the home catcher brings the home crowd up and the visitors groan", () => {
+    const r = crowdReaction(input(true, { events: [absEv(true, { side: "home", overturned: true, left: 2, by: "catcher", call: "ball", strikeout: true }), ev("strikeout", true)] }));
+    expect(r.home).toBeGreaterThan(0.5);
+    expect(r.awayGroan).toBeGreaterThan(0);
+  });
+  it("a road batter's failed challenge gets a cheer from the home fans", () => {
+    const r = crowdReaction(input(true, { events: [absEv(true, { side: "away", overturned: false, left: 1, by: "batter", call: "strike" })] }));
+    expect(r.home).toBeGreaterThan(0.2);
+    expect(r.away).toBe(0);
+  });
+  it("an overturn to ball four by the home batter is a big moment", () => {
+    const r = crowdReaction(input(false, { basesBefore: [true, true, false], events: [absEv(false, { side: "home", overturned: true, left: 2, by: "batter", call: "strike", walk: true }), ev("walk", false)] }));
+    expect(r.home).toBeGreaterThan(0.6);
+  });
+});

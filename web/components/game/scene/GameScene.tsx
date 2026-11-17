@@ -36,13 +36,17 @@ export default function GameScene({ park, pb, homeColor, awayColor, onAim, onPri
       style={{ touchAction: "none" }}
     >
       <Director pb={pb} />
+      {/* The camera moves before anything reads it: the shadow box, the players' on-screen size
+          scaling and the ball's cut detection all use this frame's camera. Mounted last, they
+          saw the previous frame's, so on every hard cut one frame drew with shadows fitted
+          to the old view and players scaled for the old distance: a one-frame flash. */}
+      <CameraRig pb={pb} />
       <Environment park={park} />
       <Ballpark park={park} homeColor={homeColor} awayColor={awayColor} />
       <Players pb={pb} />
       <Ball pb={pb} />
       <ContactFx pb={pb} />
       <PlateOverlay pb={pb} onAim={onAim} onClick={onPrimary} />
-      <CameraRig pb={pb} />
     </Canvas>
   );
 }

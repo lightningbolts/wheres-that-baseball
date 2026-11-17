@@ -113,6 +113,12 @@ export interface PlateHud {
    * up (blurred by difficulty), shown through the windup (playback T from → to).
    */
   hint: { px: number; pz: number; r: number; from: number; to: number } | null;
+  /**
+   * All-Star: the zone and its pitch marks are hidden through the delivery and the
+   * flight, until playback T reaches this (then it clears itself, so a replay that
+   * rewinds T shows the zone). null = shown as usual.
+   */
+  zoneHiddenUntil: number | null;
 }
 
 const huds = new WeakMap<Playback, PlateHud>();
@@ -121,7 +127,7 @@ const huds = new WeakMap<Playback, PlateHud>();
 export function plateHud(pb: Playback): PlateHud {
   let h = huds.get(pb);
   if (!h) {
-    h = { marks: [], markAt: -1, assistFrom: null, cross: null, hint: null };
+    h = { marks: [], markAt: -1, assistFrom: null, cross: null, hint: null, zoneHiddenUntil: null };
     huds.set(pb, h);
   }
   return h;

@@ -93,6 +93,9 @@ export function GameView({
       else if (e.repeat && (k === "Shift" || /^[pstbPSTB]$/.test(k))) return;
       else if (k === "Shift" || k === "p" || k === "P") ctl.togglePower();
       else if (k === "s" || k === "S") ctl.toggleSteal();
+      else if (k === "o" || k === "O") {
+        if (!e.repeat) ctl.pickoff();
+      }
       else if (k === "b" || k === "B") ctl.toggleBunt();
       else if (k === "t" || k === "T") ctl.toggleTurbo();
       else if (k === "i" || k === "I") setShowPitches((v) => !v);
@@ -182,6 +185,7 @@ export function GameView({
       <Feedback snap={snap} />
       <Controls snap={snap} ctl={ctl} touch={touch} />
       <ChallengePrompt snap={snap} ctl={ctl} awayId={awayId} homeId={homeId} />
+      <ReviewCard snap={snap} awayId={awayId} homeId={homeId} />
       <TurnTag snap={snap} />
       <Handoff snap={snap} ctl={ctl} />
 
@@ -273,6 +277,61 @@ function ChallengePrompt({ snap, ctl, awayId, homeId }: { snap: HudSnapshot; ctl
         </div>
         <div className="h-1 bg-white/10">
           <div className="h-full bg-amber-400" style={{ width: `${frac * 100}%` }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * ABS review, for either club: who tapped, the call hanging while the zone is checked,
+ * then the verdict popping in (green when it goes your way, red when it doesn't).
+ */
+function ReviewCard({ snap, awayId, homeId }: { snap: HudSnapshot; awayId: number; homeId: number }) {
+  const r = snap.review;
+  if (!r) return null;
+  const team = r.side === "away" ? awayId : homeId;
+  const role = r.by === "batter" ? "" : ` (${r.by === "catcher" ? "C" : "P"})`;
+  const verdict = r.stage === "verdict";
+  const now = r.call === "strike" ? "ball" : "strike";
+  const color = !verdict ? "text-white" : r.good == null ? "text-amber-300" : r.good ? "text-emerald-300" : "text-rose-300";
+  const head = !verdict ? "ABS review" : r.overturned ? "Overturned" : "Call stands";
+  const sub = !verdict
+    ? "Checking the zone…"
+    : r.overturned
+      ? r.flip === "strikeout"
+        ? "Strike three!"
+        : r.flip === "walk"
+          ? "Ball four — take your base!"
+          : `It's a ${now}`
+      : `Still a ${r.call}`;
+  return (
+    <div className="pointer-events-none absolute inset-x-0 bottom-2 z-20 flex justify-center px-2 sm:bottom-3" role="status" aria-live="polite">
+      <div className="w-full max-w-sm animate-play_in overflow-hidden rounded-xl border border-white/15 bg-black/80 shadow-2xl backdrop-blur">
+        <div className="flex items-center gap-3 px-3 pt-2.5">
+          <TeamMark id={team} size={28} />
+          <div className="min-w-0 flex-1 text-xs leading-tight text-white/80">
+            <div className="truncate font-semibold text-white">
+              {abbrev(team)} · {r.name}
+              {role} challenges
+            </div>
+            <div>
+              The <span className={r.call === "strike" ? "font-bold text-red-300" : "font-bold text-green-300"}>{r.call}</span> call is under review
+            </div>
+          </div>
+        </div>
+        <div className="px-3 pb-2 pt-1.5 text-center">
+          <div key={head} className={`text-2xl font-extrabold uppercase ${color} ${verdict ? "animate-verdict_pop" : "animate-pulse"}`}>
+            {head}
+          </div>
+          <div className="text-xs text-white/75">{sub}</div>
+        </div>
+        <div className="relative h-1 overflow-hidden bg-white/10">
+          {verdict ? (
+            <div className={`h-full ${r.good == null ? "bg-amber-400" : r.good ? "bg-emerald-400" : "bg-rose-400"}`} />
+          ) : (
+            <div className="absolute inset-y-0 w-2/5 animate-abs_scan bg-gradient-to-r from-transparent via-amber-300 to-transparent" />
+          )}
         </div>
       </div>
     </div>
@@ -774,6 +833,29 @@ function Controls({ snap, ctl, touch }: { snap: HudSnapshot; ctl: GameController
               </button>
             ))}
           </div>
+          {!metering && snap.pickoffs.length > 0 && (
+            <div className="flex flex-wrap items-center justify-center gap-1">
+              {snap.pickoffs.map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.currentTarget.blur();
+                    ctl.pickoff(f as 0 | 1);
+                  }}
+                  className={`rounded-md px-2.5 py-1.5 text-xs font-semibold ${snap.disengagements >= 2 ? "bg-rose-500/80 hover:bg-rose-500" : "bg-white/10 hover:bg-white/25"}`}
+                  title={snap.disengagements >= 2 ? "Third throw-over: if he gets back, it's a balk" : "Throw over to hold the runner (O)"}
+                >
+                  Throw over to {f === 0 ? "1st" : "2nd"}
+                  {f === snap.pickoffs[0] && <span className="opacity-60"> (O)</span>}
+                </button>
+              ))}
+              <span className={`text-[11px] ${snap.disengagements >= 2 ? "text-rose-300" : "text-white/55"}`}>
+                {snap.disengagements >= 2 ? "Out of throw-overs — balk risk" : `${2 - snap.disengagements} of 2 throw-overs left`}
+              </span>
+            </div>
+          )}
           {metering && <Meter start={snap.meterStart!} />}
           <button type="button" onPointerDown={press} className={action}>
             {metering ? "Throw" : "Set location"}

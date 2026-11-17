@@ -22,7 +22,8 @@ import { buildPark, homeVenueForTeam } from "@/lib/game/physics/park";
 import { Rng } from "@/lib/game/math";
 import type { FieldPos, RosterFile } from "@/lib/game/types";
 import { pitchRecord, type PitchRecord } from "@/lib/game/stats/pitchLog";
-import { cpuWantsChallenge } from "@/lib/game/rules/abs";
+import { cpuChallenge, type AbsChallengerRole } from "@/lib/game/rules/abs";
+import { cpuPickoff, pickoffOutcome, pickoffTargets, type PickoffOutcome } from "@/lib/game/ai/pickoff";
 
 /** "both": two players on one device, P1 the away club and P2 the home club. */
 export type HumanSide = "away" | "home" | "none" | "both";
@@ -53,6 +54,11 @@ export interface GameSetup {
   hidePitch?: boolean;
   /** Postseason rules: extra innings start without the automatic runner on second. */
   postseason?: boolean;
+  /**
+   * The CPU throws over to hold runners. Absent on games saved before pickoffs existed
+   * (their recorded pitches replay unchanged); a recorded throw-over replays either way.
+   */
+  pickoffs?: boolean;
 }
 
 /** Everything a human decided on one pitch. `cpu` = that pitch was auto-played. */
@@ -70,6 +76,23 @@ export interface PitchInput {
   subs?: Substitution[];
   /** The human challenged this called pitch under ABS. */
   challenge?: boolean;
+  /** This step was a throw over to the runner on this base instead of a pitch. */
+  pickoff?: StealFrom;
+}
+
+/** A throw-over: its own step, before (instead of) a pitch. */
+export interface CommittedPickoff {
+  kind: "pickoff";
+  from: StealFrom;
+  outcome: PickoffOutcome;
+  ctx: PitchContext;
+  /** Fielders and runners at the moment of the throw (for animation). */
+  fielders: Fielder[];
+  runners: [Runner | null, Runner | null, Runner | null];
+  battingSide: "L" | "R";
+  /** The human's pitcher threw it. */
+  human: boolean;
+  events: GameEvent[];
 }
 
 export interface ThrowPrompt {
@@ -132,6 +155,7 @@ export class GameSession {
       innings: setup.innings,
       abs: !!setup.abs,
       postseason: !!setup.postseason,
+      pickoffs: !!setup.pickoffs,
     });
   }
 
@@ -142,6 +166,10 @@ export class GameSession {
       if (s.game.final) break;
       s.prepare(input.cpu);
       for (const sub of input.subs ?? []) s.substitute(sub);
+      if (input.pickoff !== undefined) {
+        s.pickoff(input.pickoff);
+        continue;
+      }
       s.throw(input);
       s.swing(input);
       s.commit(input.throwBase, input.challenge);
@@ -210,6 +238,72 @@ export class GameSession {
     if (!p?.outcome || p.input.cpu) return null;
     const side = this.game.absChallenger(p.outcome.result);
     return side && this.humanControls(side) ? side : null;
+  }
+
+  /**
+   * The CPU club that will challenge the pending pitch's call under ABS (and who on it
+   * taps for the review), or null. commit() makes the same, deterministic, decision.
+   */
+  get cpuChallenger(): { side: "away" | "home"; by: AbsChallengerRole } | null {
+    const p = this.pending;
+    if (!p?.outcome) return null;
+    const side = this.game.absChallenger(p.outcome.result);
+    if (!side || (this.humanControls(side) && !p.input.cpu)) return null;
+    const by = cpuChallenge(this.challengeSituation(p.outcome, side));
+    return by ? { side, by } : null;
+  }
+
+  private challengeSituation(o: PitchOutcome, side: "away" | "home") {
+    const g = this.game;
+    return {
+      result: o.result,
+      zoneBottom: o.ctx.batter.zoneBottom,
+      zoneTop: o.ctx.batter.zoneTop,
+      balls: g.balls,
+      strikes: g.strikes,
+      outs: g.outs,
+      inning: g.inning,
+      regulation: g.regulation,
+      left: g.abs?.[side] ?? 0,
+      runnersOn: g.bases.filter(Boolean).length,
+      margin: side === "away" ? g.score.away - g.score.home : g.score.home - g.score.away,
+    };
+  }
+
+  /**
+   * The CPU defense's throw-over before the pending pitch (deterministic), or null. Only
+   * in games with pickoffs on, and never for a club a human is pitching for.
+   */
+  get cpuPickoff(): StealFrom | null {
+    const p = this.pending;
+    if (!p || p.flight || !this.setup.pickoffs || this.game.final) return null;
+    if (this.humanPitching && !p.input.cpu) return null;
+    return cpuPickoff(this.game);
+  }
+
+  /** Bases the pitcher can throw over to right now. */
+  get pickoffTargets(): StealFrom[] {
+    if (this.pending?.flight || this.game.final) return [];
+    return pickoffTargets(this.game.bases);
+  }
+
+  /**
+   * Throw over to the runner on `from` instead of pitching: resolved, applied and
+   * recorded as its own step. Returns null if there is no such throw to make.
+   */
+  pickoff(from: StealFrom): CommittedPickoff | null {
+    if (this.pending?.flight || this.game.final) return null;
+    const p = this.pending ?? (this.prepare(), this.pending!);
+    if (!pickoffTargets(this.game.bases).includes(from)) return null;
+    const g = this.game;
+    const human = this.humanPitching && !p.input.cpu;
+    const runners = [...g.bases] as CommittedPickoff["runners"];
+    const fielders = g.fielders();
+    const outcome = pickoffOutcome(g, from);
+    const events = [...p.pre, ...g.applyPickoff(from, outcome)];
+    this.inputs.push({ ...p.input, pickoff: from });
+    this.pending = null;
+    return { kind: "pickoff", from, outcome, ctx: p.ctx, fielders, runners, battingSide: batSide(p.ctx.batter, p.ctx.pitcher.throws), human, events };
   }
 
   /**
@@ -313,24 +407,18 @@ export class GameSession {
     if (challenger) {
       const human = this.humanControls(challenger) && !p.input.cpu;
       const g = this.game;
-      const wants = human
-        ? !!challenge
-        : cpuWantsChallenge({
-            result: o.result,
-            zoneBottom: o.ctx.batter.zoneBottom,
-            zoneTop: o.ctx.batter.zoneTop,
-            balls: g.balls,
-            strikes: g.strikes,
-            outs: g.outs,
-            inning: g.inning,
-            regulation: g.regulation,
-            left: g.abs?.[challenger] ?? 0,
-            runnersOn: g.bases.filter(Boolean).length,
-            margin: challenger === "away" ? g.score.away - g.score.home : g.score.home - g.score.away,
-          });
-      if (human && wants) p.input.challenge = true;
-      if (wants) {
-        const r = g.absChallenge(o.result);
+      // The human's challenge comes from the batter or the catcher.
+      const offense = (challenger === "away") === g.top;
+      const by: AbsChallengerRole | null = human
+        ? challenge
+          ? offense
+            ? "batter"
+            : "catcher"
+          : null
+        : cpuChallenge(this.challengeSituation(o, challenger));
+      if (human && by) p.input.challenge = true;
+      if (by) {
+        const r = g.absChallenge(o.result, by);
         if (r) {
           o.result = r.result;
           absEvents.push(r.event);
@@ -372,10 +460,15 @@ export class GameSession {
   }
 
   /** Quick-sim to the end of the current half-inning (or the game). */
-  simHalfInning(): CommittedPitch[] {
+  simHalfInning(): Array<CommittedPitch | CommittedPickoff> {
     const key = `${this.game.inning}${this.game.top}`;
-    const out: CommittedPitch[] = [];
-    while (!this.game.final && `${this.game.inning}${this.game.top}` === key) out.push(this.autoPitch());
+    const out: Array<CommittedPitch | CommittedPickoff> = [];
+    while (!this.game.final && `${this.game.inning}${this.game.top}` === key) {
+      this.prepare(true);
+      const from = this.cpuPickoff;
+      const k = from != null ? this.pickoff(from) : null;
+      out.push(k ?? this.autoPitch());
+    }
     return out;
   }
 }
