@@ -5,7 +5,7 @@ import { Canvas } from "@react-three/fiber";
 import type { Park } from "@/lib/game/physics/park";
 import { Ballpark } from "@/components/game/scene/Ballpark";
 import { Players } from "@/components/game/scene/Players";
-import { Ball, CameraRig, ContactFx, Director, PlateOverlay } from "@/components/game/scene/SceneParts";
+import { Ball, CameraRig, CatcherMitt, ContactFx, Director, PlateOverlay } from "@/components/game/scene/SceneParts";
 import { Environment } from "@/components/game/scene/parks/Environment";
 import type { Playback } from "@/components/game/scene/playback";
 
@@ -45,6 +45,7 @@ export default function GameScene({ park, pb, homeColor, awayColor, onAim, onPri
       <Ballpark park={park} homeColor={homeColor} awayColor={awayColor} />
       <Players pb={pb} />
       <Ball pb={pb} />
+      <CatcherMitt pb={pb} />
       <ContactFx pb={pb} />
       <PlateOverlay pb={pb} onAim={onAim} onClick={onPrimary} />
     </Canvas>
