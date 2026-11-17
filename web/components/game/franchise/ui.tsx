@@ -82,8 +82,28 @@ export const signed = (m: number): string => `${m >= 0 ? "+" : "−"}${money(Mat
 
 export function contractStr(p: Player): string {
   if (p.status === "fa") return "Free agent";
-  const k = p.contract.kind === "pre" ? "pre-arb" : p.contract.kind === "arb" ? "arb" : p.contract.kind === "minor" ? "minors" : "";
-  return `${money(p.contract.aav)} × ${p.contract.years}${k ? ` (${k})` : ""}`;
+  const c = p.contract;
+  const k = c.kind === "pre" ? "pre-arb" : c.kind === "arb" ? "arb" : c.kind === "minor" ? "minors" : "";
+  const opt = c.option ? ` +${c.option.type === "team" ? "club" : c.option.type} opt` : "";
+  return `${money(c.aav)} × ${c.years}${opt}${k ? ` (${k})` : ""}`;
+}
+
+const OPT_LABEL = { team: "club", player: "player", mutual: "mutual", vesting: "vesting" } as const;
+
+/** Full terms for the profile: the whole deal, salary by season, any option, and the source. */
+export function contractDetail(p: Player, season: number): string {
+  if (p.status === "fa") return "Free agent";
+  const c = p.contract;
+  const parts: string[] = [];
+  if (c.total && c.length) parts.push(`${c.length} yr${c.length > 1 ? "s" : ""}/${money(c.total)} (${c.signed}–${String(season + c.years - 1).slice(2)})`);
+  else parts.push(contractStr(p));
+  if (c.salaries && c.salaries.length > 1) {
+    const yrs = c.salaries.map((s, i) => `'${String(season + i).slice(2)} ${money(s)}`);
+    parts.push(yrs.length > 6 ? `${yrs.slice(0, 5).join(", ")}, … '${String(season + yrs.length - 1).slice(2)} ${money(c.salaries[c.salaries.length - 1])}` : yrs.join(", "));
+  } else if (c.salaries?.length === 1 && Math.abs(c.salaries[0] - c.aav) > 0.05) parts.push(`${season} ${money(c.salaries[0])}`);
+  if (c.option) parts.push(`'${String(season + c.years).slice(2)} ${OPT_LABEL[c.option.type]} option ${money(c.option.salary)}${c.option.buyout > 0 ? ` (${money(c.option.buyout)} buyout)` : ""}`);
+  if (c.est) parts.push("estimated (no real deal on file)");
+  return parts.join(" · ");
 }
 
 export function injuryStr(p: Player): string | null {

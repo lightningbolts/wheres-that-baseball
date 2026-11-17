@@ -3,7 +3,7 @@
  * (free agency / arbitration tenders), retirements, development and aging, the
  * draft; then free agency; then a fresh schedule for the next season.
  */
-import { arbSalary, payroll, preArbSalary, projectedWar } from "./contracts";
+import { advanceContract, arbSalary, optionExercised, payroll, preArbSalary, projectedWar } from "./contracts";
 import { DOLLARS_PER_WAR } from "./data";
 import { developPlayer, normalizeEnvironment, trackEnvironment } from "./development";
 import { initFreeAgency, faFinished, faRound, freeAgents, signPlayer, askFor } from "./freeAgency";
@@ -69,9 +69,22 @@ export function startOffseason(league: League): void {
   // Contracts.
   for (const p of Object.values(league.players)) {
     if (p.status === "retired" || p.status === "fa" || !p.team) continue;
-    p.contract.years -= 1;
+    advanceContract(p.contract);
     if (p.contract.years > 0) continue;
     const t = league.teams[p.team];
+    const opt = p.contract.option;
+    if (opt) {
+      const who = opt.type === "player" ? "player" : opt.type === "mutual" ? "mutual" : "club";
+      if (optionExercised(p, opt)) {
+        p.contract = { ...p.contract, aav: opt.salary, years: 1, salaries: [opt.salary], option: undefined, total: undefined, length: undefined };
+        news(league, `${p.name}'s $${opt.salary.toFixed(1)}M ${who} option for ${season + 1} was exercised (${t.abbrev}).`, t.id, "signing");
+        continue;
+      }
+      // Declined: the buyout is owed next season.
+      if (opt.buyout > 0) t.dead.push({ aav: opt.buyout, years: 1, name: `${p.name} (buyout)` });
+      news(league, `${p.name}'s ${who} option was declined${opt.buyout > 0 ? ` ($${opt.buyout.toFixed(1)}M buyout)` : ""} (${t.abbrev}).`, t.id, "signing");
+      p.contract = { ...p.contract, option: undefined };
+    }
     if (p.contract.kind === "minor" && !p.on40) {
       p.contract = { ...p.contract, years: 1, signed: season + 1 };
       continue;

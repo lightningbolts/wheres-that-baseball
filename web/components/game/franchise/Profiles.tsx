@@ -9,7 +9,7 @@ import { avg, batWar, era, fip, obp, pitWar, slg, whip } from "@/lib/game/franch
 import type { BatLine, League, PitLine, Player } from "@/lib/game/franchise/types";
 import type { RosterFile } from "@/lib/game/types";
 import { cn } from "@/lib/utils";
-import { contractStr, injuryStr, Ovr, Segmented } from "./ui";
+import { contractDetail, injuryStr, Ovr, Segmented } from "./ui";
 import { f1, f2, f3, ipFmt } from "./StatTable";
 
 interface Ctx {
@@ -184,7 +184,7 @@ function PlayerProfile({ league, id, rosters, proj }: { league: League; id: numb
             {inj ? ` · ${inj}` : ""}
           </p>
           <p className="text-xs text-muted">
-            {contractStr(p)} · {p.service.toFixed(1)} yrs service
+            {contractDetail(p, league.season)} · {p.service.toFixed(1)} yrs service
             {p.real ? "" : " · generated player"}
           </p>
           {fg && (

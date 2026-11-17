@@ -4,7 +4,7 @@
  * (call-up, option, DFA + waivers, release, IL activation).
  */
 import { batRuns600, canPitch, defAt, eligible, isPosPlayer, slotValue } from "./ratings";
-import { projectedWar } from "./contracts";
+import { projectedWar, remainingOwed } from "./contracts";
 import { leaveTeam } from "./splits";
 import { FIELD_SPOTS, type League, type LineupPos, type LineupSlot, type Player, type TeamState } from "./types";
 
@@ -214,7 +214,11 @@ export function release(league: League, id: number): TxResult {
   const p = league.players[id];
   if (!p || p.team === 0) return { ok: false, msg: "Not on a team." };
   const t = league.teams[p.team];
-  if (p.contract.kind !== "minor" && p.contract.aav > 0.85) t.dead.push({ aav: p.contract.aav, years: p.contract.years, name: p.name });
+  if (p.contract.kind !== "minor" && p.contract.aav > 0.85) {
+    // What's still owed, spread over the remaining seasons (a declined option's buyout included).
+    const owed = remainingOwed(p.contract);
+    t.dead.push({ aav: Math.round((owed / p.contract.years) * 100) / 100, years: p.contract.years, name: p.name });
+  }
   news(league, `${t.abbrev} released ${p.name}.`, t.id);
   p.prevTeam = p.team;
   leaveTeam(p);

@@ -4,7 +4,7 @@
  * cheap youth and shed salary). AI GMs evaluate offers, build counter-offers and
  * trade among themselves until the deadline.
  */
-import { arbSalary, projectedWar } from "./contracts";
+import { arbSalary, contractSalary, projectedWar } from "./contracts";
 import { DOLLARS_PER_WAR, MIN_SALARY } from "./data";
 import { clamp } from "./ratings";
 import type { FRng } from "./rng";
@@ -12,16 +12,20 @@ import { autoDepth, news, normalizeRoster, orgPlayers } from "./roster";
 import { leaveTeam } from "./splits";
 import type { League, Player } from "./types";
 
+/** A club (or vesting) option the acquiring team controls. */
+const clubOption = (p: Player): boolean => !!p.contract.option && (p.contract.option.type === "team" || p.contract.option.type === "vesting");
+
 export function controlYears(p: Player): number {
   const k = p.contract.kind;
-  if (k === "fa" || k === "ext") return p.contract.years;
+  if (k === "fa" || k === "ext") return p.contract.years + (clubOption(p) ? 1 : 0);
   return clamp(6 - Math.floor(p.service), 1, 6);
 }
 
 export function salaryInYear(p: Player, y: number): number {
   const k = p.contract.kind;
-  if ((k === "fa" || k === "ext") && y < p.contract.years) return p.contract.aav;
-  if (y === 0) return p.contract.aav;
+  if ((k === "fa" || k === "ext") && y < p.contract.years) return contractSalary(p.contract, y);
+  if ((k === "fa" || k === "ext") && y === p.contract.years && p.contract.option) return p.contract.option.salary;
+  if (y === 0) return contractSalary(p.contract);
   const svc = p.service + y;
   if (svc < 3) return MIN_SALARY;
   return arbSalary({ ...p, service: svc }, Math.max(0, projectedWar(p, y)));

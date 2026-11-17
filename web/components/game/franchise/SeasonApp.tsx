@@ -5,6 +5,7 @@ import { AppNav } from "@/components/features/AppNav";
 import { GameView } from "@/components/game/GameView";
 import { clearSave, loadSave } from "@/components/game/save";
 import { sfx } from "@/components/game/audio";
+import type { ContractFile } from "@/lib/game/franchise/contracts";
 import { createLeague } from "@/lib/game/franchise/league";
 import type { ProjectionFile } from "@/lib/game/franchise/projections";
 import { boxFromSession, buildManualGame, recordManualResult, rosterIndex, type ManualGame } from "@/lib/game/franchise/manual";
@@ -39,6 +40,7 @@ export function SeasonApp() {
   const cancel = useRef(false);
   const proj = useRef<ProjectionFile | undefined>(undefined);
   const [projData, setProjData] = useState<ProjectionFile | undefined>(undefined);
+  const contracts = useRef<ContractFile | undefined>(undefined);
   // Bumped by each sim run and by Save & exit: a run that no longer owns the token drops its result.
   const simToken = useRef(0);
 
@@ -53,6 +55,12 @@ export function SeasonApp() {
         if (!alive) return;
         proj.current = (m.default ?? m) as unknown as ProjectionFile;
         setProjData(proj.current);
+      })
+      .catch(() => undefined);
+    // Optional: without it every contract is estimated.
+    import("@/data/game/franchise-contracts.json")
+      .then((m) => {
+        if (alive) contracts.current = (m.default ?? m) as unknown as ContractFile;
       })
       .catch(() => undefined);
     listSlots()
@@ -211,7 +219,7 @@ export function SeasonApp() {
               setSlots(await listSlots());
             }}
             onCreate={(s, opts) => {
-              const l = createLeague(rosters, { ...opts, proj: proj.current });
+              const l = createLeague(rosters, { ...opts, proj: proj.current, contracts: contracts.current });
               setSlot(s);
               setLeague(l);
               void saveLeague(l, s);

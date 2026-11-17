@@ -47,6 +47,24 @@ export interface Contract {
   kind: ContractKind;
   /** Season the deal was signed (history only). */
   signed: number;
+  /** Salary for each remaining guaranteed season, current season first (real deals; else flat `aav`). */
+  salaries?: number[];
+  /** Option on the season after the guaranteed years. */
+  option?: ContractOption;
+  /** Whole deal (real contracts): total value $M and length in seasons, for display. */
+  total?: number;
+  length?: number;
+  /** From the real-contracts snapshot. */
+  real?: boolean;
+  /** Estimated at league creation for a real player missing from the snapshot. */
+  est?: boolean;
+}
+
+export interface ContractOption {
+  type: "team" | "player" | "mutual" | "vesting";
+  /** Option-year salary and the buyout owed if it's declined, $M. */
+  salary: number;
+  buyout: number;
 }
 
 export interface Injury {
