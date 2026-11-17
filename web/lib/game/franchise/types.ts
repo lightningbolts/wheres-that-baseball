@@ -270,11 +270,38 @@ export interface NewsItem {
   kind?: "trade" | "injury" | "signing" | "roster" | "award" | "milestone" | "info";
 }
 
+export interface AwardPick {
+  id: number;
+  /** Club at the time of the award. */
+  team: number;
+  /** Selection score (WAR-like). */
+  v: number;
+  /** Stat line at the time of the award. */
+  line: string;
+  /** Ballot points (voted awards). */
+  pts?: number;
+}
+
+export interface AllStarRoster {
+  starters: Array<{ pos: string; id: number }>;
+  reserves: number[];
+  pitchers: number[];
+}
+
 export interface Awards {
   season: number;
+  /** Winners (ids). */
   mvp: Record<MLBLeague, number>;
   cy: Record<MLBLeague, number>;
   roy: Record<MLBLeague, number>;
+  /** Full voting results (seasons before ballots were tracked lack these). */
+  ballots?: { mvp: Record<MLBLeague, AwardPick[]>; cy: Record<MLBLeague, AwardPick[]>; roy: Record<MLBLeague, AwardPick[]> };
+  /** Mariano Rivera AL / Trevor Hoffman NL Reliever of the Year. */
+  relief?: Partial<Record<MLBLeague, AwardPick>>;
+  aaron?: Partial<Record<MLBLeague, AwardPick>>;
+  silver?: Record<MLBLeague, Partial<Record<string, AwardPick>>>;
+  gold?: Record<MLBLeague, Partial<Record<string, AwardPick>>>;
+  allStar?: Record<MLBLeague, AllStarRoster>;
 }
 
 export interface FaOffer {
@@ -324,6 +351,8 @@ export interface League {
   bracket?: Bracket;
   news: NewsItem[];
   awards: Awards[];
+  /** All-Star selections by season (made at the break). */
+  allStars?: Record<number, Record<MLBLeague, AllStarRoster>>;
   champions: Array<{ season: number; team: number; runnerUp: number }>;
   fa?: FaState;
   nextId: number;

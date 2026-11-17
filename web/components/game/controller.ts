@@ -1258,7 +1258,8 @@ export class GameController {
         natural: b.raw.pos,
         bats: b.bats,
         platoon: oppHand ? batSide(b, oppHand) !== oppHand : null,
-        hr: r?.hr ?? null,
+        // rosters.json batting k / bb / hr are per-PA rates: show the season HR count.
+        hr: r?.hr != null && r.pa ? Math.round(r.hr * r.pa) : null,
         pa: r?.pa ?? 0,
         kPct: r?.k != null && r.pa ? r.k / r.pa : null,
         ev: r?.evMean ?? null,
@@ -1272,8 +1273,9 @@ export class GameController {
         id: p.id,
         name: p.name,
         throws: p.throws,
-        kPct: r?.k != null && r.bf ? r.k / r.bf : null,
-        bbPct: r?.bb != null && r.bf ? r.bb / r.bf : null,
+        // Per-BF rates already.
+        kPct: r?.k ?? null,
+        bbPct: r?.bb ?? null,
         topMph: Math.round(Math.max(...p.arsenal.map((a) => a.speedMph ?? 0))),
         pitches: p.arsenal.map((a) => a.type),
         stamina: p.stamina,

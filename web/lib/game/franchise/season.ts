@@ -10,7 +10,7 @@ import { club } from "./data";
 import { FRng } from "./rng";
 import { isHealthy, news, normalizeRoster } from "./roster";
 import { chooseStarter, recordLines, simGame, type GameOutcome } from "./sim";
-import { computeAwards } from "./stats";
+import { computeAwards, selectAllStars } from "./awards";
 import { aiTradeTick } from "./trades";
 import type { League, Player, ScheduledGame } from "./types";
 
@@ -143,6 +143,7 @@ function endRegularSeason(league: League): void {
   for (const lg of ["AL", "NL"] as const) {
     const n = (id: number) => (id ? `${league.players[id]?.name} (${league.teams[league.players[id]?.team]?.abbrev ?? "FA"})` : "—");
     news(league, `${lg} MVP: ${n(awards.mvp[lg])} · Cy Young: ${n(awards.cy[lg])} · Rookie of the Year: ${n(awards.roy[lg])}`, undefined, "award");
+    news(league, `${lg} Hank Aaron Award: ${n(awards.aaron?.[lg]?.id ?? 0)} · Reliever of the Year: ${n(awards.relief?.[lg]?.id ?? 0)}`, undefined, "award");
   }
   league.phase = "postseason";
   league.bracket = buildBracket(league);
@@ -165,6 +166,7 @@ function endOfDay(league: League, rng: FRng): void {
   if (league.phase === "regular") {
     accrueDay(league);
     if (league.day >= 14 && league.day <= league.calendar.deadlineDay && league.day % 6 === 3) aiTradeTick(league, rng);
+    if (league.day === league.calendar.asb[0] - 1 && !league.allStars?.[league.season]) selectAllStars(league);
     if (league.day === league.calendar.deadlineDay) news(league, "The trade deadline has passed. No more trades until the offseason.", undefined, "info");
   }
 }

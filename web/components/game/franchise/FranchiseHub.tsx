@@ -16,6 +16,9 @@ import { RosterTab } from "./tabs/RosterTab";
 import { LineupTab } from "./tabs/LineupTab";
 import { StandingsTab } from "./tabs/StandingsTab";
 import { StatsTab } from "./tabs/StatsTab";
+import { ProfilesProvider } from "./Profiles";
+import type { ProjectionFile } from "@/lib/game/franchise/projections";
+import type { RosterFile } from "@/lib/game/types";
 import { TradesTab } from "./tabs/TradesTab";
 import { FreeAgencyTab } from "./tabs/FreeAgencyTab";
 import { FinancesTab } from "./tabs/FinancesTab";
@@ -51,6 +54,8 @@ export function FranchiseHub({
   onPlay,
   onQuit,
   slot,
+  rosters,
+  proj,
 }: {
   league: League;
   act: Act;
@@ -60,6 +65,8 @@ export function FranchiseHub({
   onPlay: (gameId: number) => void;
   onQuit: () => void;
   slot: number;
+  rosters?: RosterFile | null;
+  proj?: ProjectionFile;
 }) {
   const [tab, setTab] = useState<TabId>("home");
   const [stopOnMine, setStopOnMine] = useState(false);
@@ -186,17 +193,19 @@ export function FranchiseHub({
         </div>
       </nav>
 
-      <div className={cn(sim && "pointer-events-none opacity-60")}>
-        {tab === "home" && <Dashboard league={league} act={act} onPlay={onPlay} />}
-        {tab === "roster" && <RosterTab league={league} act={act} />}
-        {tab === "lineup" && <LineupTab league={league} act={act} />}
-        {tab === "standings" && <StandingsTab league={league} act={act} />}
-        {tab === "stats" && <StatsTab league={league} act={act} />}
-        {tab === "trades" && <TradesTab league={league} act={act} />}
-        {tab === "fa" && <FreeAgencyTab league={league} act={act} />}
-        {tab === "fin" && <FinancesTab league={league} act={act} />}
-        {tab === "playoffs" && <PlayoffsTab league={league} act={act} />}
-      </div>
+      <ProfilesProvider league={league} rosters={rosters} proj={proj}>
+        <div className={cn(sim && "pointer-events-none opacity-60")}>
+          {tab === "home" && <Dashboard league={league} act={act} onPlay={onPlay} />}
+          {tab === "roster" && <RosterTab league={league} act={act} />}
+          {tab === "lineup" && <LineupTab league={league} act={act} />}
+          {tab === "standings" && <StandingsTab league={league} act={act} />}
+          {tab === "stats" && <StatsTab league={league} act={act} />}
+          {tab === "trades" && <TradesTab league={league} act={act} />}
+          {tab === "fa" && <FreeAgencyTab league={league} act={act} />}
+          {tab === "fin" && <FinancesTab league={league} act={act} />}
+          {tab === "playoffs" && <PlayoffsTab league={league} act={act} />}
+        </div>
+      </ProfilesProvider>
     </div>
   );
 }

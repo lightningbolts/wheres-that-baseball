@@ -1,7 +1,7 @@
 /** Rate stats, season WAR, league leaders and end-of-season awards. */
 import { LG } from "./data";
 import { POS_ADJ, W } from "./ratings";
-import type { Awards, BatLine, League, PitLine, Player } from "./types";
+import type { BatLine, League, PitLine, Player } from "./types";
 import type { MLBLeague } from "@/lib/mlb/teams";
 
 export const avg = (b: BatLine): number => (b.ab ? b.h / b.ab : 0);
@@ -88,36 +88,6 @@ export function pitchingLeaders(league: League, key: PitStatKey, lg?: MLBLeague,
   }
   const asc = key === "era" || key === "whip";
   return rows.sort((a, b) => (asc ? a.value - b.value : b.value - a.value)).slice(0, n);
-}
-
-export function computeAwards(league: League): Awards {
-  const out: Awards = { season: league.season, mvp: { AL: 0, NL: 0 }, cy: { AL: 0, NL: 0 }, roy: { AL: 0, NL: 0 } };
-  for (const lg of ["AL", "NL"] as const) {
-    let mvp = { id: 0, v: -99 };
-    let cy = { id: 0, v: -99 };
-    let roy = { id: 0, v: -99 };
-    for (const p of Object.values(league.players)) {
-      const t = league.teams[p.team];
-      if (!t || t.league !== lg) continue;
-      const war = seasonWar(p);
-      // Voters like winners a little.
-      const team = (t.w - 81) * 0.02;
-      if (war + team > mvp.v) mvp = { id: p.id, v: war + team };
-      const s = p.stats.pit;
-      if (s && s.outs >= 360) {
-        const v = pitWar(s) + s.w * 0.05 - era(s) * 0.1;
-        if (v > cy.v) cy = { id: p.id, v };
-      } else if (s && s.outs >= 150 && s.sv >= 30) {
-        const v = pitWar(s) * 0.8;
-        if (v > cy.v) cy = { id: p.id, v };
-      }
-      if (p.rookie && war > roy.v) roy = { id: p.id, v: war };
-    }
-    out.mvp[lg] = mvp.id;
-    out.cy[lg] = cy.id;
-    out.roy[lg] = roy.id;
-  }
-  return out;
 }
 
 /** League batting totals: runs per team-game, HR per PA, K% etc. (calibration / UI). */
