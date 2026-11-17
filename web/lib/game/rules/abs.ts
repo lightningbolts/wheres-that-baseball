@@ -55,6 +55,24 @@ export function edgeDistance(flight: Pick<PitchFlight, "px" | "pz">, zoneBottom:
   return outside;
 }
 
+export type ZoneMissSide = "wide" | "low" | "high" | "corner";
+
+/**
+ * How far the pitch was in or out of the ABS zone, as the review shows it: inches from
+ * the nearest edge (any part of the ball touching the zone is a strike), and, when it
+ * missed, which way.
+ */
+export function zoneMiss(flight: Pick<PitchFlight, "px" | "pz">, zoneBottom: number, zoneTop: number): { inches: number; inZone: boolean; side: ZoneMissSide | null } {
+  const d = edgeDistance(flight, zoneBottom, zoneTop);
+  const inches = Math.abs(d) * 12;
+  if (d <= 0) return { inches, inZone: true, side: null };
+  const wide = Math.abs(flight.px) - (PLATE_HALF_WIDTH + BALL_RADIUS_FT) > 0;
+  const low = zoneBottom - BALL_RADIUS_FT - flight.pz > 0;
+  const high = flight.pz - (zoneTop + BALL_RADIUS_FT) > 0;
+  const side: ZoneMissSide = wide && (low || high) ? "corner" : wide ? "wide" : low ? "low" : "high";
+  return { inches, inZone: false, side };
+}
+
 /**
  * Real 2026 ABS challenge numbers, MLB regular season (2,430 games), from Baseball Savant:
  *   - ABS dashboard  https://baseballsavant.mlb.com/abs?gameType=regular&year=2026&level=mlb

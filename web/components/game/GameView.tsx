@@ -283,6 +283,14 @@ function ChallengePrompt({ snap, ctl, awayId, homeId }: { snap: HudSnapshot; ctl
   );
 }
 
+/** The Hawk-Eye measurement: how far in or out of the zone the pitch crossed. */
+function missText(m: NonNullable<HudSnapshot["review"]>["miss"]): string {
+  const x = Math.max(0.1, Math.round(m.inches * 10) / 10).toFixed(1);
+  if (m.inZone) return `In the zone by ${x}″`;
+  const where = m.side === "wide" ? "off the plate" : m.side === "corner" ? "off the corner" : m.side;
+  return `Missed ${where} by ${x}″`;
+}
+
 /**
  * ABS review, for either club: who tapped, the call hanging while the zone is checked,
  * then the verdict popping in (green when it goes your way, red when it doesn't).
@@ -325,6 +333,7 @@ function ReviewCard({ snap, awayId, homeId }: { snap: HudSnapshot; awayId: numbe
             {head}
           </div>
           <div className="text-xs text-white/75">{sub}</div>
+          {verdict && <div className="mt-0.5 text-[11px] font-semibold tabular-nums text-white/60">{missText(r.miss)}</div>}
         </div>
         <div className="relative h-1 overflow-hidden bg-white/10">
           {verdict ? (

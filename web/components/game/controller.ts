@@ -22,7 +22,7 @@ import { camCut } from "@/components/game/scene/camera";
 import type { PitchRecord } from "@/lib/game/stats/pitchLog";
 import { MARK_COLOR, plateHud, type MarkKind, type PitchMark, type PlateHud } from "@/components/game/scene/view";
 import { crowdState, scoreboardCanvas } from "@/components/game/scene/Ballpark";
-import type { AbsChallengerRole } from "@/lib/game/rules/abs";
+import { zoneMiss, type AbsChallengerRole, type ZoneMissSide } from "@/lib/game/rules/abs";
 import { sfx } from "@/components/game/audio";
 import { crowdReaction, crowdRise, crowdVolume, type CrowdInput } from "@/lib/game/crowd/reaction";
 import { saveGame, clearSave } from "@/components/game/save";
@@ -117,6 +117,8 @@ export interface HudSnapshot {
     flip: "strikeout" | "walk" | null;
     /** Good news for the player watching (null: two players or a CPU-only game). */
     good: boolean | null;
+    /** Where the pitch crossed relative to the zone edge (shown with the verdict). */
+    miss: { inches: number; inZone: boolean; side: ZoneMissSide | null };
   } | null;
   /** Two-player game. */
   twoPlayer: boolean;
@@ -977,7 +979,8 @@ export class GameController {
     const solo = this.setup.human === "away" || this.setup.human === "home";
     const challengerIsMine = solo && this.setup.human === a.side;
     const flip = a.overturned ? (a.strikeout ? "strikeout" : a.walk ? "walk" : null) : null;
-    this.review = { side: a.side, name, by: a.by, call: a.call, cpu, stage: "review", overturned: null, flip: null, good: null };
+    const miss = zoneMiss(committed.result.flight, committed.ctx.batter.zoneBottom, committed.ctx.batter.zoneTop);
+    this.review = { side: a.side, name, by: a.by, call: a.call, cpu, stage: "review", overturned: null, flip: null, good: null, miss };
     this.phase = "review";
     // Everyone sees where it crossed while the zone is consulted.
     this.pb.aim.showZone = true;

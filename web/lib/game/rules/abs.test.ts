@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import rosters from "@/data/game/rosters.json";
-import { callIsWrong, challengeProbability, challengeableCall, cpuChallenge, cpuWantsChallenge, edgeDistance, overturned, type ChallengeSituation } from "@/lib/game/rules/abs";
+import { callIsWrong, challengeProbability, challengeableCall, cpuChallenge, cpuWantsChallenge, edgeDistance, overturned, zoneMiss, type ChallengeSituation } from "@/lib/game/rules/abs";
 import { GameSession, teamsFromRosters, type GameSetup } from "@/lib/game/session/session";
 import { BaseballGame } from "@/lib/game/rules/game";
 import { simulateGame } from "@/lib/game/engine/sim";
@@ -129,5 +129,19 @@ describe("ABS rules", () => {
     const again = GameSession.replay({ ...base, abs: true }, withAbs.inputs, teams);
     expect(again.game.score).toEqual(withAbs.game.score);
     expect(again.game.log.length).toBe(withAbs.game.log.length);
+  });
+});
+
+describe("zoneMiss", () => {
+  const edgeX = PLATE_HALF_WIDTH + BALL_RADIUS_FT;
+  it("measures how deep a strike was and which way a ball missed, in inches", () => {
+    const deep = zoneMiss({ px: edgeX - 1 / 12, pz: 2.5 }, 1.5, 3.5);
+    expect(deep.inZone).toBe(true);
+    expect(deep.inches).toBeCloseTo(1, 5);
+    const wide = zoneMiss({ px: -(edgeX + 2 / 12), pz: 2.5 }, 1.5, 3.5);
+    expect(wide).toMatchObject({ inZone: false, side: "wide" });
+    expect(wide.inches).toBeCloseTo(2, 5);
+    expect(zoneMiss({ px: 0, pz: 1.5 - BALL_RADIUS_FT - 0.5 / 12 }, 1.5, 3.5)).toMatchObject({ inZone: false, side: "low" });
+    expect(zoneMiss({ px: edgeX + 0.1, pz: 3.5 + BALL_RADIUS_FT + 0.1 }, 1.5, 3.5).side).toBe("corner");
   });
 });
