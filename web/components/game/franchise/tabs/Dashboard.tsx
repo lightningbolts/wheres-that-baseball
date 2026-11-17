@@ -1,6 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { projectedRecord } from "@/lib/game/franchise/league";
+import { steamerWins } from "@/lib/game/franchise/projections";
+import { useProfiles } from "../Profiles";
 import { fmtDate } from "@/lib/game/franchise/schedule";
 import { gamesOn } from "@/lib/game/franchise/season";
 import { divisionStandings, gamesBack, lastTen, streak } from "@/lib/game/franchise/standings";
@@ -21,6 +24,7 @@ function GameRow({ league, g, onPlay }: { league: League; g: ScheduledGame; onPl
       <td className={cn(td, "whitespace-nowrap")}>
         {g.ps && <span className="mr-1 rounded bg-emerald-500/15 px-1 text-[10px] uppercase text-emerald-500">{g.ps}</span>}
         {home ? "vs" : "@"} <TeamDot id={opp.id} abbrev={opp.abbrev} />
+        {g.site && <span className="ml-1 text-[10px] text-muted">at {g.site}</span>}
       </td>
       <td className={cn(td, "whitespace-nowrap")}>
         {r ? (
@@ -57,12 +61,22 @@ export function Dashboard({ league, onPlay }: TabProps & { onPlay: (id: number) 
   const rd = me.rs - me.ra;
   const news = league.news.slice(-40).reverse();
   const exp = league.expected?.[me.id];
+  const proj = useMemo(() => projectedRecord(league)[me.id], [league, me.id, me.w, me.l]);
+  const { proj: projFile } = useProfiles();
+  const fgw = useMemo(() => (league.season === projFile?.projSeason ? steamerWins(league, projFile)?.[me.id] : undefined), [league, projFile, me.id]);
+  const fgTxt = fgw ? ` · FanGraphs ${fgw.w} W` : "";
+  const projSub =
+    league.phase === "regular" && me.w + me.l > 0 && proj.left > 0
+      ? `proj. ${proj.w}-${proj.l}${exp ? ` · preseason ${exp} W` : ""}${fgTxt}`
+      : exp
+        ? `preseason proj. ${exp} W${fgTxt}`
+        : undefined;
 
   return (
     <div className="grid gap-4 lg:grid-cols-3">
       <div className="space-y-4 lg:col-span-2">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <Stat label="Record" value={`${me.w}-${me.l}`} sub={exp ? `projected ${exp} W` : undefined} />
+          <Stat label="Record" value={`${me.w}-${me.l}`} sub={projSub} />
           <Stat label="Run diff" value={`${rd >= 0 ? "+" : ""}${rd}`} sub={`${me.rs} RS · ${me.ra} RA`} />
           <Stat label="Division" value={leader.id === me.id ? "1st" : `${gamesBack(leader, me).toFixed(1)} GB`} sub={`${me.league} ${me.division}`} />
           <Stat label="Streak / L10" value={streak(me) || "—"} sub={lastTen(me)} />

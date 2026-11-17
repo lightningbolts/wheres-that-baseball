@@ -10,6 +10,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "fetch-ballparks": "node ../scripts/fetch-ballparks.mjs",
+    "fetch-franchise-schedule": "node ../scripts/fetch-franchise-schedule.mjs",
     "fetch-season-games": "node ../scripts/fetch-season-games.mjs",
     "sync-game-feeds": "tsx scripts/sync-game-feeds.ts",
     "compact-game-feeds": "tsx scripts/compact-game-feeds.ts",

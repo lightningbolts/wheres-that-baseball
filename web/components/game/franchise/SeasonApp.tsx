@@ -6,6 +6,7 @@ import { GameView } from "@/components/game/GameView";
 import { clearSave, loadSave } from "@/components/game/save";
 import { sfx } from "@/components/game/audio";
 import { createLeague } from "@/lib/game/franchise/league";
+import type { ProjectionFile } from "@/lib/game/franchise/projections";
 import { boxFromSession, buildManualGame, recordManualResult, rosterIndex, type ManualGame } from "@/lib/game/franchise/manual";
 import { deleteSlot, listSlots, loadLeague, saveLeague, SLOT_COUNT, type SlotMeta } from "@/lib/game/franchise/save";
 import { advanceDay, prepareDay, simDone, userGameToday, type SimTarget } from "@/lib/game/franchise/season";
@@ -36,6 +37,8 @@ export function SeasonApp() {
   const [sim, setSim] = useState<SimState | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const cancel = useRef(false);
+  const proj = useRef<ProjectionFile | undefined>(undefined);
+  const [projData, setProjData] = useState<ProjectionFile | undefined>(undefined);
   // Bumped by each sim run and by Save & exit: a run that no longer owns the token drops its result.
   const simToken = useRef(0);
 
@@ -44,6 +47,14 @@ export function SeasonApp() {
     import("@/data/game/rosters.json")
       .then((m) => alive && setRosters((m.default ?? m) as unknown as RosterFile))
       .catch(() => alive && setError("Couldn't load rosters."));
+    // Optional: without it a new league rates players on 2026 alone.
+    import("@/data/game/franchise-proj.json")
+      .then((m) => {
+        if (!alive) return;
+        proj.current = (m.default ?? m) as unknown as ProjectionFile;
+        setProjData(proj.current);
+      })
+      .catch(() => undefined);
     listSlots()
       .then((s) => alive && setSlots(s))
       .catch(() => alive && setSlots(Array.from({ length: SLOT_COUNT }, () => null)));
@@ -142,10 +153,13 @@ export function SeasonApp() {
       const saved = loadSave();
       const inputs = saved && saved.setup.seed === m.setup.seed && saved.setup.homeTeamId === m.setup.homeTeamId ? saved.inputs : [];
       if (!inputs.length) clearSave();
+      // The setup is rebuilt from the league, so carry over the rules the save was played
+      // under (absent on old saves: the controller then replays them the old way).
+      const setup = inputs.length ? { ...m.setup, pickoffs: saved!.setup.pickoffs, cpuAbs: saved!.setup.cpuAbs } : m.setup;
       setLeague(l);
       persist(l);
       sfx.unlock();
-      setManual({ ...m, inputs });
+      setManual({ ...m, setup, inputs });
     },
     [league, idx, persist],
   );
@@ -197,7 +211,7 @@ export function SeasonApp() {
               setSlots(await listSlots());
             }}
             onCreate={(s, opts) => {
-              const l = createLeague(rosters, opts);
+              const l = createLeague(rosters, { ...opts, proj: proj.current });
               setSlot(s);
               setLeague(l);
               void saveLeague(l, s);
@@ -222,6 +236,8 @@ export function SeasonApp() {
               setSlots(await listSlots());
             }}
             slot={slot}
+            rosters={rosters}
+            proj={projData}
           />
         )}
       </main>

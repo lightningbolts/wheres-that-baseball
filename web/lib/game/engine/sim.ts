@@ -5,7 +5,8 @@ import { BaseballGame, type GameEvent } from "@/lib/game/rules/game";
 import { batSide } from "@/lib/game/ratings";
 import { chargeBunt } from "@/lib/game/play/defense";
 import type { Rng } from "@/lib/game/math";
-import { cpuWantsChallenge } from "@/lib/game/rules/abs";
+import { cpuChallenge } from "@/lib/game/rules/abs";
+import { cpuPickoff, pickoffOutcome } from "@/lib/game/ai/pickoff";
 import { cpuWantsSteal, resolveSteal, stealRace, withPitchSpeed, type StealFrom } from "@/lib/game/ai/baserunning";
 
 export interface Controllers {
@@ -16,7 +17,8 @@ export interface Controllers {
 }
 
 export interface PitchStep {
-  result: PitchResult;
+  /** Absent when the step was a pickoff throw instead of a pitch. */
+  result?: PitchResult;
   play?: PlayResult;
   events: GameEvent[];
 }
@@ -25,6 +27,11 @@ export interface PitchStep {
 export function stepPitch(game: BaseballGame, ctl: Controllers, rng: Rng): PitchStep {
   const change = game.managePitching(rng);
   const pre: GameEvent[] = change ? [change] : [];
+  // A throw over instead of a pitch (its own step, like GameSession's).
+  if (game.pickoffs) {
+    const from = cpuPickoff(game);
+    if (from != null) return { events: [...pre, ...game.applyPickoff(from, pickoffOutcome(game, from))] };
+  }
   const ctx = game.pitchContext();
   const pitching = game.top ? ctl.home : ctl.away;
   const batting = game.top ? ctl.away : ctl.home;
@@ -35,7 +42,7 @@ export function stepPitch(game: BaseballGame, ctl: Controllers, rng: Rng): Pitch
   const absEvents: GameEvent[] = [];
   const challenger = game.absChallenger(result);
   if (challenger) {
-    const wants = cpuWantsChallenge({
+    const by = cpuChallenge({
       result,
       zoneBottom: ctx.batter.zoneBottom,
       zoneTop: ctx.batter.zoneTop,
@@ -48,7 +55,7 @@ export function stepPitch(game: BaseballGame, ctl: Controllers, rng: Rng): Pitch
       runnersOn: game.bases.filter(Boolean).length,
       margin: challenger === "away" ? game.score.away - game.score.home : game.score.home - game.score.away,
     });
-    const r = wants ? game.absChallenge(result) : null;
+    const r = by ? game.absChallenge(result, by) : null;
     if (r) {
       result = r.result;
       absEvents.push(r.event);

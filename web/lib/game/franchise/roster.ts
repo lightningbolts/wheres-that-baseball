@@ -5,6 +5,7 @@
  */
 import { batRuns600, canPitch, defAt, eligible, isPosPlayer, slotValue } from "./ratings";
 import { projectedWar } from "./contracts";
+import { leaveTeam } from "./splits";
 import { FIELD_SPOTS, type League, type LineupPos, type LineupSlot, type Player, type TeamState } from "./types";
 
 export const ACTIVE_MAX = 26;
@@ -193,6 +194,7 @@ export function dfa(league: League, id: number): TxResult {
   if (war > 0.6 && surplus > 0.5) {
     for (const t of claimants) {
       if (fortyMan(league, t.id).length < FORTY_MAX) {
+        leaveTeam(p);
         p.team = t.id;
         p.on40 = true;
         p.status = "minors";
@@ -215,6 +217,7 @@ export function release(league: League, id: number): TxResult {
   if (p.contract.kind !== "minor" && p.contract.aav > 0.85) t.dead.push({ aav: p.contract.aav, years: p.contract.years, name: p.name });
   news(league, `${t.abbrev} released ${p.name}.`, t.id);
   p.prevTeam = p.team;
+  leaveTeam(p);
   p.team = 0;
   p.status = "fa";
   p.on40 = false;

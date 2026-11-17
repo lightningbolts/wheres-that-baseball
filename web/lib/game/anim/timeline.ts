@@ -48,12 +48,12 @@ export interface SwingInfo {
   bunt?: boolean;
 }
 
-interface Waypoint {
+export interface Waypoint {
   t: number;
   p: V3;
 }
 
-interface Track {
+export interface Track {
   pts: Waypoint[];
   actions: Array<{ t: number; dur: number; action: Action }>;
   face?: V3;

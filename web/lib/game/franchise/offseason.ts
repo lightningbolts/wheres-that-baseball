@@ -54,6 +54,7 @@ export function startOffseason(league: League): void {
     if (p.optionedThisYear) p.options = Math.max(0, p.options - 1);
     p.optionedThisYear = false;
     p.stats = {};
+    p.splits = undefined;
     p.post = undefined;
     p.pd = undefined;
     p.lastStart = undefined;

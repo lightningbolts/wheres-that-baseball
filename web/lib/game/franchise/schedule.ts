@@ -3,6 +3,7 @@
  *   52 division games (13 vs each rival: 7 at home vs two of them, 6 vs the other two),
  *   64 league games (7 vs four teams, 6 vs six), 46 interleague (3 vs fourteen clubs
  *   plus 2+2 vs the natural rival). Every club gets exactly 81 home games.
+ * Used for seasons without a bundled real schedule (2027 is the real one).
  * Series (2–4 games) are laid on the calendar day by day, most-constrained club first,
  * from a Thursday Opening Day in late March to a Sunday finale in late September,
  * with a four-day All-Star break.
@@ -11,6 +12,18 @@ import { MLB_TEAMS, type MLBTeam } from "@/lib/mlb/teams";
 import { RIVALS } from "./data";
 import { FRng } from "./rng";
 import type { Calendar, ScheduledGame } from "./types";
+import real2027 from "./data/schedule-2027.json";
+
+/** Published MLB schedules (scripts/fetch-franchise-schedule.mjs). Other seasons are generated. */
+interface RealSchedule {
+  season: number;
+  opening: string;
+  asb: number[];
+  games: Array<Array<number | string>>;
+}
+const REAL_SCHEDULES: Record<number, RealSchedule> = { 2027: real2027 as RealSchedule };
+
+export const hasRealSchedule = (year: number): boolean => year in REAL_SCHEDULES;
 
 export const DAY_MS = 86_400_000;
 
@@ -187,8 +200,27 @@ function layOut(series: SeriesDef[], cal: Calendar, endDay: number, rng: FRng): 
   return used.every(Boolean) ? out : null;
 }
 
-/** Build the regular-season calendar and games. Deterministic from the seed. */
+function realSchedule(r: RealSchedule, firstGameId: number): { calendar: Calendar; games: ScheduledGame[] } {
+  const start = Date.parse(`${r.opening}T00:00:00Z`);
+  const games: ScheduledGame[] = r.games.map(([day, away, home, site], i) => ({
+    id: firstGameId + i,
+    day: day as number,
+    away: away as number,
+    home: home as number,
+    ...(typeof site === "string" ? { site } : {}),
+  }));
+  const endDay = games.reduce((m, g) => Math.max(m, g.day), 0);
+  const deadlineDay = Math.round((Date.UTC(r.season, 6, 31) - start) / DAY_MS);
+  return { calendar: { start, endDay, asb: [r.asb[0], r.asb[1]], deadlineDay }, games };
+}
+
+/**
+ * Build the regular-season calendar and games: the real MLB schedule when one is
+ * bundled for that season, otherwise a generated one (deterministic from the seed).
+ */
 export function buildSchedule(year: number, seed: number, firstGameId = 1): { calendar: Calendar; games: ScheduledGame[] } {
+  const real = REAL_SCHEDULES[year];
+  if (real) return realSchedule(real, firstGameId);
   const cal = seasonCalendar(year);
   const series = buildSeries();
   let placed: Array<{ s: SeriesDef; day: number }> | null = null;

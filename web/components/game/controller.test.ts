@@ -6,6 +6,7 @@ import { advancePlayback, createPlayback } from "@/components/game/scene/playbac
 import { SWING_LEAD_S } from "@/lib/game/session/humanInput";
 import { GameController, idealContactTime } from "@/components/game/controller";
 import { Rng } from "@/lib/game/math";
+import { plateHud } from "@/components/game/scene/view";
 
 const teams = teamsFromRosters(rosters as unknown as RosterFile);
 const ids = [...teams.keys()];
@@ -14,7 +15,6 @@ const step = advancePlayback;
 
 function playGame(human: HumanSide, seed: number, extra: Partial<GameSetup> = {}) {
   const setup: GameSetup = {
-    ...extra,
     awayTeamId: ids[seed % ids.length],
     homeTeamId: ids[(seed + 7) % ids.length],
     human,
@@ -23,8 +23,14 @@ function playGame(human: HumanSide, seed: number, extra: Partial<GameSetup> = {}
     seed,
     awayStarter: 0,
     homeStarter: 1,
+    ...extra,
   };
   const pb = createPlayback();
+  const hud = plateHud(pb);
+  const cpuReviews = new Set<number>();
+  let verdicts = 0;
+  let hiddenFrames = 0;
+  let hiddenOutsidePitch = 0;
   const ctl = new GameController(setup, teams, pb);
   // StrictMode-style double mount.
   ctl.start();
@@ -42,6 +48,8 @@ function playGame(human: HumanSide, seed: number, extra: Partial<GameSetup> = {}
   let handoffs = 0;
   let windows = 0;
   let challenged = 0;
+  const pickoffSteps = new Set<number>();
+  let humanThrowOvers = 0;
   for (let frame = 0; frame < 400_000; frame += 1) {
     vi.advanceTimersByTime(16);
     step(pb, 1 / 60);
@@ -60,10 +68,19 @@ function playGame(human: HumanSide, seed: number, extra: Partial<GameSetup> = {}
       if (m.kind === "pending" && i < snap.pitches.length - 1) throw new Error("unsettled pitch marker");
     });
     marks = Math.max(marks, snap.pitches.length);
+    if (snap.phase === "pickoff" && pb.timeline) pickoffSteps.add(ctl.session.inputs.length);
+    // ABS reviews (CPU ones included) and the All-Star zone, hidden only through the delivery.
+    if (snap.review?.cpu) cpuReviews.add(ctl.session.pitchLog.length);
+    if (snap.review?.stage === "verdict") verdicts += 1;
+    if (snap.phase === "review" && !snap.review) throw new Error("review phase without a card");
+    if (hud.zoneHiddenUntil != null && pb.timeline && pb.T < hud.zoneHiddenUntil) {
+      hiddenFrames += 1;
+      if (snap.phase !== "pitch" && snap.phase !== "play") hiddenOutsidePitch += 1;
+    }
     // Once the third out is made, nobody shows up on a base (or gets a SAFE call) on that play.
     if (snap.outs >= 3 && snap.bases.some(Boolean)) throw new Error(`runner on base with three out: ${snap.bases}`);
     if (snap.outs >= 3 && snap.call && snap.call.text !== "OUT") throw new Error(`${snap.call.text} call after the third out`);
-    if (snap.phase === "final") return { ctl, swings, marks, catcherCam, steals, chances, longWaits, handoffs, windows, challenged, frames: frame };
+    if (snap.phase === "final") return { ctl, swings, marks, catcherCam, steals, chances, longWaits, handoffs, windows, challenged, frames: frame, cpuReviews: cpuReviews.size, verdicts, hiddenFrames, hiddenOutsidePitch, pickoffSteps: pickoffSteps.size, humanThrowOvers };
     // Two players: the cover card waits for the next player.
     if (snap.phase === "handoff") {
       if (!snap.handoff) throw new Error("handoff phase without a card");
@@ -78,6 +95,11 @@ function playGame(human: HumanSide, seed: number, extra: Partial<GameSetup> = {}
       const yes = rng.next() < 0.5;
       if (yes) challenged += 1;
       ctl.decideChallenge(yes);
+      continue;
+    }
+    if (snap.phase === "aim" && snap.pickoffs.length && snap.disengagements < 2 && rng.next() < 0.15) {
+      humanThrowOvers += 1;
+      ctl.pickoff();
       continue;
     }
     if (snap.phase === "aim") {
@@ -172,6 +194,53 @@ describe("ABS and two players through the controller", () => {
     expect(again.log.filter((e) => e.kind === "abs_challenge").length).toBe(reviews.length);
   });
 
+  it("the CPU club challenges too, through the same review and verdict", () => {
+    vi.useFakeTimers();
+    // The controller seeds the human's swing noise from the clock: pin it so the games repeat.
+    vi.setSystemTime(new Date("2026-06-01T19:05:00Z"));
+    let cpuChallenges = 0;
+    let reviews = 0;
+    let shown = 0;
+    for (const seed of [52, 56]) {
+      const { ctl, cpuReviews, verdicts } = playGame("home", seed, { abs: true, innings: 9 });
+      const g = ctl.session.game;
+      cpuChallenges += g.log.filter((e) => e.kind === "abs_challenge" && e.abs?.side === "away").length;
+      reviews += cpuReviews;
+      shown += verdicts;
+      // Same limits: never below zero, and a club out of challenges stays out (no extras here).
+      expect(g.abs!.away).toBeGreaterThanOrEqual(0);
+    }
+    expect(cpuChallenges).toBeGreaterThan(0);
+    expect(reviews).toBeGreaterThan(0);
+    expect(shown).toBeGreaterThan(0);
+  });
+
+  it("throw-overs play through the game: the CPU's and the human pitcher's, and they replay", () => {
+    vi.useFakeTimers();
+    for (const [human, seed] of [["home", 54], ["none", 55]] as const) {
+      const { ctl, pickoffSteps, humanThrowOvers } = playGame(human, seed, { innings: 9 });
+      const s = ctl.session;
+      expect(s.setup.pickoffs).toBe(true);
+      const recorded = s.inputs.filter((i) => i.pickoff !== undefined).length;
+      if (human === "home") expect(humanThrowOvers).toBeGreaterThan(0);
+      else expect(recorded).toBeGreaterThan(0);
+      // Every throw-over was staged on screen.
+      expect(pickoffSteps).toBe(recorded);
+      const r = GameSession.replay(s.setup, s.inputs, teams);
+      expect(r.game.score).toEqual(s.game.score);
+      expect(r.game.log.length).toBe(s.game.log.length);
+    }
+  });
+
+  it("All-Star hides the zone through the delivery only; other levels never do", () => {
+    vi.useFakeTimers();
+    const star = playGame("home", 53, { difficulty: "allstar" });
+    expect(star.hiddenFrames).toBeGreaterThan(0);
+    expect(star.hiddenOutsidePitch).toBe(0);
+    const pro = playGame("home", 53, { difficulty: "pro" });
+    expect(pro.hiddenFrames).toBe(0);
+  });
+
   it("plays a two-player pass-the-device game: both sides pitch and hit, every pitch changes hands", () => {
     vi.useFakeTimers();
     const { ctl, swings, handoffs, catcherCam } = playGame("both", 57, { abs: true, hidePitch: true });
@@ -183,7 +252,8 @@ describe("ABS and two players through the controller", () => {
     const humanPitches = ctl.session.inputs.filter((i) => !i.cpu).length;
     expect(handoffs).toBeGreaterThanOrEqual(humanPitches);
     // Every human pitch carries both players' input: the pitch and the swing (or take).
-    for (const i of ctl.session.inputs.filter((x) => !x.cpu)) {
+    // (Throw-overs are steps of their own, with no pitch or swing.)
+    for (const i of ctl.session.inputs.filter((x) => !x.cpu && x.pickoff === undefined)) {
       expect(i.pitch).toBeDefined();
       expect(i.swing).toBeDefined();
     }

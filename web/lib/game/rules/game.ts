@@ -16,7 +16,8 @@ import type { Park } from "@/lib/game/physics/park";
 import { batSide, type BatterModel, type PitcherModel, type TeamModel } from "@/lib/game/ratings";
 import type { Rng } from "@/lib/game/math";
 import type { FieldPos } from "@/lib/game/types";
-import { ABS_CHALLENGES, callIsWrong, challengeableCall, overturned } from "@/lib/game/rules/abs";
+import type { PickoffOutcome } from "@/lib/game/ai/pickoff";
+import { ABS_CHALLENGES, callIsWrong, challengeableCall, overturned, type AbsChallengerRole } from "@/lib/game/rules/abs";
 
 export interface Runner {
   playerId: number;
@@ -89,6 +90,10 @@ export type GameEventKind =
   | "pitching_change"
   | "substitution"
   | "abs_challenge"
+  | "pickoff_attempt"
+  | "picked_off"
+  | "pickoff_error"
+  | "balk"
   | "game_over";
 
 export interface GameEvent {
@@ -103,7 +108,9 @@ export interface GameEvent {
   /** Steal events: the base the runner left (0 = first, 1 = second, 2 = third). */
   base?: 0 | 1 | 2;
   /** ABS challenge: who challenged and whether the call was overturned. */
-  abs?: { side: "away" | "home"; overturned: boolean; left: number };
+  /** Pickoff throws: the base thrown to (0 = first, 1 = second) and how it came out. */
+  pickoff?: { from: 0 | 1 | 2; outcome: PickoffOutcome };
+  abs?: { side: "away" | "home"; overturned: boolean; left: number; by: AbsChallengerRole; call: "strike" | "ball"; strikeout?: boolean; walk?: boolean };
 }
 
 export const emptyBat = (): BatLine => ({ pa: 0, ab: 0, h: 0, d: 0, t: 0, hr: 0, r: 0, rbi: 0, bb: 0, k: 0, hbp: 0, sf: 0 });
@@ -130,16 +137,25 @@ export class BaseballGame {
   readonly postseason: boolean;
   /** ABS challenges each club has left; null when the game is played without ABS. */
   abs: { away: number; home: number } | null;
+  /** The CPU throws over to hold runners (games saved before pickoffs replay without them). */
+  readonly pickoffs: boolean;
+  /**
+   * Step-offs and throw-overs this plate appearance (the pitch-clock rule allows two; a
+   * third that doesn't get the runner is a balk). Resets with a new batter or when a
+   * runner advances.
+   */
+  disengagements = 0;
 
   constructor(
     awayTeam: TeamModel,
     homeTeam: TeamModel,
     readonly park: Park,
-    opts: { awayStarter?: number; homeStarter?: number; innings?: number; abs?: boolean; postseason?: boolean } = {},
+    opts: { awayStarter?: number; homeStarter?: number; innings?: number; abs?: boolean; postseason?: boolean; pickoffs?: boolean } = {},
   ) {
     this.regulation = opts.innings ?? 9;
     this.abs = opts.abs ? { away: ABS_CHALLENGES, home: ABS_CHALLENGES } : null;
     this.postseason = !!opts.postseason;
+    this.pickoffs = !!opts.pickoffs;
     this.away = this.makeSide(awayTeam, opts.awayStarter ?? 0);
     this.home = this.makeSide(homeTeam, opts.homeStarter ?? 0);
   }
@@ -291,6 +307,7 @@ export class BaseballGame {
   }
 
   private endPA(): void {
+    this.disengagements = 0;
     this.balls = 0;
     this.strikes = 0;
     this.batting.idx = (this.batting.idx + 1) % this.batting.lineup.length;
@@ -327,6 +344,7 @@ export class BaseballGame {
           if (this.final) break;
         } else {
           this.bases[leg.from + 1] = r;
+          this.disengagements = 0;
           events.push(this.emit({ kind: "stolen_base", base: leg.from, text: `${name} steals ${label[leg.from]}!${double}` }));
         }
       } else {
@@ -337,6 +355,67 @@ export class BaseballGame {
         if (after.length) break;
       }
     }
+    return events;
+  }
+
+  /**
+   * A throw over to the runner on `from` (0 = first, 1 = second). Not a pitch: the count
+   * stands. The outcome comes from the pickoff model; a third disengagement that doesn't
+   * get the runner is a balk.
+   */
+  applyPickoff(from: 0 | 1 | 2, outcome: PickoffOutcome): GameEvent[] {
+    const r = this.bases[from];
+    if (this.final || !r) return [];
+    const events: GameEvent[] = [];
+    const p = this.fielding.pitcher;
+    const pName = p.name;
+    const name = this.names.get(r.playerId) ?? "The runner";
+    const bag = ["first", "second", "third"][from];
+    const next = ["second", "third", "home"][from];
+    const pickoff = { from, outcome };
+    this.disengagements += 1;
+    const advanceAll = (): number[] => {
+      const scored = this.bases[2] ? [this.bases[2].playerId] : [];
+      this.bases = [null, this.bases[0], this.bases[1]];
+      this.disengagements = 0;
+      return scored;
+    };
+    const out = outcome === "out" || outcome === "rundown_out";
+    if (outcome === "safe" && this.disengagements > 2) {
+      // Third disengagement without an out: balk, everybody moves up.
+      const scored = advanceAll();
+      events.push(this.emit({ kind: "balk", text: `${pName} throws over a third time and doesn't get him — balk! The runners move up.`, pitcherId: p.id, pickoff }));
+      this.addRuns(scored, null);
+      events.push(...this.afterPlay());
+      return events;
+    }
+    if (out) {
+      this.bases[from] = null;
+      this.recordOuts(1);
+      this.chargedFor.delete(r.playerId);
+      const text =
+        outcome === "rundown_out"
+          ? `${name} is caught leaning off ${bag} and run down between ${bag} and ${next} — out!`
+          : `${pName} picks off ${name} at ${bag}!`;
+      events.push(this.emit({ kind: "picked_off", text, pitcherId: p.id, pickoff }));
+      events.push(...this.afterPlay());
+      return events;
+    }
+    if (outcome === "rundown_safe") {
+      this.bases[from] = null;
+      this.bases[from + 1] = r;
+      this.disengagements = 0;
+      events.push(this.emit({ kind: "pickoff_error", text: `${name} is hung up off ${bag}, but the rundown breaks down and he slides into ${next} safely!`, pitcherId: p.id, pickoff }));
+      return events;
+    }
+    if (outcome === "error") {
+      const scored = advanceAll();
+      events.push(this.emit({ kind: "pickoff_error", text: `${pName}'s pickoff throw gets away! The runners move up.`, pitcherId: p.id, pickoff }));
+      this.addRuns(scored, null);
+      events.push(...this.afterPlay());
+      return events;
+    }
+    events.push(this.emit({ kind: "pickoff_attempt", text: `${pName} throws over to ${bag}. ${name} gets back.`, pitcherId: p.id, pickoff }));
     return events;
   }
 
@@ -359,20 +438,32 @@ export class BaseballGame {
    * An ABS challenge of a called pitch, before it is applied: the Hawk-Eye zone decides.
    * A winning challenge is kept, a losing one is spent. Returns the call that stands.
    */
-  absChallenge(result: PitchResult): { result: PitchResult; event: GameEvent } | null {
+  absChallenge(result: PitchResult, by?: AbsChallengerRole): { result: PitchResult; event: GameEvent } | null {
     const side = this.absChallenger(result);
     if (!side || !this.abs) return null;
     const wrong = callIsWrong(result);
     if (!wrong) this.abs[side] -= 1;
     const offense = (side === "away") === this.top;
-    const who = offense ? this.batter.name : (this.fielding.lineup.find((b) => b.pos === "C")?.name ?? this.fielding.pitcher.name);
+    const catcher = this.fielding.lineup.find((b) => b.pos === "C")?.name;
+    const role: AbsChallengerRole = offense ? "batter" : by === "pitcher" || !catcher ? "pitcher" : "catcher";
+    const who = role === "batter" ? this.batter.name : role === "catcher" ? catcher! : this.fielding.pitcher.name;
     const was = result.kind === "called_strike" ? "strike" : "ball";
     const now = was === "strike" ? "ball" : "strike";
     const left = this.abs[side];
+    // What the overturn does to the count: strike three or ball four.
+    const strikeout = wrong && now === "strike" && this.strikes === 2;
+    const walk = wrong && now === "ball" && this.balls === 3;
+    const swing = strikeout ? " Strike three!" : walk ? " Ball four!" : "";
     const text = wrong
-      ? `ABS challenge by ${who}: overturned — it's a ${now}.`
+      ? `ABS challenge by ${who}: overturned — it's a ${now}.${swing}`
       : `ABS challenge by ${who}: the call stands — ${was}. ${left} challenge${left === 1 ? "" : "s"} left.`;
-    const event = this.emit({ kind: "abs_challenge", text, batterId: this.batter.id, pitcherId: this.fielding.pitcher.id, abs: { side, overturned: wrong, left } });
+    const event = this.emit({
+      kind: "abs_challenge",
+      text,
+      batterId: this.batter.id,
+      pitcherId: this.fielding.pitcher.id,
+      abs: { side, overturned: wrong, left, by: role, call: was, strikeout, walk },
+    });
     return { result: wrong ? overturned(result) : result, event };
   }
 
@@ -408,6 +499,7 @@ export class BaseballGame {
         } else if (result.wildPitch && this.bases.some(Boolean)) {
           const scored = this.bases[2] ? [this.bases[2].playerId] : [];
           this.bases = [null, this.bases[0], this.bases[1]];
+          this.disengagements = 0;
           events.push(this.emit({ kind: "wild_pitch", text: "Ball, in the dirt — it gets away! Runners move up." }));
           this.addRuns(scored, null);
         } else events.push(this.emit({ kind: "pitch", text: "Ball." }));
@@ -524,6 +616,7 @@ export class BaseballGame {
   }
 
   private nextHalf(): void {
+    this.disengagements = 0;
     this.outs = 0;
     this.balls = 0;
     this.strikes = 0;

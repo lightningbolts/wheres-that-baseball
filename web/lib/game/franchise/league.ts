@@ -8,7 +8,8 @@ import { newFinances } from "./finances";
 import { generatePlayer, prospectProfile, type GenRole } from "./generate";
 import { batSkillFrom, fieldPos, overall, pitSkillFrom, playerWar } from "./ratings";
 import { FRng, hashUnit } from "./rng";
-import { normalizeRoster, orgPlayers } from "./roster";
+import { projectRosterPlayer, type ProjectionFile } from "./projections";
+import { autoDepth, normalizeRoster, orgPlayers } from "./roster";
 import { buildSchedule } from "./schedule";
 import type { League, Player, Strategy, TeamState } from "./types";
 
@@ -20,10 +21,13 @@ export interface NewLeagueOpts {
   userTeam: number;
   seed: number;
   difficulty?: League["settings"]["difficulty"];
+  /** Multi-year projections; without them ratings come from 2026 alone. */
+  proj?: ProjectionFile;
 }
 
-function realPlayer(rp: RosterPlayer, kind: "lineup" | "bench" | "rotation" | "bullpen", teamId: number, ageShift: number, season: number): Player {
+function realPlayer(rp0: RosterPlayer, kind: "lineup" | "bench" | "rotation" | "bullpen", teamId: number, ageShift: number, season: number, proj?: ProjectionFile): Player {
   const pitcher = kind === "rotation" || kind === "bullpen";
+  const rp = projectRosterPlayer(rp0, proj, pitcher);
   const p: Player = {
     id: rp.id,
     name: rp.name,
@@ -58,6 +62,9 @@ function realPlayer(rp: RosterPlayer, kind: "lineup" | "bench" | "rotation" | "b
   p.options = p.service >= 5 ? 0 : Math.max(0, 3 - Math.floor(p.service * 0.7 + hashUnit(p.id, "opt") * 1.2));
   p.contract = synthContract(p, season, teamId);
   p.rookie = p.service < 1;
+  // MLB rookie limits (130 AB / 50 IP) from the real career totals when known.
+  const career = proj?.players[String(rp.id)];
+  if (career) p.rookie = (career.bat?.career ?? 0) < 145 && (career.pit?.career ?? 0) < 215;
   return p;
 }
 
@@ -69,12 +76,48 @@ export function teamStrength(league: League, teamId: number): number {
   return hitters.reduce((s, x, i) => s + x * (i < 9 ? 1 : 0.4), 0) + sps.reduce((s, x) => s + x, 0) + rps.reduce((s, x) => s + x, 0);
 }
 
-/** Expected wins from roster strength (≈ 48 + total WAR, spread to MLB-like range). */
-export function expectedWins(league: League): Record<number, number> {
+/**
+ * Wins per point of roster WAR above the league mean, fit on simulated seasons (6 leagues × 30
+ * clubs: slope 1.07, residual SD 6.8 wins ≈ pure 162-game luck). The old 0.85 squeezed clubs
+ * toward .500.
+ */
+const WINS_PER_WAR = 1.05;
+
+/** Full-season win expectation (162 games) for every club from its current roster. */
+function talentWins(league: League): Record<number, number> {
   const s = Object.values(league.teams).map((t) => [t.id, teamStrength(league, t.id)] as const);
   const mean = s.reduce((a, [, v]) => a + v, 0) / s.length;
   const out: Record<number, number> = {};
-  for (const [id, v] of s) out[id] = Math.round(81 + (v - mean) * 0.85);
+  for (const [id, v] of s) out[id] = Math.max(40, Math.min(122, 81 + (v - mean) * WINS_PER_WAR));
+  return out;
+}
+
+/** Expected wins from roster strength (the preseason projection, stored as league.expected). */
+export function expectedWins(league: League): Record<number, number> {
+  const t = talentWins(league);
+  const out: Record<number, number> = {};
+  for (const id of Object.keys(t)) out[+id] = Math.round(t[+id]);
+  return out;
+}
+
+/**
+ * Rest-of-season projection: wins so far plus the remaining regular-season games at the
+ * current roster's talent level (trades, injuries and development count; past luck doesn't).
+ */
+export function projectedRecord(league: League): Record<number, { w: number; l: number; left: number }> {
+  const t = talentWins(league);
+  const left: Record<number, number> = {};
+  for (const g of league.schedule) {
+    if (g.ps || g.result) continue;
+    left[g.home] = (left[g.home] ?? 0) + 1;
+    left[g.away] = (left[g.away] ?? 0) + 1;
+  }
+  const out: Record<number, { w: number; l: number; left: number }> = {};
+  for (const team of Object.values(league.teams)) {
+    const n = left[team.id] ?? 0;
+    const w = Math.round(team.w + (n * t[team.id]) / 162);
+    out[team.id] = { w, l: team.w + team.l + n - w, left: n };
+  }
   return out;
 }
 
@@ -175,7 +218,7 @@ export function createLeague(rosters: RosterFile, opts: NewLeagueOpts): League {
         if (had) {
           // A two-way player listed twice (lineup and staff): keep both roles on one player.
           if ((kind === "rotation" || kind === "bullpen") && !had.pit && rp.pitch?.arsenal?.length && had.team === mt.id) {
-            const asPitcher = realPlayer(rp, kind, mt.id, ageShift, season);
+            const asPitcher = realPlayer(rp, kind, mt.id, ageShift, season, opts.proj);
             had.pit = asPitcher.pit;
             had.pit0 = asPitcher.pit0;
             had.twoWay = true;
@@ -183,11 +226,18 @@ export function createLeague(rosters: RosterFile, opts: NewLeagueOpts): League {
           }
           continue;
         }
-        const p = realPlayer(rp, kind, mt.id, ageShift, season);
+        const p = realPlayer(rp, kind, mt.id, ageShift, season, opts.proj);
         league.players[p.id] = p;
         if (kind === "lineup") t.lineup.push({ id: p.id, pos: p.pos === "SP" || p.pos === "RP" ? "DH" : (p.pos as TeamState["lineup"][number]["pos"]) });
         if (kind === "rotation") t.rotation.push(p.id);
       }
+    }
+    // Current 40-man players the 2026 snapshot missed (stars hurt for much of the year).
+    for (const xp of opts.proj?.extras[String(mt.id)] ?? []) {
+      if (league.players[xp.id]) continue;
+      const p = realPlayer(xp, xp.role, mt.id, ageShift, season, opts.proj);
+      p.template = pickTemplate(pool, p);
+      league.players[p.id] = p;
     }
     const pen = rt.bullpen.map((p) => league.players[p.id]).filter((p) => p && p.team === mt.id);
     const sv = (id: number) => rt.bullpen.find((x) => x.id === id)?.sav?.sv ?? 0;
@@ -215,7 +265,7 @@ export function createLeague(rosters: RosterFile, opts: NewLeagueOpts): League {
       ["bat", "depth"],
       ["RP", "depth"],
     ];
-    for (const [role, tier, pos] of fortyTiers) addGenerated(league, rng, pool, mt.id, role, tier, { on40: true, pos });
+    for (const [role, tier, pos] of fortyTiers) if (orgPlayers(league, mt.id).filter((x) => x.on40).length < 40) addGenerated(league, rng, pool, mt.id, role, tier, { on40: true, pos });
     const minorTiers: Array<[GenRole, Parameters<typeof prospectProfile>[1], Player["pos"]?]> = [
       ["SP", "prospect"],
       ["SP", "draft"],
@@ -243,6 +293,7 @@ export function createLeague(rosters: RosterFile, opts: NewLeagueOpts): League {
   }
   for (const t of Object.values(league.teams)) {
     normalizeRoster(league, t.id, { offseason: true });
+    autoDepth(league, t.id);
     t.fin = newFinances(t.id, payroll(league, t.id));
   }
   assignStrategies(league);

@@ -9,6 +9,7 @@ import { DOLLARS_PER_WAR, MIN_SALARY } from "./data";
 import { clamp } from "./ratings";
 import type { FRng } from "./rng";
 import { autoDepth, news, normalizeRoster, orgPlayers } from "./roster";
+import { leaveTeam } from "./splits";
 import type { League, Player } from "./types";
 
 export function controlYears(p: Player): number {
@@ -87,8 +88,14 @@ export function evaluateTrade(league: League, t: TradeProposal): TradeEval {
 }
 
 export function executeTrade(league: League, a: number, b: number, aGives: number[], bGives: number[]): void {
-  for (const id of aGives) league.players[id].team = b;
-  for (const id of bGives) league.players[id].team = a;
+  for (const id of aGives) {
+    leaveTeam(league.players[id]);
+    league.players[id].team = b;
+  }
+  for (const id of bGives) {
+    leaveTeam(league.players[id]);
+    league.players[id].team = a;
+  }
   const names = (ids: number[]) => ids.map((id) => league.players[id].name).join(", ") || "cash considerations";
   news(league, `TRADE: ${league.teams[a].abbrev} send ${names(aGives)} to ${league.teams[b].abbrev} for ${names(bGives)}.`, a, "trade");
   league.tradeLog.push({ day: league.day, season: league.season, a, b, aGets: bGives, bGets: aGives });

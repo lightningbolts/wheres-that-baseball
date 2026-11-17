@@ -375,10 +375,13 @@ export function PlateOverlay({
     // Feet per CSS pixel at the plate: line weights and marker sizes are set in pixels.
     const ftPerPx = (2 * dist * Math.tan(((cam.fov ?? 45) * Math.PI) / 360)) / Math.max(240, size.height);
     const line = 2.6 * ftPerPx;
+    // All-Star: no zone while the pitcher winds up and the ball is in the air.
+    if (hud.zoneHiddenUntil != null && (!pb.timeline || pb.T >= hud.zoneHiddenUntil)) hud.zoneHiddenUntil = null;
+    const zoneOn = a.showZone && hud.zoneHiddenUntil == null;
     if (zone.current && grid.current) {
-      zone.current.visible = a.showZone;
-      grid.current.visible = a.showZone;
-      if (a.showZone) {
+      zone.current.visible = zoneOn;
+      grid.current.visible = zoneOn;
+      if (zoneOn) {
         const { x0, x1, y0, y1 } = zoneBox(a.zoneBottom, a.zoneTop);
         writeFrame(zoneGeo, x0, y0, x1, y1, line, z);
         const pos = gridGeo.attributes.position as THREE.BufferAttribute;
@@ -424,7 +427,7 @@ export function PlateOverlay({
       const g = marks.current[i];
       if (!g) continue;
       const m = list[first + i];
-      g.visible = a.showZone && !!m;
+      g.visible = zoneOn && !!m;
       if (!g.visible || !m) continue;
       const newest = first + i === list.length - 1;
       g.position.set(-m.px, m.pz, z);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import rosters from "@/data/game/rosters.json";
-import { callIsWrong, challengeableCall, cpuWantsChallenge, edgeDistance, overturned, type ChallengeSituation } from "@/lib/game/rules/abs";
+import { callIsWrong, challengeProbability, challengeableCall, cpuChallenge, cpuWantsChallenge, edgeDistance, overturned, zoneMiss, type ChallengeSituation } from "@/lib/game/rules/abs";
 import { GameSession, teamsFromRosters, type GameSetup } from "@/lib/game/session/session";
 import { BaseballGame } from "@/lib/game/rules/game";
 import { simulateGame } from "@/lib/game/engine/sim";
@@ -56,17 +56,29 @@ describe("ABS rules", () => {
     expect(edgeDistance({ px: 0, pz: 2.5 }, 1.6, 3.4)).toBeLessThan(-0.5);
   });
 
-  it("the CPU challenges clear misses, not close calls early in the game, and never without a challenge left", () => {
-    const clearMiss = called("called_strike", EDGE + 0.3, 2.5, false);
-    expect(cpuWantsChallenge(sit(clearMiss))).toBe(true);
+  it("the CPU challenges like MLB clubs: clear misses often, right calls rarely, never without a challenge left", () => {
+    const clearMiss = called("called_strike", EDGE + 0.2, 2.5, false);
+    const p = challengeProbability(sit(clearMiss));
+    expect(p).toBeGreaterThan(0.15);
+    expect(challengeProbability(sit(clearMiss, { left: 0 }))).toBe(0);
     expect(cpuWantsChallenge(sit(clearMiss, { left: 0 }))).toBe(false);
-    const deep = called("called_strike", 0, 2.5, true);
-    expect(cpuWantsChallenge(sit(deep))).toBe(false);
-    const hair = called("called_strike", EDGE + 0.01, 2.5, false);
-    expect(cpuWantsChallenge(sit(hair, { inning: 1, balls: 0, strikes: 0 }))).toBe(false);
-    // A strike that is clearly in, called a ball, with ball four on the line.
-    const missedStrike = called("ball", EDGE - 0.25, 2.5, true);
-    expect(cpuWantsChallenge(sit(missedStrike, { balls: 3 }))).toBe(true);
+    // Two strikes in the 9th: Savant has batters challenging ~4x as often with two strikes.
+    expect(challengeProbability(sit(clearMiss, { strikes: 2, inning: 9 }))).toBeGreaterThan(p * 2);
+    // A strike down the middle is (almost) never challenged.
+    expect(challengeProbability(sit(called("called_strike", 0, 2.5, true)))).toBeLessThan(0.001);
+    // A hair off is a coin flip at best; well off is likelier.
+    const hair = challengeProbability(sit(called("called_strike", EDGE + 0.01, 2.5, false)));
+    expect(hair).toBeLessThan(p);
+    // A strike called a ball with ball four on the line: the catcher wants it.
+    const missedStrike = called("ball", EDGE - 0.2, 2.5, true);
+    expect(challengeProbability(sit(missedStrike, { balls: 3 }))).toBeGreaterThan(challengeProbability(sit(missedStrike)));
+    // Fielding challenges come from the catcher, now and then the pitcher.
+    const roles = new Set<string>();
+    for (let i = 0; i < 400; i += 1) {
+      const r = cpuChallenge(sit(called("ball", EDGE - 0.2 - i * 0.0004, 2.5 + i * 0.001, true), { balls: 3, inning: 9 }));
+      if (r) roles.add(r);
+    }
+    expect(roles.has("catcher")).toBe(true);
   });
 
   it("keeps a winning challenge, spends a losing one, and refills in extra innings", () => {
@@ -75,7 +87,7 @@ describe("ABS rules", () => {
     // Top of the 1st: the away club bats and may challenge a called strike.
     const win = g.absChallenge(called("called_strike", EDGE + 0.3, 2.5, false));
     expect(win?.result.kind).toBe("ball");
-    expect(win?.event.abs).toEqual({ side: "away", overturned: true, left: 2 });
+    expect(win?.event.abs).toMatchObject({ side: "away", overturned: true, left: 2, by: "batter", call: "strike" });
     const lose = g.absChallenge(called("called_strike", 0, 2.5, true));
     expect(lose?.result.kind).toBe("called_strike");
     expect(g.abs!.away).toBe(1);
@@ -100,10 +112,11 @@ describe("ABS rules", () => {
       expect(g.abs!.away).toBeGreaterThanOrEqual(0);
       expect(g.abs!.home).toBeGreaterThanOrEqual(0);
     }
-    // MLB's spring trials: a few challenges a game, roughly half or more overturned.
-    expect(reviews / 6).toBeGreaterThan(0.5);
+    // MLB 2026 (Savant): 4.34 challenges a game, 53.9% overturned.
+    expect(reviews / 6).toBeGreaterThan(1.5);
     expect(reviews / 6).toBeLessThan(8);
-    expect(wins / Math.max(1, reviews)).toBeGreaterThan(0.4);
+    expect(wins / Math.max(1, reviews)).toBeGreaterThan(0.3);
+    expect(wins / Math.max(1, reviews)).toBeLessThan(0.8);
   });
 
   it("session games without ABS are unchanged; with ABS they replay exactly", () => {
@@ -116,5 +129,29 @@ describe("ABS rules", () => {
     const again = GameSession.replay({ ...base, abs: true }, withAbs.inputs, teams);
     expect(again.game.score).toEqual(withAbs.game.score);
     expect(again.game.log.length).toBe(withAbs.game.log.length);
+  });
+
+  it("games saved under the original CPU challenge rule replay under it", () => {
+    const base: GameSetup = { awayTeamId: ids[4], homeTeamId: ids[12], human: "none", innings: 9, seed: 31, difficulty: "pro", awayStarter: 0, homeStarter: 1, abs: true };
+    const old = new GameSession({ ...base, cpuAbs: 1 }, teams);
+    while (!old.game.final) old.autoPitch();
+    const challenges = (s: GameSession) => s.game.log.filter((e) => e.kind === "abs_challenge").map((e) => e.text);
+    const again = GameSession.replay({ ...base, cpuAbs: 1 }, old.inputs, teams);
+    expect(challenges(again)).toEqual(challenges(old));
+    expect(again.game.score).toEqual(old.game.score);
+  });
+});
+
+describe("zoneMiss", () => {
+  const edgeX = PLATE_HALF_WIDTH + BALL_RADIUS_FT;
+  it("measures how deep a strike was and which way a ball missed, in inches", () => {
+    const deep = zoneMiss({ px: edgeX - 1 / 12, pz: 2.5 }, 1.5, 3.5);
+    expect(deep.inZone).toBe(true);
+    expect(deep.inches).toBeCloseTo(1, 5);
+    const wide = zoneMiss({ px: -(edgeX + 2 / 12), pz: 2.5 }, 1.5, 3.5);
+    expect(wide).toMatchObject({ inZone: false, side: "wide" });
+    expect(wide.inches).toBeCloseTo(2, 5);
+    expect(zoneMiss({ px: 0, pz: 1.5 - BALL_RADIUS_FT - 0.5 / 12 }, 1.5, 3.5)).toMatchObject({ inZone: false, side: "low" });
+    expect(zoneMiss({ px: edgeX + 0.1, pz: 3.5 + BALL_RADIUS_FT + 0.1 }, 1.5, 3.5).side).toBe("corner");
   });
 });
