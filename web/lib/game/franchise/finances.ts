@@ -3,7 +3,7 @@
  * ticket price; gate, concessions, national + local media, sponsorship; revenue
  * sharing; playoff gates; payroll, CBT, operations and dead money; owner budget and mood.
  */
-import { cbtTax, payroll } from "./contracts";
+import { cashPayroll, cbtTax, payroll } from "./contracts";
 import { club, NATIONAL_MEDIA, refTicketPrice } from "./data";
 import { clamp } from "./ratings";
 import type { FRng } from "./rng";
@@ -84,9 +84,9 @@ export function accrueDay(league: League): void {
     const f = t.fin;
     f.media += (NATIONAL_MEDIA + club(t.id).localMedia) / days;
     f.sponsorship += sponsorshipRevenue(t.id, wp) / days;
-    // payroll() counts dead money too (it counts toward the tax line); book it once, under dead money.
+    // Actual salaries paid (cashPayroll counts dead money too); book dead money once, under dead money.
     const dead = t.dead.reduce((s, d) => s + d.aav, 0);
-    f.payroll += Math.max(0, payroll(league, t.id) - dead) / days;
+    f.payroll += Math.max(0, cashPayroll(league, t.id) - dead) / days;
     f.operations += operationsCost(t.id) / days;
     f.deadMoney += dead / days;
   }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { remainingOwed } from "@/lib/game/franchise/contracts";
 import { activateFromIL, callUp, dfa, fortyMan, optionDown, orgPlayers, placeOnIL, release, repairDepth, ACTIVE_MAX, FORTY_MAX, type TxResult } from "@/lib/game/franchise/roster";
 import { avg, era, ipStr, ops } from "@/lib/game/franchise/stats";
 import type { League, Player } from "@/lib/game/franchise/types";
@@ -91,7 +92,7 @@ function Rows({ league, players, act, kind }: { league: League; players: Player[
                         tx(act, (l) => release(l, p.id), me);
                       }}
                     >
-                      Release ({p.contract.aav > 0.85 && p.contract.kind !== "minor" ? `eat $${(p.contract.aav * p.contract.years).toFixed(1)}M` : "free"})?
+                      Release ({p.contract.aav > 0.85 && p.contract.kind !== "minor" ? `eat $${remainingOwed(p.contract).toFixed(1)}M` : "free"})?
                     </SmallBtn>
                   ) : (
                     <SmallBtn onClick={() => setConfirm(p.id)}>Release</SmallBtn>

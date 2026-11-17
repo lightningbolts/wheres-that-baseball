@@ -1,7 +1,7 @@
 /** Build a new franchise league from the real rosters (plus generated depth and free agents). */
 import type { RosterFile, RosterPlayer } from "@/lib/game/types";
 import { MLB_TEAMS } from "@/lib/mlb/teams";
-import { estimateService, payroll, synthContract } from "./contracts";
+import { estimateService, payroll, realContract, synthContract, type ContractFile } from "./contracts";
 import { refTicketPrice } from "./data";
 import { talentEnv } from "./development";
 import { newFinances } from "./finances";
@@ -23,9 +23,11 @@ export interface NewLeagueOpts {
   difficulty?: League["settings"]["difficulty"];
   /** Multi-year projections; without them ratings come from 2026 alone. */
   proj?: ProjectionFile;
+  /** Real contracts and service time; without them every deal is estimated. */
+  contracts?: ContractFile;
 }
 
-function realPlayer(rp0: RosterPlayer, kind: "lineup" | "bench" | "rotation" | "bullpen", teamId: number, ageShift: number, season: number, proj?: ProjectionFile): Player {
+function realPlayer(rp0: RosterPlayer, kind: "lineup" | "bench" | "rotation" | "bullpen", teamId: number, ageShift: number, season: number, proj?: ProjectionFile, contracts?: ContractFile): Player {
   const pitcher = kind === "rotation" || kind === "bullpen";
   const rp = projectRosterPlayer(rp0, proj, pitcher);
   const p: Player = {
@@ -58,9 +60,11 @@ function realPlayer(rp0: RosterPlayer, kind: "lineup" | "bench" | "rotation" | "
   p.ovr = overall(p);
   const young = Math.max(0, 27 - p.age);
   p.pot = Math.max(p.ovr, Math.min(80, Math.round(p.ovr + young * (1.2 + hashUnit(p.id, "pot") * 1.6) - 1)));
-  p.service = estimateService(p);
+  // Real deal and service time when the payroll snapshot lists him; otherwise estimated.
+  const deal = contracts?.season === season ? contracts.players[String(rp.id)] : undefined;
+  p.service = deal?.svc ?? estimateService(p);
   p.options = p.service >= 5 ? 0 : Math.max(0, 3 - Math.floor(p.service * 0.7 + hashUnit(p.id, "opt") * 1.2));
-  p.contract = synthContract(p, season, teamId);
+  p.contract = deal ? realContract(p, deal, season) : { ...synthContract(p, season, teamId), est: true };
   p.rookie = p.service < 1;
   // MLB rookie limits (130 AB / 50 IP) from the real career totals when known.
   const career = proj?.players[String(rp.id)];
@@ -218,7 +222,7 @@ export function createLeague(rosters: RosterFile, opts: NewLeagueOpts): League {
         if (had) {
           // A two-way player listed twice (lineup and staff): keep both roles on one player.
           if ((kind === "rotation" || kind === "bullpen") && !had.pit && rp.pitch?.arsenal?.length && had.team === mt.id) {
-            const asPitcher = realPlayer(rp, kind, mt.id, ageShift, season, opts.proj);
+            const asPitcher = realPlayer(rp, kind, mt.id, ageShift, season, opts.proj, opts.contracts);
             had.pit = asPitcher.pit;
             had.pit0 = asPitcher.pit0;
             had.twoWay = true;
@@ -226,7 +230,7 @@ export function createLeague(rosters: RosterFile, opts: NewLeagueOpts): League {
           }
           continue;
         }
-        const p = realPlayer(rp, kind, mt.id, ageShift, season, opts.proj);
+        const p = realPlayer(rp, kind, mt.id, ageShift, season, opts.proj, opts.contracts);
         league.players[p.id] = p;
         if (kind === "lineup") t.lineup.push({ id: p.id, pos: p.pos === "SP" || p.pos === "RP" ? "DH" : (p.pos as TeamState["lineup"][number]["pos"]) });
         if (kind === "rotation") t.rotation.push(p.id);
@@ -235,7 +239,7 @@ export function createLeague(rosters: RosterFile, opts: NewLeagueOpts): League {
     // Current 40-man players the 2026 snapshot missed (stars hurt for much of the year).
     for (const xp of opts.proj?.extras[String(mt.id)] ?? []) {
       if (league.players[xp.id]) continue;
-      const p = realPlayer(xp, xp.role, mt.id, ageShift, season, opts.proj);
+      const p = realPlayer(xp, xp.role, mt.id, ageShift, season, opts.proj, opts.contracts);
       p.template = pickTemplate(pool, p);
       league.players[p.id] = p;
     }
