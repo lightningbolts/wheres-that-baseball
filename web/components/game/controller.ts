@@ -316,10 +316,13 @@ export class GameController {
     pb: Playback,
     inputs: PitchInput[] = [],
   ) {
-    // New games hold runners with throw-overs; a resumed game keeps the rules it was saved
-    // under (a recorded throw-over replays either way).
-    const pickoffs = setup.pickoffs ?? (!inputs.length || inputs.some((i) => i.pickoff !== undefined));
-    this.setup = pickoffs === !!setup.pickoffs ? setup : { ...setup, pickoffs };
+    // New games get the current rules (throw-overs, Savant-rate CPU challenges). A resumed
+    // game keeps the rules it was saved under: a save without the flags predates them, and
+    // its recorded pitches must replay under the old behavior to come out the same.
+    const fresh = !inputs.length;
+    const pickoffs = setup.pickoffs ?? (fresh || inputs.some((i) => i.pickoff !== undefined));
+    const cpuAbs = setup.cpuAbs ?? (fresh ? 2 : 1);
+    this.setup = pickoffs === setup.pickoffs && cpuAbs === setup.cpuAbs ? setup : { ...setup, pickoffs, cpuAbs };
     setup = this.setup;
     this.pb = pb;
     this.session = inputs.length ? GameSession.replay(setup, inputs, teams) : new GameSession(setup, teams);

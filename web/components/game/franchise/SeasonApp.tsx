@@ -153,10 +153,13 @@ export function SeasonApp() {
       const saved = loadSave();
       const inputs = saved && saved.setup.seed === m.setup.seed && saved.setup.homeTeamId === m.setup.homeTeamId ? saved.inputs : [];
       if (!inputs.length) clearSave();
+      // The setup is rebuilt from the league, so carry over the rules the save was played
+      // under (absent on old saves: the controller then replays them the old way).
+      const setup = inputs.length ? { ...m.setup, pickoffs: saved!.setup.pickoffs, cpuAbs: saved!.setup.cpuAbs } : m.setup;
       setLeague(l);
       persist(l);
       sfx.unlock();
-      setManual({ ...m, inputs });
+      setManual({ ...m, setup, inputs });
     },
     [league, idx, persist],
   );

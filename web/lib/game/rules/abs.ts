@@ -235,6 +235,32 @@ export function cpuChallenge(s: ChallengeSituation): AbsChallengerRole | null {
   return hash01(pz, px, s.inning, s.outs + 7) < pitcherShare ? "pitcher" : "catcher";
 }
 
+/** Deterministic "eye" error in [-1, 1] from where the pitch crossed (legacy policy). */
+function perception(px: number, pz: number): number {
+  const s = Math.sin(px * 12.9898 + pz * 78.233) * 43758.5453;
+  return (s - Math.floor(s)) * 2 - 1;
+}
+
+/**
+ * The original CPU challenge rule (an edge-distance threshold by situation), kept so
+ * games saved under it (GameSetup.cpuAbs === 1) replay exactly as they were played.
+ */
+export function legacyCpuWantsChallenge(s: ChallengeSituation): boolean {
+  const side = challengeableCall(s.result);
+  if (!side || s.left <= 0) return false;
+  const d = edgeDistance(s.result.flight, s.zoneBottom, s.zoneTop);
+  const looks = (side === "offense" ? d : -d) + perception(s.result.flight.px, s.result.flight.pz) * 0.1;
+  const decisive = side === "offense" ? s.strikes >= 2 : s.balls >= 3;
+  const late = s.inning >= s.regulation - 2 && Math.abs(s.margin) <= 3;
+  let bar = 0.12;
+  if (decisive) bar -= 0.05;
+  if (late) bar -= 0.03;
+  if (s.runnersOn >= 2) bar -= 0.01;
+  if (s.left === 1) bar += 0.04;
+  if (!decisive && s.inning <= 3 && s.balls + s.strikes <= 1) bar += 0.05;
+  return looks > Math.max(0.025, bar);
+}
+
 /** Whether the CPU club challenges this call (see cpuChallenge). */
 export function cpuWantsChallenge(s: ChallengeSituation): boolean {
   return cpuChallenge(s) !== null;

@@ -22,7 +22,7 @@ import { buildPark, homeVenueForTeam } from "@/lib/game/physics/park";
 import { Rng } from "@/lib/game/math";
 import type { FieldPos, RosterFile } from "@/lib/game/types";
 import { pitchRecord, type PitchRecord } from "@/lib/game/stats/pitchLog";
-import { cpuChallenge, type AbsChallengerRole } from "@/lib/game/rules/abs";
+import { cpuChallenge, legacyCpuWantsChallenge, type AbsChallengerRole } from "@/lib/game/rules/abs";
 import { cpuPickoff, pickoffOutcome, pickoffTargets, type PickoffOutcome } from "@/lib/game/ai/pickoff";
 
 /** "both": two players on one device, P1 the away club and P2 the home club. */
@@ -59,6 +59,12 @@ export interface GameSetup {
    * (their recorded pitches replay unchanged); a recorded throw-over replays either way.
    */
   pickoffs?: boolean;
+  /**
+   * CPU ABS challenge policy: 2 (or absent) = Savant 2026 rates by role and situation;
+   * 1 = the original edge-distance rule, for games saved before it changed (their
+   * recorded pitches must replay under the calls they were played with).
+   */
+  cpuAbs?: 1 | 2;
 }
 
 /** Everything a human decided on one pitch. `cpu` = that pitch was auto-played. */
@@ -415,7 +421,11 @@ export class GameSession {
             ? "batter"
             : "catcher"
           : null
-        : cpuChallenge(this.challengeSituation(o, challenger));
+        : this.setup.cpuAbs === 1
+          ? legacyCpuWantsChallenge(this.challengeSituation(o, challenger))
+            ? "catcher"
+            : null
+          : cpuChallenge(this.challengeSituation(o, challenger));
       if (human && by) p.input.challenge = true;
       if (by) {
         const r = g.absChallenge(o.result, by);

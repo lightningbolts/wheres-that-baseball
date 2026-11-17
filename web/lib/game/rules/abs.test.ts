@@ -130,6 +130,16 @@ describe("ABS rules", () => {
     expect(again.game.score).toEqual(withAbs.game.score);
     expect(again.game.log.length).toBe(withAbs.game.log.length);
   });
+
+  it("games saved under the original CPU challenge rule replay under it", () => {
+    const base: GameSetup = { awayTeamId: ids[4], homeTeamId: ids[12], human: "none", innings: 9, seed: 31, difficulty: "pro", awayStarter: 0, homeStarter: 1, abs: true };
+    const old = new GameSession({ ...base, cpuAbs: 1 }, teams);
+    while (!old.game.final) old.autoPitch();
+    const challenges = (s: GameSession) => s.game.log.filter((e) => e.kind === "abs_challenge").map((e) => e.text);
+    const again = GameSession.replay({ ...base, cpuAbs: 1 }, old.inputs, teams);
+    expect(challenges(again)).toEqual(challenges(old));
+    expect(again.game.score).toEqual(old.game.score);
+  });
 });
 
 describe("zoneMiss", () => {

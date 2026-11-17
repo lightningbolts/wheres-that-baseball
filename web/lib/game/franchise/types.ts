@@ -135,6 +135,8 @@ export interface Player {
   /** Days on the active roster this season (service time). */
   mlbDays: number;
   stats: { bat?: BatLine; pit?: PitLine };
+  /** This season's lines for clubs he left mid-season (stats above stay his full season). */
+  splits?: Array<{ team: number; bat?: BatLine; pit?: PitLine }>;
   /** Postseason lines (not counted in regular-season leaders/awards). */
   post?: { bat?: BatLine; pit?: PitLine };
   history?: SeasonRecord[];

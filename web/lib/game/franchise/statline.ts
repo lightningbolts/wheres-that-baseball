@@ -5,6 +5,7 @@
 import type { MLBLeague } from "@/lib/mlb/teams";
 import { awardTags } from "./awards";
 import { LG } from "./data";
+import { seasonSegments } from "./splits";
 import { avg, batWar, era, fip, ip, obp, pitWar, slg, woba } from "./stats";
 import type { BatLine, League, PitLine, Player, Pos } from "./types";
 
@@ -301,19 +302,22 @@ export function teamRows(league: League): TeamRow[] {
   const pit = new Map<number, PitLine>();
   const bw = new Map<number, number>();
   const pw = new Map<number, number>();
+  // Each club gets only what was played for it (a traded player's line is split).
   for (const p of Object.values(league.players)) {
-    if (!league.teams[p.team]) continue;
-    if (p.stats.bat) {
-      const t = bat.get(p.team) ?? zeroBat();
-      for (const k of Object.keys(t) as Array<keyof BatLine>) t[k] += p.stats.bat[k];
-      bat.set(p.team, t);
-      bw.set(p.team, (bw.get(p.team) ?? 0) + batWar(p, p.stats.bat));
-    }
-    if (p.stats.pit) {
-      const t = pit.get(p.team) ?? zeroPit();
-      for (const k of Object.keys(t) as Array<keyof PitLine>) t[k] += p.stats.pit[k];
-      pit.set(p.team, t);
-      pw.set(p.team, (pw.get(p.team) ?? 0) + pitWar(p.stats.pit));
+    for (const s of seasonSegments(p)) {
+      if (!league.teams[s.team]) continue;
+      if (s.bat) {
+        const t = bat.get(s.team) ?? zeroBat();
+        for (const k of Object.keys(t) as Array<keyof BatLine>) t[k] += s.bat[k];
+        bat.set(s.team, t);
+        bw.set(s.team, (bw.get(s.team) ?? 0) + batWar(p, s.bat));
+      }
+      if (s.pit) {
+        const t = pit.get(s.team) ?? zeroPit();
+        for (const k of Object.keys(t) as Array<keyof PitLine>) t[k] += s.pit[k];
+        pit.set(s.team, t);
+        pw.set(s.team, (pw.get(s.team) ?? 0) + pitWar(s.pit));
+      }
     }
   }
   const all = [...bat.values()].map((b) => ({ bat: b }));
