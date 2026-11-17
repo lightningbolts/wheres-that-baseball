@@ -158,8 +158,13 @@ interface AirChance {
   dive: boolean;
 }
 
+/** When the ball stops being catchable for an out: it hits the ground, or the outfield wall. */
+function liveFrom(path: BattedBallPath): number {
+  return Math.min(path.firstLanding?.t ?? path.endT, path.wallT ?? Infinity);
+}
+
 function bestAirCatch(path: BattedBallPath, fielders: Fielder[], park: Park): AirChance | null {
-  const landT = path.firstLanding?.t ?? path.endT;
+  const landT = liveFrom(path);
   let best: AirChance | null = null;
   for (const f of fielders) {
     let maxSlack = -Infinity;
@@ -213,7 +218,9 @@ function groundChances(path: BattedBallPath, fielders: Fielder[], park: Park, fr
     // to the outfield (he peels off to cover a bag instead of chasing it into the grass).
     const cutOff = isInfielder(f.pos) ? horizDist(f.p) + PAST_INFIELDER : Infinity;
     for (const s of path.samples) {
-      if (s.t < from || s.p.y > 3 || !inPlayableArea(s, park)) continue;
+      // Playing a carom off the wall he can glove it chest-high; otherwise it has to be down.
+      const maxY = path.wallT != null && s.t >= path.wallT ? 7 : 3;
+      if (s.t < from || s.p.y > maxY || !inPlayableArea(s, park)) continue;
       if (horizDist(s.p) > cutOff) break;
       if (slack(f, s, GROUND_REACH) >= 0) {
         found = { f, t: s.t, p: s.p, dive: false };
@@ -310,9 +317,29 @@ export function resolvePlay(input: PlayInput): PlayResult {
     });
   }
 
+  // Wrigley's ivy: a ball that dies in the vines before anyone can play it is two bases.
+  if (path.lodged && path.wallT != null && !bestAirCatch(path, fielders, park)) {
+    const first = groundChances(path, fielders, park, Math.min(path.firstLanding?.t ?? path.wallT, path.wallT))[0];
+    if (!first || first.t >= path.wallT) {
+      const t = path.wallT + 1.5;
+      events.push({ t, type: "ground_rule_double" });
+      const rs: RunnerOutcome[] = [
+        ...onBase.map((r) => ({ playerId: r.playerId, from: r.base, to: Math.min(4, r.base + 2) as Base, out: false, t: t + 6 })),
+        { playerId: batter.playerId, from: 0 as const, to: 2 as Base, out: false, t: t + 7 },
+      ];
+      return result({
+        hit: 2,
+        runners: rs,
+        runs: rs.filter((r) => r.to === 4).map((r) => r.playerId),
+        scoring: "2B (GR, ivy)",
+        endT: t + 7,
+      });
+    }
+  }
+
   // ---- 1. Can anyone catch it in the air? ----
   const air = bestAirCatch(path, fielders, park);
-  let groundFrom = path.firstLanding?.t ?? path.endT;
+  let groundFrom = liveFrom(path);
   let missedBy: Fielder | null = null;
   if (air) {
     const p = air.dive

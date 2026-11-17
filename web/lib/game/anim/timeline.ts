@@ -411,7 +411,7 @@ export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Ti
   let gatherP = gather?.to ? add(gather.to, v3(0, 3, 0)) : v3(0, 3, 0);
   let gatherLead = v3(0, 0, 0);
   if (gather && path && play?.caught && gather.type !== "dive") {
-    const landT = path.firstLanding?.t ?? path.endT;
+    const landT = Math.min(path.firstLanding?.t ?? path.endT, path.wallT ?? Infinity);
     const s0 = sampleAt(path, Math.min(gather.t, path.endT));
     gatherP = s0.p;
     for (const s of path.samples) {

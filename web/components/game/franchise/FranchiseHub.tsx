@@ -74,7 +74,7 @@ export function FranchiseHub({
   const pay = payroll(league, t.id);
   const today = userGameToday(league);
   const inSeason = league.phase === "regular" || league.phase === "postseason";
-  const dateStr = league.phase === "regular" || league.phase === "postseason" ? fmtDate(league.calendar, league.day, true) : `${league.season} offseason`;
+  const dateStr = league.phase === "regular" || league.phase === "postseason" ? fmtDate(league.calendar, league.day, true) : league.opening ? `winter before ${league.season}` : `${league.season} offseason`;
 
   return (
     <div className="space-y-4">
@@ -169,7 +169,7 @@ export function FranchiseHub({
                 })
               }
             >
-              {faFinished(league) ? `Start ${league.season + 1}` : `Finish free agency & start ${league.season + 1}`}
+              {faFinished(league) ? `Start ${league.opening ? league.season : league.season + 1}` : `Finish free agency & start ${league.opening ? league.season : league.season + 1}`}
             </Btn>
           </div>
         )}

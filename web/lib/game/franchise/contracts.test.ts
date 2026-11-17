@@ -104,6 +104,7 @@ describe("real contracts", () => {
 
   it("a season later: salaries advance and expiring options are decided", () => {
     const l = structuredClone(league);
+    startNextSeason(l); // close the opening winter market
     const deals = Object.values(l.players)
       .filter((p) => p.contract.salaries && p.contract.years >= 2)
       .map((p) => ({ id: p.id, years: p.contract.years, next: p.contract.salaries![1] }));
@@ -127,6 +128,54 @@ describe("real contracts", () => {
     finishFreeAgency(l);
     startNextSeason(l);
     expect(l.season).toBe(2028);
+  });
+
+  it("opens on the real winter market: actual free agents are unsigned, moved players are with their new clubs", () => {
+    expect(league.opening).toBe(true);
+    expect(league.phase).toBe("freeagency");
+    const fa = Object.keys(contracts.fa ?? {});
+    expect(fa.length).toBeGreaterThan(50);
+    let unsigned = 0;
+    for (const id of fa) {
+      const p = league.players[Number(id)];
+      if (!p) continue;
+      unsigned += 1;
+      expect(p.status).toBe("fa");
+      expect(p.team).toBe(0);
+      expect(p.prevTeam).toBeGreaterThan(0);
+      // Nobody keeps a free agent in his lineup or rotation.
+      for (const t of Object.values(league.teams)) {
+        expect(t.lineup.some((s) => s.id === p.id)).toBe(false);
+        expect(t.rotation).not.toContain(p.id);
+      }
+    }
+    expect(unsigned).toBeGreaterThan(50);
+    // (Roster crunches can still bump one onto waivers, where another club claims him.)
+    const moved = Object.entries(contracts.org ?? {}).map(([id, org]) => [league.players[Number(id)], org] as const).filter(([p]) => p);
+    expect(moved.filter(([p, org]) => p!.team === org).length / moved.length).toBeGreaterThan(0.8);
+    // Option years the payroll pages drop are still real deals (Acuña's 2027 club option).
+    const acuna = league.players[660670];
+    if (acuna) expect(acuna.contract).toMatchObject({ real: true, salaries: [17], option: { type: "team", salary: 17 } });
+  });
+
+  it("closing the winter market opens the same season with full rosters", () => {
+    const l = structuredClone(league);
+    startNextSeason(l);
+    expect(l.season).toBe(2027);
+    expect(l.phase).toBe("regular");
+    expect(l.opening).toBeUndefined();
+    expect(l.day).toBe(0);
+    for (const t of Object.values(l.teams)) {
+      expect(t.lineup).toHaveLength(9);
+      expect(t.rotation.length).toBeGreaterThanOrEqual(5);
+      expect(Object.values(l.players).filter((p) => p.team === t.id && p.status === "active").length).toBe(26);
+    }
+    // The market cleared: most real free agents found a club.
+    const left = Object.values(l.players).filter((p) => p.real && p.status === "fa");
+    const signed = Object.keys(contracts.fa ?? {}).filter((id) => l.players[Number(id)]?.team);
+    expect(signed.length).toBeGreaterThan(left.length);
+    simUntil(l, "week");
+    expect(l.day).toBeGreaterThan(0);
   });
 
   it("releasing a player books what's still owed", () => {

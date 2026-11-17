@@ -221,6 +221,79 @@ export interface Park {
    */
   wallDist(bearingDeg: number): number;
   surfaceAt(p: V3): Surface;
+  /** Park-specific ground rules (see GROUND_RULES). */
+  rules: GroundRules;
+}
+
+/**
+ * Ground rules that change how a batted ball is played, beyond the universal ones (a ball
+ * off the wall is live, a fly that clears the fence after hitting the wall is a homer, a
+ * ball that bounces over is a ground-rule double).
+ */
+export interface GroundRules {
+  /** Wrigley Field: a ball that stays lodged in the outfield ivy is a ground-rule double. */
+  ivy?: boolean;
+  /**
+   * Tropicana Field: the roof's catwalk rings. A and B (the inner, higher rings) are in play —
+   * the ball drops and can be caught for an out, fair or foul by where it comes down. C and D
+   * (the outer, lower rings) are a home run in fair territory and dead (foul) in foul territory.
+   */
+  catwalks?: boolean;
+}
+
+const GROUND_RULES: Record<number, GroundRules> = {
+  17: { ivy: true }, // Wrigley Field
+  12: { catwalks: true }, // Tropicana Field
+};
+
+/** Tropicana Field's cable dome: peak over second base, tilted ~6.5° down toward center. */
+const TROP_CENTER = { x: 0, z: 170 };
+const TROP_PEAK = 225;
+const TROP_TILT = Math.tan((6.5 * Math.PI) / 180);
+/** Horizontal distance from the roof's center to its rim (top of the stands), ft. */
+const TROP_RIM_R = 300;
+const TROP_RIM_Y = 60;
+/** Catwalk rings A–D as fractions of the centre-to-rim run (they hang 14 ft under the ridges). */
+const TROP_RINGS: Array<{ ring: "A" | "B" | "C" | "D"; t: number }> = [
+  { ring: "A", t: 0.19 },
+  { ring: "B", t: 0.45 },
+  { ring: "C", t: 0.69 },
+  { ring: "D", t: 0.9 },
+];
+
+/** Height of Tropicana Field's roof fabric above a point (ft). */
+export function tropRoofHeight(p: V3): number {
+  const d = Math.hypot(p.x - TROP_CENTER.x, p.z - TROP_CENTER.z);
+  const t = Math.min(1, d / TROP_RIM_R);
+  const top = TROP_PEAK - TROP_TILT * (p.z - TROP_CENTER.z);
+  return TROP_RIM_Y + (top - TROP_RIM_Y) * (1 - t ** 1.35);
+}
+
+export type CatwalkRing = "A" | "B" | "C" | "D";
+
+/**
+ * What a ball at `p` hits in Tropicana Field's roof: a catwalk ring, or the fabric above them
+ * (ruled like the nearest rings: inside the B/C gap plays as B, outside as C).
+ */
+export function tropRoofHit(p: V3): CatwalkRing | null {
+  if (p.y < 50) return null;
+  const ring = tropCatwalkAt(p);
+  if (ring) return ring;
+  if (p.y < tropRoofHeight(p)) return null;
+  const d = Math.hypot(p.x - TROP_CENTER.x, p.z - TROP_CENTER.z);
+  return d < ((TROP_RINGS[1].t + TROP_RINGS[2].t) / 2) * TROP_RIM_R ? "B" : "C";
+}
+
+/** The Tropicana Field catwalk ring a ball at `p` is touching, if any. */
+export function tropCatwalkAt(p: V3): CatwalkRing | null {
+  const d = Math.hypot(p.x - TROP_CENTER.x, p.z - TROP_CENTER.z);
+  for (const { ring, t } of TROP_RINGS) {
+    // Walkway trusses: ~6 ft wide, ~6 ft deep, 14 ft under the ridge ring.
+    if (Math.abs(d - t * TROP_RIM_R) > 3.5) continue;
+    const ridge = tropRoofHeight({ x: p.x, y: 0, z: p.z });
+    if (p.y >= ridge - 17 && p.y <= ridge - 8) return ring;
+  }
+  return null;
 }
 
 export const BASES = {
@@ -342,6 +415,7 @@ export function buildPark(venueId: number | null | undefined, tempF = 72): Park 
     backstop: BACKSTOP_FT[id] ?? outline?.backstop ?? 60,
     surfaceAt,
     wallDist: () => 0,
+    rules: GROUND_RULES[id] ?? {},
   };
   park.wallDist = wallDistTable(buildWallLoop(park));
   return park;

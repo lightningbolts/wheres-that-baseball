@@ -388,6 +388,11 @@ export interface League {
   env?: { bat: { k: number; bb: number; hr: number }; pit: { k: number; bb: number; hr: number } };
   /** Realized league rates: the first season (target) and the latest, plus the running correction. */
   envRealized?: { base: RateLine; last: RateLine; adj: RateLine };
+  /**
+   * The winter before the first franchise season: the real free-agent market is open and
+   * finishing it starts the first season (same year, schedule already built).
+   */
+  opening?: boolean;
   /** Preseason projected wins (owner expectations). */
   expected?: Record<number, number>;
   tradeLog: Array<{ day: number; season: number; a: number; b: number; aGets: number[]; bGets: number[] }>;

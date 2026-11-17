@@ -1,15 +1,16 @@
 /** Build a new franchise league from the real rosters (plus generated depth and free agents). */
 import type { RosterFile, RosterPlayer } from "@/lib/game/types";
 import { MLB_TEAMS } from "@/lib/mlb/teams";
-import { estimateService, payroll, realContract, synthContract, type ContractFile } from "./contracts";
+import { askingTerms, estimateService, payroll, realContract, synthContract, type ContractFile } from "./contracts";
 import { refTicketPrice } from "./data";
 import { talentEnv } from "./development";
 import { newFinances } from "./finances";
+import { freeAgents, initFreeAgency } from "./freeAgency";
 import { generatePlayer, prospectProfile, type GenRole } from "./generate";
 import { batSkillFrom, fieldPos, overall, pitSkillFrom, playerWar } from "./ratings";
 import { FRng, hashUnit } from "./rng";
 import { projectRosterPlayer, type ProjectionFile } from "./projections";
-import { autoDepth, normalizeRoster, orgPlayers } from "./roster";
+import { autoDepth, news, normalizeRoster, orgPlayers } from "./roster";
 import { buildSchedule } from "./schedule";
 import type { League, Player, Strategy, TeamState } from "./types";
 
@@ -189,6 +190,12 @@ export function createLeague(rosters: RosterFile, opts: NewLeagueOpts): League {
   };
   const ageShift = season - rosters.season;
   const pool = templatePool(rosters);
+  const deals = opts.contracts?.season === season ? opts.contracts : undefined;
+  // Winter moves: who changed organizations since the roster snapshot.
+  const homeOf = (id: number, listed: number): number => {
+    const org = deals?.org?.[String(id)];
+    return org && MLB_TEAMS.some((m) => m.id === org) ? org : listed;
+  };
   for (const mt of MLB_TEAMS) {
     const rt = rosters.teams[String(mt.id)];
     const t: TeamState = {
@@ -230,8 +237,10 @@ export function createLeague(rosters: RosterFile, opts: NewLeagueOpts): League {
           }
           continue;
         }
-        const p = realPlayer(rp, kind, mt.id, ageShift, season, opts.proj, opts.contracts);
+        const home = homeOf(rp.id, mt.id);
+        const p = realPlayer(rp, kind, home, ageShift, season, opts.proj, opts.contracts);
         league.players[p.id] = p;
+        if (home !== mt.id) continue;
         if (kind === "lineup") t.lineup.push({ id: p.id, pos: p.pos === "SP" || p.pos === "RP" ? "DH" : (p.pos as TeamState["lineup"][number]["pos"]) });
         if (kind === "rotation") t.rotation.push(p.id);
       }
@@ -239,7 +248,7 @@ export function createLeague(rosters: RosterFile, opts: NewLeagueOpts): League {
     // Current 40-man players the 2026 snapshot missed (stars hurt for much of the year).
     for (const xp of opts.proj?.extras[String(mt.id)] ?? []) {
       if (league.players[xp.id]) continue;
-      const p = realPlayer(xp, xp.role, mt.id, ageShift, season, opts.proj, opts.contracts);
+      const p = realPlayer(xp, xp.role, homeOf(xp.id, mt.id), ageShift, season, opts.proj, opts.contracts);
       p.template = pickTemplate(pool, p);
       league.players[p.id] = p;
     }
@@ -302,8 +311,52 @@ export function createLeague(rosters: RosterFile, opts: NewLeagueOpts): League {
   }
   assignStrategies(league);
   league.expected = expectedWins(league);
+  // The run environment is fixed from the real talent base, before anyone leaves in free agency.
   league.env = talentEnv(league) ?? undefined;
   league.news = [{ day: 0, text: `Welcome to the ${season} season. You are the GM of the ${league.teams[opts.userTeam].name}.`, team: opts.userTeam, kind: "info" }];
+  if (deals?.fa && openRealMarket(league, deals)) {
+    initFreeAgency(league);
+    league.opening = true;
+    league.news.push({
+      day: 0,
+      text: `The ${season - 1}-${String(season).slice(2)} free-agent market is open: ${freeAgents(league).filter((p) => p.real).length} real free agents are unsigned. Bid on them, then start the season.`,
+      team: opts.userTeam,
+      kind: "info",
+    });
+  }
   league.rng = rng.s;
   return league;
+}
+
+/**
+ * Real players who are free agents right now (elected free agency / released this winter)
+ * leave their 2026 clubs for the open market. Clubs keep the budgets their payrolls earned.
+ * Returns whether anyone was moved.
+ */
+function openRealMarket(league: League, deals: ContractFile): boolean {
+  let moved = 0;
+  const touched = new Set<number>();
+  for (const [key, info] of Object.entries(deals.fa ?? {})) {
+    const p = league.players[Number(key)];
+    if (!p || !p.real || p.status === "fa" || !p.team) continue;
+    const t = league.teams[p.team];
+    p.prevTeam = p.team;
+    touched.add(p.team);
+    t.lineup = t.lineup.filter((s) => s.id !== p.id);
+    t.rotation = t.rotation.filter((id) => id !== p.id);
+    t.setup = t.setup.filter((id) => id !== p.id);
+    if (t.closer === p.id) t.closer = null;
+    p.team = 0;
+    p.status = "fa";
+    p.on40 = false;
+    p.contract = { ...askingTerms(p), kind: "fa", signed: league.season, est: true };
+    if (info.from && info.from !== p.prevTeam && league.teams[info.from]) p.prevTeam = info.from;
+    moved += 1;
+  }
+  for (const id of touched) {
+    normalizeRoster(league, id, { offseason: true });
+    autoDepth(league, id);
+  }
+  if (moved) news(league, `${moved} players hit free agency this winter.`, undefined, "signing");
+  return moved > 0;
 }

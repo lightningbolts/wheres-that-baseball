@@ -4,7 +4,7 @@
  * resolver (fielding) and the renderer both consume.
  */
 import { stepFlight, type BallState } from "@/lib/game/physics/ballFlight";
-import { SURFACES, isBeyondBases, isFairPosition, type Park } from "@/lib/game/physics/park";
+import { SURFACES, isBeyondBases, isFairPosition, tropRoofHit, type CatwalkRing, type Park } from "@/lib/game/physics/park";
 import { add, horizDist, len, scale, sprayAngleDeg, v3, type V3 } from "@/lib/game/math";
 
 export type BallPhase = "air" | "bounce" | "roll" | "dead";
@@ -33,6 +33,15 @@ export interface BattedBallPath {
   distance: number;
   hitWall: boolean;
   /**
+   * First time the ball touched the outfield wall. From then on it's a live ball: a fielder
+   * who gloves it off the wall before it lands has *not* caught a fly (no out).
+   */
+  wallT: number | null;
+  /** Wrigley Field: the ball stuck in the ivy (ground-rule double unless fielded first). */
+  lodged: boolean;
+  /** Tropicana Field: catwalk ring the ball struck, and when. */
+  catwalk: { ring: CatwalkRing; t: number } | null;
+  /**
    * Render-only continuation after the ball leaves play (home runs and foul balls into the
    * seats): it carries on, clatters off the seats and comes to rest. Not part of `endT`.
    */
@@ -53,7 +62,10 @@ export function simulateBattedBall(start: BallState, park: Park): BattedBallPath
   let foulOut = false;
   let hitWall = false;
   let apex = s.p.y;
-  let touched = false; // touched ground (or wall) yet
+  let touched = false; // touched the ground yet
+  let wallT: number | null = null;
+  let lodged = false;
+  let catwalk: BattedBallPath["catwalk"] = null;
   const samples: BallSample[] = [{ t, p: s.p, v: s.v, phase }];
   let step = 0;
 
@@ -86,6 +98,8 @@ export function simulateBattedBall(start: BallState, park: Park): BattedBallPath
     // Fence / home run.
     if (fairAngle && r >= park.fence(spray)) {
       if (s.p.y >= park.wallHeight(spray)) {
+        // Over the fence: a homer unless it bounced first (off the wall on the fly — top of
+        // the Monster, the yellow line — still counts).
         if (touched) grd = true;
         else homeRun = true;
         samples.push({ t, p: s.p, v: s.v, phase: "dead" });
@@ -93,9 +107,18 @@ export function simulateBattedBall(start: BallState, park: Park): BattedBallPath
       }
       // Carom off the wall: kill most radial speed, keep some tangential.
       hitWall = true;
-      touched = true;
       const radial = scale(v3(s.p.x, 0, s.p.z), 1 / r);
       const vr = s.v.x * radial.x + s.v.z * radial.z;
+      if (wallT == null) {
+        wallT = t;
+        if (park.rules.ivy && ivyHolds(s, vr)) {
+          // Wrigley: it dies in the vines at the base of the wall.
+          lodged = true;
+          s = { p: add(scale(radial, park.fence(spray) - 0.5), v3(0, Math.min(s.p.y, park.wallHeight(spray) - 1), 0)), v: v3(), w: v3() };
+          samples.push({ t, p: s.p, v: s.v, phase: "dead" });
+          break;
+        }
+      }
       if (vr > 0) {
         const vRad = scale(radial, vr);
         const vTan = v3(s.v.x - vRad.x, 0, s.v.z - vRad.z);
@@ -113,6 +136,23 @@ export function simulateBattedBall(start: BallState, park: Park): BattedBallPath
           samples.push({ t, p: s.p, v: s.v, phase: "dead" });
           break;
         }
+      }
+    }
+
+    // Tropicana Field's roof: catwalk rings and the fabric above them.
+    if (park.rules.catwalks && !catwalk) {
+      const ring = tropRoofHit(s.p);
+      if (ring) {
+        catwalk = { ring, t };
+        if (ring === "C" || ring === "D") {
+          // Outer rings: a home run over fair territory, dead (foul) over foul ground.
+          if (fairAngle) homeRun = true;
+          else foulOut = true;
+          samples.push({ t, p: s.p, v: s.v, phase: "dead" });
+          break;
+        }
+        // A / B ring: knocked down, still live (catchable).
+        s = { p: s.p, v: v3(s.v.x * 0.35, -Math.abs(s.v.y) * 0.25, s.v.z * 0.35), w: v3() };
       }
     }
 
@@ -150,9 +190,25 @@ export function simulateBattedBall(start: BallState, park: Park): BattedBallPath
     apex,
     distance,
     hitWall,
+    wallT,
+    lodged,
+    catwalk,
     tail,
   };
 }
+
+/**
+ * Does a ball that reaches Wrigley's ivy stay in it? Hard liners carom off the brick; a ball
+ * that bounces or rolls up to the vines, or arrives soft, often dies in them. Deterministic
+ * per trajectory (the path has to be reproducible), roughly 1 in 7 for slow balls.
+ */
+function ivyHolds(s: BallState, radialSpeed: number): boolean {
+  if (s.p.y > 11) return false;
+  const p = radialSpeed < 35 ? 0.14 : radialSpeed < 60 ? 0.04 : 0.01;
+  const h = Math.sin(s.v.x * 12.9898 + s.v.z * 78.233 + s.p.y * 37.719) * 43758.5453;
+  return h - Math.floor(h) < p;
+}
+
 
 /** Rake of a seating bowl: feet of rise per foot back. */
 const SEAT_RAKE = 0.45;
@@ -242,6 +298,8 @@ export function judgeFair(path: BattedBallPath, touchT: number | null): boolean 
   if (path.homeRun) return true;
   if (path.outOfPlayFoul && !path.firstLanding) return false;
   const fl = path.firstLanding;
+  // Off the outfield wall before landing: the wall stands in fair territory.
+  if (path.wallT != null && (!fl || path.wallT < fl.t)) return true;
   if (fl && isBeyondBases(fl.p)) return isFairPosition(fl.p);
   if (!fl) {
     // Caught (or touched) in the air: fair if touched over fair territory.
