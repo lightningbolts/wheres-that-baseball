@@ -205,28 +205,44 @@ export function stepAutoTier(dir: -1 | 1): boolean {
 export interface GovernorOptions {
   /** Length of one frame-rate sample, ms. */
   windowMs: number;
-  /** Samples per verdict. */
+  /** Samples per step-down verdict. */
   samples: number;
+  /** Samples (all fast) before stepping back up. */
+  upSamples: number;
   /** Frame rate the game aims for. Fixed: a scene that never reaches it must still step down. */
   target: number;
-  /** Step down when most samples are under target × down… */
+  /** Step down when at least `slowShare` of samples are under target × down… */
   down: number;
-  /** …and back up when most are over target × up. */
+  slowShare: number;
+  /** …and back up only when every sample over `upSamples` is over target × up. */
   up: number;
-  /** Stop adjusting after this many real reversals (down then up, or up then down). */
-  maxReversals: number;
   /** After a tier change, wait this long before sampling (shaders, shadow maps rebuild). */
   settleMs: number;
   /** A gap this long between frames (hidden tab, a stall) throws the current sample away. */
   gapMs: number;
 }
 
-const GOVERNOR: GovernorOptions = { windowMs: 500, samples: 6, target: 60, down: 0.75, up: 0.95, maxReversals: 3, settleMs: 2000, gapMs: 250 };
+const GOVERNOR: GovernorOptions = {
+  windowMs: 500,
+  samples: 8,
+  upSamples: 60,
+  target: 60,
+  down: 0.75,
+  slowShare: 0.75,
+  up: 0.95,
+  settleMs: 2000,
+  gapMs: 250,
+};
 
 /**
  * Auto's frame-rate judge. Feed it every frame's timestamp; it answers -1 (step down),
- * 1 (step up) or 0. Report what the step did with `stepped`: steps that leave the tier
- * where it was (already at the top or bottom) never count toward giving up.
+ * 1 (step up) or 0. Report what the step did with `stepped`.
+ *
+ * Every tier change is visible (the canvas resizes, the shadow map is rebuilt, the crowd
+ * thins or fills), so the governor is deliberately sluggish: it steps down only on a
+ * sustained slow spell, steps up only after a long fully smooth one (a capped 60 Hz display
+ * reads "smooth" the moment a step down frees any headroom, so a quick step up just
+ * oscillates), and once a step up has to be undone it settles on the lower tier for good.
  */
 export class FpsGovernor {
   private readonly o: GovernorOptions;
@@ -234,9 +250,10 @@ export class FpsGovernor {
   private last = -1;
   private frames = 0;
   private fps: number[] = [];
+  /** Consecutive fast samples. */
+  private fastRun = 0;
   private lastDir = 0;
   private holdUntil = 0;
-  reversals = 0;
   stopped = false;
 
   constructor(o: Partial<GovernorOptions> = {}) {
@@ -255,25 +272,35 @@ export class FpsGovernor {
     this.frames += 1;
     const span = now - this.winStart;
     if (span < this.o.windowMs) return 0;
-    this.fps.push((this.frames / span) * 1000);
+    const f = (this.frames / span) * 1000;
     this.winStart = now;
     this.frames = 0;
+    this.fastRun = f >= this.o.target * this.o.up ? this.fastRun + 1 : 0;
+    if (this.fastRun >= this.o.upSamples) {
+      this.fastRun = 0;
+      this.fps = [];
+      return 1;
+    }
+    this.fps.push(f);
     if (this.fps.length < this.o.samples) return 0;
-    const slow = this.fps.filter((f) => f < this.o.target * this.o.down).length;
-    const fast = this.fps.filter((f) => f >= this.o.target * this.o.up).length;
-    this.fps = [];
-    const half = this.o.samples / 2;
-    return slow > half ? -1 : fast > half ? 1 : 0;
+    const slow = this.fps.filter((x) => x < this.o.target * this.o.down).length;
+    this.fps.shift();
+    if (slow >= this.o.samples * this.o.slowShare) {
+      this.fps = [];
+      return -1;
+    }
+    return 0;
   }
 
   stepped(dir: -1 | 1, changedTier: boolean, now: number): void {
     if (!changedTier) return;
-    if (this.lastDir !== 0 && dir !== this.lastDir) this.reversals += 1;
+    // The tier it climbed back to couldn't hold: stay below it from now on.
+    if (dir === -1 && this.lastDir === 1) this.stopped = true;
     this.lastDir = dir;
     this.fps = [];
+    this.fastRun = 0;
     this.winStart = -1;
     this.holdUntil = now + this.o.settleMs;
-    if (this.reversals >= this.o.maxReversals) this.stopped = true;
   }
 }
 
