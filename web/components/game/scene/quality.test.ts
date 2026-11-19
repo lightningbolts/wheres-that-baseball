@@ -60,34 +60,44 @@ describe("Auto's frame-rate governor", () => {
 
   it("steps down a scene that is slow from the very first frame", () => {
     const g = new FpsGovernor();
-    expect(play(g, 0, 4000, 30).out).toContain(-1);
+    expect(play(g, 0, 5000, 30).out).toContain(-1);
   });
 
-  it("leaves a smooth scene alone, and steps up when it is smooth below the top", () => {
+  it("leaves a smooth scene alone, and steps up only after a long smooth spell", () => {
     const g = new FpsGovernor();
-    const { out } = play(g, 0, 4000, 60);
+    expect(play(g, 0, 20_000, 60).out).toEqual([]);
+    const { out } = play(g, 20_000, 40_000, 60);
     expect(out.every((d) => d === 1)).toBe(true);
     expect(out.length).toBeGreaterThan(0);
+  });
+
+  it("rides out a short slow stretch (a busy play, a GC pause) without stepping", () => {
+    const g = new FpsGovernor();
+    let t = play(g, 0, 5000, 60).now;
+    t = play(g, t, 2500, 30).now;
+    expect(play(g, t, 5000, 60).out).toEqual([]);
   });
 
   it("no-op steps never use up its patience: still steps down after a long healthy spell", () => {
     const g = new FpsGovernor();
     // Already at the top tier: every step up changes nothing.
-    const a = play(g, 0, 60_000, 60, () => false);
-    expect(a.out.length).toBeGreaterThan(5);
+    const a = play(g, 0, 120_000, 60, () => false);
+    expect(a.out.length).toBeGreaterThan(1);
     expect(g.stopped).toBe(false);
     expect(play(g, a.now, 7000, 25).out).toContain(-1);
   });
 
-  it("gives up after three real reversals", () => {
+  it("never oscillates: a step up that has to be undone settles on the lower tier", () => {
     const g = new FpsGovernor();
-    let t = 0;
-    for (let i = 0; i < 3; i += 1) {
-      t = play(g, t, 6000, 25, () => true).now;
-      t = play(g, t, 6000, 60, () => true).now;
-    }
+    // Slow at the top: down. Smooth below: eventually back up. Slow again: down, and stop.
+    let r = play(g, 0, 8000, 25, () => true);
+    expect(r.out).toEqual([-1]);
+    r = play(g, r.now, 40_000, 60, () => true);
+    expect(r.out).toEqual([1]);
+    r = play(g, r.now, 8000, 25, () => true);
+    expect(r.out).toEqual([-1]);
     expect(g.stopped).toBe(true);
-    expect(play(g, t, 6000, 20).out).toEqual([]);
+    expect(play(g, r.now, 60_000, 60).out).toEqual([]);
   });
 
   it("a hidden tab's pause is not read as a slow frame rate", () => {
