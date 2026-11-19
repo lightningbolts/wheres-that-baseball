@@ -31,7 +31,7 @@ export function callIsWrong(result: Pick<PitchResult, "kind" | "inZone">): boole
 
 /** The call as the automated zone has it. */
 export function overturned(result: PitchResult): PitchResult {
-  return { ...result, kind: result.kind === "called_strike" ? "ball" : "called_strike", wildPitch: false };
+  return { ...result, kind: result.kind === "called_strike" ? "ball" : "called_strike", wildPitch: false, absOverturned: true };
 }
 
 /**

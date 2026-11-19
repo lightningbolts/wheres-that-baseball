@@ -9,6 +9,7 @@ import { gamesOn } from "@/lib/game/franchise/season";
 import { divisionStandings, gamesBack, lastTen, streak } from "@/lib/game/franchise/standings";
 import type { League, ScheduledGame } from "@/lib/game/franchise/types";
 import { cn } from "@/lib/utils";
+import { umpById } from "@/lib/game/umpires/data";
 import { Btn, Card, Segmented, Stat, Table, TeamDot, td, th, type TabProps } from "../ui";
 
 function GameRow({ league, g, onPlay }: { league: League; g: ScheduledGame; onPlay?: (id: number) => void }) {
@@ -18,6 +19,7 @@ function GameRow({ league, g, onPlay }: { league: League; g: ScheduledGame; onPl
   const r = g.result;
   const won = r ? (home ? r.hs > r.as : r.as > r.hs) : null;
   const n = (id?: number) => (id ? league.players[id]?.name.split(" ").slice(-1)[0] : null);
+  const ump = umpById(g.ump);
   return (
     <tr>
       <td className={cn(td, "whitespace-nowrap text-secondary")}>{fmtDate(league.calendar, g.day)}</td>
@@ -42,7 +44,7 @@ function GameRow({ league, g, onPlay }: { league: League; g: ScheduledGame; onPl
         )}
       </td>
       <td className={cn(td, "whitespace-nowrap text-xs text-secondary")}>
-        {r && [r.wp && `W: ${n(r.wp)}`, r.lp && `L: ${n(r.lp)}`, r.sv && `S: ${n(r.sv)}`].filter(Boolean).join(" · ")}
+        {[r?.wp && `W: ${n(r.wp)}`, r?.lp && `L: ${n(r.lp)}`, r?.sv && `S: ${n(r.sv)}`, ump && `HP: ${ump.name}`].filter(Boolean).join(" · ")}
       </td>
     </tr>
   );

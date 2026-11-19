@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { ariaSort, nextSort, sortRows } from "@/components/game/sort";
 import { SmallBtn } from "./ui";
 
 export interface Col<R> {
@@ -62,14 +63,7 @@ export function StatTable<R extends { id: number }>({
   const col = cols.find((c) => c.key === sort.key) ?? cols[0];
 
   const sorted = useMemo(() => {
-    const out = [...rows];
-    out.sort((a, b) => {
-      const x = col.get(a);
-      const y = col.get(b);
-      const d = typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y));
-      return sort.asc ? d : -d;
-    });
-    return out;
+    return sortRows(rows, col.get, sort.asc);
   }, [rows, col, sort.asc]);
 
   const leaders = useMemo(() => {
@@ -94,7 +88,7 @@ export function StatTable<R extends { id: number }>({
 
   const onHead = (c: Col<R>) => {
     setPage(0);
-    setSort((s) => (s.key === c.key ? { key: c.key, asc: !s.asc } : { key: c.key, asc: !!c.low || !!c.text }));
+    setSort((s) => nextSort(s, c.key, !!c.low || !!c.text));
   };
 
   if (!rows.length) return <p className="py-6 text-center text-sm text-secondary">{empty}</p>;
@@ -110,6 +104,7 @@ export function StatTable<R extends { id: number }>({
                 <th
                   key={c.key}
                   title={c.title}
+                  aria-sort={ariaSort(sort, c.key)}
                   onClick={() => onHead(c)}
                   className={cn(
                     "cursor-pointer select-none whitespace-nowrap border-b border-border px-1.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-secondary hover:text-foreground",

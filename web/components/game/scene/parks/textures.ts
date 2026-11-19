@@ -223,9 +223,8 @@ export function detailTexture(): THREE.CanvasTexture {
   return t;
 }
 
-/** Whole-field mowing pattern and grass detail (one 2048² image over the playing surface). */
-export function mowTexture(mow: ParkLayout["mow"], turf: boolean): THREE.CanvasTexture {
-  const N = 2048;
+/** Whole-field mowing pattern and grass detail (one N² image over the playing surface; 2048² by default). */
+export function mowTexture(mow: ParkLayout["mow"], turf: boolean, N = 2048): THREE.CanvasTexture {
   const [c, g] = canvas(N, N);
   const k = N / TURF_SPAN;
   const [a, b] = turf ? ["#3a783c", "#3f803e"] : ["#3a7836", "#4c9143"];

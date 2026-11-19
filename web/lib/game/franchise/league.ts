@@ -13,6 +13,7 @@ import { projectRosterPlayer, type ProjectionFile } from "./projections";
 import { autoDepth, news, normalizeRoster, orgPlayers } from "./roster";
 import { buildSchedule } from "./schedule";
 import type { League, Player, Strategy, TeamState } from "./types";
+import { ensureUmpires } from "./umpires";
 
 export const FRANCHISE_VERSION = 1;
 export const FIRST_SEASON = 2027;
@@ -325,6 +326,7 @@ export function createLeague(rosters: RosterFile, opts: NewLeagueOpts): League {
     });
   }
   league.rng = rng.s;
+  ensureUmpires(league);
   return league;
 }
 

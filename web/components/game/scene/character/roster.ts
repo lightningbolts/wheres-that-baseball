@@ -5,6 +5,7 @@
  */
 
 import { getTeamById } from "@/lib/mlb/teams";
+import type { TeamModel } from "@/lib/game/ratings";
 
 export interface Identity {
   /** Last name as lettered on the jersey (upper case), or "". */
@@ -78,6 +79,8 @@ export function identityOf(p: RosterPlayer, team = ""): Identity {
 }
 
 const table = new Map<number, Identity>();
+/** The players of the game being played, from its own rosters: franchise mode's 40-man extras and generated players are not in rosters.json. */
+const live = new Map<number, Identity>();
 let version = 0;
 let requested = false;
 
@@ -108,11 +111,48 @@ export function loadRoster(): void {
     });
 }
 
+/**
+ * Register the players of the game about to be played (both clubs, as GameView gets them),
+ * so everyone on the field is drawn as himself: name, number, build and skin tone. Real
+ * players carry their own sampled tone; generated (franchise) players have none and get
+ * the neutral stand-in. Replaces the previous game's players.
+ */
+export function registerTeams(teams: Iterable<TeamModel>): void {
+  live.clear();
+  for (const t of teams) {
+    const club = getTeamById(t.teamId);
+    const word = club ? nickname(club.name) : "";
+    for (const m of [...t.lineup, ...t.bench, ...t.rotation, ...t.bullpen]) {
+      if (m.raw && typeof m.raw.id === "number" && !live.has(m.raw.id)) live.set(m.raw.id, identityOf(m.raw, word));
+    }
+  }
+  version += 1;
+}
+
+/**
+ * Stand-in tones for players without a usable headshot (generated players, the generic
+ * silhouette, or before the roster has loaded): a narrow band of mid-tones around the
+ * roster median, fixed per player, rather than random extremes.
+ */
+export const NEUTRAL_SKIN = [0xc98f70, 0xbf8466, 0xd29a7c, 0xb77c5e] as const;
+export const neutralSkin = (id: number) => NEUTRAL_SKIN[Math.abs(Math.trunc(id) * 7919) % NEUTRAL_SKIN.length];
+
+/** The tone to paint a player's skin (0xRRGGBB): his own when known, else the neutral stand-in. */
+export function skinTone(id: number): number {
+  return identity(id).skin ?? neutralSkin(id);
+}
+
 const fallbacks = new Map<number, Identity>();
 
 export function identity(id: number): Identity {
-  const hit = table.get(id);
-  if (hit) return hit;
+  const mine = live.get(id);
+  const file = table.get(id);
+  if (mine) {
+    // The game's roster entry wins (current club, current number); the roster file fills a missing tone.
+    if (mine.skin === null && file && file.skin !== null) mine.skin = file.skin;
+    return mine;
+  }
+  if (file) return file;
   let f = fallbacks.get(id);
   if (!f) {
     if (fallbacks.size > 500) fallbacks.clear();

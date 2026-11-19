@@ -12,6 +12,7 @@ import { canPitch, defAt, isPosPlayer, tripleShare } from "./ratings";
 import type { FRng } from "./rng";
 import { isHealthy } from "./roster";
 import { emptyBat, emptyPit, type BatLine, type League, type PitLine, type Player, type TeamState } from "./types";
+import type { UmpCard } from "@/lib/game/umpires/scorecard";
 
 const log5 = (b: number, p: number, l: number): number => {
   const x = (b * p) / l;
@@ -70,6 +71,8 @@ export interface GameOutcome {
   lp?: number;
   sv?: number;
   hits: [number, number];
+  /** Plate umpire's scorecard. */
+  uc?: UmpCard;
 }
 
 // ---------------------------------------------------------------------------
@@ -142,6 +145,8 @@ export interface SimInput {
   homeStarter?: Player | null;
   /** Postseason: shorter starter leash, aces on 4 days' rest. */
   postseason?: boolean;
+  /** Plate umpire's zone: strikeout / walk multipliers (absent = average umpire). */
+  zone?: { k: number; bb: number };
 }
 
 function makePit(p: Player, starter: boolean, lead: number, rng: FRng, post: boolean): SPit {
@@ -187,6 +192,8 @@ export function simGame(input: SimInput): GameOutcome {
   const parkHr = park.hr;
   const parkHit = 1 + (park.run - 1) * 0.35;
   const parkXbh = 1 + (park.run - 1) * 0.6;
+  const zoneK = input.zone?.k ?? 1;
+  const zoneBB = input.zone?.bb ?? 1;
 
   let wpCand: SPit | null = null;
   let lpCand: SPit | null = null;
@@ -267,8 +274,8 @@ export function simGame(input: SimInput): GameOutcome {
     // Fatigue past the pitch limit; third time through the order.
     const over = Math.max(0, pit.pitches - pit.limit * 0.85) / 30;
     const tto = pit.starter && bat.idx > 18 ? 1.04 : 1;
-    const kP = log5(bs.k, ps.k, LG.k) * (same ? 1.05 : 0.97) * (1 - over * 0.15);
-    const bbP = log5(bs.bb, ps.bb, LG.bb) * (1 + over * 0.25) * (same ? 1 : 1.02);
+    const kP = log5(bs.k, ps.k, LG.k) * (same ? 1.05 : 0.97) * (1 - over * 0.15) * zoneK;
+    const bbP = log5(bs.bb, ps.bb, LG.bb) * (1 + over * 0.25) * (same ? 1 : 1.02) * zoneBB;
     const hrP = log5(bs.hr, ps.hr, LG.hr) * parkHr * (same ? 0.88 : 1.05) * (1 + over * 0.3) * tto;
     const hbpP = LG.hbp;
     const bl = b.line;

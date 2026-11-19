@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useLayoutEffect, useMemo } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import type { Park } from "@/lib/game/physics/park";
 import { timeOfDay, type TimeOfDay } from "@/components/game/scene/parks/tod";
+import { useQuality } from "@/components/game/scene/quality";
 
 interface Preset {
   /** Direction toward the key light (sun, or the light ring at night). */
@@ -98,7 +99,8 @@ void main(){
   col += discCol * (smoothstep(0.9994, 0.9997, sd) * 1.2 + pow(sd, 14.0) * 0.2);
   if (d.y > 0.01) {
     vec2 uv = d.xz / (d.y + 0.2) * 1.3 + vec2(uTime * 0.003, 0.0);
-    float c = smoothstep(0.5, 0.78, fbm(uv)) * cloud * smoothstep(0.01, 0.16, d.y);
+    // The noise is the expensive part of the sky (every sky pixel): skipped when clouds are off.
+    float c = cloud > 0.0 ? smoothstep(0.5, 0.78, fbm(uv)) * cloud * smoothstep(0.01, 0.16, d.y) : 0.0;
     vec3 g = floor(d * 240.0);
     float star = step(0.9982, h21(g.xy + g.z * 17.3)) * smoothstep(0.04, 0.3, d.y);
     col += vec3(stars * star) * (1.0 - c);
@@ -113,6 +115,7 @@ export function Environment({ park }: { park: Park }) {
   const tod = useMemo(() => timeOfDay(park.venueId), [park.venueId]);
   const p = PRESETS[tod];
   const { scene } = useThree();
+  const { live } = useQuality();
 
   useEffect(() => {
     scene.fog = new THREE.Fog(p.fog[0], p.fog[1], p.fog[2]);
@@ -144,6 +147,9 @@ export function Environment({ park }: { park: Park }) {
     [p],
   );
   useEffect(() => () => sky.dispose(), [sky]);
+  useEffect(() => {
+    sky.uniforms.cloud.value = live.clouds ? p.cloud : 0;
+  }, [sky, live.clouds, p]);
 
   const light = useMemo(() => {
     const l = new THREE.DirectionalLight(p.keyColor, p.keyPower);
@@ -151,8 +157,6 @@ export function Environment({ park }: { park: Park }) {
     l.target.position.set(0, 0, 170);
     l.position.copy(l.target.position).addScaledVector(dir, 800);
     l.castShadow = true;
-    const small = typeof window !== "undefined" && window.innerWidth < 900;
-    l.shadow.mapSize.set(small ? 2048 : 4096, small ? 2048 : 4096);
     const c = l.shadow.camera;
     c.left = -340;
     c.right = 340;
@@ -161,13 +165,16 @@ export function Environment({ park }: { park: Park }) {
     c.near = 80;
     c.far = 1700;
     l.shadow.bias = -0.0004;
-    l.shadow.normalBias = 0.6;
     // Softer, lighter shadows away from midday.
     l.shadow.radius = tod === "day" ? 1.5 : 3;
     l.shadow.intensity = tod === "day" ? 0.85 : 0.7;
     return l;
   }, [p, tod]);
   useEffect(() => () => light.dispose(), [light]);
+
+  // Shadow map size follows the graphics tier (halved on small windows); a new size needs a new map.
+  const small = typeof window !== "undefined" && window.innerWidth < 900;
+  const mapSize = Math.min(live.shadowMap, small ? 2048 : 4096);
 
   // One shadow map for the whole park is ~2 in per texel: jagged player shadows. Instead
   // fit the shadow camera to the ground the view is looking at (tight at the plate,
@@ -178,6 +185,15 @@ export function Environment({ park }: { park: Park }) {
     const up = new THREE.Vector3().crossVectors(right, dir).normalize();
     return { fwd: new THREE.Vector3(), c: new THREE.Vector3(), half: 0, dir, right, up };
   }, [p]);
+  // Before the next frame renders, so the first frame never builds a default-size map.
+  useLayoutEffect(() => {
+    if (light.shadow.mapSize.x === mapSize) return;
+    light.shadow.mapSize.set(mapSize, mapSize);
+    light.shadow.map?.dispose();
+    light.shadow.map = null;
+    // Refit (and re-derive the bias) for the new texel size on the next frame.
+    fit.half = 0;
+  }, [light, mapSize, fit]);
   useFrame((state) => {
     sky.uniforms.uTime.value = state.clock.elapsedTime;
     const cam = state.camera as THREE.PerspectiveCamera;
@@ -202,9 +218,12 @@ export function Environment({ park }: { park: Park }) {
       sc.top = q;
       sc.bottom = -q;
       sc.updateProjectionMatrix();
-      light.shadow.normalBias = 0.6 * (q / 340);
     }
     const texel = (2 * q) / light.shadow.mapSize.x;
+    // Normal offset in shadow texels, not feet: it was 0.6 ft at a 340 ft half-box on a 4096
+    // map (3.6 texels), so a 2048 map (small windows, phones) got half the texels' worth and
+    // surfaces facing the light shadowed themselves in stripes that crawled as the box moved.
+    light.shadow.normalBias = 3.6 * texel;
     // Snap the center along the light's own axes.
     const u = Math.round(fit.c.dot(fit.right) / texel) * texel;
     const v = Math.round(fit.c.dot(fit.up) / texel) * texel;

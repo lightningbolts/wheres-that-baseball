@@ -77,6 +77,17 @@ export const DEFAULT_REACTION: Record<FieldPos, number> = {
   RF: 0.55,
 };
 
+/**
+ * Pitchers are not sprinters, and they field from the end of a follow-through: whatever the
+ * roster says, nobody on the mound is shown (or timed) faster than this, ft/s.
+ */
+export const PITCHER_TOP_SPEED = 25;
+
+/** A fielder's usable top speed, ft/s (the pitcher is capped at PITCHER_TOP_SPEED). */
+export function topSpeed(f: Pick<Fielder, "pos" | "sprint">): number {
+  return f.pos === "P" ? Math.min(f.sprint, PITCHER_TOP_SPEED) : f.sprint;
+}
+
 export const isInfielder = (pos: FieldPos) => pos === "1B" || pos === "2B" || pos === "SS" || pos === "3B" || pos === "P";
 export const isOutfielder = (pos: FieldPos) => pos === "LF" || pos === "CF" || pos === "RF";
 

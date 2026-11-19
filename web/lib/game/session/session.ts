@@ -4,6 +4,8 @@
  * Every pitch's human inputs are recorded; replaying them with the same seed
  * reproduces the game exactly (save / resume = setup + inputs).
  */
+import type { Umpire } from "@/lib/game/umpires/data";
+import type { GameStakes } from "@/lib/game/rules/celebration";
 import { CPU, cpuChoosePitch, cpuDecideSwing } from "@/lib/game/ai/cpu";
 import { cpuWantsSteal, resolveSteal, stealRace, withPitchSpeed, type StealFrom, type StealRace } from "@/lib/game/ai/baserunning";
 import {
@@ -65,6 +67,13 @@ export interface GameSetup {
    * recorded pitches must replay under the calls they were played with).
    */
   cpuAbs?: 1 | 2;
+  /**
+   * The plate umpire and his zone (franchise games). Absent = a league-average umpire,
+   * which is how every game saved before umpires existed replays.
+   */
+  ump?: Umpire;
+  /** What a win means for each club (franchise: clinching, series, titles); drives the postgame celebration. */
+  stakes?: GameStakes;
 }
 
 /** Everything a human decided on one pitch. `cpu` = that pitch was auto-played. */
@@ -162,6 +171,7 @@ export class GameSession {
       abs: !!setup.abs,
       postseason: !!setup.postseason,
       pickoffs: !!setup.pickoffs,
+      ump: setup.ump ?? null,
     });
   }
 

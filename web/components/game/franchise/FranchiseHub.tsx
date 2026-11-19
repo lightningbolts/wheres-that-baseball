@@ -23,6 +23,7 @@ import { TradesTab } from "./tabs/TradesTab";
 import { FreeAgencyTab } from "./tabs/FreeAgencyTab";
 import { FinancesTab } from "./tabs/FinancesTab";
 import { PlayoffsTab } from "./tabs/PlayoffsTab";
+import { UmpiresTab } from "./tabs/UmpiresTab";
 
 const TABS = [
   { id: "home", label: "Dashboard" },
@@ -30,6 +31,7 @@ const TABS = [
   { id: "lineup", label: "Lineup" },
   { id: "standings", label: "Standings" },
   { id: "stats", label: "Stats" },
+  { id: "umps", label: "Umpires" },
   { id: "trades", label: "Trades" },
   { id: "fa", label: "Free Agency" },
   { id: "fin", label: "Finances" },
@@ -200,6 +202,7 @@ export function FranchiseHub({
           {tab === "lineup" && <LineupTab league={league} act={act} />}
           {tab === "standings" && <StandingsTab league={league} act={act} />}
           {tab === "stats" && <StatsTab league={league} act={act} />}
+          {tab === "umps" && <UmpiresTab league={league} act={act} />}
           {tab === "trades" && <TradesTab league={league} act={act} />}
           {tab === "fa" && <FreeAgencyTab league={league} act={act} />}
           {tab === "fin" && <FinancesTab league={league} act={act} />}

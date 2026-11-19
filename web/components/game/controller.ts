@@ -17,7 +17,7 @@ import { batSide, type BatterModel, type PitcherModel, type TeamModel } from "@/
 import { Rng, clamp } from "@/lib/game/math";
 import { homeWinProbability } from "@/lib/mlb/winExpectancy";
 import { getTeamColor } from "@/lib/mlb/teamColors";
-import { beginTransition, walkUpLeft, type CamMode, type Playback } from "@/components/game/scene/playback";
+import { beginTransition, fielderKey, runnerKey, walkUpLeft, type CamMode, type Playback } from "@/components/game/scene/playback";
 import { camCut } from "@/components/game/scene/camera";
 import type { PitchRecord } from "@/lib/game/stats/pitchLog";
 import { MARK_COLOR, plateHud, type MarkKind, type PitchMark, type PlateHud } from "@/components/game/scene/view";
@@ -26,8 +26,27 @@ import { zoneMiss, type AbsChallengerRole, type ZoneMissSide } from "@/lib/game/
 import { sfx } from "@/components/game/audio";
 import { crowdReaction, crowdRise, crowdVolume, type CrowdInput } from "@/lib/game/crowd/reaction";
 import { saveGame, clearSave } from "@/components/game/save";
+import { detectCelebration, type Celebration, type CelebrationStyle, type StakeKind } from "@/lib/game/rules/celebration";
+import { DUGOUT_FRONT, buildCelebrationTimeline, withPlateMob, type XZ } from "@/lib/game/anim/celebration";
 
-export type Phase = "aim" | "meter" | "ready" | "pitch" | "play" | "between" | "final" | "handoff" | "challenge" | "review" | "pickoff";
+export type Phase = "aim" | "meter" | "ready" | "pitch" | "play" | "between" | "celebrate" | "final" | "handoff" | "challenge" | "review" | "pickoff";
+
+/** The postgame celebration on screen (see lib/game/rules/celebration). */
+export interface CelebrationView {
+  style: CelebrationStyle;
+  title: string;
+  sub: string;
+  /** Good / bad news for the one human player (neutral: two players or a CPU game). */
+  tone: "good" | "bad" | "neutral";
+  /** The human's club lost: the overlay is played down. */
+  subdued: boolean;
+  winnerTeamId: number;
+  feat: Celebration["feat"];
+  stake: StakeKind | null;
+  walkoff: boolean;
+  fireworks: boolean;
+  confetti: boolean;
+}
 
 export interface HudSnapshot {
   phase: Phase;
@@ -126,12 +145,20 @@ export interface HudSnapshot {
   handoff: { title: string; sub: string } | null;
   /** Two players: whose turn it is at the controls right now ("P1" = away, "P2" = home). */
   turn: { player: "P1" | "P2"; teamId: number; role: "pitch" | "bat" } | null;
+  /** Postgame: the winners celebrating (phase "celebrate"), before the final screen. */
+  celebration: CelebrationView | null;
 }
 
 /** A broadcast cut dips to black for this long before the shot changes (ms). */
 const DIP_MS = 150;
 /** How long the inning bumper holds the screen (ms). */
 const BUMPER_MS = 800;
+/** After the last out the play stays on screen this long before the celebration (ms). */
+const FINAL_HOLD_MS = 1300;
+/** The celebration can be skipped once it has been up this long (ms): a late swing press never skips it by accident. */
+const SKIP_AFTER_MS = 500;
+/** Walk-off mob: how many more of the winners come out of the dugout. */
+const MOB_SIZE = 5;
 
 /** What the HUD shows of the game state. It trails the session, which knows a pitch's outcome before the pitch is shown. */
 type Board = Pick<
@@ -307,6 +334,10 @@ export class GameController {
   private lockedPitch: PitchInput["pitch"] | null = null;
   private handoff: HudSnapshot["handoff"] = null;
   private handoffNext: (() => void) | null = null;
+  private celebration: CelebrationView | null = null;
+  /** The postgame has begun (hold, celebration or final screen): it only runs once. */
+  private celebrated = false;
+  private celebrateAt = 0;
 
   readonly setup: GameSetup;
 
@@ -432,6 +463,7 @@ export class GameController {
     sfx.startCrowd();
     this.drawScoreboard();
     if (this.session.game.final) {
+      this.celebrated = true;
       this.phase = "final";
       this.emit();
       return;
@@ -447,6 +479,12 @@ export class GameController {
   private next(cut = false, opening = false) {
     const s = this.session;
     if (s.game.final) {
+      // Simmed to the end: the winners still get their moment.
+      if (!this.celebrated) {
+        this.celebrated = true;
+        this.celebrate([]);
+        return;
+      }
       this.phase = "final";
       this.setCam("overview", cut);
       clearSave();
@@ -670,7 +708,7 @@ export class GameController {
     const inningOver = k.events.some((e) => e.kind === "inning_end");
     const big = k.outcome !== "safe" || k.events.some((e) => e.kind === "balk");
     if (s.game.final) {
-      this.later(this.turbo ? 600 : 1800, () => this.advance());
+      this.holdForFinal(k.events);
       return;
     }
     this.later(this.turbo ? 200 : inningOver ? 900 : big ? 1300 : 150, () => {
@@ -682,6 +720,172 @@ export class GameController {
       if (inningOver) this.next(true, true);
       else this.advance();
     });
+  }
+
+  // ---------- postgame ----------
+  /** The last out is in: the play stays on screen for a beat (camera on the action), then the celebration. */
+  private holdForFinal(events: GameEvent[]) {
+    if (this.celebrated) return;
+    this.celebrated = true;
+    this.later(this.turbo ? 600 : FINAL_HOLD_MS, () => this.celebrate(events));
+  }
+
+  /** The winners celebrate, in the style the game earned, before the final screen. */
+  private celebrate(events: GameEvent[]) {
+    if (this.phase === "final" || this.phase === "celebrate") return;
+    const sideName = (side: "away" | "home") => abbrevFor(side === "away" ? this.setup.awayTeamId : this.setup.homeTeamId);
+    const cel = detectCelebration(this.session.game, this.setup.stakes, events, sideName);
+    if (!cel || !this.pb.cast) {
+      this.toFinal();
+      return;
+    }
+    // The party is framed from the high-home shot: from the other end of the park (or from the
+    // catcher's own eyes, where he is not drawn) that is a cut.
+    const cut = camCut(this.pb.cam, "follow") || this.pb.cam === "batter";
+    if (cut && !this.turbo) this.cover(() => this.mountCelebration(cel, true));
+    else this.mountCelebration(cel, cut);
+  }
+
+  private mountCelebration(cel: Celebration, cut: boolean) {
+    if (this.phase === "final") return;
+    const pb = this.pb;
+    const cast = pb.cast!;
+    const g = this.session.game;
+    const batSide: "away" | "home" = g.top ? "away" : "home";
+    const fieldSide = batSide === "away" ? "home" : "away";
+    // Everybody starts where he is on screen right now (a man jogging off included).
+    const at = (key: string, fallback: XZ): XZ => {
+      const l = pb.leavers.find((x) => x.draw.key === key);
+      if (l) return { x: l.draw.state.p.x, z: l.draw.state.p.z };
+      const s = pb.seen.get(key);
+      return s && !s.gone && s.frame >= pb.frame - 2 ? { x: s.x, z: s.z } : fallback;
+    };
+    const dug = (side: "away" | "home", i: number): XZ => {
+      const d = DUGOUT_FRONT[side];
+      return { x: d.x + Math.sign(d.x) * (i % 3) * 2.5, z: d.z - 1.5 * Math.floor(i / 3) };
+    };
+    const fielders = this.fielders.map((f) => ({ pos: f.pos, ...at(fielderKey(f.pos), { x: f.p.x, z: f.p.z }) }));
+    const ids = new Set<number>([cast.batterId]);
+    for (const r of cast.runners) if (r) ids.add(r.id);
+    for (const id of pb.timeline?.runnerIds ?? []) ids.add(id);
+    const hitters = [...ids].map((id, i) => ({ id, ...at(runnerKey(id), dug(batSide, i)) }));
+    const mob = cel.winnerFielding ? [] : this.mobIds(ids, Math.max(0, Math.min(9 - hitters.length, 12 - hitters.length))).map((id, i) => ({ id, ...dug(batSide, i) }));
+    const tl = buildCelebrationTimeline({
+      style: cel.style,
+      winnerFielding: cel.winnerFielding,
+      fielders,
+      hitters,
+      hero: cel.winnerFielding ? null : cast.batterId,
+      mob,
+      homeRun: cel.walkoff === "home-run",
+      battingDugout: DUGOUT_FRONT[batSide],
+      fieldingDugout: DUGOUT_FRONT[fieldSide],
+      duration: cel.duration,
+    });
+    // The crowd: the home fans erupt for their club, the visitors' blocks for theirs.
+    const homeWon = cel.winner === "home";
+    const pump = () => {
+      if (homeWon) crowdState.excite = Math.max(crowdState.excite, cel.intensity);
+      else {
+        crowdState.away = Math.max(crowdState.away, cel.intensity * 0.8);
+        crowdState.excite = Math.min(crowdState.excite, 0.05);
+      }
+    };
+    const cues: Playback["cues"] = [];
+    for (let t = 0; t < cel.duration; t += 1.2) cues.push({ T: t, fn: pump });
+    if (cel.fireworks) for (const t of [0.4, 1.1, 1.6, 2.5, 3.1, 4.2, 4.8, 6.0, 6.5, 7.6, 8.2]) if (t < cel.duration) cues.push({ T: t, fn: () => sfx.firework() });
+    pb.trans = null;
+    pb.timeline = tl;
+    pb.T = 0;
+    pb.cues = cues;
+    pb.paused = false;
+    pb.slow = null;
+    pb.hitstop = 0;
+    pb.turbo = this.turbo;
+    pb.onEnd = () => this.toFinal();
+    // No strike zone or aim marker over the party.
+    pb.aim.visible = false;
+    pb.aim.showZone = false;
+    this.hud.zoneHiddenUntil = null;
+    this.hud.zoneHeldFrom = null;
+    this.setCam("follow", cut);
+    pump();
+    if (homeWon) sfx.cheer(cel.intensity, cel.duration * 0.8 + 2);
+    else {
+      sfx.groan(0.7);
+      sfx.swell(0.35 * cel.intensity, 3);
+    }
+    const solo = this.setup.human === "away" || this.setup.human === "home";
+    const won = solo ? this.setup.human === cel.winner : null;
+    this.celebration = {
+      style: cel.style,
+      title: cel.title,
+      sub: cel.sub,
+      tone: won == null ? "neutral" : won ? "good" : "bad",
+      subdued: won === false,
+      winnerTeamId: cel.winner === "away" ? this.setup.awayTeamId : this.setup.homeTeamId,
+      feat: cel.feat,
+      stake: cel.stake?.kind ?? null,
+      walkoff: !!cel.walkoff,
+      fireworks: cel.fireworks,
+      confetti: cel.confetti,
+    };
+    this.phase = "celebrate";
+    this.celebrateAt = Date.now();
+    this.banner = null;
+    this.feedback = null;
+    this.call = null;
+    this.board = this.readBoard();
+    this.emit();
+    // If the scene is not running (a background tab), the final screen still comes up.
+    this.later(((cel.duration + 2) * 1000) / (this.turbo ? 4 : 1), () => this.toFinal());
+  }
+
+  /** More of the batting club for a walk-off party: whoever is not already on the field. */
+  private mobIds(busy: Set<number>, n: number): number[] {
+    const side = this.session.game.batting;
+    const out: number[] = [];
+    for (const b of [...side.lineup, ...side.bench]) {
+      if (out.length >= n) break;
+      if (!busy.has(b.id) && !out.includes(b.id)) out.push(b.id);
+    }
+    return out;
+  }
+
+  /** Walk-off home run: the dugout empties while he is still rounding the bases, and waits for him at the plate. */
+  private withWalkoffMob(tl: Timeline, c: CommittedPitch): Timeline {
+    const g = this.session.game;
+    if (!g.final || g.top || g.score.home <= g.score.away || c.play?.hit !== 4 || tl.contactT == null) return tl;
+    const busy = new Set<number>([c.ctx.batter.id, ...tl.runnerIds]);
+    for (const r of this.pb.cast?.runners ?? []) if (r) busy.add(r.id);
+    const d = DUGOUT_FRONT.home;
+    const mob = this.mobIds(busy, MOB_SIZE).map((id, i) => ({ id, x: d.x + Math.sign(d.x) * (i % 3) * 2.5, z: d.z - 1.5 * Math.floor(i / 3) }));
+    return withPlateMob(tl, mob, tl.contactT + 2.5);
+  }
+
+  /** On to the final screen (the party carries on behind the box score). */
+  private toFinal() {
+    if (this.phase === "final") return;
+    const partying = this.phase === "celebrate";
+    this.celebrated = true;
+    this.celebration = null;
+    this.pb.onEnd = null;
+    this.phase = "final";
+    if (!partying) this.setCam("overview", camCut(this.pb.cam, "overview"));
+    clearSave();
+    this.board = this.readBoard();
+    this.emit();
+  }
+
+  /**
+   * Jump straight to the final screen (the postgame hold or the celebration). From the
+   * primary key (`fromKey`) only once the celebration has been up a moment, so the swing
+   * that ended the game cannot skip it.
+   */
+  skipCelebration(fromKey = false) {
+    if (this.phase === "final" || !this.celebrated) return;
+    if (fromKey && (this.phase !== "celebrate" || Date.now() - this.celebrateAt < SKIP_AFTER_MS)) return;
+    this.toFinal();
   }
 
   private get twoPlayer(): boolean {
@@ -933,7 +1137,7 @@ export class GameController {
       return;
     }
     const committed = this.session.commit();
-    const tl = buildTimeline(committed, { swingStartT });
+    const tl = this.withWalkoffMob(buildTimeline(committed, { swingStartT }), committed);
     this.pb.turbo = this.turbo;
     this.mountTimeline(tl, fresh, committed);
     this.pb.onEnd = () => this.finish(committed);
@@ -1243,7 +1447,7 @@ export class GameController {
     this.pb.slow = null;
     if (s.game.final) {
       this.emit();
-      this.later(this.turbo ? 600 : 1800, () => this.advance());
+      this.holdForFinal(c.events);
       return;
     }
     this.emit();
@@ -1319,6 +1523,10 @@ export class GameController {
   /** Primary action: lock target / stop meter / swing. */
   primary() {
     sfx.unlock();
+    if (this.phase === "celebrate") {
+      this.skipCelebration(true);
+      return;
+    }
     if (this.phase === "handoff") {
       this.closeHandoff();
       return;
@@ -1699,11 +1907,12 @@ export class GameController {
       twoPlayer: this.twoPlayer,
       handoff: this.handoff,
       turn: this.turnInfo(),
+      celebration: this.celebration,
     };
   }
 
   private turnInfo(): HudSnapshot["turn"] {
-    if (!this.twoPlayer || this.phase === "final") return null;
+    if (!this.twoPlayer || this.phase === "final" || this.phase === "celebrate") return null;
     const g = this.session.game;
     const pitching = this.phase === "aim" || this.phase === "meter" || (this.phase === "handoff" && !this.lockedPitch);
     const side: "away" | "home" = g.top === pitching ? "home" : "away";

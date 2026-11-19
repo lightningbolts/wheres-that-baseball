@@ -12,9 +12,12 @@ import { ordinal } from "@/lib/game/rules/game";
 import { GameController, pitchName, setAbbrevLookup, type HudSnapshot, type ManagerArm, type ManagerBat } from "@/components/game/controller";
 import { MARK_BALL_R, MARK_COLOR, zoneBox } from "@/components/game/scene/view";
 import { createPlayback } from "@/components/game/scene/playback";
+import { registerTeams } from "@/components/game/scene/character/roster";
 import { sfx } from "@/components/game/audio";
+import { nextSetting, setQualitySetting, SETTING_LABEL, useQuality } from "@/components/game/scene/quality";
 import { BoxScore } from "@/components/game/BoxScore";
-import { PitchTracker } from "@/components/game/PitchTracker";
+import { GameStatcastSummary, PitchTracker } from "@/components/game/PitchTracker";
+import { CelebrationOverlay } from "@/components/game/Celebration";
 
 const GameScene = dynamic(() => import("@/components/game/scene/GameScene"), {
   ssr: false,
@@ -42,6 +45,8 @@ export function GameView({
   exitLabel?: string;
 }) {
   const pb = useMemo(() => createPlayback(), []);
+  // Draw everyone as himself (name, number, skin tone), including players rosters.json lacks.
+  useMemo(() => registerTeams(teams.values()), [teams]);
   const ctl = useMemo(() => new GameController(setup, teams, pb, inputs ?? []), [setup, teams, pb, inputs]);
   const snap = useSyncExternalStore(ctl.subscribe.bind(ctl), ctl.getSnapshot, ctl.getSnapshot);
   const [showLog, setShowLog] = useState(false);
@@ -85,7 +90,10 @@ export function GameView({
         // A focused HUD button would also "click" on Space: the key belongs to the game.
         if (document.activeElement instanceof HTMLButtonElement) document.activeElement.blur();
         ctl.primary();
-      } else if (k === "Escape") ctl.cancelAim();
+      } else if (k === "Escape") {
+        ctl.cancelAim();
+        ctl.skipCelebration();
+      }
       else if (k === "c" || k === "C") {
         if (!e.repeat) ctl.decideChallenge(true);
       }
@@ -128,6 +136,8 @@ export function GameView({
   }, []);
 
   const g = ctl.session.game;
+  // The final screen waits for the postgame celebration (snap.final is true as soon as the last out is made).
+  const over = snap.phase === "final";
   const awayId = setup.awayTeamId;
   const homeId = setup.homeTeamId;
 
@@ -174,6 +184,7 @@ export function GameView({
         >
           {muted ? "Sound off" : "Sound on"}
         </HudButton>
+        <GraphicsButton />
         <HudButton onClick={onExit} title="Back to menu (the game is saved)">
           Menu
         </HudButton>
@@ -188,16 +199,23 @@ export function GameView({
       <ReviewCard snap={snap} awayId={awayId} homeId={homeId} />
       <TurnTag snap={snap} />
       <Handoff snap={snap} ctl={ctl} />
+      <CelebrationOverlay celebration={snap.celebration} onSkip={() => ctl.skipCelebration()} />
 
       {showLog && <PlayLog snap={snap} onClose={() => setShowLog(false)} />}
       {showPitches && !snap.final && (
-        <PitchTracker log={snap.pitchLog} zone={snap.zone} currentPitcherId={ctl.session.currentContext?.pitcher.id ?? null} onClose={() => setShowPitches(false)} />
+        <PitchTracker
+          log={snap.pitchLog}
+          zone={snap.zone}
+          currentPitcherId={ctl.session.currentContext?.pitcher.id ?? null}
+          teams={{ away: abbrev(awayId), home: abbrev(homeId) }}
+          onClose={() => setShowPitches(false)}
+        />
       )}
       {showMgr && !snap.final && <ManagerPanel ctl={ctl} snap={snap} onClose={() => setShowMgr(false)} />}
-      {(snap.final || showBox) && (
+      {(over || showBox) && (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/60 p-3">
           <div className="max-h-full w-full max-w-3xl overflow-auto rounded-xl border border-white/15 bg-[#10161d]/95 p-4 shadow-2xl">
-            {snap.final && (
+            {over && (
               <div className="mb-3 text-center">
                 <div className="text-xs uppercase tracking-widest text-white/60">Final{g.inning > setup.innings ? ` / ${g.inning}` : ""}</div>
                 <div className="text-2xl font-bold">
@@ -206,13 +224,21 @@ export function GameView({
               </div>
             )}
             <BoxScore game={g} awayId={awayId} homeId={homeId} />
+            {snap.pitchLog.length > 0 && (
+              <details className="mt-4 rounded-lg border border-white/10 p-2 sm:p-3" open={over || undefined}>
+                <summary className="cursor-pointer select-none text-xs font-semibold uppercase tracking-wide text-white/70">Statcast summary</summary>
+                <div className="mt-3">
+                  <GameStatcastSummary log={snap.pitchLog} teams={{ away: abbrev(awayId), home: abbrev(homeId) }} />
+                </div>
+              </details>
+            )}
             <div className="mt-4 flex justify-center gap-2">
-              {!snap.final && (
+              {!over && (
                 <button className="rounded-md bg-white/10 px-4 py-2 text-sm hover:bg-white/20" onClick={() => setShowBox(false)}>
                   Back to the game
                 </button>
               )}
-              {snap.final && (
+              {over && (
                 <button className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-black hover:bg-emerald-400" onClick={onExit}>
                   {exitLabel ?? "New game"}
                 </button>
@@ -383,6 +409,17 @@ function Handoff({ snap, ctl }: { snap: HudSnapshot; ctl: GameController }) {
         <div className="mt-5 inline-block rounded-md bg-emerald-500 px-6 py-2.5 text-sm font-bold text-black">Ready — tap or press Space</div>
       </div>
     </div>
+  );
+}
+
+/** Graphics quality: Auto → High → Medium → Low (saved in this browser). */
+function GraphicsButton() {
+  const q = useQuality();
+  const auto = q.setting === "auto" ? ` (running ${SETTING_LABEL[q.live.tier]})` : "";
+  return (
+    <HudButton onClick={() => setQualitySetting(nextSetting(q.setting))} title={`Graphics quality: ${SETTING_LABEL[q.setting]}${auto}. Lower it if the game runs slowly.`}>
+      {`GFX ${SETTING_LABEL[q.setting]}`}
+    </HudButton>
   );
 }
 

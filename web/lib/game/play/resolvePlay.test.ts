@@ -5,7 +5,9 @@ import { simulateBattedBall } from "@/lib/game/physics/battedBall";
 import { buildPark } from "@/lib/game/physics/park";
 import { resolvePlay, type PlayInput, type PlayResult } from "@/lib/game/play/resolvePlay";
 import { newGame } from "@/lib/game/__fixtures/teams";
-import { Rng } from "@/lib/game/math";
+import { Rng, horizDist } from "@/lib/game/math";
+import { BASE_POS, runTime } from "@/lib/game/play/movement";
+import { PITCHER_TOP_SPEED } from "@/lib/game/play/defense";
 
 const park = buildPark(null);
 const R = (id: number, sprint = 27) => ({ playerId: id, sprint });
@@ -151,5 +153,61 @@ describe("fielders stay on the field", () => {
         }
       }
     }
+  });
+
+  it("a throw never beats the man covering the bag there (the pitcher can't fly to first)", () => {
+    const g = newGame();
+    const fielders = g.fielders();
+    let pitcherCovers = 0;
+    let checked = 0;
+    for (const spray of [-20, -10, -4, 0, 4, 10, 16, 22, 28, 34, 40]) {
+      for (const ev of [55, 70, 85, 100]) {
+        for (const la of [-12, -5, 2]) {
+          for (const on of [[false, false, false], [true, false, false], [true, true, false]] as Array<[boolean, boolean, boolean]>) {
+            const r = play(ev, la, spray, { on, seed: ev + spray * 7 + la });
+            for (const e of r.events) {
+              if (e.type !== "throw" || !e.receiver || e.cutoff || !e.base) continue;
+              const c = fielders.find((x) => x.pos === e.receiver)!;
+              const speed = c.pos === "P" ? Math.min(c.sprint, PITCHER_TOP_SPEED) : c.sprint;
+              const ready = c.reaction + 0.15 + runTime(Math.max(0, horizDist(c.p, BASE_POS[e.base as 1 | 2 | 3 | 4]) - 2), speed);
+              expect(e.arriveT!, `${r.scoring} throw to ${e.base} for ${e.receiver}`).toBeGreaterThanOrEqual(ready + 0.1 - 1e-9);
+              checked++;
+              if (e.receiver === "P" && e.base === 1) {
+                pitcherCovers++;
+                const first = r.events.find((x) => x.type === "throw");
+                if (first === e && r.outs === 1 && r.runners.find((x) => x.from === 0)?.out) expect(r.scoring).toBe("3-1");
+              }
+            }
+          }
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(100);
+    expect(pitcherCovers).toBeGreaterThan(0);
+  });
+
+  it("a slow roller the catcher pounces on is a force at first, not a tag", () => {
+    let forced = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+      // Pitcher off the field so the catcher gets to the dribbler.
+      const fielders = newGame().fielders().filter((f) => f.pos !== "P");
+      const r = resolvePlay({
+        path: simulateBattedBall(battedBallFromLaunch(25, -20, seed % 3 === 0 ? -10 : 5, 800), park),
+        park,
+        fielders,
+        runners: [null, null, null],
+        batter: { ...R(99), bats: "R" },
+        outs: 0,
+        rng: new Rng(seed),
+        launch: { ev: 25, la: -20 },
+      });
+      expect(r.fieldedBy).toBe("C");
+      expect(r.events.some((e) => e.type === "tag_out")).toBe(false);
+      if (r.events.some((e) => e.type === "force_out" && e.base === 1)) {
+        forced++;
+        expect(r.scoring).toBe("2-3");
+      }
+    }
+    expect(forced).toBeGreaterThan(20);
   });
 });

@@ -10,14 +10,23 @@ import type { RosterFile, RosterPlayer, RosterTeam } from "@/lib/game/types";
 import { hash32, FRng } from "./rng";
 import { isHealthy } from "./roster";
 import { applyGameResult } from "./season";
+import { gameStakes } from "./stakes";
 import { chooseStarter, gameLineup, relieverAvailable, type GameOutcome } from "./sim";
 import { emptyBat, emptyPit, type BatLine, type League, type PitLine, type Player, type ScheduledGame } from "./types";
+import { ensureUmpires, plateUmp } from "./umpires";
+import type { UmpCard } from "@/lib/game/umpires/scorecard";
 
-export type RosterIndex = Map<number, RosterPlayer>;
+/** Physics templates by id (rosters.json), plus `own`: every real player's own entry, for who he is. */
+export class RosterIndex extends Map<number, RosterPlayer> {
+  /** Rosters plus the franchise 40-man extras: the player's own number and skin tone even when he borrows another's physics. */
+  readonly own = new Map<number, RosterPlayer>();
+}
 
-export function rosterIndex(rosters: RosterFile): RosterIndex {
-  const idx: RosterIndex = new Map();
+export function rosterIndex(rosters: RosterFile, extras?: Record<string, RosterPlayer[]>): RosterIndex {
+  const idx = new RosterIndex();
   for (const t of Object.values(rosters.teams)) for (const p of [...t.lineup, ...t.bench, ...t.rotation, ...t.bullpen]) if (!idx.has(p.id)) idx.set(p.id, p);
+  for (const [id, p] of idx) idx.own.set(id, p);
+  for (const list of Object.values(extras ?? {})) for (const p of list) if (!idx.own.has(p.id)) idx.own.set(p.id, p);
   return idx;
 }
 
@@ -38,7 +47,13 @@ export function rosterPlayerFor(p: Player, idx: RosterIndex, pos?: string): Rost
   out.bats = p.bats;
   out.throws = p.throws;
   out.pos = pos ?? p.pos;
-  if (!p.real) out.num = null;
+  // Who he is comes from his own entry, never the template's: a 40-man extra or a generated
+  // player borrows another man's physics, not his number or his skin tone.
+  const own = p.real ? idx.own?.get(p.id) : undefined;
+  if (own !== base) {
+    out.num = own?.num ?? null;
+    out.skin = own?.skin ?? null;
+  }
   if (p.bat && out.bat) {
     // The 3D game hits with contact, swing decisions and exit velocity, not with rate
     // stats: move those physics inputs by how far the player's current K / BB / HR rates
@@ -118,6 +133,8 @@ export interface ManualGame {
 export function buildManualGame(league: League, gameId: number, idx: RosterIndex): ManualGame | null {
   const g = league.schedule.find((x) => x.id === gameId);
   if (!g || g.result) return null;
+  if (g.ump == null) ensureUmpires(league);
+  const ump = plateUmp(g);
   const resume = league.pending?.gameId === gameId ? league.pending : undefined;
   const away = resume?.away ?? buildRosterTeam(league, g.away, idx, g.day, !!g.ps).roster;
   const home = resume?.home ?? buildRosterTeam(league, g.home, idx, g.day, !!g.ps).roster;
@@ -137,6 +154,8 @@ export function buildManualGame(league: League, gameId: number, idx: RosterIndex
     manager: true,
     abs: true,
     postseason: !!g.ps,
+    stakes: gameStakes(league, g),
+    ...(ump ? { ump: { ...ump } } : {}),
   };
   const teams = new Map<number, TeamModel>([
     [g.away, teamModel(away)],
@@ -157,6 +176,8 @@ export interface BoxInput {
   /** Pitchers used in order, per side. */
   awayStaff: number[];
   homeStaff: number[];
+  /** Plate umpire's scorecard. */
+  uc?: UmpCard;
 }
 
 export function boxFromSession(session: GameSession, awayRuns: number, homeRuns: number): BoxInput {
@@ -169,6 +190,7 @@ export function boxFromSession(session: GameSession, awayRuns: number, homeRuns:
     pit: g.pit,
     awayStaff: g.away.staff.map((p) => p.id),
     homeStaff: g.home.staff.map((p) => p.id),
+    uc: g.umpCard.called ? g.umpCard.card() : undefined,
   };
 }
 
@@ -219,6 +241,7 @@ export function outcomeFromBox(box: BoxInput): GameOutcome {
     lp,
     sv,
     hits: [ah, hh],
+    uc: box.uc,
   };
 }
 

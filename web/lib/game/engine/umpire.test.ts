@@ -39,3 +39,30 @@ describe("umpire zone", () => {
     expect(low).toBeGreaterThan(wide);
   });
 });
+
+describe("umpire profiles", () => {
+  const edge = PLATE_HALF_WIDTH + BALL_RADIUS_FT;
+  const rate = (px: number, pz: number, ump?: { sd: number; zone: number; hi: number }) => {
+    const rng = new Rng(9);
+    const f = fake(px, pz);
+    const inZone = Math.abs(px) <= edge && pz >= BOT - BALL_RADIUS_FT && pz <= TOP + BALL_RADIUS_FT;
+    let k = 0;
+    for (let i = 0; i < 4000; i += 1) if (umpireCall(f, BOT, TOP, inZone, { balls: 1, strikes: 1 }, rng.gauss(0, 1), rng.gauss(0, 1), ump)) k += 1;
+    return k / 4000;
+  };
+  it("an average profile calls exactly like no profile", () => {
+    for (const [px, pz] of [[edge - 0.03, 2.5], [edge + 0.04, 2.5], [0, BOT - 0.1], [0.3, TOP + 0.05]]) {
+      expect(rate(px, pz, { sd: 1, zone: 0, hi: 0 })).toBe(rate(px, pz));
+    }
+  });
+  it("a sharp umpire misses less near the edge than a loose one", () => {
+    const miss = (ump: { sd: number; zone: number; hi: number }) => 1 - rate(edge - 0.06, 2.5, ump) + rate(edge + 0.06, 2.5, ump);
+    expect(miss({ sd: 0.85, zone: 0, hi: 0 })).toBeLessThan(miss({ sd: 1.25, zone: 0, hi: 0 }));
+  });
+  it("a big zone gives the corner, a high zone gives the letters and takes the knees", () => {
+    expect(rate(edge + 0.02, 2.5, { sd: 1, zone: 0.015, hi: 0 })).toBeGreaterThan(rate(edge + 0.02, 2.5));
+    const hiUmp = { sd: 1, zone: 0, hi: 0.02 };
+    expect(rate(0, TOP + BALL_RADIUS_FT + 0.01, hiUmp)).toBeGreaterThan(rate(0, TOP + BALL_RADIUS_FT + 0.01));
+    expect(rate(0, BOT - BALL_RADIUS_FT + 0.01, hiUmp)).toBeLessThan(rate(0, BOT - BALL_RADIUS_FT + 0.01));
+  });
+});

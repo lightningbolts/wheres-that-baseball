@@ -18,6 +18,8 @@ import type { Rng } from "@/lib/game/math";
 import type { FieldPos } from "@/lib/game/types";
 import type { PickoffOutcome } from "@/lib/game/ai/pickoff";
 import { ABS_CHALLENGES, callIsWrong, challengeableCall, overturned, type AbsChallengerRole } from "@/lib/game/rules/abs";
+import type { Umpire } from "@/lib/game/umpires/data";
+import { UmpTracker } from "@/lib/game/umpires/scorecard";
 
 export interface Runner {
   playerId: number;
@@ -145,13 +147,18 @@ export class BaseballGame {
    * runner advances.
    */
   disengagements = 0;
+  /** Plate umpire (null = an unnamed league-average umpire). */
+  readonly ump: Umpire | null;
+  /** Plate umpire's scorecard, call by call (his own calls, before any ABS reversal). */
+  readonly umpCard = new UmpTracker();
 
   constructor(
     awayTeam: TeamModel,
     homeTeam: TeamModel,
     readonly park: Park,
-    opts: { awayStarter?: number; homeStarter?: number; innings?: number; abs?: boolean; postseason?: boolean; pickoffs?: boolean } = {},
+    opts: { awayStarter?: number; homeStarter?: number; innings?: number; abs?: boolean; postseason?: boolean; pickoffs?: boolean; ump?: Umpire | null } = {},
   ) {
+    this.ump = opts.ump ?? null;
     this.regulation = opts.innings ?? 9;
     this.abs = opts.abs ? { away: ABS_CHALLENGES, home: ABS_CHALLENGES } : null;
     this.postseason = !!opts.postseason;
@@ -221,6 +228,7 @@ export class BaseballGame {
       bases: [!!this.bases[0], !!this.bases[1], !!this.bases[2]],
       lateClose: this.inning >= this.regulation - 2 && Math.abs(this.score.home - this.score.away) <= 1,
       park: this.park,
+      ...(this.ump ? { ump: this.ump } : {}),
     };
   }
 
@@ -473,6 +481,11 @@ export class BaseballGame {
     const events: GameEvent[] = [];
     const b = this.batter;
     const p = this.fielding.pitcher;
+    if ((result.kind === "called_strike" || result.kind === "ball") && result.flight) {
+      // The umpire's own call: an ABS reversal flipped it.
+      const strike = (result.kind === "called_strike") !== !!result.absOverturned;
+      this.umpCard.record({ flight: result.flight, zoneBottom: b.zoneBottom, zoneTop: b.zoneTop, inZone: result.inZone, strike, balls: this.balls, strikes: this.strikes, inning: this.inning, top: this.top });
+    }
     const pl = this.pitLine(p.id);
     const bl = this.batLine(b.id);
     this.fielding.pitchCount += 1;

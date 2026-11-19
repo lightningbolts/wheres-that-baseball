@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { PLATE_FRONT_Z } from "@/lib/game/physics/pitch";
+import { getQuality } from "@/components/game/scene/quality";
 import { MAX_FRAME_DT, advancePlayback, fielderKey, type Playback } from "@/components/game/scene/playback";
 import { MARK_COLOR, MAX_MARKS, plateCam, plateHud, zoneBox } from "@/components/game/scene/view";
 import { BALL_RADIUS_FT } from "@/lib/game/physics/ballFlight";
@@ -20,77 +21,33 @@ const DEG = Math.PI / 180;
 const TRAIL = 16;
 const IDENT_Q = new THREE.Quaternion();
 
-/** Catcher cam mitt: up into place this long before the pitch arrives (timeline s). */
-const MITT_REACH_S = 0.18;
-/** ...held with the ball in it this long... */
-const MITT_HOLD_S = 0.8;
-/** ...then lowered out of the shot over this long. */
-const MITT_DROP_S = 0.35;
+/** Catcher cam: how long after the catch the pitch is still drawn carrying on toward the (unseen) mitt, s. */
+const CARRY_S = 0.25;
+const _ndc = new THREE.Vector3();
 
 /**
- * The catcher is left out of the catcher cam (from just behind him he would fill the
- * shot), but his mitt is not: it comes up to where the pitch arrives, gives as the ball
- * smacks into it, holds it, and goes back down. Writes the mitt's position into `out`
- * and returns how much of it shows (0 = none). Only a pitch that ends up in the mitt.
+ * The catcher and his mitt are never drawn in the catcher cam: the camera sits just
+ * behind him, so his glove would fill the bottom of the frame. The pitch still travels
+ * to it, though: past the plate the ball keeps coming on its own path, under and past
+ * the lens, into a mitt that is out of the shot. Writes the ball's position into `out`
+ * and returns whether it is still on screen. Only a pitch that ends up in the mitt.
  */
-function catcherMitt(pb: Playback, out: THREE.Vector3): number {
+function pitchIntoMitt(pb: Playback, camera: THREE.Camera, out: THREE.Vector3): boolean {
   const tl = pb.timeline;
-  if (!tl || pb.cam !== "batter") return 0;
+  if (!tl || pb.cam !== "batter") return false;
   const r = tl.receive;
-  const T = pb.T;
-  if (T < r.t - MITT_REACH_S || T > r.t + MITT_HOLD_S + MITT_DROP_S) return 0;
-  if (tl.ball(Math.max(T, r.t + 0.005)).holder !== "C") return 0;
-  const rise = smooth01((T - (r.t - MITT_REACH_S)) / MITT_REACH_S);
-  const drop = smooth01((T - r.t - MITT_HOLD_S) / MITT_DROP_S);
-  const since = T - r.t;
-  // The pocket gives toward the camera at the catch, then the mitt settles back.
-  const give = since >= 0 ? 0.3 * Math.sin(Math.min(1, since / 0.22) * Math.PI) * Math.exp(-since / 0.2) : 0;
-  out.set(r.p.x, r.p.y - 1.3 * (1 - rise) - 1.4 * drop, r.p.z - give);
-  return rise * (1 - drop);
-}
-
-/** The catcher's mitt, seen from behind, in the catcher cam (see catcherMitt). */
-export function CatcherMitt({ pb }: { pb: Playback }) {
-  const group = useRef<THREE.Group>(null);
-  const mats = useMemo(
-    () => [
-      new THREE.MeshStandardMaterial({ color: "#6b3a1e", roughness: 0.75, transparent: true }),
-      new THREE.MeshStandardMaterial({ color: "#2b170b", roughness: 0.8, transparent: true }),
-    ],
-    [],
-  );
-  const at = useMemo(() => new THREE.Vector3(), []);
-  useEffect(() => () => mats.forEach((m) => m.dispose()), [mats]);
-  useFrame(() => {
-    const g = group.current;
-    if (!g) return;
-    const alpha = catcherMitt(pb, at);
-    g.visible = alpha > 0.01;
-    if (!g.visible) return;
-    g.position.copy(at);
-    for (const m of mats) {
-      m.opacity = alpha;
-      m.depthWrite = alpha > 0.98;
-    }
-  });
-  const [leather, lacing] = mats;
-  return (
-    <group ref={group} visible={false}>
-      {/* Back of the mitt: a rounded pad, binding round the edge, the thumb, the wrist. */}
-      <mesh material={leather} scale={[0.5, 0.56, 0.2]}>
-        <sphereGeometry args={[1, 24, 16]} />
-      </mesh>
-      <mesh material={lacing} position={[0, 0, -0.02]} scale={[1, 1.1, 1]}>
-        <torusGeometry args={[0.48, 0.045, 8, 32]} />
-      </mesh>
-      <mesh material={leather} position={[0.44, -0.12, 0.02]} scale={[0.15, 0.3, 0.14]}>
-        <sphereGeometry args={[1, 14, 10]} />
-      </mesh>
-      <mesh material={lacing} position={[0.05, -0.56, -0.08]} rotation-x={0.35}>
-        <cylinderGeometry args={[0.15, 0.17, 0.32, 14]} />
-      </mesh>
-    </group>
-  );
+  const since = pb.T - r.t;
+  if (since < 0 || since > CARRY_S) return false;
+  const dt = 1 / 120;
+  const prev = tl.ball(r.t - dt).p;
+  // Velocity into the catch, then on under gravity (and a touch of extra drop as the glove pulls it in).
+  const vx = (r.p.x - prev.x) / dt;
+  const vy = (r.p.y - prev.y) / dt;
+  const vz = (r.p.z - prev.z) / dt;
+  out.set(r.p.x + vx * since, r.p.y + vy * since - 0.5 * (32.2 + 60) * since * since, r.p.z + vz * since);
+  // Gone once it has passed the lens or left the frame.
+  _ndc.copy(out).project(camera);
+  return _ndc.z < 1 && _ndc.z > -1 && Math.abs(_ndc.x) < 1.15 && Math.abs(_ndc.y) < 1.15;
 }
 
 export function Ball({ pb }: { pb: Playback }) {
@@ -146,9 +103,13 @@ export function Ball({ pb }: { pb: Playback }) {
         p.copy(h.ballP);
         visible = true;
       } else if (tl && pb.cam === "batter" && mode === fielderKey("C")) {
-        // The catcher is not drawn in the catcher cam, only his mitt: the ball sits in its pocket.
-        visible = catcherMitt(pb, st.mitt) > 0.5;
-        if (visible) p.set(st.mitt.x, st.mitt.y, st.mitt.z + 0.08);
+        // The catcher is not drawn in the catcher cam: the pitch carries on out of the shot into his mitt.
+        visible = pitchIntoMitt(pb, camera, st.mitt);
+        if (visible) {
+          p.copy(st.mitt);
+          // Still in flight as far as the shot is concerned: keep its trail and marker.
+          held = false;
+        }
       }
     }
     b.visible = visible;
@@ -308,11 +269,19 @@ export function CameraRig({ pb }: { pb: Playback }) {
       cam.rotateZ(shake * 0.012 * Math.sin(t * 61.7 + 0.4));
     }
     const f = st.fov * (1 - 0.045 * pb.fx.punch);
-    if (Math.abs(cam.fov - f) > 1e-4 || cam.near !== st.near) {
+    // Without a logarithmic depth buffer (Low graphics) a 0.3 ft near plane leaves too little
+    // depth precision at the infield for the layered field marks: keep it a foot out (the
+    // batter cam already uses 1; nothing else comes that close to a lens).
+    const near = getQuality().boot.logDepth ? st.near : Math.max(1, st.near);
+    if (Math.abs(cam.fov - f) > 1e-4 || cam.near !== near) {
       cam.fov = f;
-      cam.near = st.near;
+      cam.near = near;
       cam.updateProjectionMatrix();
     }
+    // World matrix (and its inverse) now, not at render time: everything after this in the
+    // frame that projects through the camera (the ball's carry into the mitt, overlays) has to
+    // see this frame's view, or a hard cut gets one frame decided by the old one.
+    cam.updateMatrixWorld();
   });
   return null;
 }

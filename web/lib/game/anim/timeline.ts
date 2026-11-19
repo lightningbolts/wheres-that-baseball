@@ -12,6 +12,7 @@ import { add, clamp, horizDist, lerp3, scale, sub, v3, type V3 } from "@/lib/gam
 import { pitchStateAt } from "@/lib/game/physics/pitch";
 import { sampleAt, type BattedBallPath } from "@/lib/game/physics/battedBall";
 import { BASE_POS } from "@/lib/game/play/movement";
+import { topSpeed } from "@/lib/game/play/defense";
 import { idealContactTime } from "@/lib/game/engine/atBat";
 import type { PlayEvent, PlayResult } from "@/lib/game/play/resolvePlay";
 import type { CommittedPitch } from "@/lib/game/session/session";
@@ -28,6 +29,8 @@ export interface ActorState {
   action: Action;
   /** Seconds since the action began (drives pose progress). */
   actionT: number;
+  /** Feet off the ground (a celebration hop, a man on top of a dogpile); absent = on the ground. */
+  lift?: number;
 }
 
 export interface BallState {
@@ -59,6 +62,13 @@ export interface Track {
   face?: V3;
   /** Timed facing changes (from `t` on, face `p`), e.g. a relay man turning to throw. */
   faces?: Array<{ t: number; p: V3 }>;
+  /** Top speed this actor is ever shown moving, ft/s (default MAX_RUN_FT_S). */
+  vmax?: number;
+  /**
+   * He can't start moving before this (reacting to the ball; the pitcher finishing his
+   * delivery): a leg too fast for `vmax` is not pulled back across it, it arrives late instead.
+   */
+  earliest?: number;
   /** Prefix integrals of x(t) / z(t) at each waypoint (built by finalize). */
   ix?: Float64Array;
   iz?: Float64Array;
@@ -205,11 +215,22 @@ function finalize(tr: Track): Track {
   const pts = tr.pts;
   pts.sort((a, b) => a.t - b.t);
   for (let i = 1; i < pts.length; i += 1) if (pts[i].t <= pts[i - 1].t) pts[i] = { t: pts[i - 1].t + 1e-3, p: pts[i].p };
-  // Nobody outruns a sprinter. Arrival times are what sync with the ball, so a leg that is
-  // too fast keeps its arrival and leaves earlier instead (a good jump, not a teleport).
+  // Nobody outruns his own legs. Arrival times are what sync with the ball, so a leg that is
+  // too fast keeps its arrival and leaves earlier instead (a good jump, not a teleport) —
+  // but never before he could have moved (his reaction, the end of the pitcher's delivery).
+  const vmax = Math.min(MAX_RUN_FT_S, tr.vmax ?? MAX_RUN_FT_S);
+  const earliest = tr.earliest ?? -Infinity;
+  const legNeed = (a: Waypoint, b: Waypoint) => Math.hypot(b.p.x - a.p.x, b.p.z - a.p.z) / vmax;
   for (let i = pts.length - 1; i >= 2; i -= 1) {
-    const need = Math.hypot(pts[i].p.x - pts[i - 1].p.x, pts[i].p.z - pts[i - 1].p.z) / MAX_RUN_FT_S;
-    if (pts[i].t - pts[i - 1].t < need) pts[i - 1] = { t: Math.max(pts[0].t + 1e-3 * (i - 1), pts[i].t - need), p: pts[i - 1].p };
+    const need = legNeed(pts[i - 1], pts[i]);
+    if (pts[i].t - pts[i - 1].t >= need) continue;
+    const floor = Math.max(pts[0].t + 1e-3 * (i - 1), pts[i - 1].t >= earliest ? earliest : -Infinity);
+    pts[i - 1] = { t: Math.max(floor, pts[i].t - need), p: pts[i - 1].p };
+  }
+  // Whatever is still too fast arrives late rather than teleporting.
+  for (let i = 1; i < pts.length; i += 1) {
+    const need = Math.max(1e-3, legNeed(pts[i - 1], pts[i]));
+    if (pts[i].t - pts[i - 1].t < need) pts[i] = { t: pts[i - 1].t + need, p: pts[i].p };
   }
   const ix = new Float64Array(pts.length);
   const iz = new Float64Array(pts.length);
@@ -319,17 +340,23 @@ function coverFor(base: number, thrower: FieldPos | undefined): FieldPos {
   return "C";
 }
 
-/** Route `tr` so the actor leaves in time to stand on `spot` at `arrive` (running ~24 ft/s). */
+/**
+ * Route `tr` so the actor leaves in time to stand on `spot` at `arrive` (at a little under
+ * his top speed). He never leaves before `earliest`; if he can't make it from there, he
+ * gets there as soon as he can.
+ */
 function routeTo(tr: Track, spot: V3, arrive: number, earliest: number): void {
   const last = tr.pts[tr.pts.length - 1];
+  const v = Math.min(MAX_RUN_FT_S, tr.vmax ?? 24);
   rawAt(tr.pts, arrive, _a);
   const d = Math.hypot(spot.x - _a.x, spot.z - _a.z);
-  const leave = Math.max(earliest, arrive - d / 24 - 0.2);
+  const leave = Math.max(earliest, arrive - d / (v * 0.9) - 0.2);
   rawAt(tr.pts, leave, _a);
   const from = v3(_a.x, 0, _a.z);
+  const run = Math.hypot(spot.x - from.x, spot.z - from.z) / v;
   tr.pts = tr.pts.filter((w) => w.t < leave);
   if (!tr.pts.length) tr.pts.push({ t: Math.min(last.t, leave - 1), p: from });
-  tr.pts.push({ t: leave, p: from }, { t: Math.max(arrive, leave + 0.05), p: spot });
+  tr.pts.push({ t: leave, p: from }, { t: Math.max(arrive, leave + run, leave + 0.05), p: spot });
 }
 
 /** How long the play stays on screen after it is decided by an out, s. */
@@ -416,7 +443,9 @@ export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Ti
     gatherP = s0.p;
     for (const s of path.samples) {
       if (s.t <= gather.t) continue;
-      if (s.t >= landT || s.t > gather.t + 0.3 || s.phase !== "air") break;
+      // Only a ball coming down: a liner carrying on would drag the catch away from where
+      // the play was timed (a doubled-off runner, a fielder near his bag).
+      if (s.t >= landT || s.t > gather.t + 0.3 || s.phase !== "air" || horizDist(sub(s.p, s0.p)) > 2.5) break;
       gatherT = s.t;
       gatherP = s.p;
       if (s.p.y <= 6.5) break;
@@ -453,6 +482,13 @@ export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Ti
       const arc = 4 * f * (1 - f) * Math.min(28, d * 0.06);
       p = add(lerp3(from, to, f), v3(0, arc, 0));
       return { p, visible: true, held: false, holder: null };
+    }
+    // Still in the fielder's glove: it goes where he goes (carried to a bag himself).
+    const carrier = p === gatherP && holder ? tracks.get(holder) : undefined;
+    if (carrier) {
+      const at = trackAt(carrier, toFlight(u)).p;
+      const was = trackAt(carrier, toFlight(gatherT)).p;
+      p = v3(gatherP.x + at.x - was.x, gatherP.y, gatherP.z + at.z - was.z);
     }
     return { p, visible: true, held: true, holder };
   };
@@ -502,10 +538,14 @@ export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Ti
   const landing = path?.firstLanding?.p ?? (path ? path.samples[path.samples.length - 1].p : v3(0, 0, 60));
   for (const f of fielders) {
     const start = f.p;
-    const tr: Track = { pts: [{ t: -10, p: start }], actions: [], face: v3(0, 0, 0) };
+    const tr: Track = { pts: [{ t: -10, p: start }], actions: [], face: v3(0, 0, 0), vmax: topSpeed(f) };
     if (f.pos === "P") {
       tr.actions.push({ t: -10, dur: 10 + releaseT - PITCH_RELEASE_S, action: "idle" });
-      tr.actions.push({ t: releaseT - PITCH_RELEASE_S, dur: PITCH_RELEASE_S + 0.9, action: "pitch" });
+      // On a ball in play the follow-through gives way to fielding the moment he can move
+      // (his reaction, less the ease-in of the motion filter) — never a delivery on the run.
+      let pitchEnd = releaseT + 0.9;
+      if (inPlay && contactT != null) pitchEnd = Math.max(contactT + 0.05, Math.min(pitchEnd, toFlight(f.reaction) - SMOOTH_H));
+      tr.actions.push({ t: releaseT - PITCH_RELEASE_S, dur: pitchEnd - (releaseT - PITCH_RELEASE_S), action: "pitch" });
     }
     if (f.pos === "C") {
       tr.face = v3(0, 0, 60.5);
@@ -534,6 +574,7 @@ export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Ti
       const tr = tracks.get(f.pos)!;
       tr.face = undefined;
       const react = toFlight(f.reaction);
+      tr.earliest = react;
       const pStart = tr.pts[tr.pts.length - 1].p;
       tr.pts.push({ t: Math.max(react, tr.pts[tr.pts.length - 1].t + 0.01), p: pStart });
       const myAttempts = holds.filter((h) => h.pos === f.pos);
@@ -573,7 +614,8 @@ export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Ti
         // Back up the play: drift toward the ball, outfielders more.
         const k = f.pos === "LF" || f.pos === "CF" || f.pos === "RF" ? 0.35 : f.pos === "P" ? 0.15 : 0.08;
         const toward = lerp3(pStart, v3(landing.x, 0, landing.z), k);
-        tr.pts.push({ t: react + 2.6, p: toward });
+        const d = Math.hypot(toward.x - pStart.x, toward.z - pStart.z);
+        tr.pts.push({ t: react + Math.max(2.6, d / (0.8 * (tr.vmax ?? 24))), p: toward });
       }
     }
     // Covers for each throw (a relay pivot covers the base it then throws from).
@@ -606,15 +648,16 @@ export function buildTimeline(c: CommittedPitch, opts: TimelineOptions = {}): Ti
       routeTo(tr, v3(th.lineup.p.x, 0, th.lineup.p.z), toFlight(th.arriveT!) - 1.0, toFlight(f?.reaction ?? 0.3));
       tr.face = th.from;
     }
-    // Doubled off by the fielder himself: he runs over and steps on the bag.
-    if (play?.caught && gather?.pos) {
+    // An unassisted force (a liner doubled off, a grounder taken to the bag): the fielder
+    // himself runs over and steps on it.
+    if (gather?.pos) {
       for (const e of events) {
         if (e.type !== "force_out" || !e.base || throws.some((th) => th.base === e.base && th.arriveT! <= e.t + 0.01)) continue;
         const tr = tracks.get(gather.pos);
         if (!tr) continue;
         const bp = BASE_POS[e.base];
         routeTo(tr, v3(bp.x * 0.98, 0, bp.z * 0.98), toFlight(e.t), toFlight(gatherT) + 0.1);
-        tr.face = undefined;
+        if (!throws.some((th) => th.pos === gather.pos)) tr.face = undefined;
       }
     }
   }

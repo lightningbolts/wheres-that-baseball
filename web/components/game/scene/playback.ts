@@ -5,7 +5,7 @@
  */
 import type { Uniform } from "@/components/game/scene/character/uniforms";
 import * as THREE from "three";
-import { identity } from "@/components/game/scene/character/roster";
+import { skinTone } from "@/components/game/scene/character/roster";
 import type { Timeline, ActorState } from "@/lib/game/anim/timeline";
 import type { FieldPos } from "@/lib/game/types";
 import type { ActorDraw } from "@/components/game/scene/rig";
@@ -229,12 +229,17 @@ export function advancePlayback(pb: Playback, rawDt: number): void {
   }
 }
 
+/** Umpires and base coaches (small stand-in ids, no real person behind them) keep a mix of tones. */
 const RUNNER_SKIN = ["#e8c4a0", "#c99a74", "#8d5a3b", "#5e3b26", "#f1d3b5", "#a87454"].map((c) => new THREE.Color(c));
 const realSkin = new Map<number, THREE.Color>();
-/** The player's own skin tone (sampled from his headshot) once the roster is in; a stand-in until then. */
+/**
+ * A player's skin tone: his own (sampled from his headshot) when known, otherwise a neutral
+ * mid-tone fixed for him (generated franchise players, or before the roster loads). Never a
+ * random extreme for a real player.
+ */
 export function skinFor(id: number): THREE.Color {
-  const tone = id > 0 ? identity(id).skin : null;
-  if (tone === null) return RUNNER_SKIN[Math.abs(id * 7919) % RUNNER_SKIN.length];
+  if (id < 1000) return RUNNER_SKIN[Math.abs(id * 7919) % RUNNER_SKIN.length];
+  const tone = skinTone(id);
   let c = realSkin.get(id);
   if (!c || c.getHex() !== tone) {
     c = new THREE.Color(tone);

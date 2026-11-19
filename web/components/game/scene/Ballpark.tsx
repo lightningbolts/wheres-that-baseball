@@ -42,6 +42,7 @@ import {
 } from "@/components/game/scene/parks/textures";
 import { timeOfDay, type TimeOfDay } from "@/components/game/scene/parks/tod";
 import { AWAY_FAN_SHARE } from "@/lib/game/crowd/reaction";
+import { useQuality } from "@/components/game/scene/quality";
 
 /**
  * Shared excitement (0..1) the crowd reacts to; set by the game view. `excite` is the home
@@ -147,6 +148,8 @@ function applyStructureFinish(m: THREE.Material, detail: THREE.Texture, glass: T
 export function Ballpark({ park, homeColor, awayColor }: { park: Park; homeColor: string; awayColor?: string }) {
   const tod = useMemo(() => timeOfDay(park.venueId), [park.venueId]);
   const lit = tod !== "day";
+  // Boot setting: the 3D view is rebuilt when it changes, so it is fixed for this mount.
+  const mowSize = useQuality().boot.mow;
 
   const built = useMemo(() => {
     const layout = layoutFor(park.venueId);
@@ -207,7 +210,7 @@ export function Ballpark({ park, homeColor, awayColor }: { park: Park; homeColor
   const mats = useMemo(() => {
     if (typeof document === "undefined") return null;
     const detail = detailTexture();
-    const mow = mowTexture(built.layout.mow, park.turf);
+    const mow = mowTexture(built.layout.mow, park.turf, mowSize);
     const atlas = wallAtlas();
     const seatTex = seatTexture();
     const netTex = netTexture();
@@ -266,7 +269,7 @@ export function Ballpark({ park, homeColor, awayColor }: { park: Park; homeColor
       outside: tod === "night" ? new THREE.MeshBasicMaterial({ map: blocksTex, color: "#8791a8" }) : new THREE.MeshLambertMaterial({ map: blocksTex, color: tod === "dusk" ? "#a89a92" : "#c6cabf" }),
     };
     return { materials, textures, flareUniforms, decalGeo: decalGeometry(built.ctx, decals) };
-  }, [built, park, lit, tod]);
+  }, [built, park, lit, tod, mowSize]);
   useEffect(
     () => () => {
       if (!mats) return;
@@ -317,7 +320,11 @@ const SHIRTS = ["#f2f0ea", "#e9e4d6", "#20283a", "#8c9299", "#b32a33", "#1f4f9a"
  * `crowdState.away` does the same for the blocks of visiting fans in road colours.
  */
 function Crowd({ seats, yaws, meta, accent, awayAccent, capacity, tod }: { seats: Float32Array; yaws: Float32Array; meta: Float32Array; accent: string; awayAccent?: string; capacity: number; tod: TimeOfDay }) {
-  const uniforms = useMemo(() => ({ uTime: { value: 0 }, uExcite: { value: 0 }, uAwayExcite: { value: 0 }, uLight: { value: 1 }, uSun: { value: new THREE.Vector3(0.4, 0.8, -0.3) } }), []);
+  const density = useQuality().live.crowd;
+  const uniforms = useMemo(
+    () => ({ uTime: { value: 0 }, uExcite: { value: 0 }, uAwayExcite: { value: 0 }, uLight: { value: CROWD_LIGHT[tod] }, uSun: { value: new THREE.Vector3(...CROWD_SUN[tod]).normalize() } }),
+    [tod],
+  );
   const atlas = useMemo(() => (typeof document === "undefined" ? null : crowdAtlas()), []);
   const material = useMemo(() => {
     const m = new THREE.MeshBasicMaterial({ map: atlas });
@@ -433,28 +440,45 @@ function Crowd({ seats, yaws, meta, accent, awayAccent, capacity, tod }: { seats
         move.push(Math.cos(yaw) * amp, -Math.sin(yaw) * amp, 0.12 + k[4] * 0.16);
       } else move.push(0, 0, 0);
     }
+    // Shuffle the fans (seeded), so any leading run of them is an even sample of the whole
+    // crowd: lower graphics tiers draw fewer simply by drawing fewer instances.
+    const n = pos.length / 3;
+    const order = new Uint32Array(n);
+    for (let i = 0; i < n; i += 1) order[i] = i;
+    for (let i = n - 1; i > 0; i -= 1) {
+      const j = Math.floor(rnd() * (i + 1));
+      const t = order[i];
+      order[i] = order[j];
+      order[j] = t;
+    }
+    const shuffled = (src: number[], w: number) => {
+      const out = new Float32Array(n * w);
+      for (let i = 0; i < n; i += 1) for (let k = 0; k < w; k += 1) out[i * w + k] = src[order[i] * w + k];
+      return out;
+    };
     const plane = new THREE.PlaneGeometry(1, 1);
     plane.translate(0, 0.5, 0);
     const g = new THREE.InstancedBufferGeometry();
     g.setIndex(plane.getIndex());
     g.setAttribute("position", plane.getAttribute("position"));
     g.setAttribute("uv", plane.getAttribute("uv"));
-    g.setAttribute("aPos", new THREE.InstancedBufferAttribute(new Float32Array(pos), 3));
-    g.setAttribute("aTint", new THREE.InstancedBufferAttribute(new Float32Array(tint), 3));
-    g.setAttribute("aInfo", new THREE.InstancedBufferAttribute(new Float32Array(info), 4));
-    g.setAttribute("aMove", new THREE.InstancedBufferAttribute(new Float32Array(move), 3));
-    g.setAttribute("aTeam", new THREE.InstancedBufferAttribute(new Float32Array(team), 1));
-    g.instanceCount = pos.length / 3;
-    return g;
+    g.setAttribute("aPos", new THREE.InstancedBufferAttribute(shuffled(pos, 3), 3));
+    g.setAttribute("aTint", new THREE.InstancedBufferAttribute(shuffled(tint, 3), 3));
+    g.setAttribute("aInfo", new THREE.InstancedBufferAttribute(shuffled(info, 4), 4));
+    g.setAttribute("aMove", new THREE.InstancedBufferAttribute(shuffled(move, 3), 3));
+    g.setAttribute("aTeam", new THREE.InstancedBufferAttribute(shuffled(team, 1), 1));
+    g.instanceCount = n;
+    return { g, n };
   }, [seats, yaws, meta, accent, awayAccent, capacity]);
-  useEffect(() => () => geom.dispose(), [geom]);
+  useEffect(() => () => geom.g.dispose(), [geom]);
+  useEffect(() => {
+    geom.g.instanceCount = Math.round(geom.n * density);
+  }, [geom, density]);
   useEffect(() => () => material.dispose(), [material]);
   useEffect(() => () => atlas?.dispose(), [atlas]);
 
   useFrame((state, dt) => {
     uniforms.uTime.value = state.clock.elapsedTime;
-    uniforms.uLight.value = CROWD_LIGHT[tod];
-    uniforms.uSun.value.set(...CROWD_SUN[tod]).normalize();
     const target = crowdState.excite;
     uniforms.uExcite.value += (target - uniforms.uExcite.value) * Math.min(1, dt * 3);
     crowdState.excite = Math.max(0, crowdState.excite - dt * 0.12);
@@ -463,7 +487,7 @@ function Crowd({ seats, yaws, meta, accent, awayAccent, capacity, tod }: { seats
   });
 
   if (!atlas) return null;
-  return <mesh geometry={geom} material={material} frustumCulled={false} />;
+  return <mesh geometry={geom.g} material={material} frustumCulled={false} />;
 }
 
 /** Scoreboard face: a canvas the game controller draws into. */

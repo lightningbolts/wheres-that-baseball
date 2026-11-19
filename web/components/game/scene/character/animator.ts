@@ -429,7 +429,7 @@ export class Animator {
     }
     const sy = Math.sin(this.yaw);
     const cy = Math.cos(this.yaw);
-    this.gy = groundY(x + sy * pose.rootZ, z + cy * pose.rootZ);
+    this.gy = groundY(x + sy * pose.rootZ, z + cy * pose.rootZ) + (s.lift ?? 0);
     solveRig(a, pose, x, z, this.yaw, this.gy, out);
     if (ctx.hasTarget && (cls === "catch" || cls === "field" || cls === "crouch")) {
       // The hand is aimed at the wrist; nudge it so the glove's pocket is what meets the ball.

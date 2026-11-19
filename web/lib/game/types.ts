@@ -110,6 +110,8 @@ export interface RosterPlayer {
   zone: [number | null, number | null];
   sprint: number;
   arm: number;
+  /** Skin tone "#rrggbb" sampled from the MLB headshot (ml-engine/scripts/sample_skin_tones.py), when there is one. */
+  skin?: string | null;
   /** Baseball Savant leaderboards (enrich_game_rosters.py); any key may be missing. */
   sav?: SavantMetrics;
   bat?: BatRatingsRaw;

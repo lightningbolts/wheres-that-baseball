@@ -143,6 +143,42 @@ export const sfx = {
     src.start(t, Math.random());
     src.stop(t + 2.1);
   },
+  /** The building erupts: a big roar on top of the crowd bed that holds, then falls away over `seconds`. */
+  cheer(amount: number, seconds = 6) {
+    const c = ac();
+    if (!c || !master || amount <= 0) return;
+    noise = noise ?? noiseBuffer(c, 2);
+    const t = c.currentTime;
+    for (const [freq, q, k] of [
+      [1100, 0.5, 1],
+      [2400, 0.8, 0.45],
+    ] as const) {
+      const src = c.createBufferSource();
+      src.buffer = noise;
+      src.loop = true;
+      const f = c.createBiquadFilter();
+      f.type = "bandpass";
+      f.frequency.value = freq;
+      f.Q.value = q;
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(0.5 * amount * k, t + 0.35);
+      g.gain.setValueAtTime(0.5 * amount * k, t + seconds * 0.45);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + seconds);
+      src.connect(f).connect(g).connect(master);
+      src.start(t, Math.random());
+      src.stop(t + seconds + 0.1);
+    }
+    this.swell(amount, seconds);
+  },
+  /** One firework shell: a low boom and a trailing crackle. */
+  firework() {
+    burst(140, 0.8, 0.9, 0.9, "lowpass");
+    tone(70, 0.5, 0.35, "sine", 38);
+    const c = ac();
+    if (!c) return;
+    setTimeout(() => burst(3200, 1.5, 0.6, 0.18), 180);
+  },
   stopCrowd() {
     crowdGain?.disconnect();
     crowdGain = null;
