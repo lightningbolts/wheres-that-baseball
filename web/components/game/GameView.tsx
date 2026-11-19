@@ -143,7 +143,7 @@ export function GameView({
 
   return (
     <div className="relative min-h-0 w-full flex-1 select-none overflow-hidden bg-[#0d1a12] text-white">
-      <GameScene park={g.park} pb={pb} homeColor={getTeamColor(homeId)} awayColor={getTeamColor(awayId)} onAim={onAim} onPrimary={onPrimary} />
+      <GameScene park={g.park} pb={pb} homeColor={getTeamColor(homeId)} awayColor={getTeamColor(awayId)} homeTeam={homeId} awayTeam={awayId} onAim={onAim} onPrimary={onPrimary} />
       {/* A broadcast cut dips to black (quick down, a little slower up); the inning bumper sits on it. */}
       <div aria-hidden className={`pointer-events-none absolute inset-0 bg-black transition-opacity ${snap.curtain ? "opacity-100 duration-[130ms] ease-in" : "opacity-0 duration-300 ease-out"}`} />
       <Bumper snap={snap} awayId={awayId} homeId={homeId} />

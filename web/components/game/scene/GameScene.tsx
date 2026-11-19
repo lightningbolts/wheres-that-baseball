@@ -17,6 +17,9 @@ export interface GameSceneProps {
   pb: Playback;
   homeColor: string;
   awayColor?: string;
+  /** Club ids, for the fans' merch. */
+  homeTeam?: number;
+  awayTeam?: number;
   onAim: (px: number, pz: number) => void;
   onPrimary: () => void;
 }
@@ -28,7 +31,7 @@ const fpsBounds = (refresh: number): [number, number] => [refresh * 0.75, refres
  * The 3D view. Memoized: the HUD re-renders on every game event, and without it each one
  * re-reconciled the whole scene tree inside the canvas.
  */
-function GameScene({ park, pb, homeColor, awayColor, onAim, onPrimary }: GameSceneProps) {
+function GameScene({ park, pb, homeColor, awayColor, homeTeam, awayTeam, onAim, onPrimary }: GameSceneProps) {
   const q = useQuality();
   const { boot, live } = q;
   return (
@@ -62,7 +65,7 @@ function GameScene({ park, pb, homeColor, awayColor, onAim, onPrimary }: GameSce
           to the old view and players scaled for the old distance: a one-frame flash. */}
       <CameraRig pb={pb} />
       <Environment park={park} />
-      <Ballpark park={park} homeColor={homeColor} awayColor={awayColor} />
+      <Ballpark park={park} homeColor={homeColor} awayColor={awayColor} homeTeam={homeTeam} awayTeam={awayTeam} />
       <Players pb={pb} />
       <Ball pb={pb} />
       <ContactFx pb={pb} />

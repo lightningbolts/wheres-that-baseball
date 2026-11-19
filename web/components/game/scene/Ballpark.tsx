@@ -31,6 +31,7 @@ import {
   BLOCKS_FT,
   CROWD,
   crowdAtlas,
+  FAN_STYLE,
   decalAtlas,
   detailTexture,
   flareTexture,
@@ -42,6 +43,8 @@ import {
 } from "@/components/game/scene/parks/textures";
 import { timeOfDay, type TimeOfDay } from "@/components/game/scene/parks/tod";
 import { AWAY_FAN_SHARE } from "@/lib/game/crowd/reaction";
+import { CLUBS } from "@/components/game/scene/character/uniforms";
+import { dressFan, type FanColors } from "@/components/game/scene/parks/fans";
 import { useQuality } from "@/components/game/scene/quality";
 
 /**
@@ -145,7 +148,7 @@ function applyStructureFinish(m: THREE.Material, detail: THREE.Texture, glass: T
  * structure, seating, signage, lights, city, net, decals) and the crowd is one instanced
  * draw, so a park costs about fifteen draw calls.
  */
-export function Ballpark({ park, homeColor, awayColor }: { park: Park; homeColor: string; awayColor?: string }) {
+export function Ballpark({ park, homeColor, awayColor, homeTeam, awayTeam }: { park: Park; homeColor: string; awayColor?: string; homeTeam?: number; awayTeam?: number }) {
   const tod = useMemo(() => timeOfDay(park.venueId), [park.venueId]);
   const lit = tod !== "day";
   // Boot setting: the 3D view is rebuilt when it changes, so it is fixed for this mount.
@@ -300,7 +303,7 @@ export function Ballpark({ park, homeColor, awayColor }: { park: Park; homeColor
       <mesh geometry={geo.glow} material={m.glow} />
       <mesh geometry={geo.led} material={m.led} />
       <mesh geometry={geo.city} material={m.city} />
-      <Crowd seats={built.slots} yaws={built.yaws} meta={built.meta} accent={homeColor} awayAccent={awayColor} capacity={park.capacity} tod={tod} />
+      <Crowd seats={built.slots} yaws={built.yaws} meta={built.meta} accent={homeColor} awayAccent={awayColor} homeTeam={homeTeam} awayTeam={awayTeam} capacity={park.capacity} tod={tod} />
       <mesh geometry={geo.net} material={m.net} renderOrder={2} />
       {geo.veil.getAttribute("position").count > 0 && <mesh geometry={geo.veil} material={m.veil} renderOrder={1} />}
       {lit && <points geometry={geo.flares} material={m.flares} renderOrder={3} frustumCulled={false} />}
@@ -315,11 +318,13 @@ const SHIRTS = ["#f2f0ea", "#e9e4d6", "#20283a", "#8c9299", "#b32a33", "#1f4f9a"
 
 /**
  * Instanced crowd: one draw call of camera-facing sprites cut from a painted atlas of fans.
- * Clothes in the atlas are grey and take a per-fan tint; skin and hair keep their color.
+ * Clothes in the atlas are grey and take a per-fan tint; team trim (lettering, logos, caps)
+ * is painted in a magenta marker and takes a second tint; skin and hair keep their color.
+ * Fans wear home merch, a block of visitors wear road merch, and the rest wear their own clothes.
  * `crowdState.excite` gets the home fans out of their seats, arms up, on big moments;
  * `crowdState.away` does the same for the blocks of visiting fans in road colours.
  */
-function Crowd({ seats, yaws, meta, accent, awayAccent, capacity, tod }: { seats: Float32Array; yaws: Float32Array; meta: Float32Array; accent: string; awayAccent?: string; capacity: number; tod: TimeOfDay }) {
+function Crowd({ seats, yaws, meta, accent, awayAccent, homeTeam, awayTeam, capacity, tod }: { seats: Float32Array; yaws: Float32Array; meta: Float32Array; accent: string; awayAccent?: string; homeTeam?: number; awayTeam?: number; capacity: number; tod: TimeOfDay }) {
   const density = useQuality().live.crowd;
   const uniforms = useMemo(
     () => ({ uTime: { value: 0 }, uExcite: { value: 0 }, uAwayExcite: { value: 0 }, uLight: { value: CROWD_LIGHT[tod] }, uSun: { value: new THREE.Vector3(...CROWD_SUN[tod]).normalize() } }),
@@ -337,7 +342,7 @@ function Crowd({ seats, yaws, meta, accent, awayAccent, capacity, tod }: { seats
       shader.vertexShader = shader.vertexShader
         .replace(
           "#include <common>",
-          "#include <common>\nuniform float uTime;\nuniform float uExcite;\nuniform float uAwayExcite;\nuniform vec3 uSun;\nattribute vec3 aPos;\nattribute float aTeam;\nattribute vec3 aTint;\nattribute vec4 aInfo;\nattribute vec3 aMove;\nvarying vec3 vTint;\nvarying float vShade;\nvarying vec2 vCard;\nvarying vec3 vSun;",
+          "#include <common>\nuniform float uTime;\nuniform float uExcite;\nuniform float uAwayExcite;\nuniform vec3 uSun;\nattribute vec3 aPos;\nattribute float aTeam;\nattribute vec3 aTint;\nattribute vec3 aTint2;\nattribute vec4 aInfo;\nattribute vec3 aMove;\nvarying vec3 vTint;\nvarying vec3 vTint2;\nvarying float vShade;\nvarying vec2 vCard;\nvarying vec3 vSun;",
         )
         .replace(
           "#include <project_vertex>",
@@ -356,17 +361,19 @@ function Crowd({ seats, yaws, meta, accent, awayAccent, capacity, tod }: { seats
           vec3 wp = base + rgt * (position.x * ${FAN_W.toFixed(2)} * aInfo.w + sway) + upv * (position.y * ${FAN_H.toFixed(2)} * aInfo.w) + vec3(0.0, bob, 0.0);
           vec4 mvPosition = viewMatrix * vec4(wp, 1.0);
           gl_Position = projectionMatrix * mvPosition;
-          float cell = mix(aInfo.x, ${CROWD.seated.toFixed(1)} + floor(fract(sd * 3.7) * ${(CROWD.cols * CROWD.rows - CROWD.seated).toFixed(1)}), cheer);
+          // Standing up he swaps to a cheering cell of the same outfit style (style = cell mod ${FAN_STYLE.count}).
+          float cell = mix(aInfo.x, ${CROWD.seated.toFixed(1)} + mod(aInfo.x, ${FAN_STYLE.count.toFixed(1)}) + ${FAN_STYLE.count.toFixed(1)} * floor(fract(sd * 3.7) * ${((CROWD.cols * CROWD.rows - CROWD.seated) / FAN_STYLE.count).toFixed(1)}), cheer);
           vec2 cr = vec2(mod(cell, ${CROWD.cols.toFixed(1)}), floor(cell / ${CROWD.cols.toFixed(1)}));
           float fu = mix(uv.x, 1.0 - uv.x, step(0.5, fract(sd * 5.37)));
           vMapUv = vec2((cr.x + 0.025 + 0.95 * fu) / ${CROWD.cols.toFixed(1)}, 1.0 - (cr.y * ${CROWD.ch.toFixed(1)} + 2.5 + (1.0 - uv.y) * ${(CROWD.ch - 4).toFixed(1)}) / ${CROWD.size.toFixed(1)});
           vCard = uv;
           vSun = vec3(dot(uSun, rgt), uSun.y, dot(uSun, fwd));
           vTint = aTint;
+          vTint2 = aTint2;
           vShade = aInfo.y;`,
         );
       shader.fragmentShader = shader.fragmentShader
-        .replace("#include <common>", "#include <common>\nuniform float uLight;\nvarying vec3 vTint;\nvarying float vShade;\nvarying vec2 vCard;\nvarying vec3 vSun;")
+        .replace("#include <common>", "#include <common>\nuniform float uLight;\nvarying vec3 vTint;\nvarying vec3 vTint2;\nvarying float vShade;\nvarying vec2 vCard;\nvarying vec3 vSun;")
         .replace(
           "#include <map_fragment>",
           `vec4 tx = texture2D(map, vMapUv);
@@ -380,7 +387,12 @@ function Crowd({ seats, yaws, meta, accent, awayAccent, capacity, tod }: { seats
           float nz = sqrt(max(0.08, 1.0 - nx * nx));
           float lit = clamp(0.66 + 0.4 * (nx * vSun.x + nz * vSun.z * 0.55) + 0.22 * vSun.y * smoothstep(0.5, 0.95, vCard.y), 0.5, 1.22);
           lit *= mix(0.7, 1.0, smoothstep(0.02, 0.4, vCard.y));
-          diffuseColor.rgb = mix(tx.rgb, tx.rgb * vTint, cloth) * vShade * uLight * lit;`,
+          // Magenta marker texels are team trim: shade the fan's second colour by the marker's lightness.
+          float mk = clamp((min(tx.r, tx.b) - tx.g) / max(max(tx.r, tx.b), 0.02), 0.0, 1.0) * (1.0 - smoothstep(0.06, 0.2, abs(tx.r - tx.b)));
+          float trim = smoothstep(0.45, 0.85, mk);
+          vec3 cl = mix(tx.rgb, tx.rgb * vTint, cloth);
+          cl = mix(cl, vTint2 * max(tx.r, tx.b) * 1.28, trim);
+          diffuseColor.rgb = cl * vShade * uLight * lit;`,
         );
     };
     return m;
@@ -397,13 +409,21 @@ function Crowd({ seats, yaws, meta, accent, awayAccent, capacity, tod }: { seats
     const thin = Math.min(1, MAX_FANS / Math.max(1, expect));
     const pos: number[] = [];
     const tint: number[] = [];
+    const tint2: number[] = [];
     const info: number[] = [];
     const move: number[] = [];
     const team: number[] = [];
+    // Each side's merch: its real uniform colours, or its scoreboard colour when the club has no kit.
+    const kit = (id: number | undefined, color: string | undefined): FanColors | null => {
+      if (!color && id == null) return null;
+      const u = id != null ? CLUBS[id] : undefined;
+      const c0 = color ? new THREE.Color(color).getHex() : 0x1f2a44;
+      return u ? { home: u.home, road: u.road, cap: u.cap, letter: u.letter } : { home: 0xf4f2ec, road: 0x9a9ea4, cap: c0, letter: c0 };
+    };
+    const homeKit = kit(homeTeam, accent)!;
+    const roadKit = awayAccent ? kit(awayTeam, awayAccent) : null;
+    const palette = SHIRTS.map((x) => new THREE.Color(x).getHex());
     const c = new THREE.Color();
-    const road = awayAccent ? new THREE.Color(awayAccent).lerp(new THREE.Color("#ffffff"), 0.12) : null;
-    const acc = new THREE.Color(accent).lerp(new THREE.Color("#ffffff"), 0.12);
-    const palette = SHIRTS.map((x) => new THREE.Color(x));
     let s = 12345;
     const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
     // Seats sell in blocks: whole groups of neighbours turn up, or don't.
@@ -423,17 +443,17 @@ function Crowd({ seats, yaws, meta, accent, awayAccent, capacity, tod }: { seats
       if (!walker && r > Math.min(0.985, chance(rank) * block(i)) * thin) continue;
       pos.push(seats[i * 3] + (k[0] - 0.5) * 0.35, seats[i * 3 + 1] + (walker ? 2.9 : 1.25) + (k[1] - 0.5) * 0.2, seats[i * 3 + 2] + (k[0] - 0.5) * 0.35);
       // Visiting fans sit together in a few blocks (about one seat in eight), in road colours.
-      const awayFan = !!road && !walker && awayBlock(i);
+      const awayFan = !!roadKit && !walker && awayBlock(i);
       team.push(awayFan ? 1 : 0);
-      // Home colours dominate: jerseys and caps in the club colour, plus plenty of white.
-      if (awayFan && k[2] < 0.6) c.copy(road!).multiplyScalar(0.8 + k[3] * 0.4);
-      else if (k[2] < 0.4) c.copy(acc).multiplyScalar(0.8 + k[3] * 0.4);
-      else if (k[2] < 0.52) c.set("#f4f2ec").multiplyScalar(0.9 + k[3] * 0.1);
-      else c.copy(palette[Math.floor(k[3] * palette.length) % palette.length]).multiplyScalar(0.82 + k[4] * 0.3);
+      // Most of the building wears home merch, the visiting blocks road merch; the rest their own clothes.
+      const fit = dressFan(awayFan ? roadKit! : homeKit, palette, awayFan ? 0.82 : 0.66, k[2], k[3], k[4], k[0]);
+      c.setHex(fit.body).multiplyScalar(0.86 + k[3] * 0.24);
       tint.push(c.r, c.g, c.b);
+      c.setHex(fit.trim).multiplyScalar(0.9 + k[4] * 0.15);
+      tint2.push(c.r, c.g, c.b);
       // A few children, the odd tall fan.
       const size = k[1] < 0.07 ? 0.74 + k[3] * 0.08 : 0.92 + k[3] * 0.17;
-      info.push(Math.floor(k[4] * CROWD.seated) % CROWD.seated, meta[i * 2] * (0.9 + k[1] * 0.2), k[2] * 0.731 + k[0], size);
+      info.push(fit.style + FAN_STYLE.count * (Math.floor(k[1] * 997) % (CROWD.seated / FAN_STYLE.count)), meta[i * 2] * (0.9 + k[1] * 0.2), k[2] * 0.731 + k[0], size);
       if (walker) {
         const yaw = yaws[i];
         const amp = 6 + k[3] * 16;
@@ -464,12 +484,13 @@ function Crowd({ seats, yaws, meta, accent, awayAccent, capacity, tod }: { seats
     g.setAttribute("uv", plane.getAttribute("uv"));
     g.setAttribute("aPos", new THREE.InstancedBufferAttribute(shuffled(pos, 3), 3));
     g.setAttribute("aTint", new THREE.InstancedBufferAttribute(shuffled(tint, 3), 3));
+    g.setAttribute("aTint2", new THREE.InstancedBufferAttribute(shuffled(tint2, 3), 3));
     g.setAttribute("aInfo", new THREE.InstancedBufferAttribute(shuffled(info, 4), 4));
     g.setAttribute("aMove", new THREE.InstancedBufferAttribute(shuffled(move, 3), 3));
     g.setAttribute("aTeam", new THREE.InstancedBufferAttribute(shuffled(team, 1), 1));
     g.instanceCount = n;
     return { g, n };
-  }, [seats, yaws, meta, accent, awayAccent, capacity]);
+  }, [seats, yaws, meta, accent, awayAccent, homeTeam, awayTeam, capacity]);
   useEffect(() => () => geom.g.dispose(), [geom]);
   useEffect(() => {
     geom.g.instanceCount = Math.round(geom.n * density);
