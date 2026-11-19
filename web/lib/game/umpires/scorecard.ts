@@ -14,6 +14,7 @@
  * simmed games (no pitches) draw a card from the umpire's profile.
  */
 import {
+  countLean,
   umpireGeometry,
   UMP_SD_HEIGHT_FT,
   UMP_SD_SIDE_FT,
@@ -91,8 +92,10 @@ export function consistentCalls(calls: ReadonlyArray<Call>): number {
   // Threshold below everything: all called strikes are "right".
   let cur = sorted.reduce((n, c) => n + (c.strike ? 1 : 0), 0);
   let best = cur;
-  for (const c of sorted) {
-    cur += c.strike ? -1 : 1;
+  // Calls at the same margin sit on the same side of any threshold: move past them together.
+  for (let i = 0; i < sorted.length; ) {
+    const m = sorted[i].m;
+    for (; i < sorted.length && sorted[i].m === m; i += 1) cur += sorted[i].strike ? -1 : 1;
     if (cur > best) best = cur;
   }
   return best;
@@ -129,9 +132,12 @@ export class UmpTracker {
     );
     const correct = p.strike === p.inZone;
     this.calls.push({ m: margin, strike: p.strike });
-    this.xa += normCdf(
-      Math.abs(margin) / (nearSide ? UMP_SD_SIDE_FT : UMP_SD_HEIGHT_FT),
+    // A league-average umpire's chance of a strike here, count lean included.
+    const pK = normCdf(
+      (margin + countLean(p.balls, p.strikes)) /
+        (nearSide ? UMP_SD_SIDE_FT : UMP_SD_HEIGHT_FT),
     );
+    this.xa += p.inZone ? pK : 1 - pK;
     if (correct) {
       this.ok += 1;
       return;

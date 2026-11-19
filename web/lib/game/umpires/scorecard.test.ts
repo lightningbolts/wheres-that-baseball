@@ -64,6 +64,9 @@ describe("scorecard", () => {
         { m: -0.2, strike: false },
       ]),
     ).toBe(3);
+    // Two different calls at the same spot: one threshold can explain only one, in either order.
+    expect(consistentCalls([{ m: 0.1, strike: false }, { m: 0.1, strike: true }])).toBe(1);
+    expect(consistentCalls([{ m: 0.1, strike: true }, { m: 0.1, strike: false }])).toBe(1);
   });
 
   it("counts correct and missed calls, favor and the biggest miss", () => {

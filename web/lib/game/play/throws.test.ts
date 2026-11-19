@@ -251,3 +251,20 @@ describe("tagging up", () => {
     expect(throwsOf(r)).toHaveLength(0);
   });
 });
+
+describe("a human throw choice on an infield grounder", () => {
+  it("a base with no force on it is ignored, never a crash", () => {
+    let grounders = 0;
+    for (const spray of [-40, -20, -5, 0, 5, 20, 40]) {
+      for (const ev of [40, 60, 80, 95]) {
+        for (const base of [2, 3, 4] as const) {
+          const r = play(ev, -12, spray, { chooseThrow: () => base });
+          if (r.fieldedBy && ["P", "C", "1B", "2B", "3B", "SS"].includes(r.fieldedBy)) grounders += 1;
+          // Nobody on: the only force is the batter at first.
+          expect(throwsOf(r).filter((e) => e.base === base && ["P", "C", "1B", "2B", "3B", "SS"].includes(e.pos ?? ""))).toEqual([]);
+        }
+      }
+    }
+    expect(grounders).toBeGreaterThan(10);
+  });
+});

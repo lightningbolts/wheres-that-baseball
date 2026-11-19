@@ -188,14 +188,93 @@ export function nextSetting(s: QualitySetting): QualitySetting {
   return SETTINGS[(SETTINGS.indexOf(s) + 1) % SETTINGS.length];
 }
 
-/** Auto: the frame-rate monitor moves the live tier one step (never above the starting tier). */
-export function stepAutoTier(dir: -1 | 1): void {
+/**
+ * Auto: the frame-rate monitor moves the live tier one step (never above the starting tier).
+ * Returns whether the tier actually changed.
+ */
+export function stepAutoTier(dir: -1 | 1): boolean {
   const q = getQuality();
-  if (q.setting !== "auto") return;
+  if (q.setting !== "auto") return false;
   const i = Math.min(rank(q.boot.tier), Math.max(0, rank(q.live.tier) + dir));
-  if (ORDER[i] === q.live.tier) return;
+  if (ORDER[i] === q.live.tier) return false;
   autoLive = ORDER[i];
   changed();
+  return true;
+}
+
+export interface GovernorOptions {
+  /** Length of one frame-rate sample, ms. */
+  windowMs: number;
+  /** Samples per verdict. */
+  samples: number;
+  /** Frame rate the game aims for. Fixed: a scene that never reaches it must still step down. */
+  target: number;
+  /** Step down when most samples are under target × down… */
+  down: number;
+  /** …and back up when most are over target × up. */
+  up: number;
+  /** Stop adjusting after this many real reversals (down then up, or up then down). */
+  maxReversals: number;
+  /** After a tier change, wait this long before sampling (shaders, shadow maps rebuild). */
+  settleMs: number;
+  /** A gap this long between frames (hidden tab, a stall) throws the current sample away. */
+  gapMs: number;
+}
+
+const GOVERNOR: GovernorOptions = { windowMs: 500, samples: 6, target: 60, down: 0.75, up: 0.95, maxReversals: 3, settleMs: 2000, gapMs: 250 };
+
+/**
+ * Auto's frame-rate judge. Feed it every frame's timestamp; it answers -1 (step down),
+ * 1 (step up) or 0. Report what the step did with `stepped`: steps that leave the tier
+ * where it was (already at the top or bottom) never count toward giving up.
+ */
+export class FpsGovernor {
+  private readonly o: GovernorOptions;
+  private winStart = -1;
+  private last = -1;
+  private frames = 0;
+  private fps: number[] = [];
+  private lastDir = 0;
+  private holdUntil = 0;
+  reversals = 0;
+  stopped = false;
+
+  constructor(o: Partial<GovernorOptions> = {}) {
+    this.o = { ...GOVERNOR, ...o };
+  }
+
+  frame(now: number): -1 | 0 | 1 {
+    if (this.stopped || now < this.holdUntil) return 0;
+    const gap = this.last >= 0 && now - this.last > this.o.gapMs;
+    this.last = now;
+    if (this.winStart < 0 || gap) {
+      this.winStart = now;
+      this.frames = 0;
+      return 0;
+    }
+    this.frames += 1;
+    const span = now - this.winStart;
+    if (span < this.o.windowMs) return 0;
+    this.fps.push((this.frames / span) * 1000);
+    this.winStart = now;
+    this.frames = 0;
+    if (this.fps.length < this.o.samples) return 0;
+    const slow = this.fps.filter((f) => f < this.o.target * this.o.down).length;
+    const fast = this.fps.filter((f) => f >= this.o.target * this.o.up).length;
+    this.fps = [];
+    const half = this.o.samples / 2;
+    return slow > half ? -1 : fast > half ? 1 : 0;
+  }
+
+  stepped(dir: -1 | 1, changedTier: boolean, now: number): void {
+    if (!changedTier) return;
+    if (this.lastDir !== 0 && dir !== this.lastDir) this.reversals += 1;
+    this.lastDir = dir;
+    this.fps = [];
+    this.winStart = -1;
+    this.holdUntil = now + this.o.settleMs;
+    if (this.reversals >= this.o.maxReversals) this.stopped = true;
+  }
 }
 
 export function useQuality(): QualityState {

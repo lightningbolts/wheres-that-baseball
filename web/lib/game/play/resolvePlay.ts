@@ -962,7 +962,8 @@ function resolveInfieldGrounder(
   }));
   let target: Base | null;
   const human = input.chooseThrow?.(options, { pos: f.pos, t: tField });
-  if (human !== undefined) target = human;
+  // Holding the ball is always allowed; a base with no force on it is no choice at all (the AI picks).
+  if (human === null || (human !== undefined && options.some((o) => o.base === human))) target = human;
   else {
     // Lead force if comfortably available, else the surest out; close plays at 1st still get thrown.
     // With fewer than two outs, go to second for the double play when it's there; an
@@ -978,8 +979,8 @@ function resolveInfieldGrounder(
   let fc = false;
   let pivotPos: FieldPos = "2B";
   let firstTake: InfieldTake | null = null;
-  if (target != null) {
-    const runner = forcedPlans.find((p) => p.target === target)!;
+  const runner = target != null ? forcedPlans.find((p) => p.target === target) : undefined;
+  if (target != null && runner) {
     const tk = (firstTake = take(target));
     const tArr = tk.t;
     if (!tk.self) {

@@ -139,6 +139,10 @@ export const UMP_SD_HEIGHT_FT = 0.12;
  * him a little (a wider zone at 3-0, a tighter one at 0-2), as Statcast shows real umps do.
  * `g1`, `g2` are standard normal draws.
  */
+/** Umpires widen the zone at 3-0 and shrink it with two strikes (ft added to the margin). */
+export const countLean = (balls: number, strikes: number): number =>
+  balls === 3 && strikes === 0 ? 0.035 : strikes === 2 && balls < 2 ? -0.035 : 0;
+
 export function umpireCall(
   flight: PitchFlight,
   zoneBottom: number,
@@ -151,7 +155,7 @@ export function umpireCall(
 ): boolean {
   const { margin, nearSide } = umpireGeometry(flight, zoneBottom, zoneTop, inZone, ump);
   const sd = (nearSide ? UMP_SD_SIDE_FT : UMP_SD_HEIGHT_FT) * (ump?.sd ?? 1);
-  const lean = count.balls === 3 && count.strikes === 0 ? 0.035 : count.strikes === 2 && count.balls < 2 ? -0.035 : 0;
+  const lean = countLean(count.balls, count.strikes);
   // A different draw per edge, so corners aren't called by one coin.
   return margin + (ump?.zone ?? 0) + lean + (nearSide ? g1 : g2) * sd > 0;
 }

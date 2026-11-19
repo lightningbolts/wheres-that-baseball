@@ -84,11 +84,15 @@ export function GameView({
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
       const k = e.key;
       if (k === " " || k === "Enter") {
+        const el = document.activeElement;
+        const control = el instanceof HTMLButtonElement || el instanceof HTMLElement && el.tagName === "SUMMARY";
+        // A control reached with the keyboard (Tab) keeps its own Space/Enter activation.
+        if (control && el.matches(":focus-visible")) return;
         e.preventDefault();
         // A held key must not lock the target and stop the meter (or swing) by itself.
         if (e.repeat) return;
-        // A focused HUD button would also "click" on Space: the key belongs to the game.
-        if (document.activeElement instanceof HTMLButtonElement) document.activeElement.blur();
+        // A HUD button focused by a mouse click would also "click" on Space: the key belongs to the game.
+        if (control) el.blur();
         ctl.primary();
       } else if (k === "Escape") {
         ctl.cancelAim();

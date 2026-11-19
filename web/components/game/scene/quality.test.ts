@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyDevice, nextSetting, PROFILES } from "@/components/game/scene/quality";
+import { classifyDevice, FpsGovernor, nextSetting, PROFILES } from "@/components/game/scene/quality";
 
 describe("graphics quality", () => {
   it("rates devices by their weakest signal", () => {
@@ -40,5 +40,64 @@ describe("graphics quality", () => {
     expect(nextSetting("high")).toBe("medium");
     expect(nextSetting("medium")).toBe("low");
     expect(nextSetting("low")).toBe("auto");
+  });
+});
+
+describe("Auto's frame-rate governor", () => {
+  /** Run `ms` of frames at `fps`, handing each verdict to `on`. */
+  const play = (g: FpsGovernor, t0: number, ms: number, fps: number, on: (d: -1 | 1, now: number) => boolean = () => false) => {
+    const out: number[] = [];
+    let now = t0;
+    for (; now < t0 + ms; now += 1000 / fps) {
+      const d = g.frame(now);
+      if (d !== 0) {
+        out.push(d);
+        g.stepped(d, on(d, now), now);
+      }
+    }
+    return { out, now };
+  };
+
+  it("steps down a scene that is slow from the very first frame", () => {
+    const g = new FpsGovernor();
+    expect(play(g, 0, 4000, 30).out).toContain(-1);
+  });
+
+  it("leaves a smooth scene alone, and steps up when it is smooth below the top", () => {
+    const g = new FpsGovernor();
+    const { out } = play(g, 0, 4000, 60);
+    expect(out.every((d) => d === 1)).toBe(true);
+    expect(out.length).toBeGreaterThan(0);
+  });
+
+  it("no-op steps never use up its patience: still steps down after a long healthy spell", () => {
+    const g = new FpsGovernor();
+    // Already at the top tier: every step up changes nothing.
+    const a = play(g, 0, 60_000, 60, () => false);
+    expect(a.out.length).toBeGreaterThan(5);
+    expect(g.stopped).toBe(false);
+    expect(play(g, a.now, 7000, 25).out).toContain(-1);
+  });
+
+  it("gives up after three real reversals", () => {
+    const g = new FpsGovernor();
+    let t = 0;
+    for (let i = 0; i < 3; i += 1) {
+      t = play(g, t, 6000, 25, () => true).now;
+      t = play(g, t, 6000, 60, () => true).now;
+    }
+    expect(g.stopped).toBe(true);
+    expect(play(g, t, 6000, 20).out).toEqual([]);
+  });
+
+  it("a hidden tab's pause is not read as a slow frame rate", () => {
+    const g = new FpsGovernor();
+    let t = play(g, 0, 1200, 60).now;
+    // Two frames a second apart (rAF throttled), then normal again.
+    for (let i = 0; i < 6; i += 1) {
+      expect(g.frame(t)).not.toBe(-1);
+      t += 1000;
+    }
+    expect(play(g, t, 4000, 60).out).not.toContain(-1);
   });
 });

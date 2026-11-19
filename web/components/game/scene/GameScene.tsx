@@ -1,16 +1,15 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useState } from "react";
 import * as THREE from "three";
-import { Canvas } from "@react-three/fiber";
-import { PerformanceMonitor } from "@react-three/drei";
+import { Canvas, useFrame } from "@react-three/fiber";
 import type { Park } from "@/lib/game/physics/park";
 import { Ballpark } from "@/components/game/scene/Ballpark";
 import { Players } from "@/components/game/scene/Players";
 import { Ball, CameraRig, ContactFx, Director, PlateOverlay } from "@/components/game/scene/SceneParts";
 import { Environment } from "@/components/game/scene/parks/Environment";
 import type { Playback } from "@/components/game/scene/playback";
-import { stepAutoTier, useQuality } from "@/components/game/scene/quality";
+import { FpsGovernor, stepAutoTier, useQuality } from "@/components/game/scene/quality";
 
 export interface GameSceneProps {
   park: Park;
@@ -24,8 +23,16 @@ export interface GameSceneProps {
   onPrimary: () => void;
 }
 
-/** Frame-rate bounds for Auto's monitor: step down under 75% of the display rate, back up above 95%. */
-const fpsBounds = (refresh: number): [number, number] => [refresh * 0.75, refresh * 0.95];
+/** Auto: watches the frame rate and steps the live tier down (or back up). */
+function AutoQuality() {
+  const [gov] = useState(() => new FpsGovernor());
+  useFrame(() => {
+    const now = performance.now();
+    const dir = gov.frame(now);
+    if (dir !== 0) gov.stepped(dir, stepAutoTier(dir), now);
+  });
+  return null;
+}
 
 /**
  * The 3D view. Memoized: the HUD re-renders on every game event, and without it each one
@@ -56,7 +63,7 @@ function GameScene({ park, pb, homeColor, awayColor, homeTeam, awayTeam, onAim, 
       style={{ touchAction: "none" }}
     >
       {q.setting === "auto" && boot.tier !== "low" && (
-        <PerformanceMonitor bounds={fpsBounds} flipflops={3} onDecline={() => stepAutoTier(-1)} onIncline={() => stepAutoTier(1)} />
+        <AutoQuality />
       )}
       <Director pb={pb} />
       {/* The camera moves before anything reads it: the shadow box, the players' on-screen size

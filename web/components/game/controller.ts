@@ -1648,6 +1648,8 @@ export class GameController {
 
   /** Quick-sim the rest of the half-inning with the CPU on both sides. */
   simHalf() {
+    // Nothing left to simulate once the game is over (and the postgame hold or party must play out).
+    if (this.session.game.final) return;
     if (this.phase === "final" || this.phase === "pitch" || this.phase === "play" || this.phase === "challenge" || this.phase === "review" || this.phase === "pickoff") return;
     this.handoff = null;
     this.handoffNext = null;
