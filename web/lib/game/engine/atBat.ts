@@ -11,6 +11,7 @@ import { simulateBattedBall, type BattedBallPath } from "@/lib/game/physics/batt
 import type { Park } from "@/lib/game/physics/park";
 import type { BatterModel, PitcherModel } from "@/lib/game/ratings";
 import { clamp, len, type Rng } from "@/lib/game/math";
+import type { UmpTendency } from "@/lib/game/umpires/data";
 
 export interface Count {
   balls: number;
@@ -30,6 +31,8 @@ export interface PitchContext {
   /** Final three innings of regulation (or extras) in a one-run game. */
   lateClose?: boolean;
   park: Park;
+  /** The plate umpire's zone (absent = league-average umpire). */
+  ump?: UmpTendency;
 }
 
 export interface PitchDecision {
@@ -86,6 +89,8 @@ export interface PitchResult {
   wildPitch?: boolean;
   /** The batter bunted (foul with two strikes is a strikeout; fielders charge). */
   bunt?: boolean;
+  /** An ABS challenge reversed the umpire's call (kind is the corrected call). */
+  absOverturned?: boolean;
 }
 
 /** Where a batter stands: inner edge of the body ~1.9 ft from plate center on his side. */
@@ -134,6 +139,10 @@ export const UMP_SD_HEIGHT_FT = 0.12;
  * him a little (a wider zone at 3-0, a tighter one at 0-2), as Statcast shows real umps do.
  * `g1`, `g2` are standard normal draws.
  */
+/** Umpires widen the zone at 3-0 and shrink it with two strikes (ft added to the margin). */
+export const countLean = (balls: number, strikes: number): number =>
+  balls === 3 && strikes === 0 ? 0.035 : strikes === 2 && balls < 2 ? -0.035 : 0;
+
 export function umpireCall(
   flight: PitchFlight,
   zoneBottom: number,
@@ -142,18 +151,34 @@ export function umpireCall(
   count: Count,
   g1: number,
   g2: number,
+  ump?: UmpTendency,
 ): boolean {
-  const at = inZone ? (zoneContact(flight, zoneBottom, zoneTop) ?? { px: flight.px, pz: flight.pz }) : { px: flight.px, pz: flight.pz };
-  const r = BALL_RADIUS_FT;
-  const side = PLATE_HALF_WIDTH + r - Math.abs(at.px);
-  const height = Math.min(at.pz - (zoneBottom - r), zoneTop + r - at.pz);
-  // Signed distance to the deciding edge (+ inside: the nearest one; − outside: the one missed by most).
-  const nearSide = side <= height;
-  const margin = Math.min(side, height);
-  const sd = nearSide ? UMP_SD_SIDE_FT : UMP_SD_HEIGHT_FT;
-  const lean = count.balls === 3 && count.strikes === 0 ? 0.035 : count.strikes === 2 && count.balls < 2 ? -0.035 : 0;
+  const { margin, nearSide } = umpireGeometry(flight, zoneBottom, zoneTop, inZone, ump);
+  const sd = (nearSide ? UMP_SD_SIDE_FT : UMP_SD_HEIGHT_FT) * (ump?.sd ?? 1);
+  const lean = countLean(count.balls, count.strikes);
   // A different draw per edge, so corners aren't called by one coin.
-  return margin + lean + (nearSide ? g1 : g2) * sd > 0;
+  return margin + (ump?.zone ?? 0) + lean + (nearSide ? g1 : g2) * sd > 0;
+}
+
+/**
+ * Where the pitch sits relative to the umpire's zone: signed distance to the deciding
+ * edge (+ inside: the nearest one; − outside: the one missed by most), and whether that
+ * edge is a side (else the top or bottom). An umpire's `hi` lifts the top and bottom.
+ */
+export function umpireGeometry(
+  flight: Pick<PitchFlight, "px" | "pz"> & Partial<PitchFlight>,
+  zoneBottom: number,
+  zoneTop: number,
+  inZone: boolean,
+  ump?: Pick<UmpTendency, "hi">,
+): { margin: number; nearSide: boolean } {
+  const at = inZone && flight.cross ? (zoneContact(flight as PitchFlight, zoneBottom, zoneTop) ?? { px: flight.px, pz: flight.pz }) : { px: flight.px, pz: flight.pz };
+  const r = BALL_RADIUS_FT;
+  const lift = ump?.hi ?? 0;
+  const side = PLATE_HALF_WIDTH + r - Math.abs(at.px);
+  const height = Math.min(at.pz - (zoneBottom + lift - r), zoneTop + lift + r - at.pz);
+  const nearSide = side <= height;
+  return { margin: Math.min(side, height), nearSide };
 }
 
 export function resolveSwingPhase(
@@ -175,7 +200,7 @@ export function resolveSwingPhase(
   if (swing.swing && swing.bunt) return resolveBunt(ctx, decision, flight, swing, rng, inZone);
 
   if (!swing.swing) {
-    const called = umpireCall(flight, ctx.batter.zoneBottom, ctx.batter.zoneTop, inZone, ctx.count, rng.gauss(0, 1), rng.gauss(0, 1));
+    const called = umpireCall(flight, ctx.batter.zoneBottom, ctx.batter.zoneTop, inZone, ctx.count, rng.gauss(0, 1), rng.gauss(0, 1), ctx.ump);
     let wildPitch = false;
     if (!called && ctx.runnersOn > 0) {
       const pWild = flight.pz < -0.2 ? 0.4 : flight.pz < 0.4 ? 0.12 : Math.abs(flight.px) > 2.0 ? 0.12 : 0.006;

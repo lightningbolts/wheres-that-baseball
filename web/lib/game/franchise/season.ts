@@ -7,12 +7,14 @@ import { attendance, accrueDay, closeSeasonBooks, recordGate } from "./finances"
 import { expectedWins } from "./league";
 import { buildBracket, onPostseasonResult, schedulePostseasonDay } from "./postseason";
 import { club } from "./data";
-import { FRng } from "./rng";
+import { FRng, hash32 } from "./rng";
 import { isHealthy, news, normalizeRoster } from "./roster";
 import { chooseStarter, recordLines, simGame, type GameOutcome } from "./sim";
 import { computeAwards, selectAllStars } from "./awards";
 import { aiTradeTick } from "./trades";
 import type { League, Player, ScheduledGame } from "./types";
+import { ensureUmpires, plateUmp } from "./umpires";
+import { simUmpCard, zoneRateEffect } from "@/lib/game/umpires/scorecard";
 
 export const gamesOn = (league: League, day: number): ScheduledGame[] => league.schedule.filter((g) => g.day === day);
 
@@ -76,6 +78,7 @@ export function applyGameResult(league: League, g: ScheduledGame, out: GameOutco
   // Postseason dates sell out.
   const att = post ? club(home.id).capacity : attendance(league, home, g.day, rng);
   g.result = { as: out.awayRuns, hs: out.homeRuns, inn: out.innings, wp: out.wp, lp: out.lp, sv: out.sv, manual: manual || undefined, att };
+  if (out.uc) g.uc = out.uc;
   recordLines(league, out, g.day, post);
   if (!post) {
     const homeWon = out.homeRuns > out.awayRuns;
@@ -118,6 +121,8 @@ export function playScheduledGame(league: League, g: ScheduledGame, rng: FRng): 
   const home = league.teams[g.home];
   const post = !!g.ps;
   const minGap = post ? 4 : 5;
+  if (g.ump == null) ensureUmpires(league);
+  const ump = plateUmp(g);
   const out = simGame({
     league,
     away,
@@ -127,7 +132,14 @@ export function playScheduledGame(league: League, g: ScheduledGame, rng: FRng): 
     awayStarter: chooseStarter(league, away, g.day, minGap),
     homeStarter: chooseStarter(league, home, g.day, minGap),
     postseason: post,
+    zone: ump ? zoneRateEffect(ump) : undefined,
   });
+  if (ump) {
+    // Its own stream, so the scorecard never shifts the league's dice.
+    let pitches = 0;
+    for (const n of out.pitches.values()) pitches += n;
+    out.uc = simUmpCard(ump, pitches, out.innings, new FRng(hash32(league.seed, league.season, g.id, "ump-card")));
+  }
   applyGameResult(league, g, out, rng);
   return out;
 }
@@ -135,6 +147,8 @@ export function playScheduledGame(league: League, g: ScheduledGame, rng: FRng): 
 /** Postseason: schedule today's games if needed (idempotent). */
 export function prepareDay(league: League): void {
   if (league.phase === "postseason") schedulePostseasonDay(league);
+  // Plate umpires for any game without one (new postseason games, older saves).
+  ensureUmpires(league);
 }
 
 function endRegularSeason(league: League): void {

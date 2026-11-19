@@ -4,6 +4,7 @@ import { GameSession, teamsFromRosters } from "@/lib/game/session/session";
 import { buildTimeline, basePathPoint, BATTER_HANDOFF_S, MAX_RUN_FT_S, SMOOTH_H, outPlayEnd, OUT_HOLD_S } from "@/lib/game/anim/timeline";
 import { BASE_POS } from "@/lib/game/play/movement";
 import { FIELD_POSITIONS, type RosterFile } from "@/lib/game/types";
+import { PITCHER_TOP_SPEED } from "@/lib/game/play/defense";
 
 const teams = teamsFromRosters(rosters as unknown as RosterFile);
 const ids = [...teams.keys()];
@@ -134,6 +135,86 @@ describe("animation timeline", () => {
       }
     }
     expect(held).toBeGreaterThan(200);
+  });
+});
+
+describe("fielder movement realism", () => {
+  const games = (n: number, seed0: number) => {
+    const out: Array<{ c: ReturnType<GameSession["autoPitch"]>; tl: ReturnType<typeof buildTimeline> }> = [];
+    for (let g = 0; g < n; g++) {
+      const s = new GameSession({ awayTeamId: ids[g % ids.length], homeTeamId: ids[(g + 7) % ids.length], human: "none", innings: 9, seed: seed0 + g, difficulty: "pro", awayStarter: 0, homeStarter: 0 }, teams);
+      while (!s.game.final) {
+        const c = s.autoPitch();
+        const tl = buildTimeline(c);
+        if (tl.inPlay && tl.contactT != null && c.play) out.push({ c, tl });
+      }
+    }
+    return out;
+  };
+
+  it("the pitcher finishes his delivery before he moves, and nobody outruns his own top speed", () => {
+    let covers = 0;
+    for (const { c, tl } of games(3, 100)) {
+      const contact = tl.contactT!;
+      for (const f of c.fielders) {
+        const cap = (f.pos === "P" ? Math.min(f.sprint, PITCHER_TOP_SPEED) : f.sprint) + 0.5;
+        for (let T = tl.releaseT - 1.5; T < tl.endT; T += 1 / 45) {
+          const a = tl.fielder(f.pos, T);
+          expect(a.speed, `${f.pos} ${c.play!.scoring} @${(T - contact).toFixed(2)}`).toBeLessThan(cap);
+          if (f.pos !== "P") continue;
+          // Never a delivery on the run, and no step before he could react to the ball.
+          if (a.action === "pitch") expect(a.speed, `pitching on the move ${c.play!.scoring}`).toBeLessThan(0.5);
+          if (T < contact + f.reaction - SMOOTH_H) expect(a.speed, `pitcher moves early ${c.play!.scoring} @${(T - contact).toFixed(2)}`).toBeLessThan(0.5);
+        }
+      }
+      for (const e of c.play!.events) {
+        if (e.type !== "throw" || e.receiver !== "P" || e.base !== 1) continue;
+        covers++;
+        // He's on the bag when the ball gets there.
+        const a = tl.fielder("P", contact + e.arriveT!);
+        expect(Math.hypot(a.p.x - e.to!.x, a.p.z - e.to!.z)).toBeLessThan(3);
+      }
+    }
+    expect(covers).toBeGreaterThan(0);
+  });
+
+  it("forces have the ball in a glove on the bag and tags have it on the runner, when the out is called", () => {
+    let forces = 0;
+    let tags = 0;
+    for (const { c, tl } of games(5, 300)) {
+      const play = c.play!;
+      for (const e of play.events) {
+        if ((e.type !== "force_out" && e.type !== "tag_out") || !e.base) continue;
+        const T = tl.contactT! + e.t + 0.01;
+        if (T > tl.endT) continue;
+        const label = `${play.scoring} ${e.type}@${e.base} t=${e.t.toFixed(2)}`;
+        const ro = play.runners.find((r) => r.playerId === e.playerId);
+        expect(ro?.out, label).toBe(true);
+        expect(Math.abs(ro!.t - e.t), label).toBeLessThan(0.05);
+        const b = tl.ball(T);
+        expect(b.held && b.holder, `${label}: ball not in a glove yet`).toBeTruthy();
+        const f = tl.fielder(b.holder!, T);
+        const bag = BASE_POS[e.base];
+        const r = tl.runner(e.playerId!, T);
+        if (e.type === "force_out") {
+          forces++;
+          expect(Math.hypot(f.p.x - bag.x, f.p.z - bag.z), `${label}: ${b.holder} off the bag`).toBeLessThan(4);
+          // The runner hasn't beaten it there.
+          if (r) expect(Math.hypot(r.p.x - bag.x, r.p.z - bag.z), label).toBeGreaterThan(1);
+          // A force only stands while the runner behind him is still live.
+          if (!play.caught && ro!.from > 0) {
+            const behind = play.runners.find((x) => x.from === ro!.from - 1);
+            expect(behind && behind.out && behind.t < e.t - 0.01, `${label}: force removed`).toBeFalsy();
+          }
+        } else {
+          tags++;
+          expect(r, label).not.toBeNull();
+          expect(Math.hypot(f.p.x - r!.p.x, f.p.z - r!.p.z), `${label}: tag from ${b.holder} out of reach`).toBeLessThan(6);
+        }
+      }
+    }
+    expect(forces).toBeGreaterThan(50);
+    expect(tags).toBeGreaterThan(0);
   });
 });
 

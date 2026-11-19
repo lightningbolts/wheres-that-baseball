@@ -140,3 +140,17 @@ describe("CBT", () => {
     expect(third).toBeGreaterThan(first);
   });
 });
+
+describe("trade values", () => {
+  it("never lets the user take a productive player for nothing, however big his contract", async () => {
+    const { projectedWar } = await import("./contracts");
+    const league = createLeague(file, { userTeam: USER, seed: 11 });
+    const good = Object.values(league.players).filter((p) => p.team !== USER && league.teams[p.team] && p.status !== "fa" && p.status !== "retired" && projectedWar(p, 0) >= 1.5);
+    expect(good.length).toBeGreaterThan(100);
+    for (const p of good) {
+      expect(tradeValue(league, p, p.team), p.name).toBeGreaterThan(0);
+      expect(evaluateTrade(league, { from: USER, to: p.team, give: [], get: [p.id] }).accept, p.name).toBe(false);
+      expect(suggestPackage(league, p.team, USER, [p.id]), p.name).not.toEqual([]);
+    }
+  });
+});

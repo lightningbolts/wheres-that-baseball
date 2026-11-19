@@ -223,9 +223,8 @@ export function detailTexture(): THREE.CanvasTexture {
   return t;
 }
 
-/** Whole-field mowing pattern and grass detail (one 2048² image over the playing surface). */
-export function mowTexture(mow: ParkLayout["mow"], turf: boolean): THREE.CanvasTexture {
-  const N = 2048;
+/** Whole-field mowing pattern and grass detail (one N² image over the playing surface; 2048² by default). */
+export function mowTexture(mow: ParkLayout["mow"], turf: boolean, N = 2048): THREE.CanvasTexture {
   const [c, g] = canvas(N, N);
   const k = N / TURF_SPAN;
   const [a, b] = turf ? ["#3a783c", "#3f803e"] : ["#3a7836", "#4c9143"];
@@ -516,6 +515,22 @@ function dataTexture(c: HTMLCanvasElement, img: ImageData, aniso = 4): THREE.Dat
 /** Crowd sprite atlas layout: 8 × 6 cells; the last row holds the cheering poses. */
 export const CROWD = { cols: 8, rows: 6, seated: 40, cw: 128, ch: 170, size: 1024 } as const;
 
+/**
+ * Fan outfits in the crowd atlas. A cell's style is its index mod 4 (seated and cheering
+ * cells alike), so a fan keeps the same kind of top when he jumps up: 0 jersey, 1 tee with a
+ * chest logo, 2 hoodie, 3 plain or striped.
+ */
+export const FAN_STYLE = { jersey: 0, tee: 1, hoodie: 2, plain: 3, count: 4 } as const;
+
+/**
+ * Team trim (jersey lettering and piping, chest logos, stripes, caps) is painted in this
+ * marker hue, magenta at lightness k: the crowd shader swaps it for each fan's second colour.
+ */
+const trimMark = (k: number) => {
+  const v = Math.max(0, Math.min(255, Math.round(200 * k)));
+  return `rgb(${v},0,${v})`;
+};
+
 const SKINS: Array<[string, string]> = [
   ["#f3cfb0", "#cf9f7c"],
   ["#eac09a", "#c08f68"],
@@ -527,7 +542,7 @@ const SKINS: Array<[string, string]> = [
 const HAIRS = ["#231a14", "#2e2019", "#4a3222", "#6f4b2c", "#a37a44", "#d2b06a", "#8a4a2b", "#c9bfae", "#3a2a22"];
 
 /** One fan, waist-up, in a 128 × 170 cell. Clothes are pure greys: the shader tints them. */
-function drawFan(g: CanvasRenderingContext2D, rnd: () => number, cheer: boolean): void {
+function drawFan(g: CanvasRenderingContext2D, rnd: () => number, cheer: boolean, outfit: number): void {
   const cx = 64 + (rnd() - 0.5) * 6;
   const [skin, skinDark] = SKINS[Math.floor(rnd() * SKINS.length)];
   const hair = HAIRS[Math.floor(rnd() * HAIRS.length)];
@@ -641,27 +656,33 @@ function drawFan(g: CanvasRenderingContext2D, rnd: () => number, cheer: boolean)
   side.addColorStop(1, "rgba(0,0,0,0.14)");
   g.fillStyle = side;
   g.fillRect(0, 0, 128, 176);
-  const style = rnd();
-  if (style < 0.22) {
-    // Jersey: placket and a chest wordmark band.
-    g.fillStyle = light ? "rgba(0,0,0,0.3)" : "rgba(255,255,255,0.5)";
-    g.fillRect(cx - 1, shY, 2, 90);
-    g.fillRect(cx - sw * 0.55, shY + 22, sw * 1.1, 7);
-  } else if (style < 0.36) {
-    // Hoodie / jacket: zipper and a darker hem.
+  rnd();
+  if (outfit === FAN_STYLE.jersey) {
+    // Jersey: piping round the shoulders, placket, chest wordmark and a number on the belly.
+    g.fillStyle = trimMark(1);
+    g.fillRect(cx - 1.5, shY, 3, 90);
+    g.fillRect(cx - sw * 0.6, shY + 20, sw * 1.2, 9);
+    g.fillRect(cx + sw * 0.18, shY + 40, 9, 13);
+    g.fillRect(cx - sw, shY + 6, sw * 2, 3);
+  } else if (outfit === FAN_STYLE.tee) {
+    // Team tee: a big chest logo.
+    g.fillStyle = trimMark(1);
+    g.beginPath();
+    g.ellipse(cx, shY + 32, sw * 0.4, 12, 0, 0, Math.PI * 2);
+    g.fill();
+  } else if (outfit === FAN_STYLE.hoodie) {
+    // Hoodie / jacket: zipper, a darker hem, a small logo on the chest.
     g.fillStyle = "rgba(0,0,0,0.34)";
     g.fillRect(cx - 1.5, shY + 4, 3, 90);
     g.fillRect(cx - sw, shY + 58, sw * 2, 30);
-  } else if (style < 0.5) {
-    // Horizontal stripes.
-    g.fillStyle = light ? "rgba(0,0,0,0.22)" : "rgba(255,255,255,0.25)";
-    for (let y = shY + 10; y < 176; y += 14) g.fillRect(cx - sw, y, sw * 2, 5);
-  } else if (style < 0.62) {
-    // Big chest graphic.
-    g.fillStyle = light ? "rgba(0,0,0,0.3)" : "rgba(255,255,255,0.55)";
+    g.fillStyle = trimMark(1);
     g.beginPath();
-    g.ellipse(cx, shY + 34, sw * 0.42, 12, 0, 0, Math.PI * 2);
+    g.arc(cx - sw * 0.45, shY + 22, 6, 0, Math.PI * 2);
     g.fill();
+  } else if (rnd() < 0.4) {
+    // Plain top, sometimes striped in the second colour.
+    g.fillStyle = trimMark(0.95);
+    for (let y = shY + 10; y < 176; y += 14) g.fillRect(cx - sw, y, sw * 2, 5);
   }
   // Shadow under the chin.
   const chin = g.createRadialGradient(cx, shY - 4, 2, cx, shY - 2, 24);
@@ -697,7 +718,7 @@ function drawFan(g: CanvasRenderingContext2D, rnd: () => number, cheer: boolean)
   // Neck and collar.
   g.fillStyle = skinDark;
   g.fillRect(cx - 7.5, headY + hry - 6, 15, shY - headY - hry + 4);
-  if (style > 0.62 && style < 0.82) {
+  if (outfit === FAN_STYLE.tee || outfit === FAN_STYLE.plain) {
     g.fillStyle = skin;
     g.beginPath();
     g.moveTo(cx - 8, shY - 6);
@@ -733,15 +754,15 @@ function drawFan(g: CanvasRenderingContext2D, rnd: () => number, cheer: boolean)
 
   // Hair or cap.
   if (cap) {
-    const capL = rnd() < 0.5 ? 1.1 : 0.62;
-    g.fillStyle = grey(capL);
+    rnd();
+    g.fillStyle = trimMark(1);
     g.strokeStyle = outline;
     g.beginPath();
     g.ellipse(cx, headY - hry * 0.36, hr + 1.5, hry * 0.74, 0, Math.PI, Math.PI * 2);
     g.closePath();
     g.fill();
     g.stroke();
-    g.fillStyle = grey(capL * 0.74);
+    g.fillStyle = trimMark(0.74);
     g.beginPath();
     g.ellipse(cx, headY - hry * 0.34, hr + 5, 5.2, 0, 0, Math.PI);
     g.closePath();
@@ -804,7 +825,7 @@ export function crowdAtlas(): THREE.DataTexture {
     g.beginPath();
     g.rect(2, 2, cw - 4, ch - 3);
     g.clip();
-    drawFan(g, rnd, i >= seated);
+    drawFan(g, rnd, i >= seated, i % FAN_STYLE.count);
     g.restore();
   }
   const img = g.getImageData(0, 0, size, size);

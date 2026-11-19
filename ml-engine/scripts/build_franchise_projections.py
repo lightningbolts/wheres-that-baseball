@@ -456,6 +456,10 @@ def main() -> None:
     OUT.write_text(json.dumps(payload, separators=(",", ":")))
     n_extra = sum(len(v) for v in extras.values())
     print(f"wrote {len(out_players)} projections + {n_extra} added 40-man players to {OUT} ({OUT.stat().st_size // 1024} KB)")
+    # Skin tones for the added players (they are not in rosters.json), read from their MLB headshots.
+    import subprocess
+    import sys
+    subprocess.run([sys.executable, str(Path(__file__).with_name("sample_skin_tones.py"))], check=False)
 
 
 if __name__ == "__main__":

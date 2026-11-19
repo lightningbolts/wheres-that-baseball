@@ -77,7 +77,8 @@ export function SeasonApp() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  const idx = useMemo(() => (rosters ? rosterIndex(rosters) : null), [rosters]);
+  // The projection extras give the 40-man players missing from rosters.json their own number and skin tone.
+  const idx = useMemo(() => (rosters ? rosterIndex(rosters, projData?.extras) : null), [rosters, projData]);
 
   const persist = useCallback(
     (l: League) => {
@@ -163,7 +164,7 @@ export function SeasonApp() {
       if (!inputs.length) clearSave();
       // The setup is rebuilt from the league, so carry over the rules the save was played
       // under (absent on old saves: the controller then replays them the old way).
-      const setup = inputs.length ? { ...m.setup, pickoffs: saved!.setup.pickoffs, cpuAbs: saved!.setup.cpuAbs } : m.setup;
+      const setup = inputs.length ? { ...m.setup, pickoffs: saved!.setup.pickoffs, cpuAbs: saved!.setup.cpuAbs, ump: saved!.setup.ump } : m.setup;
       setLeague(l);
       persist(l);
       sfx.unlock();

@@ -4,8 +4,12 @@ The 3D players in Play Ball are painted with a skin colour; rather than assignin
 at random, this reads the cheeks and nose of the player's mlbstatic headshot (cached
 under data/headshots/), keeps the pixels that look like lit skin (no hair, beard,
 cap shadow or background), and stores their median as "skin": "#rrggbb" on each player
-in web/data/game/rosters.json. Players without a photo (the generic silhouette) are
-left without one and the game falls back to a neutral default.
+in web/data/game/rosters.json and on each 40-man "extra" in web/data/game/franchise-proj.json
+(the real players franchise mode adds who are missing from the rosters snapshot: without
+this they had no tone at all). Players without a photo (the generic silhouette) are left
+without one and the game falls back to a neutral mid-tone.
+
+Run by build_game_rosters.py and build_franchise_projections.py after they write their files.
 
 Usage:  ./venv/bin/python scripts/sample_skin_tones.py [--refresh]
 Needs Pillow (pip install pillow).
@@ -27,6 +31,7 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[1]
 CACHE = ROOT / "data" / "headshots"
 OUT = ROOT.parent / "web" / "data" / "game" / "rosters.json"
+PROJ = ROOT.parent / "web" / "data" / "game" / "franchise-proj.json"
 URL = "https://img.mlbstatic.com/mlb-photos/image/upload/w_180,q_auto:good/v1/people/{pid}/headshot/67/current"
 UA = {"User-Agent": "Mozilla/5.0"}
 
@@ -83,22 +88,27 @@ def main() -> None:
     ap.add_argument("--refresh", action="store_true")
     args = ap.parse_args()
 
-    payload = json.loads(OUT.read_text())
-    players = [p for team in payload["teams"].values() for group in ("lineup", "bench", "rotation", "bullpen") for p in team.get(group, [])]
-    ids = sorted({int(p["id"]) for p in players})
+    files: list[tuple[Path, dict, list[dict]]] = []
+    if OUT.exists():
+        payload = json.loads(OUT.read_text())
+        files.append((OUT, payload, [p for team in payload["teams"].values() for group in ("lineup", "bench", "rotation", "bullpen") for p in team.get(group, [])]))
+    if PROJ.exists():
+        proj = json.loads(PROJ.read_text())
+        files.append((PROJ, proj, [p for lst in proj.get("extras", {}).values() for p in lst]))
+    ids = sorted({int(p["id"]) for _, _, players in files for p in players})
     with ThreadPoolExecutor(max_workers=8) as pool:
         tones = dict(zip(ids, pool.map(lambda pid: (lambda im: sample(im) if im else None)(headshot(pid, args.refresh)), ids)))
-    hits = 0
-    for p in players:
-        tone = tones.get(int(p["id"]))
-        if tone:
-            p["skin"] = tone
-            hits += 1
-        else:
-            p.pop("skin", None)
-    OUT.write_text(json.dumps(payload, separators=(",", ":")))
-    print(f"skin tones: {hits}/{len(players)} players from headshots", file=sys.stderr)
-
+    for path, payload, players in files:
+        hits = 0
+        for p in players:
+            tone = tones.get(int(p["id"]))
+            if tone:
+                p["skin"] = tone
+                hits += 1
+            else:
+                p.pop("skin", None)
+        path.write_text(json.dumps(payload, separators=(",", ":")))
+        print(f"skin tones: {hits}/{len(players)} players in {path.name} from headshots", file=sys.stderr)
 
 if __name__ == "__main__":
     main()

@@ -28,6 +28,13 @@ const BIG_MAX = 1.4;
 const _big = new THREE.Matrix4();
 /** Uniform repaints per frame (each is a canvas redraw and a texture upload). */
 const PAINTS_PER_FRAME = 2;
+/**
+ * ...but a slot that now holds somebody else is hidden until it is repainted, so those get
+ * a bigger budget, and refreshes (roster or cap logos arriving) never use it up first:
+ * with one shared budget, a wave of refreshes left a new batter or runner invisible for
+ * several frames — a player blinking out.
+ */
+const NEW_PAINTS_PER_FRAME = 6;
 
 /**
  * Every on-field person: one smooth-skinned mesh each (one draw call, plus its shadow),
@@ -146,7 +153,8 @@ export function Players({ pb }: { pb: Playback }) {
         const fx = an.x;
         const fz = an.z;
         person.dress(a, lod);
-        if (person.stale(a) && paints < PAINTS_PER_FRAME) {
+        const stale = person.stale(a);
+        if (stale === 2 ? paints < NEW_PAINTS_PER_FRAME : stale === 1 && paints < PAINTS_PER_FRAME) {
           person.paint(a);
           paints += 1;
         }

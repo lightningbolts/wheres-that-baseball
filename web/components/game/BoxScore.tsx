@@ -3,6 +3,7 @@
 import type { BaseballGame } from "@/lib/game/rules/game";
 import { getTeamById } from "@/lib/mlb/teams";
 import { TeamLogo } from "@/components/ui/TeamLogo";
+import { UmpireScorecard } from "@/components/game/UmpireScorecard";
 
 const ip = (outs: number) => `${Math.floor(outs / 3)}.${outs % 3}`;
 
@@ -113,6 +114,7 @@ export function BoxScore({ game, awayId, homeId }: { game: BaseballGame; awayId:
           );
         })}
       </div>
+      <UmpireScorecard game={game} awayId={awayId} homeId={homeId} />
     </div>
   );
 }

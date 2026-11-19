@@ -4,6 +4,7 @@
  */
 import type { MLBDivision, MLBLeague } from "@/lib/mlb/teams";
 import type { RosterTeam } from "@/lib/game/types";
+import type { UmpCard, UmpTotals } from "@/lib/game/umpires/scorecard";
 
 export type Pos = "C" | "1B" | "2B" | "3B" | "SS" | "LF" | "CF" | "RF" | "DH" | "SP" | "RP";
 export const FIELD_SPOTS = ["C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "DH"] as const;
@@ -252,6 +253,11 @@ export interface ScheduledGame {
   site?: string;
   /** Postseason series id. */
   ps?: string;
+  /** Home-plate umpire (id in UMPIRES) and his crew's index for the season. */
+  ump?: number;
+  crew?: number;
+  /** Plate umpire's scorecard (games played before umpires were tracked have none). */
+  uc?: UmpCard;
   result?: {
     as: number;
     hs: number;
@@ -395,6 +401,8 @@ export interface League {
   opening?: boolean;
   /** Preseason projected wins (owner expectations). */
   expected?: Record<number, number>;
+  /** Umpire season totals for finished seasons (by umpire id). */
+  umpHist?: Array<{ season: number; totals: Record<number, UmpTotals> }>;
   tradeLog: Array<{ day: number; season: number; a: number; b: number; aGets: number[]; bGets: number[] }>;
 }
 

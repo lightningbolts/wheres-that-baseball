@@ -15,6 +15,7 @@ import { autoDepth, news, normalizeRoster, orgPlayers } from "./roster";
 import { buildSchedule } from "./schedule";
 import { sortTeams } from "./standings";
 import type { League, Player } from "./types";
+import { archiveUmpSeason, ensureUmpires } from "./umpires";
 
 function retireChance(p: Player): number {
   if (p.age >= 41) return 1;
@@ -181,10 +182,12 @@ export function startNextSeason(league: League): void {
     openFirstSeason(league);
     return;
   }
+  archiveUmpSeason(league);
   league.season += 1;
   const { calendar, games } = buildSchedule(league.season, league.seed + league.season, 1);
   league.calendar = calendar;
   league.schedule = games;
+  ensureUmpires(league);
   league.nextGameId = games.length + 1;
   league.day = 0;
   league.phase = "regular";

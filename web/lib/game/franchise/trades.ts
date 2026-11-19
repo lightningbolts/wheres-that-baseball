@@ -31,19 +31,32 @@ export function salaryInYear(p: Player, y: number): number {
   return arbSalary({ ...p, service: svc }, Math.max(0, projectedWar(p, y)));
 }
 
-/** Surplus value of a player to a club, $M. */
+/**
+ * Value of a player to a club, $M.
+ *
+ * For a player the club would be *acquiring*, this is plain surplus
+ * (production − salary), so absorbing an albatross contract costs the other side
+ * a sweetener. For a player the club already *owns*, surplus is floored at what
+ * his on-field production is worth to them: a club will dump an overpaid
+ * replacement-level player for nothing, but never gives away a 4-WAR regular
+ * just because he's expensive.
+ */
 export function tradeValue(league: League, p: Player, teamId: number): number {
   const strat = league.teams[teamId]?.strategy ?? "neutral";
   const frac = league.phase === "regular" ? clamp(1 - league.day / Math.max(1, league.calendar.endDay), 0.05, 1) : league.phase === "postseason" ? 0.02 : 1;
   const years = Math.min(7, controlYears(p));
   let v = 0;
+  let keep = 0;
   for (let y = 0; y < years; y += 1) {
     let war = Math.max(0, projectedWar(p, y));
     if (y === 0) war *= frac;
     const w = strat === "contend" ? (y === 0 ? 1.5 : 0.85 ** y) : strat === "rebuild" ? (y === 0 ? 0.5 : 0.97 ** y) : 0.92 ** y;
     const sal = salaryInYear(p, y) * (y === 0 ? frac : 1) * (strat === "rebuild" ? 1.15 : 1);
     v += w * war * DOLLARS_PER_WAR - sal * 0.93 ** y;
+    // Production the owner would have to replace (first ~3 seasons; ~0.5 WAR is freely available).
+    if (y < 3) keep += Math.max(0, war - 0.5 * (y === 0 ? frac : 1)) * DOLLARS_PER_WAR * 0.4 * 0.85 ** y;
   }
+  if (p.team === teamId) v = Math.max(v, keep * (strat === "contend" ? 1.3 : strat === "rebuild" ? 0.8 : 1));
   // Prospects carry bust risk.
   if (!p.on40 && p.ovr < 45) v *= 0.8;
   if (p.injury && p.injury.days > 60) v *= 0.6;

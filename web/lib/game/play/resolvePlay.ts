@@ -13,7 +13,7 @@
 import { judgeFair, sampleAt, type BallSample, type BattedBallPath } from "@/lib/game/physics/battedBall";
 import { isFairPosition, type Park } from "@/lib/game/physics/park";
 import { BASE_POS, runDistance, runTime, throwTime } from "@/lib/game/play/movement";
-import { isInfielder, isOutfielder, type Fielder } from "@/lib/game/play/defense";
+import { isInfielder, isOutfielder, topSpeed, type Fielder } from "@/lib/game/play/defense";
 import { coverMan, exchangeTime, legTime, planThrow, returnThrow, type ThrowLeg, type ThrowPlan } from "@/lib/game/play/throws";
 import { horizDist, sprayAngleDeg, type Rng, type V3 } from "@/lib/game/math";
 import type { FieldPos } from "@/lib/game/types";
@@ -138,6 +138,38 @@ const ROUTE_EFF = { outfield: 1.13, infield: 1.06 };
 function slack(f: Fielder, s: BallSample, reach: number): number {
   const d = Math.max(0, horizDist(f.p, s.p) * (isOutfielder(f.pos) ? ROUTE_EFF.outfield : ROUTE_EFF.infield) - reach);
   return s.t - f.reaction - runTime(d, f.sprint);
+}
+
+/**
+ * When `pos` can be standing on `base` to take a throw, s after contact: he reads the
+ * ball, breaks for the bag and gets there (the pitcher from the end of his follow-through).
+ * A man who isn't on the field (or the thrower himself) never holds a throw up.
+ */
+function coverReady(fielders: Fielder[], pos: FieldPos | undefined, base: Base): number {
+  const c = pos ? fielders.find((x) => x.pos === pos) : undefined;
+  if (!c) return 0;
+  return c.reaction + 0.15 + runTime(Math.max(0, horizDist(c.p, BASE_POS[base]) - 2), c.sprint);
+}
+
+/**
+ * When a tag lands: the ball has to be in the glove (a beat after it arrives) and the runner
+ * has to have come to the glove — a throw that beats him by a second waits for him to slide
+ * in, it doesn't tag him from 25 ft away.
+ */
+function tagTime(tBall: number, tRunner: number): number {
+  return Math.max(tBall + 0.12, tRunner - 0.15);
+}
+
+/**
+ * Who takes an infielder's throw at `base`: first baseman at first (the pitcher when the
+ * first baseman fielded it), the middle infielder away from the ball at second, the third
+ * baseman at third (the shortstop when he fielded it), the catcher at home.
+ */
+export function infieldCover(base: Base, thrower: FieldPos): FieldPos {
+  if (base === 1) return thrower === "1B" ? "P" : "1B";
+  if (base === 2) return thrower === "SS" || thrower === "3B" ? "2B" : "SS";
+  if (base === 3) return thrower === "3B" ? "SS" : "3B";
+  return thrower === "C" ? "P" : "C";
 }
 
 /** A fielder has to stand on the field to make the play: never in or over the stands. */
@@ -267,6 +299,10 @@ function arrival(r: RunnerPlan, to: Base): number {
 }
 
 export function resolvePlay(input: PlayInput): PlayResult {
+  // The pitcher is timed at a pitcher's speed everywhere (fielding, covering a bag).
+  if (input.fielders.some((f) => topSpeed(f) !== f.sprint)) {
+    input = { ...input, fielders: input.fielders.map((f) => (topSpeed(f) === f.sprint ? f : { ...f, sprint: topSpeed(f) })) };
+  }
   const { path, park, fielders, runners, batter, outs, rng } = input;
   const events: PlayEvent[] = [];
   const result = (partial: Partial<PlayResult>): PlayResult => ({
@@ -595,7 +631,7 @@ function resolveCaughtFly(
     if (g.advance) {
       if (tArr + 0.12 < g.tRun + rng.gauss(0, Math.hypot(0.08, spread)) && outs + outsMade < 3) {
         g.out = true;
-        g.outT = tArr + 0.12;
+        g.outT = tagTime(tArr, g.tRun);
         outsMade += 1;
         events.push({ t: g.outT, type: "tag_out", base: target, playerId: g.r.playerId });
       }
@@ -665,7 +701,8 @@ function resolveGroundOrHit(
 
   const twoOuts = outs === 2;
   const grounder = launch.la < 10;
-  const infieldPlay = isInfielder(f.pos) && horizDist(P) < 175 && grounder;
+  // The catcher pouncing on a dribbler is an infield play too (a force at first, not a tag).
+  const infieldPlay = (isInfielder(f.pos) || f.pos === "C") && horizDist(P) < 175 && grounder;
   const landT = path.firstLanding?.t ?? tField;
 
   // ---- Runner plans ----
@@ -740,12 +777,26 @@ function resolveGroundOrHit(
     const d = horizDist(P, BASE_POS[base]);
     // Fielder near the bag just steps on it.
     if (d < 10) return tField + runTime(d, f.sprint) + 0.05;
-    if (isOutfielder(f.pos)) return planFor(base).arriveT;
-    return tRelease + throwTime(P, BASE_POS[base], f.arm);
+    // The ball can't beat the man who has to catch it to the bag.
+    if (isOutfielder(f.pos)) {
+      const plan = planFor(base);
+      return Math.max(plan.arriveT, coverReady(input.fielders, plan.legs[plan.legs.length - 1].receiver, base) + 0.1);
+    }
+    return Math.max(tRelease + throwTime(P, BASE_POS[base], f.arm), coverReady(input.fielders, coverMan(base, [f.pos]), base) + 0.1);
   };
 
   if (infieldPlay) {
-    return resolveInfieldGrounder(input, f, P, tField, plans, throwArrive, events, result);
+    // An infielder throws to whoever covers — or, when the cover man can't get there in
+    // time (a first baseman far off the bag waiting on the pitcher), runs it over himself.
+    const take = (base: Base): InfieldTake => {
+      const d = horizDist(P, BASE_POS[base]);
+      const self = tField + runTime(d, f.sprint) + 0.05;
+      if (d < 10) return { t: self, self: true };
+      const receiver = infieldCover(base, f.pos);
+      const thrown = Math.max(tRelease + throwTime(P, BASE_POS[base], f.arm), coverReady(input.fielders, receiver, base) + 0.1);
+      return thrown <= self ? { t: thrown, self: false, receiver } : { t: self, self: true };
+    };
+    return resolveInfieldGrounder(input, f, P, tField, plans, take, events, result);
   }
 
   // ---- Ball fielded in the outfield (a hit): runners pick bases vs. the throw ----
@@ -799,11 +850,14 @@ function resolveGroundOrHit(
         for (const p of plans) p.target = Math.min(4, p.target + 1) as Base;
         return finish(input, plans, events, result, { error: true, fieldedBy: f.pos, hitBases, scoring: hitLabel(hitBases, f.pos) + " +E" });
       }
-      if (tArr + 0.12 < tRun + rng.gauss(0, Math.hypot(0.07, spread))) {
+      // A runner forced to this bag (the batter at first, say) is out when the ball gets there;
+      // anyone else has to be tagged.
+      const force = runner.forced && target === runner.from + 1;
+      if ((force ? tArr : tArr + 0.12) < tRun + rng.gauss(0, Math.hypot(0.07, spread))) {
         runner.out = true;
-        runner.outT = tArr + 0.12;
+        runner.outT = force ? tArr : tagTime(tArr, tRun);
         leadSafe = false;
-        events.push({ t: runner.outT, type: "tag_out", base: target, playerId: runner.playerId });
+        events.push({ t: runner.outT, type: force ? "force_out" : "tag_out", base: target, playerId: runner.playerId });
       }
     }
     // Trailing runners move up on the throw when the base ahead is open.
@@ -837,7 +891,7 @@ function resolveGroundOrHit(
       pushLegs(events, cutLegs, nb);
       if (tCut + 0.12 < arrival(trailer, nb) + rng.gauss(0, 0.08)) {
         trailer.out = true;
-        trailer.outT = tCut + 0.12;
+        trailer.outT = tagTime(tCut, arrival(trailer, nb));
         events.push({ t: trailer.outT, type: "tag_out", base: nb, playerId: trailer.playerId });
       }
     } else {
@@ -862,17 +916,26 @@ function hitLabel(bases: number, pos: FieldPos): string {
   return `${["", "1B", "2B", "3B"][bases]}${POS_NUM[pos]}`;
 }
 
+/** How an infielder gets the ball to a base: thrown to the cover man, or carried himself. */
+interface InfieldTake {
+  /** Ball (and a fielder on the bag) there, s after contact. */
+  t: number;
+  self: boolean;
+  receiver?: FieldPos;
+}
+
 function resolveInfieldGrounder(
   input: PlayInput,
   f: Fielder,
   P: V3,
   tField: number,
   plans: RunnerPlan[],
-  throwArrive: (b: Base) => number,
+  take: (b: Base) => InfieldTake,
   events: PlayEvent[],
   result: (p: Partial<PlayResult>) => PlayResult,
 ): PlayResult {
   const { outs, rng, fielders } = input;
+  const throwArrive = (b: Base) => take(b).t;
   const twoOuts = outs === 2;
   // Non-forced runners: 3rd holds unless 2 outs; 2nd advances on balls to the right side.
   for (const p of plans) {
@@ -899,7 +962,8 @@ function resolveInfieldGrounder(
   }));
   let target: Base | null;
   const human = input.chooseThrow?.(options, { pos: f.pos, t: tField });
-  if (human !== undefined) target = human;
+  // Holding the ball is always allowed; a base with no force on it is no choice at all (the AI picks).
+  if (human === null || (human !== undefined && options.some((o) => o.base === human))) target = human;
   else {
     // Lead force if comfortably available, else the surest out; close plays at 1st still get thrown.
     // With fewer than two outs, go to second for the double play when it's there; an
@@ -914,14 +978,15 @@ function resolveInfieldGrounder(
   let dp = false;
   let fc = false;
   let pivotPos: FieldPos = "2B";
-  if (target != null) {
-    const runner = forcedPlans.find((p) => p.target === target)!;
-    const tArr = throwArrive(target);
-    const d = horizDist(P, BASE_POS[target]);
-    if (d >= 10) {
-      events.push({ t: tField + 0.55, type: "throw", pos: f.pos, from: P, to: BASE_POS[target], base: target, arriveT: tArr });
+  let firstTake: InfieldTake | null = null;
+  const runner = target != null ? forcedPlans.find((p) => p.target === target) : undefined;
+  if (target != null && runner) {
+    const tk = (firstTake = take(target));
+    const tArr = tk.t;
+    if (!tk.self) {
+      events.push({ t: tField + 0.55, type: "throw", pos: f.pos, from: P, to: BASE_POS[target], base: target, arriveT: tArr, receiver: tk.receiver });
     }
-    if (rng.chance(d >= 10 ? 0.01 : 0.001)) {
+    if (rng.chance(!tk.self ? 0.01 : 0.001)) {
       events.push({ t: tArr, type: "error", base: target });
       for (const p of plans) p.target = Math.min(4, (p.done ? p.target : p.target + 1)) as Base;
       return finish(input, plans, events, result, { error: true, fieldedBy: f.pos, hitBases: 0, scoring: `E${POS_NUM[f.pos]}` });
@@ -934,12 +999,19 @@ function resolveInfieldGrounder(
       if (runner.from !== 0) fc = true;
       // Turn two: relay to first after the force at 2nd/3rd/home.
       if (target !== 1 && outs + 1 < 3) {
-        pivotPos = target === 2 ? (f.pos === "SS" || f.pos === "3B" ? "2B" : "SS") : target === 3 ? "3B" : "C";
+        // The man who took the force (the fielder himself on an unassisted one) turns it.
+        pivotPos = tk.self ? f.pos : tk.receiver!;
         const pivot = fielders.find((x) => x.pos === pivotPos) ?? f;
-        const tRelay = tArr + (target === 4 ? 0.55 : 0.7) + throwTime(BASE_POS[target], BASE_POS[1], pivot.arm);
+        // First is covered by the first baseman — by the pitcher if the first baseman fielded it.
+        const firstCover = infieldCover(1, f.pos === "1B" ? "1B" : pivotPos);
+        const tRelay = Math.max(
+          tArr + (target === 4 ? 0.55 : 0.7) + throwTime(BASE_POS[target], BASE_POS[1], pivot.arm),
+          coverReady(fielders, firstCover, 1) + 0.1,
+        );
         const b = plans.find((p) => p.from === 0)!;
+        const relay: PlayEvent = { t: tArr + 0.7, type: "throw", pos: pivotPos, from: BASE_POS[target], to: BASE_POS[1], base: 1, arriveT: tRelay, receiver: firstCover };
         if (tRelay < arrival(b, 1) + rng.gauss(0, 0.07)) {
-          events.push({ t: tArr + 0.7, type: "throw", pos: pivotPos, from: BASE_POS[target], to: BASE_POS[1], base: 1, arriveT: tRelay });
+          events.push(relay);
           b.out = true;
           b.outT = tRelay;
           outsMade = 2;
@@ -947,7 +1019,7 @@ function resolveInfieldGrounder(
           fc = false;
           events.push({ t: tRelay, type: "force_out", base: 1, playerId: b.playerId });
         } else {
-          events.push({ t: tArr + 0.7, type: "throw", pos: pivotPos, from: BASE_POS[target], to: BASE_POS[1], base: 1, arriveT: tRelay });
+          events.push(relay);
         }
       }
     }
@@ -955,7 +1027,10 @@ function resolveInfieldGrounder(
   const batterOut = plans.find((p) => p.from === 0)!.out;
   // An infield single: no throw made or the throw lost the race to first, with no out elsewhere.
   const infieldHit = !batterOut && outsMade === 0 && (target === null || target === 1);
-  const seq = dp ? `${POS_NUM[f.pos]}-${POS_NUM[pivotPos]}-3 DP` : `${POS_NUM[f.pos]}${target === 1 && batterOut && horizDist(P, BASE_POS[1]) >= 10 ? "-3" : target === 1 ? "U" : ""}`;
+  const relayTo = dp ? [...events].reverse().find((e) => e.type === "throw" && e.base === 1)?.receiver ?? "1B" : "1B";
+  const seq = dp
+    ? `${POS_NUM[f.pos]}${pivotPos === f.pos ? "" : `-${POS_NUM[pivotPos]}`}-${POS_NUM[relayTo]} DP`
+    : `${POS_NUM[f.pos]}${target === 1 && batterOut && firstTake && !firstTake.self ? `-${POS_NUM[firstTake.receiver!]}` : target === 1 ? "U" : ""}`;
   return finish(input, plans, events, result, {
     fieldedBy: f.pos,
     hitBases: infieldHit ? 1 : 0,

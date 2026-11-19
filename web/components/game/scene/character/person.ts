@@ -12,6 +12,7 @@ import { hash01, paintFinish, paintLook, type Look } from "@/components/game/sce
 import { identity, rosterVersion } from "@/components/game/scene/character/roster";
 import { capLogoVersion } from "@/components/game/scene/character/uniforms";
 import { SKIN_COUNT, scaleSkinMatrices, writeSkinMatrices } from "@/components/game/scene/character/skeleton";
+import { getQuality } from "@/components/game/scene/quality";
 
 export function toGeometry(d: MeshData): THREE.BufferGeometry {
   const g = new THREE.BufferGeometry();
@@ -25,12 +26,16 @@ export function toGeometry(d: MeshData): THREE.BufferGeometry {
   return g;
 }
 
-/** Texels per atlas unit: 1024² textures, or 512² on small / low-memory devices. */
+/**
+ * Texels per atlas unit: 1024² textures, or 512² on small / low-memory devices and below the
+ * High graphics tier (24 people × 1024² is ~130 MB of mipmapped texture, and each repaint
+ * uploads 4 MB).
+ */
 function atlasScale(): number {
   if (typeof window === "undefined") return 1;
   const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
   const small = Math.min(window.screen?.width ?? 2000, window.screen?.height ?? 2000) < 600;
-  return small || (mem !== undefined && mem < 4) ? 1 : 2;
+  return small || (mem !== undefined && mem < 4) ? 1 : getQuality().boot.atlasScale;
 }
 
 function canvas2d(scale: number): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } {
