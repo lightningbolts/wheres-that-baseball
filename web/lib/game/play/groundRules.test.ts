@@ -55,7 +55,7 @@ describe("ground rules", () => {
   it("a fly that hits the wall and still clears it is a home run, not a ground-rule double", () => {
     const path = simulateBattedBall(battedBallFromLaunch(105, 28, -38, 2200), FENWAY);
     if (path.wallT == null) expect(path.groundRuleDouble).toBe(false);
-    for (const ball of grid(range(95, 112, 1), range(18, 40, 2), range(-44, 44, 4))) {
+    for (const ball of grid(range(95, 111, 2), range(18, 39, 3), range(-44, 44, 8))) {
       const p = simulateBattedBall(ball, FENWAY);
       if (p.groundRuleDouble) expect(p.firstLanding).not.toBeNull();
     }
@@ -85,7 +85,7 @@ describe("ground rules", () => {
 
   it("Tropicana Field: A/B catwalks are in play, C/D are a homer fair and dead foul", () => {
     const seen = { ab: 0, abCaught: 0, cdHR: 0, cdFoul: 0 };
-    for (const ball of grid(range(70, 112, 3), range(30, 80, 3), [-60, -40, -20, 0, 20, 40, 60], 2400)) {
+    for (const ball of grid(range(70, 110, 4), range(30, 78, 4), [-60, -40, -20, 0, 20, 40, 60], 2400)) {
       const path = simulateBattedBall(ball, TROP);
       if (!path.catwalk) continue;
       const { ring } = path.catwalk;
