@@ -5,7 +5,8 @@
  * A tier's settings come in two kinds:
  * - boot settings (antialiasing, logarithmic depth, texture resolutions) are fixed when
  *   the WebGL context and the park are built; changing them rebuilds the 3D view.
- * - live settings (pixel ratio, shadow map size, crowd density, clouds) apply on the fly.
+ * - live settings (pixel ratio, shadows, shadow map size, model detail, crowd density,
+ *   clouds) apply on the fly.
  *
  * Auto picks a starting tier from the device (cores, memory, GPU, max texture size); a
  * frame-rate monitor may then step the live settings down. It never steps back up, only
@@ -34,8 +35,19 @@ export interface QualityProfile {
   // ---- live ----
   /** Device pixel ratio range for the canvas. */
   dpr: [number, number];
+  /**
+   * The key light casts real shadows (a second render of everything that casts, and a
+   * filtered shadow-map lookup on every lit pixel). Without them each person gets a soft
+   * blob on the ground instead.
+   */
+  shadows: boolean;
   /** Key-light shadow map size (px square). */
   shadowMap: number;
+  /**
+   * Model detail: a person needs this many times more pixels on screen before the next
+   * finer body is used (1 = the full-detail body from ~120 px tall).
+   */
+  lodBias: number;
   /** Fraction of the crowd drawn. */
   crowd: number;
   /** Procedural clouds in the sky shader (a 4-octave noise over every sky pixel). */
@@ -43,9 +55,9 @@ export interface QualityProfile {
 }
 
 export const PROFILES: Record<Tier, QualityProfile> = {
-  high: { tier: "high", antialias: true, logDepth: true, atlasScale: 2, mow: 2048, dpr: [1, 1.5], shadowMap: 4096, crowd: 1, clouds: true },
-  medium: { tier: "medium", antialias: true, logDepth: true, atlasScale: 1, mow: 2048, dpr: [1, 1], shadowMap: 2048, crowd: 0.6, clouds: true },
-  low: { tier: "low", antialias: false, logDepth: false, atlasScale: 1, mow: 1024, dpr: [0.75, 0.75], shadowMap: 1024, crowd: 0.3, clouds: false },
+  high: { tier: "high", antialias: true, logDepth: true, atlasScale: 2, mow: 2048, dpr: [1, 1.5], shadows: true, shadowMap: 4096, lodBias: 1, crowd: 1, clouds: true },
+  medium: { tier: "medium", antialias: true, logDepth: true, atlasScale: 1, mow: 2048, dpr: [1, 1], shadows: true, shadowMap: 2048, lodBias: 1.4, crowd: 0.6, clouds: true },
+  low: { tier: "low", antialias: false, logDepth: false, atlasScale: 1, mow: 1024, dpr: [0.75, 0.75], shadows: false, shadowMap: 1024, lodBias: 2, crowd: 0.3, clouds: false },
 };
 
 const ORDER: Tier[] = ["low", "medium", "high"];
