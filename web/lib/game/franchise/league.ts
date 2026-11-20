@@ -4,10 +4,10 @@ import { MLB_TEAMS } from "@/lib/mlb/teams";
 import { askingTerms, estimateService, payroll, realContract, synthContract, type ContractFile } from "./contracts";
 import { refTicketPrice } from "./data";
 import { talentEnv } from "./development";
-import { newFinances } from "./finances";
+import { newFinances, openingBudget } from "./finances";
 import { freeAgents, initFreeAgency } from "./freeAgency";
 import { generatePlayer, prospectProfile, type GenRole } from "./generate";
-import { batSkillFrom, fieldPos, overall, pitSkillFrom, playerWar } from "./ratings";
+import { batSkillFrom, fieldPos, gradeScale, overall, pitSkillFrom, playerWar } from "./ratings";
 import { FRng, hashUnit } from "./rng";
 import { projectRosterPlayer, type ProjectionFile } from "./projections";
 import { autoDepth, news, normalizeRoster, orgPlayers } from "./roster";
@@ -28,6 +28,10 @@ export interface NewLeagueOpts {
   /** Real contracts and service time; without them every deal is estimated. */
   contracts?: ContractFile;
 }
+
+/** Minor-league options left for a real player entering the franchise, from his service time. */
+const startingOptions = (p: Player): number =>
+  p.service >= 5 ? 0 : Math.max(0, 3 - Math.floor(p.service * 0.7 + hashUnit(p.id, "opt") * 1.2));
 
 function realPlayer(rp0: RosterPlayer, kind: "lineup" | "bench" | "rotation" | "bullpen", teamId: number, ageShift: number, season: number, proj?: ProjectionFile, contracts?: ContractFile): Player {
   const pitcher = kind === "rotation" || kind === "bullpen";
@@ -61,11 +65,11 @@ function realPlayer(rp0: RosterPlayer, kind: "lineup" | "bench" | "rotation" | "
   p.pit0 = p.pit ? { ...p.pit } : undefined;
   p.ovr = overall(p);
   const young = Math.max(0, 27 - p.age);
-  p.pot = Math.max(p.ovr, Math.min(80, Math.round(p.ovr + young * (1.2 + hashUnit(p.id, "pot") * 1.6) - 1)));
+  p.pot = Math.max(p.ovr, Math.min(80, Math.round(p.ovr + (young * (1.2 + hashUnit(p.id, "pot") * 1.6) - 1) * gradeScale(p))));
   // Real deal and service time when the payroll snapshot lists him; otherwise estimated.
   const deal = contracts?.season === season ? contracts.players[String(rp.id)] : undefined;
   p.service = deal?.svc ?? estimateService(p);
-  p.options = p.service >= 5 ? 0 : Math.max(0, 3 - Math.floor(p.service * 0.7 + hashUnit(p.id, "opt") * 1.2));
+  p.options = startingOptions(p);
   p.contract = deal ? realContract(p, deal, season) : { ...synthContract(p, season, teamId), est: true };
   p.rookie = p.service < 1;
   // MLB rookie limits (130 AB / 50 IP) from the real career totals when known.
@@ -188,6 +192,7 @@ export function createLeague(rosters: RosterFile, opts: NewLeagueOpts): League {
     nextGameId: sched.games.length + 1,
     settings: { difficulty: opts.difficulty ?? "pro", autoRoster: true },
     tradeLog: [],
+    gradeV: GRADE_V,
   };
   const ageShift = season - rosters.season;
   const pool = templatePool(rosters);
@@ -328,6 +333,65 @@ export function createLeague(rosters: RosterFile, opts: NewLeagueOpts): League {
   league.rng = rng.s;
   ensureUmpires(league);
   return league;
+}
+
+/**
+ * Upgrades a save made before the real-contract snapshot existed (or made before it loaded):
+ * real players still on a synthesized deal get their actual contract and service time.
+ * Only during the snapshot's own season — after that the save's contracts have moved on.
+ * Deals signed in-game (free agents, minor-league signings) are kept. Returns how many changed.
+ */
+export const GRADE_V = 2;
+
+/**
+ * Saves made before pitchers got their own grade scale: their overall (and the potential
+ * gap above it) are regraded, and depth charts rebuilt so the new grades order the staffs.
+ * Returns whether anything changed.
+ */
+export function migrateGrades(league: League): boolean {
+  if ((league.gradeV ?? 1) >= GRADE_V) return false;
+  for (const p of Object.values(league.players)) {
+    if (!p.pitcher) continue;
+    const ovr = overall(p);
+    p.pot = Math.max(ovr, Math.min(80, Math.round(ovr + (p.pot - p.ovr) * gradeScale(p))));
+    p.ovr = ovr;
+  }
+  for (const t of Object.values(league.teams)) {
+    if (t.id !== league.userTeam || league.settings.autoRoster) autoDepth(league, t.id);
+  }
+  league.gradeV = GRADE_V;
+  return true;
+}
+
+export function applyRealContracts(league: League, file: ContractFile | undefined): number {
+  if (!file || file.season !== league.season) return 0;
+  // From the offseason on, service time has advanced and next season's arb / pre-arb deals are
+  // written (still under this season's number): the snapshot no longer describes the league.
+  if (league.phase !== "regular" && league.phase !== "postseason") return 0;
+  const before = new Map(Object.values(league.teams).map((t) => [t.id, payroll(league, t.id)]));
+  let changed = 0;
+  for (const p of Object.values(league.players)) {
+    if (!p.real || !p.team || p.status === "fa" || p.contract.real) continue;
+    if (file.fa?.[String(p.id)]) continue;
+    const signedHere = !p.contract.est && (p.contract.kind === "fa" || p.contract.kind === "minor") && p.contract.signed === league.season;
+    if (signedHere) continue;
+    const e = file.players[String(p.id)];
+    if (!e) continue;
+    if (e.svc != null && e.svc !== p.service) {
+      p.service = e.svc;
+      p.options = startingOptions(p);
+    }
+    p.contract = realContract(p, e, league.season);
+    changed += 1;
+  }
+  // The opening budget was set from the estimated payroll: move it by what the real one changes.
+  if (changed) {
+    for (const t of Object.values(league.teams)) {
+      const was = before.get(t.id) ?? 0;
+      t.fin.budget += openingBudget(t.id, payroll(league, t.id)) - openingBudget(t.id, was);
+    }
+  }
+  return changed;
 }
 
 /**

@@ -116,13 +116,35 @@ export function playerWar(p: Player): number {
   return 0;
 }
 
+/**
+ * The 20–80 grade for a season's WAR in a player's role. Pitchers' WAR runs on a smaller
+ * scale than hitters' (the best starters project ~5, the best hitters ~8, elite closers ~2),
+ * so each role gets its own slope: an ace and an MVP-level bat both grade in the high 70s,
+ * and an average regular at any spot grades about 50.
+ */
+export const GRADE = {
+  bat: { base: 40, per: 5 },
+  SP: { base: 40, per: 7.5 },
+  RP: { base: 42, per: 12 },
+} as const;
+
+export const gradeRole = (p: Pick<Player, "pitcher" | "pos">): keyof typeof GRADE => (p.pitcher ? (p.pos === "SP" ? "SP" : "RP") : "bat");
+
+/** Grades per WAR relative to hitters': development and aging steps are scaled by this. */
+export const gradeScale = (p: Pick<Player, "pitcher" | "pos">): number => GRADE[gradeRole(p)].per / GRADE.bat.per;
+
+export const gradeFromWar = (p: Pick<Player, "pitcher" | "pos">, war: number): number => {
+  const g = GRADE[gradeRole(p)];
+  return g.base + g.per * war;
+};
+
+export const warFromGrade = (p: Pick<Player, "pitcher" | "pos">, ovr: number): number => {
+  const g = GRADE[gradeRole(p)];
+  return (ovr - g.base) / g.per;
+};
+
 export function overall(p: Player): number {
-  const war = playerWar(p);
-  if (p.pitcher) {
-    const sp = p.pos === "SP";
-    return Math.round(clamp(sp ? 40 + 5 * war : 42 + 9 * war, 20, 80));
-  }
-  return Math.round(clamp(40 + 5 * war, 20, 80));
+  return Math.round(clamp(gradeFromWar(p, playerWar(p)), 20, 80));
 }
 
 /** Positions a player can field, best first, with a defensive penalty (runs/150) off his primary. */

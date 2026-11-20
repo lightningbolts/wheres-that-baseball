@@ -3,7 +3,7 @@
  * depth chart (lineup / rotation / bullpen roles) and transactions
  * (call-up, option, DFA + waivers, release, IL activation).
  */
-import { batRuns600, canPitch, defAt, eligible, isPosPlayer, slotValue } from "./ratings";
+import { batRuns600, canPitch, defAt, eligible, isPosPlayer, POS_ADJ, slotValue } from "./ratings";
 import { projectedWar, remainingOwed } from "./contracts";
 import { leaveTeam } from "./splits";
 import { FIELD_SPOTS, type League, type LineupPos, type LineupSlot, type Player, type TeamState } from "./types";
@@ -40,27 +40,79 @@ const name = (league: League, id: number) => league.players[id]?.name ?? `#${id}
 // ---------------------------------------------------------------------------
 // Depth chart
 
-export function bestLineup(hitters: Player[]): LineupSlot[] {
-  const pool = [...hitters];
-  const slots: LineupSlot[] = [];
-  const order: LineupPos[] = ["C", "SS", "CF", "2B", "3B", "RF", "LF", "1B"];
-  for (const pos of order) {
-    let best: Player | null = null;
-    let bv = -Infinity;
-    for (const p of pool) {
-      const v = defAt(p, pos) == null ? (p.bat ? batRuns600(p.bat) - 25 : -999) : slotValue(p, pos);
-      if (v > bv) {
-        bv = v;
-        best = p;
+/** Value of a hitter at a spot; anyone forced out of position pays heavily for it. */
+const spotValue = (p: Player, pos: LineupPos): number => {
+  if (!p.bat) return -999;
+  if (pos === "DH") return batRuns600(p.bat) + POS_ADJ.DH;
+  return defAt(p, pos) == null ? batRuns600(p.bat) - 60 : slotValue(p, pos);
+};
+const SPOTS: LineupPos[] = ["C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "DH"];
+
+/**
+ * Best nine for the eight field spots and DH: an exact assignment (dynamic programming over
+ * which spots are filled), so nobody plays a position he can't while a natural one sits.
+ * A greedy fill (catcher first, then shortstop…) happily put a star DH at second base
+ * because his bat outscored the real second baseman's bat-plus-glove.
+ */
+export function assignSpots(hitters: Player[], spots: LineupPos[] = SPOTS, fixed: LineupSlot[] = []): LineupSlot[] {
+  const pool = hitters.filter((p) => p.bat && !fixed.some((f) => f.id === p.id));
+  const n = spots.length;
+  const full = (1 << n) - 1;
+  // best[mask] after considering players[0..i]; choice tracking per player.
+  let best = new Float64Array(1 << n).fill(-Infinity);
+  best[0] = 0;
+  const pickAt: Int8Array[] = [];
+  for (const p of pool) {
+    const next = Float64Array.from(best);
+    const choice = new Int8Array(1 << n).fill(-1);
+    const vals = spots.map((pos) => spotValue(p, pos));
+    for (let m = 0; m <= full; m += 1) {
+      if (best[m] === -Infinity) continue;
+      for (let k = 0; k < n; k += 1) {
+        if (m & (1 << k)) continue;
+        const nm = m | (1 << k);
+        const v = best[m] + vals[k];
+        if (v > next[nm]) {
+          next[nm] = v;
+          choice[nm] = k;
+        }
       }
     }
-    if (!best) break;
-    slots.push({ id: best.id, pos });
-    pool.splice(pool.indexOf(best), 1);
+    // A mask may be reached without this player: keep the "skip" (choice -1) where it is no worse.
+    for (let m = 0; m <= full; m += 1) if (best[m] >= next[m]) choice[m] = -1;
+    pickAt.push(choice);
+    best = next;
   }
-  const dh = pool.filter((p) => p.bat).sort((a, b) => batRuns600(b.bat!) - batRuns600(a.bat!))[0];
-  if (dh) slots.push({ id: dh.id, pos: "DH" });
-  return battingOrder(slots, hitters);
+  // The fullest mask reachable (thin rosters fill what they can).
+  let m = full;
+  if (best[m] === -Infinity) {
+    let bc = -1;
+    for (let x = 0; x <= full; x += 1) {
+      const c = popcount(x);
+      if (best[x] > -Infinity && (c > bc || (c === bc && best[x] > best[m]))) {
+        bc = c;
+        m = x;
+      }
+    }
+  }
+  const out: LineupSlot[] = [...fixed];
+  for (let i = pool.length - 1; i >= 0; i -= 1) {
+    const k = pickAt[i][m];
+    if (k < 0) continue;
+    out.push({ id: pool[i].id, pos: spots[k] });
+    m &= ~(1 << k);
+  }
+  return out;
+}
+
+const popcount = (x: number): number => {
+  let c = 0;
+  for (; x; x &= x - 1) c += 1;
+  return c;
+};
+
+export function bestLineup(hitters: Player[]): LineupSlot[] {
+  return battingOrder(assignSpots(hitters), hitters);
 }
 
 /** Classic order: on-base leadoff, best hitters 2–4, then descending. */
@@ -83,13 +135,20 @@ export function autoDepth(league: League, teamId: number): void {
   const act = activePlayers(league, teamId).filter(isHealthy);
   const hitters = act.filter(isPosPlayer);
   t.lineup = bestLineup(hitters);
+  const nextUp = t.rotation.length ? t.rotation[t.rotIdx % t.rotation.length] : undefined;
   const pitchers = act.filter(canPitch);
   const starters = [...pitchers].sort((a, b) => starterScore(b) - starterScore(a));
-  t.rotation = starters.slice(0, 5).map((p) => p.id);
+  // The five best starters, ace first (the top of the rotation gets the most turns).
+  t.rotation = starters
+    .slice(0, 5)
+    .sort((a, b) => b.ovr - a.ovr)
+    .map((p) => p.id);
   const pen = pitchers.filter((p) => !t.rotation.includes(p.id)).sort((a, b) => b.ovr - a.ovr);
   t.closer = pen[0]?.id ?? null;
   t.setup = pen.slice(1, 3).map((p) => p.id);
-  t.rotIdx = t.rotIdx % Math.max(1, t.rotation.length);
+  // Whoever was due to start still starts next.
+  const i = nextUp != null ? t.rotation.indexOf(nextUp) : -1;
+  t.rotIdx = i >= 0 ? i : t.rotIdx % Math.max(1, t.rotation.length);
 }
 
 const starterScore = (p: Player) => (p.pos === "SP" ? 100 : 0) + (p.pit?.stam ?? 0) * 0.3 + p.ovr;
@@ -102,32 +161,32 @@ export function repairDepth(league: League, teamId: number): void {
     return !!p && p.team === teamId && p.status === "active" && isHealthy(p);
   };
   const act = activePlayers(league, teamId).filter(isHealthy);
-  // Lineup.
+  // Lineup: keep who is still here, re-place the rest exactly (nobody out of position).
   const keep = t.lineup.filter((s) => ok(s.id) && isPosPlayer(league.players[s.id]));
   if (keep.length < 9 || new Set(keep.map((s) => s.pos)).size < keep.length) {
-    const used = new Set(keep.map((s) => s.id));
-    const missing = FIELD_SPOTS.filter((pos) => !keep.some((s) => s.pos === pos));
-    const pool = act.filter((p) => isPosPlayer(p) && !used.has(p.id));
-    const fixed = [...keep];
-    for (const pos of missing) {
-      let best: Player | null = null;
-      let bv = -Infinity;
-      for (const p of pool) {
-        const v = pos === "DH" ? batRuns600(p.bat!) : defAt(p, pos) == null ? batRuns600(p.bat!) - 25 : slotValue(p, pos);
-        if (v > bv) {
-          bv = v;
-          best = p;
-        }
+    const seen = new Set<string>();
+    const kept = keep.filter((s) => (seen.has(s.pos) ? false : (seen.add(s.pos), true)));
+    const missing = FIELD_SPOTS.filter((pos) => !kept.some((s) => s.pos === pos));
+    const filled = assignSpots(act.filter(isPosPlayer), missing, kept);
+    if (filled.length >= 9) {
+      // New men take the batting-order spot of the man they replace.
+      const order: LineupSlot[] = [];
+      for (const s of t.lineup) {
+        const f = filled.find((x) => x.pos === s.pos);
+        if (f && !order.includes(f)) order.push(f);
       }
-      if (!best) continue;
-      pool.splice(pool.indexOf(best), 1);
-      // Fill the hole in the same batting-order spot the departed player held.
-      const idx = t.lineup.findIndex((s) => s.pos === pos);
-      const slot = { id: best.id, pos };
-      if (idx >= 0 && idx <= fixed.length) fixed.splice(Math.min(idx, fixed.length), 0, slot);
-      else fixed.push(slot);
-    }
-    t.lineup = fixed.length >= 9 ? fixed.slice(0, 9) : bestLineup(act.filter(isPosPlayer));
+      for (const f of filled) if (!order.includes(f)) order.push(f);
+      t.lineup = order.slice(0, 9);
+    } else t.lineup = bestLineup(act.filter(isPosPlayer));
+  }
+  // Auto-managed: a fill-in keeps the job only while he is the right call. When a regular
+  // comes back from the IL, or someone is stuck out of position, the lineup is rebuilt.
+  if (league.settings.autoRoster) {
+    const hitters = act.filter(isPosPlayer);
+    const val = (lu: LineupSlot[]) => lu.reduce((a, s) => a + spotValue(league.players[s.id], s.pos as LineupPos), 0);
+    const best = assignSpots(hitters);
+    const outOfPos = t.lineup.some((s) => s.pos !== "DH" && defAt(league.players[s.id], s.pos as LineupPos) == null);
+    if (best.length >= 9 && (outOfPos || val(best) - val(t.lineup) > 6)) t.lineup = battingOrder(best, hitters);
   }
   // Rotation.
   const rot = t.rotation.filter((id) => ok(id) && canPitch(league.players[id]));
@@ -136,6 +195,20 @@ export function repairDepth(league: League, teamId: number): void {
       .filter((p) => canPitch(p) && !rot.includes(p.id) && p.id !== t.closer && !t.setup.includes(p.id))
       .sort((a, b) => starterScore(b) - starterScore(a));
     while (rot.length < 5 && cands.length) rot.push(cands.shift()!.id);
+  }
+  // Auto-managed: a clearly better healthy starter (back from the IL, called up) takes the
+  // weakest rotation spot, and the rotation lines up ace first.
+  if (league.settings.autoRoster) {
+    const nextUp = rot.length ? rot[t.rotIdx % rot.length] : undefined;
+    const sps = act.filter((p) => canPitch(p) && p.pos === "SP" && !rot.includes(p.id) && p.id !== t.closer).sort((a, b) => b.ovr - a.ovr);
+    for (const c of sps) {
+      const worst = rot.reduce<number | null>((w, id) => (w == null || league.players[id].ovr < league.players[w].ovr ? id : w), null);
+      if (worst == null || c.ovr - league.players[worst].ovr < 4) break;
+      rot[rot.indexOf(worst)] = c.id;
+    }
+    rot.sort((a, b) => league.players[b].ovr - league.players[a].ovr);
+    const i = nextUp != null ? rot.indexOf(nextUp) : -1;
+    if (i >= 0) t.rotIdx = i;
   }
   t.rotation = rot;
   if (t.rotIdx >= rot.length) t.rotIdx = 0;
@@ -330,7 +403,9 @@ export function normalizeRoster(league: League, teamId: number, opts: { offseaso
     cut.on40 = false;
     if (cut.status === "il") cut.status = "minors";
   }
-  repairDepth(league, teamId);
+  // AI clubs re-set their depth chart from scratch; the user's choices are only patched.
+  if (isUser) repairDepth(league, teamId);
+  else autoDepth(league, teamId);
 }
 
 export function lineupPlayers(league: League, t: TeamState): Array<{ p: Player; pos: LineupPos }> {

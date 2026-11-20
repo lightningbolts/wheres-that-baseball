@@ -7,7 +7,7 @@
  * arbitration and aging-curve projections.
  */
 import { cbtThreshold, club, DOLLARS_PER_WAR, MIN_SALARY } from "./data";
-import { clamp } from "./ratings";
+import { clamp, gradeScale, warFromGrade } from "./ratings";
 import { hashUnit } from "./rng";
 import type { Contract, ContractOption, League, Player } from "./types";
 
@@ -24,15 +24,14 @@ export function agingDelta(age: number): number {
 }
 
 export function warFromOvr(p: Player, ovr: number): number {
-  if (p.pitcher && p.pos === "RP") return (ovr - 42) / 9;
-  return (ovr - 40) / 5;
+  return warFromGrade(p, ovr);
 }
 
 /** Projected overall `years` seasons from now (growth capped by potential). */
 export function projectedOvr(p: Player, years: number): number {
   let o = p.ovr;
   for (let y = 0; y < years; y += 1) {
-    const d = agingDelta(p.age + y);
+    const d = agingDelta(p.age + y) * gradeScale(p);
     o = d > 0 ? Math.min(Math.max(o, p.pot), o + d + (p.pot - o) * 0.15) : o + d;
   }
   return o;
@@ -60,8 +59,8 @@ export function estimateService(p: Player): number {
 export interface ContractEntry {
   /** MLB club whose payroll lists him. */
   team: number;
-  /** guar = guaranteed MLB deal; arb / pre = arbitration-eligible / pre-arbitration. */
-  kind: "guar" | "arb" | "pre";
+  /** guar = guaranteed MLB deal; arb / pre = arbitration-eligible / pre-arbitration; minor = minor-league deal. */
+  kind: "guar" | "arb" | "pre" | "minor";
   /** MLB service time, years. */
   svc?: number;
   /** Guaranteed salary per season from the first franchise season, $M. */
@@ -110,6 +109,7 @@ export function realContract(p: Player, e: ContractEntry, season: number): Contr
       real: true,
     };
   }
+  if (e.kind === "minor") return { aav: MIN_SALARY, years: 1, kind: "minor", signed: season, real: true };
   if (e.kind === "arb") return { aav: e.arb ? r2(Math.max(MIN_SALARY, e.arb)) : arbSalary(p), years: 1, kind: "arb", signed: season, real: true };
   return { aav: preArbSalary(p.service), years: 1, kind: "pre", signed: season, real: true };
 }

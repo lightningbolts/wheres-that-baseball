@@ -6,9 +6,10 @@ import { GameView } from "@/components/game/GameView";
 import { clearSave, loadSave } from "@/components/game/save";
 import { sfx } from "@/components/game/audio";
 import type { ContractFile } from "@/lib/game/franchise/contracts";
-import { createLeague } from "@/lib/game/franchise/league";
+import { applyRealContracts, createLeague, migrateGrades } from "@/lib/game/franchise/league";
 import type { ProjectionFile } from "@/lib/game/franchise/projections";
 import { boxFromSession, buildManualGame, recordManualResult, rosterIndex, type ManualGame } from "@/lib/game/franchise/manual";
+import { pruneGameLogs, putGameLogs, setGameLogSink, type GameLog } from "@/lib/game/franchise/gamelog";
 import { deleteSlot, listSlots, loadLeague, saveLeague, SLOT_COUNT, type SlotMeta } from "@/lib/game/franchise/save";
 import { advanceDay, prepareDay, simDone, userGameToday, type SimTarget } from "@/lib/game/franchise/season";
 import type { League } from "@/lib/game/franchise/types";
@@ -41,6 +42,9 @@ export function SeasonApp() {
   const proj = useRef<ProjectionFile | undefined>(undefined);
   const [projData, setProjData] = useState<ProjectionFile | undefined>(undefined);
   const contracts = useRef<ContractFile | undefined>(undefined);
+  // Settle when the optional projection / contract files finish loading (or fail), so a new
+  // league never falls back to estimated deals just because it was created too quickly.
+  const extras = useRef<Promise<unknown>>(Promise.resolve());
   // Bumped by each sim run and by Save & exit: a run that no longer owns the token drops its result.
   const simToken = useRef(0);
 
@@ -50,7 +54,7 @@ export function SeasonApp() {
       .then((m) => alive && setRosters((m.default ?? m) as unknown as RosterFile))
       .catch(() => alive && setError("Couldn't load rosters."));
     // Optional: without it a new league rates players on 2026 alone.
-    import("@/data/game/franchise-proj.json")
+    const projLoad = import("@/data/game/franchise-proj.json")
       .then((m) => {
         if (!alive) return;
         proj.current = (m.default ?? m) as unknown as ProjectionFile;
@@ -58,11 +62,12 @@ export function SeasonApp() {
       })
       .catch(() => undefined);
     // Optional: without it every contract is estimated.
-    import("@/data/game/franchise-contracts.json")
+    const contractLoad = import("@/data/game/franchise-contracts.json")
       .then((m) => {
-        if (alive) contracts.current = (m.default ?? m) as unknown as ContractFile;
+        contracts.current = (m.default ?? m) as unknown as ContractFile;
       })
       .catch(() => undefined);
+    extras.current = Promise.all([projLoad, contractLoad]);
     listSlots()
       .then((s) => alive && setSlots(s))
       .catch(() => alive && setSlots(Array.from({ length: SLOT_COUNT }, () => null)));
@@ -127,6 +132,8 @@ export function SeasonApp() {
       cancel.current = false;
       const token = ++simToken.current;
       setSim({ label, done: 0, total });
+      const logs: GameLog[] = [];
+      setGameLogSink((x) => logs.push(x));
       let n = 0;
       while (!simDone(l, target, start) && n < 400) {
         if (l.phase !== "regular" && l.phase !== "postseason") break;
@@ -140,14 +147,16 @@ export function SeasonApp() {
           await new Promise((r) => setTimeout(r, 0));
         }
       }
+      setGameLogSink(null);
       if (token !== simToken.current) return;
       prepareDay(l);
       setSim(null);
       setLeague(l);
       persist(l);
+      void putGameLogs(slot, logs).then(() => pruneGameLogs(slot, l.season - 1));
       if (stopAtUserGame && userGameToday(l) && !simDone(l, target, start)) setToast("Stopped: your club plays today.");
     },
-    [league, sim, persist],
+    [league, sim, persist, slot],
   );
 
   const startManual = useCallback(
@@ -184,9 +193,14 @@ export function SeasonApp() {
           inputs={manual.inputs}
           onGameOver={({ awayRuns, homeRuns, session }) => {
             const l = structuredClone(league);
-            if (recordManualResult(l, manual.game.id, boxFromSession(session, awayRuns, homeRuns))) {
+            const logs: GameLog[] = [];
+            setGameLogSink((x) => logs.push(x));
+            const ok = recordManualResult(l, manual.game.id, boxFromSession(session, awayRuns, homeRuns));
+            setGameLogSink(null);
+            if (ok) {
               setLeague(l);
               persist(l);
+              void putGameLogs(slot, logs);
               clearSave();
             }
           }}
@@ -211,16 +225,27 @@ export function SeasonApp() {
                 setToast("That save couldn't be read.");
                 return;
               }
+              await extras.current;
+              // Saves started before the real-contract snapshot get the actual deals now.
+              const upgraded = applyRealContracts(l, contracts.current);
+              const regraded = migrateGrades(l);
+              if (upgraded || regraded) void saveLeague(l, s);
+              if (upgraded) setToast(`Updated ${upgraded} players to their real MLB contracts.`);
+              else if (regraded) setToast("Pitcher ratings now use their own scale; depth charts were updated.");
               prepareDay(l);
               setSlot(s);
               setLeague(l);
             }}
             onDelete={async (s) => {
               await deleteSlot(s);
+              await pruneGameLogs(s);
               setSlots(await listSlots());
             }}
-            onCreate={(s, opts) => {
+            onCreate={async (s, opts) => {
+              await extras.current;
               const l = createLeague(rosters, { ...opts, proj: proj.current, contracts: contracts.current });
+              // A new franchise in this slot: the old one's game logs go.
+              void pruneGameLogs(s);
               setSlot(s);
               setLeague(l);
               void saveLeague(l, s);

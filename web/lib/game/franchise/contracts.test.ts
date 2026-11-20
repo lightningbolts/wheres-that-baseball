@@ -4,7 +4,8 @@ import projJson from "@/data/game/franchise-proj.json";
 import rosters from "@/data/game/rosters.json";
 import type { RosterFile } from "@/lib/game/types";
 import { advanceContract, cashPayroll, committed, contractSalary, optionExercised, payroll, realContract, remainingOwed, type ContractFile } from "./contracts";
-import { createLeague } from "./league";
+import { openingBudget } from "./finances";
+import { applyRealContracts, createLeague } from "./league";
 import type { ProjectionFile } from "./projections";
 import { finishFreeAgency, startNextSeason, startOffseason } from "./offseason";
 import { release } from "./roster";
@@ -186,5 +187,44 @@ describe("real contracts", () => {
     release(l, p.id);
     const d = l.teams[l.userTeam].dead[before];
     expect(d.years * d.aav).toBeCloseTo(owed, 1);
+  });
+});
+
+describe("applyRealContracts (saves started before the snapshot)", () => {
+  const file = contractsJson as unknown as ContractFile;
+  const proj = projJson as unknown as ProjectionFile;
+
+  it("upgrades synthesized deals to the real ones and keeps in-game signings", () => {
+    const real = createLeague(rosters as unknown as RosterFile, { userTeam: 147, seed: 3, proj, contracts: file });
+    const old = createLeague(rosters as unknown as RosterFile, { userTeam: 147, seed: 3, proj });
+    const rostered = Object.values(old.players).filter((p) => p.real && p.team && p.status !== "fa");
+    expect(rostered.every((p) => !p.contract.real)).toBe(true);
+    // One player the user signed this winter keeps his in-game deal.
+    const signed = rostered.find((p) => file.players[String(p.id)]?.kind === "guar")!;
+    signed.contract = { aav: 9.9, years: 2, kind: "fa", signed: old.season };
+
+    const was = new Map(Object.values(old.teams).map((t) => [t.id, { budget: t.fin.budget, pay: payroll(old, t.id) }]));
+    const n = applyRealContracts(old, file);
+    expect(n).toBeGreaterThan(500);
+    expect(signed.contract.aav).toBe(9.9);
+    for (const p of rostered) {
+      if (p === signed || !file.players[String(p.id)]) continue;
+      expect(p.contract).toEqual(real.players[p.id].contract);
+      expect(p.service).toBe(real.players[p.id].service);
+      expect(p.options).toBe(real.players[p.id].options);
+    }
+    // Budgets move with the payroll by what the opening-budget formula says.
+    for (const t of Object.values(old.teams)) {
+      const w = was.get(t.id)!;
+      expect(t.fin.budget).toBe(w.budget + openingBudget(t.id, payroll(old, t.id)) - openingBudget(t.id, w.pay));
+    }
+    expect(Object.values(old.teams).some((t) => t.fin.budget !== was.get(t.id)!.budget)).toBe(true);
+    // Idempotent, and a no-op outside the snapshot's season.
+    expect(applyRealContracts(old, file)).toBe(0);
+    expect(applyRealContracts({ ...old, season: old.season + 1 }, { ...file, players: file.players })).toBe(0);
+    // From the offseason on, next season's deals are already written: leave them alone.
+    const later = createLeague(rosters as unknown as RosterFile, { userTeam: 147, seed: 3, proj });
+    later.phase = "offseason";
+    expect(applyRealContracts(later, file)).toBe(0);
   });
 });

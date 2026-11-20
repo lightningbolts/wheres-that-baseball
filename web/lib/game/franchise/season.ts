@@ -3,12 +3,13 @@
  * stats, rotation turns, gates, injuries), runs the calendar (trade deadline,
  * end of regular season → awards + bracket, postseason → champion → offseason).
  */
+import { buildGameLog, emitGameLog } from "./gamelog";
 import { attendance, accrueDay, closeSeasonBooks, recordGate } from "./finances";
 import { expectedWins } from "./league";
 import { buildBracket, onPostseasonResult, schedulePostseasonDay } from "./postseason";
 import { club } from "./data";
 import { FRng, hash32 } from "./rng";
-import { isHealthy, news, normalizeRoster } from "./roster";
+import { isHealthy, news, normalizeRoster, repairDepth } from "./roster";
 import { chooseStarter, recordLines, simGame, type GameOutcome } from "./sim";
 import { computeAwards, selectAllStars } from "./awards";
 import { aiTradeTick } from "./trades";
@@ -141,6 +142,8 @@ export function playScheduledGame(league: League, g: ScheduledGame, rng: FRng): 
     out.uc = simUmpCard(ump, pitches, out.innings, new FRng(hash32(league.seed, league.season, g.id, "ump-card")));
   }
   applyGameResult(league, g, out, rng);
+  const log = buildGameLog(g, league.season, out, (id) => league.players[id]?.name);
+  if (log) emitGameLog(log);
   return out;
 }
 
@@ -149,6 +152,7 @@ export function prepareDay(league: League): void {
   if (league.phase === "postseason") schedulePostseasonDay(league);
   // Plate umpires for any game without one (new postseason games, older saves).
   ensureUmpires(league);
+  if (league.settings.autoRoster && (league.phase === "regular" || league.phase === "postseason")) repairDepth(league, league.userTeam);
 }
 
 function endRegularSeason(league: League): void {
@@ -177,6 +181,8 @@ function endOfDay(league: League, rng: FRng): void {
     if (league.phase === "regular" && p.status === "active") p.mlbDays += 1;
   }
   for (const tid of touched) normalizeRoster(league, tid);
+  // An auto-managed club re-checks its lineup and rotation daily (regulars back, nobody out of position).
+  if (league.settings.autoRoster && !touched.has(league.userTeam)) repairDepth(league, league.userTeam);
   if (league.phase === "regular") {
     accrueDay(league);
     if (league.day >= 14 && league.day <= league.calendar.deadlineDay && league.day % 6 === 3) aiTradeTick(league, rng);

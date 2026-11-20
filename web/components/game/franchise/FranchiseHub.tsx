@@ -195,7 +195,7 @@ export function FranchiseHub({
         </div>
       </nav>
 
-      <ProfilesProvider league={league} rosters={rosters} proj={proj}>
+      <ProfilesProvider league={league} rosters={rosters} proj={proj} slot={slot}>
         <div className={cn(sim && "pointer-events-none opacity-60")}>
           {tab === "home" && <Dashboard league={league} act={act} onPlay={onPlay} />}
           {tab === "roster" && <RosterTab league={league} act={act} />}

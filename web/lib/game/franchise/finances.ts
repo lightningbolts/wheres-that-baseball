@@ -12,9 +12,14 @@ import type { Finances, League, TeamState } from "./types";
 
 export const REVENUE_SHARE = 0.48;
 
+/** A new club's first payroll budget: its payroll plus a little room, or about half of revenue. */
+export function openingBudget(teamId: number, payrollM: number): number {
+  const rev = projectedRevenue(teamId, 0.5, refTicketPrice(teamId));
+  return Math.round(Math.max(payrollM * 1.04, rev * 0.48));
+}
+
 export function newFinances(teamId: number, payrollM: number): Finances {
   const c = club(teamId);
-  const rev = projectedRevenue(teamId, 0.5, refTicketPrice(teamId));
   return {
     gate: 0,
     concessions: 0,
@@ -29,7 +34,7 @@ export function newFinances(teamId: number, payrollM: number): Finances {
     homeGames: 0,
     attendance: 0,
     cash: Math.round(40 + c.pop * 6),
-    budget: Math.round(Math.max(payrollM * 1.04, rev * 0.48)),
+    budget: openingBudget(teamId, payrollM),
     ownerMood: 60,
     cbtYears: 0,
     history: [],
