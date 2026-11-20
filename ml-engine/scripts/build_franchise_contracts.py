@@ -99,12 +99,16 @@ OVERRIDES: dict[str, dict] = {
                         "summary": "27 vesting option vested ($13M)"},
     "Wandy Peralta": {"sal": [4.45], "total": 4.45, "len": 1, "first": 2027, "last": 2027,
                       "summary": "27 player option exercised ($4.45M)"},
+    "Drew Anderson": {"sal": [10.0], "total": 10.0, "len": 1, "first": 2027, "last": 2027,
+                      "summary": "27 club option exercised ($10M)"},
     "Tony Gonsolin": {"sal": [2.5], "total": 2.5, "len": 1, "first": 2027, "last": 2027,
                       "summary": "27 club option exercised ($2.5M)"},
     # Re-signed / signed this winter, after the payroll pages were captured.
     "Jacob Webb": {"sal": [2.5], "total": 2.5, "len": 1, "first": 2027, "last": 2027,
                    "opt": {"season": 2028, "type": "team", "salary": 4.0, "buyout": 0},
                    "summary": "1 yr/$2.5M (27) & 28 club option"},
+    "Jacob Waguespack": {"sal": [1.3], "total": 1.3, "len": 1, "first": 2027, "last": 2027,
+                         "summary": "1 yr/$1.3M (27)"},
     "Tim Mayza": {"sal": [2.75], "total": 2.75, "len": 1, "first": 2027, "last": 2027,
                   "summary": "1 yr/$2.75M (27)"},
     "David Bednar": {"sal": [23.15], "total": 23.15, "len": 1, "first": 2027, "last": 2027,
@@ -321,11 +325,12 @@ def parent_orgs(season: int) -> dict[int, int]:
     return out
 
 
-def offseason_status(ids: dict[int, int], season: int) -> tuple[dict[str, dict], dict[str, int], dict[str, int]]:
+def offseason_status(ids: dict[int, int], season: int) -> tuple[dict[str, dict], dict[str, int], dict[str, int], dict[str, str]]:
     """
     Where each rostered player stands this winter (since the end of the regular season):
-    free agents (with the club they left), players now in another organization, and each
-    player's MLB debut season. `ids` maps MLBAM id → the club rosters.json has him on.
+    free agents (with the club they left), players now in another organization, each
+    player's MLB debut season, and players who left and signed again ("minor" / "major"
+    league deal). `ids` maps MLBAM id → the club rosters.json has him on.
     """
     orgs = parent_orgs(season - 1)
     # From September on: a few veterans elect free agency off an outright in late September,
@@ -334,6 +339,7 @@ def offseason_status(ids: dict[int, int], season: int) -> tuple[dict[str, dict],
     fa: dict[str, dict] = {}
     moved: dict[str, int] = {}
     debut: dict[str, int] = {}
+    signed: dict[str, str] = {}
     order = {**{k: 1 for k in LEAVE}, **{k: 2 for k in JOIN}}
     keys = list(ids)
     for i in range(0, len(keys), 60):
@@ -356,8 +362,8 @@ def offseason_status(ids: dict[int, int], season: int) -> tuple[dict[str, dict],
                 elif kind in JOIN and to in orgs:
                     org = orgs[to]
                     if kind.startswith("Signed") and left:
-                        # Re-signed after free agency: a new deal (-2 = minor-league), not club control.
-                        debut[str(pid)] = -2 if "minor league" in (t.get("description") or "").lower() else -1
+                        # Signed again after leaving: a new deal, not the old one or club control.
+                        signed[str(pid)] = "minor" if "minor league" in (t.get("description") or "").lower() else "major"
                 elif kind in ("Outrighted", "Assigned", "Optioned", "Selected", "Recalled", "Status Change") and org is not None and to in orgs:
                     org = orgs[to]
             # The roster snapshot can predate a summer move (Gonsolin to KC in August): an
@@ -370,7 +376,7 @@ def offseason_status(ids: dict[int, int], season: int) -> tuple[dict[str, dict],
             elif org != home:
                 moved[str(pid)] = org
         time.sleep(0.2)
-    return fa, moved, debut
+    return fa, moved, debut, signed
 
 
 def main() -> None:
@@ -441,7 +447,7 @@ def main() -> None:
     for nm, cands in names.items():
         for mid, tid in cands:
             rostered.setdefault(mid, tid)
-    fa, moved, debut = offseason_status(rostered, season)
+    fa, moved, debut, signed = offseason_status(rostered, season)
     for k in fa:
         # A free agent's old deal is over (a released player's remaining salary stays with the
         # club as dead money — keep the entry so the game can charge it).
@@ -457,15 +463,24 @@ def main() -> None:
     new_deals = []
     for mid, tid in rostered.items():
         k = str(mid)
-        if k in players or k in fa:
+        if k in fa:
             continue
-        if debut.get(k) == -2:
-            players[k] = {"team": moved.get(k, tid), "kind": "minor"}
+        e = players.get(k)
+        # A winter signing replaces whatever the payroll page had, except a guaranteed deal
+        # (OVERRIDES, or a page already showing the new contract).
+        if k in signed and (e is None or e["kind"] != "guar"):
+            if signed[k] == "minor":
+                players[k] = {"team": moved.get(k, tid), "kind": "minor", **({"svc": e["svc"]} if e and "svc" in e else {})}
+            else:
+                players.pop(k, None)
+                new_deals.append(k)
             continue
-        if debut.get(k) == -1:
-            new_deals.append(k)
+        if e is not None:
             continue
-        players[k] = {"team": moved.get(k, tid), "kind": "arb" if debut.get(k, season) <= season - 4 else "pre", "ctl": True}
+        # Service time isn't on any page: about three-quarters of a season per year since the
+        # debut, capped below six so the game never treats him as a free agent while controlled.
+        svc = round(min(5.5, 0.75 * max(0, season - debut[k])), 3) if k in debut else 0.0
+        players[k] = {"team": moved.get(k, tid), "kind": "arb" if svc >= 3 else "pre", "svc": svc, "ctl": True}
         added += 1
     print(f"  offseason: {len(fa)} free agents, {len(moved)} changed organizations, {added} 40-man adds under club control")
     if new_deals:
