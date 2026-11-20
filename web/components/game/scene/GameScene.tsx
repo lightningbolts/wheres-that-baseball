@@ -9,7 +9,7 @@ import { Players } from "@/components/game/scene/Players";
 import { Ball, CameraRig, ContactFx, Director, PlateOverlay } from "@/components/game/scene/SceneParts";
 import { Environment } from "@/components/game/scene/parks/Environment";
 import type { Playback } from "@/components/game/scene/playback";
-import { FpsGovernor, stepAutoTier, useQuality } from "@/components/game/scene/quality";
+import { FpsGovernor, stepAutoTierDown, useQuality } from "@/components/game/scene/quality";
 
 export interface GameSceneProps {
   park: Park;
@@ -23,13 +23,21 @@ export interface GameSceneProps {
   onPrimary: () => void;
 }
 
-/** Auto: watches the frame rate and steps the live tier down (or back up). */
-function AutoQuality() {
-  const [gov] = useState(() => new FpsGovernor());
+/**
+ * Auto: watches the frame rate and steps the live tier down. A step resizes the canvas and
+ * rebuilds the shadow map, so it waits for the picture to be covered (a broadcast cut, the
+ * inning bumper) and happens out of sight.
+ */
+function AutoQuality({ pb }: { pb: Playback }) {
+  const [st] = useState(() => ({ gov: new FpsGovernor(), pending: false }));
   useFrame(() => {
     const now = performance.now();
-    const dir = gov.frame(now);
-    if (dir !== 0) gov.stepped(dir, stepAutoTier(dir), now);
+    if (!st.pending) st.pending = st.gov.frame(now);
+    if (st.pending && pb.curtain === 1) {
+      st.pending = false;
+      stepAutoTierDown();
+      st.gov.stepped(now);
+    }
   });
   return null;
 }
@@ -63,7 +71,7 @@ function GameScene({ park, pb, homeColor, awayColor, homeTeam, awayTeam, onAim, 
       style={{ touchAction: "none" }}
     >
       {q.setting === "auto" && boot.tier !== "low" && (
-        <AutoQuality />
+        <AutoQuality pb={pb} />
       )}
       <Director pb={pb} />
       {/* The camera moves before anything reads it: the shadow box, the players' on-screen size

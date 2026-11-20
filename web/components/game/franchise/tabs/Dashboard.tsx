@@ -20,8 +20,9 @@ function GameRow({ league, g, onPlay }: { league: League; g: ScheduledGame; onPl
   const won = r ? (home ? r.hs > r.as : r.as > r.hs) : null;
   const n = (id?: number) => (id ? league.players[id]?.name.split(" ").slice(-1)[0] : null);
   const ump = umpById(g.ump);
+  const { openGame } = useProfiles();
   return (
-    <tr>
+    <tr className={cn(r && "cursor-pointer hover:bg-foreground/5")} onClick={r ? () => openGame(g.id) : undefined} title={r ? "Box score and play-by-play" : undefined}>
       <td className={cn(td, "whitespace-nowrap text-secondary")}>{fmtDate(league.calendar, g.day)}</td>
       <td className={cn(td, "whitespace-nowrap")}>
         {g.ps && <span className="mr-1 rounded bg-emerald-500/15 px-1 text-[10px] uppercase text-emerald-500">{g.ps}</span>}
@@ -64,7 +65,7 @@ export function Dashboard({ league, onPlay }: TabProps & { onPlay: (id: number) 
   const news = league.news.slice(-40).reverse();
   const exp = league.expected?.[me.id];
   const proj = useMemo(() => projectedRecord(league)[me.id], [league, me.id, me.w, me.l]);
-  const { proj: projFile } = useProfiles();
+  const { proj: projFile, openGame } = useProfiles();
   const fgw = useMemo(() => (league.season === projFile?.projSeason ? steamerWins(league, projFile)?.[me.id] : undefined), [league, projFile, me.id]);
   const fgTxt = fgw ? ` · FanGraphs ${fgw.w} W` : "";
   const projSub =
@@ -122,7 +123,14 @@ export function Dashboard({ league, onPlay }: TabProps & { onPlay: (id: number) 
                 const a = league.teams[g.away];
                 const h = league.teams[g.home];
                 return (
-                  <div key={g.id} className="rounded-md border border-border px-2 py-1 text-xs tabular-nums">
+                  <button
+                    type="button"
+                    key={g.id}
+                    disabled={!g.result}
+                    onClick={() => openGame(g.id)}
+                    title="Box score and play-by-play"
+                    className="rounded-md border border-border px-2 py-1 text-left text-xs tabular-nums enabled:hover:border-foreground/40 enabled:hover:bg-foreground/5"
+                  >
                     <div className="flex justify-between">
                       <TeamDot id={a.id} abbrev={a.abbrev} />
                       <span>{g.result?.as ?? ""}</span>
@@ -131,7 +139,7 @@ export function Dashboard({ league, onPlay }: TabProps & { onPlay: (id: number) 
                       <TeamDot id={h.id} abbrev={h.abbrev} />
                       <span>{g.result?.hs ?? ""}</span>
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>

@@ -1,6 +1,6 @@
 /** Player development and aging between seasons (ratings move toward potential, then decline). */
 import { agingDelta } from "./contracts";
-import { clamp, overall } from "./ratings";
+import { clamp, gradeScale, overall } from "./ratings";
 import type { FRng } from "./rng";
 import type { BatSkill, League, PitSkill, Player, RateLine } from "./types";
 
@@ -47,10 +47,12 @@ export function applyOvrDelta(p: Player, delta: number): void {
 /** One offseason of development for a player; returns the overall change. */
 export function developPlayer(p: Player, rng: FRng): number {
   const before = p.ovr;
-  const base = agingDelta(p.age);
+  // Aging and noise are in hitters' grades; pitchers' grades run on a wider scale.
+  const k = gradeScale(p);
+  const base = agingDelta(p.age) * k;
   const gap = Math.max(0, p.pot - p.ovr);
   let delta = base > 0 ? base * 0.5 + gap * 0.2 : base;
-  delta += rng.gauss(0, p.age <= 25 ? 3 : 2.2);
+  delta += rng.gauss(0, p.age <= 25 ? 3 : 2.2) * k;
   if (base >= 0 && p.ovr + delta > p.pot) delta = p.pot - p.ovr + (delta - (p.pot - p.ovr)) * 0.3;
   applyOvrDelta(p, delta);
   if (p.bat) {
@@ -60,7 +62,7 @@ export function developPlayer(p: Player, rng: FRng): number {
   }
   if (p.pit && p.age >= 34 && p.pos === "SP") p.pit.stam = clamp(p.pit.stam - 2, 60, 110);
   p.ovr = overall(p);
-  p.pot = p.age >= 27 ? Math.max(p.ovr, Math.min(p.pot, p.ovr + 2)) : Math.max(p.ovr, Math.round(p.pot + rng.gauss(0, 2)));
+  p.pot = p.age >= 27 ? Math.max(p.ovr, Math.min(p.pot, p.ovr + 2)) : Math.max(p.ovr, Math.round(p.pot + rng.gauss(0, 2) * k));
   return p.ovr - before;
 }
 

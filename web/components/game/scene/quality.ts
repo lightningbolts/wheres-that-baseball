@@ -7,9 +7,10 @@
  *   the WebGL context and the park are built; changing them rebuilds the 3D view.
  * - live settings (pixel ratio, shadow map size, crowd density, clouds) apply on the fly.
  *
- * Auto picks a starting tier from the device (cores, memory, GPU, max texture size) and
- * then a frame-rate monitor steps the live settings down (and back up, never above the
- * starting tier) while the game runs.
+ * Auto picks a starting tier from the device (cores, memory, GPU, max texture size); a
+ * frame-rate monitor may then step the live settings down. It never steps back up, only
+ * applies a step while the picture is covered (a broadcast cut, the inning bumper), and
+ * remembers the tier it settled on, so the view never visibly changes during play.
  */
 import { useSyncExternalStore } from "react";
 
@@ -117,6 +118,8 @@ export function readDeviceInfo(): DeviceInfo {
 // ---------- the setting and the live tier ----------
 
 const KEY = "playball.graphics";
+/** Auto's settled live tier, keyed to the detected tier it was learned under. */
+const AUTO_KEY = "playball.graphics.auto";
 const SETTINGS: QualitySetting[] = ["auto", "high", "medium", "low"];
 
 export interface QualityState {
@@ -148,9 +151,23 @@ const listeners = new Set<() => void>();
 
 const SERVER: QualityState = { setting: "auto", boot: PROFILES.high, live: PROFILES.high, detected: "high" };
 
+function loadAutoLive(d: Tier): Tier | null {
+  try {
+    const v = window.localStorage.getItem(AUTO_KEY);
+    const [from, to] = (v ?? "").split(">");
+    if (from === d && (ORDER as string[]).includes(to)) return to as Tier;
+  } catch {
+    // Storage blocked: start at the detected tier.
+  }
+  return null;
+}
+
 function build(): QualityState {
   if (setting === null) setting = loadSetting();
-  if (detected === null) detected = classifyDevice(readDeviceInfo());
+  if (detected === null) {
+    detected = classifyDevice(readDeviceInfo());
+    autoLive = loadAutoLive(detected);
+  }
   const boot = setting === "auto" ? detected : setting;
   const live = setting === "auto" ? lower(autoLive ?? boot, boot) : setting;
   return { setting, boot: PROFILES[boot], live: PROFILES[live], detected };
@@ -177,6 +194,8 @@ export function setQualitySetting(s: QualitySetting): void {
   autoLive = null;
   try {
     window.localStorage.setItem(KEY, s);
+    // Choosing Auto again starts it over from the device's tier.
+    window.localStorage.removeItem(AUTO_KEY);
   } catch {
     // Not persisted; still applies for this session.
   }
@@ -189,15 +208,20 @@ export function nextSetting(s: QualitySetting): QualitySetting {
 }
 
 /**
- * Auto: the frame-rate monitor moves the live tier one step (never above the starting tier).
+ * Auto: the frame-rate monitor lowers the live tier one step, and the device keeps it.
  * Returns whether the tier actually changed.
  */
-export function stepAutoTier(dir: -1 | 1): boolean {
+export function stepAutoTierDown(): boolean {
   const q = getQuality();
   if (q.setting !== "auto") return false;
-  const i = Math.min(rank(q.boot.tier), Math.max(0, rank(q.live.tier) + dir));
+  const i = Math.max(0, rank(q.live.tier) - 1);
   if (ORDER[i] === q.live.tier) return false;
   autoLive = ORDER[i];
+  try {
+    window.localStorage.setItem(AUTO_KEY, `${q.detected}>${autoLive}`);
+  } catch {
+    // Not persisted; still applies for this session.
+  }
   changed();
   return true;
 }
@@ -205,17 +229,13 @@ export function stepAutoTier(dir: -1 | 1): boolean {
 export interface GovernorOptions {
   /** Length of one frame-rate sample, ms. */
   windowMs: number;
-  /** Samples per step-down verdict. */
+  /** Samples per verdict. */
   samples: number;
-  /** Samples (all fast) before stepping back up. */
-  upSamples: number;
   /** Frame rate the game aims for. Fixed: a scene that never reaches it must still step down. */
   target: number;
-  /** Step down when at least `slowShare` of samples are under target × down… */
+  /** Step down when at least `slowShare` of samples are under target × down. */
   down: number;
   slowShare: number;
-  /** …and back up only when every sample over `upSamples` is over target × up. */
-  up: number;
   /** After a tier change, wait this long before sampling (shaders, shadow maps rebuild). */
   settleMs: number;
   /** A gap this long between frames (hidden tab, a stall) throws the current sample away. */
@@ -225,24 +245,21 @@ export interface GovernorOptions {
 const GOVERNOR: GovernorOptions = {
   windowMs: 500,
   samples: 8,
-  upSamples: 60,
   target: 60,
   down: 0.75,
   slowShare: 0.75,
-  up: 0.95,
   settleMs: 2000,
   gapMs: 250,
 };
 
 /**
- * Auto's frame-rate judge. Feed it every frame's timestamp; it answers -1 (step down),
- * 1 (step up) or 0. Report what the step did with `stepped`.
+ * Auto's frame-rate judge. Feed it every frame's timestamp; it answers true when the live
+ * tier should step down. Report a step with `stepped`.
  *
  * Every tier change is visible (the canvas resizes, the shadow map is rebuilt, the crowd
- * thins or fills), so the governor is deliberately sluggish: it steps down only on a
- * sustained slow spell, steps up only after a long fully smooth one (a capped 60 Hz display
- * reads "smooth" the moment a step down frees any headroom, so a quick step up just
- * oscillates), and once a step up has to be undone it settles on the lower tier for good.
+ * thins), so it only ever steps down, and only on a sustained slow spell. It never steps
+ * back up: on a capped 60 Hz display a step down reads as headroom straight away, and any
+ * step up just sets up the next step down, a flicker every half-minute.
  */
 export class FpsGovernor {
   private readonly o: GovernorOptions;
@@ -250,55 +267,36 @@ export class FpsGovernor {
   private last = -1;
   private frames = 0;
   private fps: number[] = [];
-  /** Consecutive fast samples. */
-  private fastRun = 0;
-  private lastDir = 0;
   private holdUntil = 0;
-  stopped = false;
 
   constructor(o: Partial<GovernorOptions> = {}) {
     this.o = { ...GOVERNOR, ...o };
   }
 
-  frame(now: number): -1 | 0 | 1 {
-    if (this.stopped || now < this.holdUntil) return 0;
+  frame(now: number): boolean {
+    if (now < this.holdUntil) return false;
     const gap = this.last >= 0 && now - this.last > this.o.gapMs;
     this.last = now;
     if (this.winStart < 0 || gap) {
       this.winStart = now;
       this.frames = 0;
-      return 0;
+      return false;
     }
     this.frames += 1;
     const span = now - this.winStart;
-    if (span < this.o.windowMs) return 0;
-    const f = (this.frames / span) * 1000;
+    if (span < this.o.windowMs) return false;
+    this.fps.push((this.frames / span) * 1000);
     this.winStart = now;
     this.frames = 0;
-    this.fastRun = f >= this.o.target * this.o.up ? this.fastRun + 1 : 0;
-    if (this.fastRun >= this.o.upSamples) {
-      this.fastRun = 0;
-      this.fps = [];
-      return 1;
-    }
-    this.fps.push(f);
-    if (this.fps.length < this.o.samples) return 0;
+    if (this.fps.length < this.o.samples) return false;
     const slow = this.fps.filter((x) => x < this.o.target * this.o.down).length;
     this.fps.shift();
-    if (slow >= this.o.samples * this.o.slowShare) {
-      this.fps = [];
-      return -1;
-    }
-    return 0;
+    return slow >= this.o.samples * this.o.slowShare;
   }
 
-  stepped(dir: -1 | 1, changedTier: boolean, now: number): void {
-    if (!changedTier) return;
-    // The tier it climbed back to couldn't hold: stay below it from now on.
-    if (dir === -1 && this.lastDir === 1) this.stopped = true;
-    this.lastDir = dir;
+  /** The tier stepped down (or a pending step was dropped): start measuring afresh. */
+  stepped(now: number): void {
     this.fps = [];
-    this.fastRun = 0;
     this.winStart = -1;
     this.holdUntil = now + this.o.settleMs;
   }

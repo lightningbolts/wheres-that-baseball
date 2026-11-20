@@ -11,10 +11,13 @@ import type { RosterFile } from "@/lib/game/types";
 import { cn } from "@/lib/utils";
 import { contractDetail, injuryStr, Ovr, Segmented } from "./ui";
 import { f1, f2, f3, ipFmt } from "./StatTable";
+import { GameDetail } from "./GameDetail";
 
 interface Ctx {
   openPlayer: (id: number) => void;
   openTeam: (id: number) => void;
+  /** A finished game's box score and play-by-play. */
+  openGame: (id: number) => void;
   /** Multi-year + Steamer projection file and the real-roster snapshot, when loaded. */
   proj?: ProjectionFile;
   rosters?: RosterFile | null;
@@ -23,18 +26,20 @@ interface Ctx {
 const ProfileCtx = createContext<Ctx>({
   openPlayer: () => {},
   openTeam: () => {},
+  openGame: () => {},
 });
 
 export const useProfiles = (): Ctx => useContext(ProfileCtx);
 
-type Open = { kind: "player"; id: number } | { kind: "team"; id: number } | null;
+type Open = { kind: "player"; id: number } | { kind: "team"; id: number } | { kind: "game"; id: number } | null;
 
 /** Click any player or club name inside to open its Baseball Savant-style profile. */
-export function ProfilesProvider({ league, rosters, proj, children }: { league: League; rosters?: RosterFile | null; proj?: ProjectionFile; children: ReactNode }) {
+export function ProfilesProvider({ league, rosters, proj, slot, children }: { league: League; rosters?: RosterFile | null; proj?: ProjectionFile; slot: number; children: ReactNode }) {
   const [stack, setStack] = useState<Open[]>([]);
   const openPlayer = useCallback((id: number) => setStack((s) => [...s, { kind: "player", id }]), []);
   const openTeam = useCallback((id: number) => setStack((s) => [...s, { kind: "team", id }]), []);
-  const ctx = useMemo(() => ({ openPlayer, openTeam, proj, rosters }), [openPlayer, openTeam, proj, rosters]);
+  const openGame = useCallback((id: number) => setStack((s) => [...s, { kind: "game", id }]), []);
+  const ctx = useMemo(() => ({ openPlayer, openTeam, openGame, proj, rosters }), [openPlayer, openTeam, openGame, proj, rosters]);
   const top = stack[stack.length - 1] ?? null;
   const back = () => setStack((s) => s.slice(0, -1));
   const close = () => setStack([]);
@@ -60,7 +65,9 @@ export function ProfilesProvider({ league, rosters, proj, children }: { league: 
                 ✕ Close
               </button>
             </div>
-            {top.kind === "player" ? (
+            {top.kind === "game" ? (
+              <GameDetail key={`g${top.id}`} league={league} slot={slot} id={top.id} />
+            ) : top.kind === "player" ? (
               <PlayerProfile key={`p${top.id}`} league={league} id={top.id} rosters={rosters ?? undefined} proj={proj} />
             ) : (
               <TeamProfile key={`t${top.id}`} league={league} id={top.id} rosters={rosters ?? undefined} proj={proj} />

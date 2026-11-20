@@ -404,6 +404,8 @@ export interface League {
   /** Umpire season totals for finished seasons (by umpire id). */
   umpHist?: Array<{ season: number; totals: Record<number, UmpTotals> }>;
   tradeLog: Array<{ day: number; season: number; a: number; b: number; aGets: number[]; bGets: number[] }>;
+  /** Rating scale revision (2: pitchers graded on their own WAR spread). */
+  gradeV?: number;
 }
 
 export const emptyBat = (): BatLine => ({ g: 0, pa: 0, ab: 0, h: 0, d: 0, t: 0, hr: 0, r: 0, rbi: 0, bb: 0, k: 0, sb: 0, cs: 0, hbp: 0, sf: 0 });

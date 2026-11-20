@@ -15,6 +15,7 @@ import { chooseStarter, gameLineup, relieverAvailable, type GameOutcome } from "
 import { emptyBat, emptyPit, type BatLine, type League, type PitLine, type Player, type ScheduledGame } from "./types";
 import { ensureUmpires, plateUmp } from "./umpires";
 import type { UmpCard } from "@/lib/game/umpires/scorecard";
+import { buildGameLog, emitGameLog, type TextPlay } from "./gamelog";
 
 /** Physics templates by id (rosters.json), plus `own`: every real player's own entry, for who he is. */
 export class RosterIndex extends Map<number, RosterPlayer> {
@@ -178,11 +179,31 @@ export interface BoxInput {
   homeStaff: number[];
   /** Plate umpire's scorecard. */
   uc?: UmpCard;
+  /** Batting orders (substitutes after the man they replaced) and the play-by-play. */
+  awayOrder?: Array<[number, string]>;
+  homeOrder?: Array<[number, string]>;
+  text?: TextPlay[];
 }
 
 export function boxFromSession(session: GameSession, awayRuns: number, homeRuns: number): BoxInput {
   const g = session.game;
+  // Play-by-play: the game's own descriptions, with the running score.
+  const text: TextPlay[] = [];
+  let as = 0;
+  let hs = 0;
+  for (const ev of g.log) {
+    if (ev.kind === "pitch" || ev.kind === "inning_end" || ev.kind === "game_over" || ev.kind === "pickoff_attempt" || !ev.text) continue;
+    if (ev.runs) {
+      if (ev.top) as += ev.runs;
+      else hs += ev.runs;
+    }
+    text.push([ev.inning * 2 + (ev.top ? 0 : 1), ev.text, as, hs]);
+  }
+  const order = (side: typeof g.away) => side.slots.flatMap((chain) => chain.map((b) => [b.id, b.pos] as [number, string]));
   return {
+    text,
+    awayOrder: order(g.away),
+    homeOrder: order(g.home),
     awayRuns,
     homeRuns,
     innings: g.inning,
@@ -242,6 +263,8 @@ export function outcomeFromBox(box: BoxInput): GameOutcome {
     sv,
     hits: [ah, hh],
     uc: box.uc,
+    order: box.awayOrder && box.homeOrder ? [box.awayOrder, box.homeOrder] : undefined,
+    staff: [box.awayStaff, box.homeStaff],
   };
 }
 
@@ -250,7 +273,10 @@ export function recordManualResult(league: League, gameId: number, box: BoxInput
   const g = league.schedule.find((x) => x.id === gameId);
   if (!g || g.result || box.awayRuns === box.homeRuns) return false;
   const rng = new FRng(league.rng);
-  applyGameResult(league, g, outcomeFromBox(box), rng, true);
+  const out = outcomeFromBox(box);
+  applyGameResult(league, g, out, rng, true);
+  const log = buildGameLog(g, league.season, out, (id) => league.players[id]?.name, box.text);
+  if (log) emitGameLog(log);
   league.rng = rng.s;
   league.pending = undefined;
   return true;

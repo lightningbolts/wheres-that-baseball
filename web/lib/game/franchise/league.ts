@@ -7,7 +7,7 @@ import { talentEnv } from "./development";
 import { newFinances, openingBudget } from "./finances";
 import { freeAgents, initFreeAgency } from "./freeAgency";
 import { generatePlayer, prospectProfile, type GenRole } from "./generate";
-import { batSkillFrom, fieldPos, overall, pitSkillFrom, playerWar } from "./ratings";
+import { batSkillFrom, fieldPos, gradeScale, overall, pitSkillFrom, playerWar } from "./ratings";
 import { FRng, hashUnit } from "./rng";
 import { projectRosterPlayer, type ProjectionFile } from "./projections";
 import { autoDepth, news, normalizeRoster, orgPlayers } from "./roster";
@@ -65,7 +65,7 @@ function realPlayer(rp0: RosterPlayer, kind: "lineup" | "bench" | "rotation" | "
   p.pit0 = p.pit ? { ...p.pit } : undefined;
   p.ovr = overall(p);
   const young = Math.max(0, 27 - p.age);
-  p.pot = Math.max(p.ovr, Math.min(80, Math.round(p.ovr + young * (1.2 + hashUnit(p.id, "pot") * 1.6) - 1)));
+  p.pot = Math.max(p.ovr, Math.min(80, Math.round(p.ovr + (young * (1.2 + hashUnit(p.id, "pot") * 1.6) - 1) * gradeScale(p))));
   // Real deal and service time when the payroll snapshot lists him; otherwise estimated.
   const deal = contracts?.season === season ? contracts.players[String(rp.id)] : undefined;
   p.service = deal?.svc ?? estimateService(p);
@@ -192,6 +192,7 @@ export function createLeague(rosters: RosterFile, opts: NewLeagueOpts): League {
     nextGameId: sched.games.length + 1,
     settings: { difficulty: opts.difficulty ?? "pro", autoRoster: true },
     tradeLog: [],
+    gradeV: GRADE_V,
   };
   const ageShift = season - rosters.season;
   const pool = templatePool(rosters);
@@ -340,6 +341,28 @@ export function createLeague(rosters: RosterFile, opts: NewLeagueOpts): League {
  * Only during the snapshot's own season — after that the save's contracts have moved on.
  * Deals signed in-game (free agents, minor-league signings) are kept. Returns how many changed.
  */
+export const GRADE_V = 2;
+
+/**
+ * Saves made before pitchers got their own grade scale: their overall (and the potential
+ * gap above it) are regraded, and depth charts rebuilt so the new grades order the staffs.
+ * Returns whether anything changed.
+ */
+export function migrateGrades(league: League): boolean {
+  if ((league.gradeV ?? 1) >= GRADE_V) return false;
+  for (const p of Object.values(league.players)) {
+    if (!p.pitcher) continue;
+    const ovr = overall(p);
+    p.pot = Math.max(ovr, Math.min(80, Math.round(ovr + (p.pot - p.ovr) * gradeScale(p))));
+    p.ovr = ovr;
+  }
+  for (const t of Object.values(league.teams)) {
+    if (t.id !== league.userTeam || league.settings.autoRoster) autoDepth(league, t.id);
+  }
+  league.gradeV = GRADE_V;
+  return true;
+}
+
 export function applyRealContracts(league: League, file: ContractFile | undefined): number {
   if (!file || file.season !== league.season) return 0;
   // From the offseason on, service time has advanced and next season's arb / pre-arb deals are

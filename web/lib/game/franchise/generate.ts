@@ -1,6 +1,6 @@
 /** Synthetic players: minor-league depth, prospects, draft picks and veteran free agents. */
 import { FIRST_NAMES, LAST_NAMES, LG, MIN_SALARY } from "./data";
-import { clamp, overall } from "./ratings";
+import { clamp, GRADE, gradeRole, gradeScale, overall } from "./ratings";
 import type { FRng } from "./rng";
 import type { BatSkill, PitSkill, Player, Pos } from "./types";
 
@@ -98,20 +98,24 @@ export function generatePlayer(rng: FRng, o: GenOpts): Player {
     mlbDays: 0,
     stats: {},
   };
+  // Profiles are in hitters' grades (same WAR, same grade); pitchers grade on a wider scale.
+  const k = gradeScale(p);
+  const base = GRADE[gradeRole(p)].base;
+  const target = base + (o.ovr - base) * k;
   let lo = -5;
   let hi = 5;
   for (let i = 0; i < 24; i += 1) {
     const z = (lo + hi) / 2;
     if (pitcher) p.pit = pitFrom(z, style, o.role === "SP");
     else p.bat = batFrom(z, style, pos);
-    if (overall(p) < o.ovr) lo = z;
+    if (overall(p) < target) lo = z;
     else hi = z;
   }
   const z = (lo + hi) / 2;
   if (pitcher) p.pit = pitFrom(z, style, o.role === "SP");
   else p.bat = batFrom(z, style, pos);
   p.ovr = overall(p);
-  p.pot = Math.max(p.ovr, Math.round(o.pot));
+  p.pot = Math.max(p.ovr, Math.round(Math.min(80, base + (o.pot - base) * k)));
   return p;
 }
 
