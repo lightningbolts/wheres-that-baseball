@@ -171,6 +171,11 @@ export function Environment({ park }: { park: Park }) {
     return l;
   }, [p, tod]);
   useEffect(() => () => light.dispose(), [light]);
+  // Low tier: no shadow pass at all. With no shadow-casting light, three also rebuilds the
+  // lit materials without the shadow-map lookup (people get blob shadows instead).
+  useLayoutEffect(() => {
+    light.castShadow = live.shadows;
+  }, [light, live.shadows]);
 
   // Shadow map size follows the graphics tier (halved on small windows); a new size needs a new map.
   const small = typeof window !== "undefined" && window.innerWidth < 900;

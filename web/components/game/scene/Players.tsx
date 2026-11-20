@@ -12,16 +12,41 @@ import { identity } from "@/components/game/scene/character/roster";
 import { BAT_COLORS, batGeometry, batMaterial } from "@/components/game/scene/character/bat";
 import { loadRoster } from "@/components/game/scene/character/roster";
 import { loadScriptFont } from "@/components/game/scene/character/scriptFont";
+import { getQuality } from "@/components/game/scene/quality";
 
 const MAX = 24;
 const env: AnimEnv = { tl: null, ball: null, T: 0, dA: 0, now: 0, frame: 0, cut: false, callAge: -1 };
 const _at = new THREE.Vector3();
 
-/** Screen-height fractions at which a person switches between the close-up, mid-field and distant models (with hysteresis). */
-const LOD_NEAR = 0.12;
-const LOD_FAR = 0.09;
-const LOD_MID = 0.036;
-const LOD_TINY = 0.028;
+/**
+ * On-screen heights (device pixels, at a level-of-detail bias of 1) at which a person
+ * switches between the close-up (~15k triangles), mid-field (~4k) and distant (~2k)
+ * models, with hysteresis. Pixels, not a share of the screen: a phone, or a lower graphics
+ * tier's smaller canvas, has far fewer pixels to spend those triangles on.
+ */
+const LOD_NEAR = 120;
+const LOD_FAR = 90;
+const LOD_MID = 36;
+const LOD_TINY = 28;
+/** Blob shadows (when the key light casts none): radius in feet, darkness at the centre. */
+const BLOB_R = 2.3;
+const BLOB_ALPHA = 0.6;
+const _blob = new THREE.Matrix4();
+
+function blobTexture(): THREE.Texture {
+  const c = document.createElement("canvas");
+  c.width = c.height = 64;
+  const g = c.getContext("2d")!;
+  const r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  r.addColorStop(0, "rgba(0,0,0,1)");
+  r.addColorStop(0.55, "rgba(0,0,0,0.55)");
+  r.addColorStop(1, "rgba(0,0,0,0)");
+  g.fillStyle = r;
+  g.fillRect(0, 0, 64, 64);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
 /** Below this screen-height fraction a person is drawn a little larger than life, so far fielders stay readable. */
 const BIG_BELOW = 0.07;
 const BIG_MAX = 1.4;
@@ -54,7 +79,23 @@ export function Players({ pb }: { pb: Playback }) {
     bats.count = 0;
     bats.setColorAt(0, BAT_COLORS[0]);
     group.add(bats);
-    return { wardrobe, people, group, bats, batGeo, batMat };
+    // Blob shadows: one flat soft disc per person, used when the key light casts no shadows.
+    const blobGeo = new THREE.PlaneGeometry(2, 2).rotateX(-Math.PI / 2);
+    const blobMat = new THREE.MeshBasicMaterial({
+      map: blobTexture(),
+      transparent: true,
+      opacity: BLOB_ALPHA,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+    });
+    const blobs = new THREE.InstancedMesh(blobGeo, blobMat, MAX);
+    blobs.frustumCulled = false;
+    blobs.count = 0;
+    blobs.visible = false;
+    group.add(blobs);
+    return { wardrobe, people, group, bats, batGeo, batMat, blobs, blobGeo, blobMat };
   }, []);
   useEffect(() => {
     loadRoster();
@@ -65,6 +106,10 @@ export function Players({ pb }: { pb: Playback }) {
       kit.batGeo.dispose();
       kit.batMat.dispose();
       kit.bats.dispose();
+      kit.blobMat.map?.dispose();
+      kit.blobMat.dispose();
+      kit.blobGeo.dispose();
+      kit.blobs.dispose();
     };
   }, [kit]);
 
@@ -86,11 +131,16 @@ export function Players({ pb }: { pb: Playback }) {
     const frame = pb.frame;
     const map = anims.current;
     const n = Math.min(MAX, actors.length);
-    const { people, bats } = kit;
+    const { people, bats, blobs } = kit;
     const cam = state.camera;
     const tanHalf = Math.tan((((cam as THREE.PerspectiveCamera).fov ?? 50) * Math.PI) / 360);
+    // Device pixels per screen height, discounted by the tier's detail bias.
+    const { live } = getQuality();
+    const pxPer = state.gl.domElement.height / live.lodBias;
+    const blob = !live.shadows;
     let paints = 0;
     let nBats = 0;
+    let nBlobs = 0;
     // Slots: an actor keeps his mesh from frame to frame; newcomers take the longest-idle one.
     const slotMap = slots.current;
     for (let i = 0; i < n; i += 1) {
@@ -149,7 +199,8 @@ export function Players({ pb }: { pb: Playback }) {
         person.mesh.visible = false;
       } else {
         const was = person.lod;
-        const lod = frac > LOD_NEAR ? 0 : frac > LOD_FAR ? (was === 0 ? 0 : 1) : frac > LOD_MID ? 1 : frac > LOD_TINY ? (was === 2 ? 2 : 1) : 2;
+        const px = frac * pxPer;
+        const lod = px > LOD_NEAR ? 0 : px > LOD_FAR ? (was === 0 ? 0 : 1) : px > LOD_MID ? 1 : px > LOD_TINY ? (was === 2 ? 2 : 1) : 2;
         const fx = an.x;
         const fz = an.z;
         person.dress(a, lod);
@@ -162,6 +213,11 @@ export function Players({ pb }: { pb: Playback }) {
         const ready = person.stale(a) !== 2;
         person.mesh.visible = ready;
         if (ready) person.pose(out, big, fx, an.gy, fz);
+        if (ready && blob && nBlobs < MAX) {
+          const r = BLOB_R * big;
+          blobs.setMatrixAt(nBlobs, _blob.makeScale(r, 1, r).setPosition(fx, an.gy + 0.05, fz));
+          nBlobs += 1;
+        }
         if (ready && out.hasBat && nBats < MAX) {
           if (big !== 1) {
             _big.makeScale(big, big, big).setPosition(fx * (1 - big), an.gy * (1 - big), fz * (1 - big));
@@ -176,6 +232,9 @@ export function Players({ pb }: { pb: Playback }) {
     for (let i = 0; i < MAX; i += 1) if (people[i].seen !== frame) people[i].mesh.visible = false;
     if (map.size > 120) for (const [k, an] of map) if (an.seen < frame - 600) map.delete(k);
     bats.count = nBats;
+    blobs.visible = blob && nBlobs > 0;
+    blobs.count = nBlobs;
+    blobs.instanceMatrix.needsUpdate = true;
     bats.instanceMatrix.needsUpdate = true;
     if (bats.instanceColor) bats.instanceColor.needsUpdate = true;
   });
