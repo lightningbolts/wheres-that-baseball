@@ -6,7 +6,7 @@ import { GameView } from "@/components/game/GameView";
 import { clearSave, loadSave } from "@/components/game/save";
 import { sfx } from "@/components/game/audio";
 import type { ContractFile } from "@/lib/game/franchise/contracts";
-import { createLeague } from "@/lib/game/franchise/league";
+import { applyRealContracts, createLeague } from "@/lib/game/franchise/league";
 import type { ProjectionFile } from "@/lib/game/franchise/projections";
 import { boxFromSession, buildManualGame, recordManualResult, rosterIndex, type ManualGame } from "@/lib/game/franchise/manual";
 import { deleteSlot, listSlots, loadLeague, saveLeague, SLOT_COUNT, type SlotMeta } from "@/lib/game/franchise/save";
@@ -41,6 +41,9 @@ export function SeasonApp() {
   const proj = useRef<ProjectionFile | undefined>(undefined);
   const [projData, setProjData] = useState<ProjectionFile | undefined>(undefined);
   const contracts = useRef<ContractFile | undefined>(undefined);
+  // Settle when the optional projection / contract files finish loading (or fail), so a new
+  // league never falls back to estimated deals just because it was created too quickly.
+  const extras = useRef<Promise<unknown>>(Promise.resolve());
   // Bumped by each sim run and by Save & exit: a run that no longer owns the token drops its result.
   const simToken = useRef(0);
 
@@ -50,7 +53,7 @@ export function SeasonApp() {
       .then((m) => alive && setRosters((m.default ?? m) as unknown as RosterFile))
       .catch(() => alive && setError("Couldn't load rosters."));
     // Optional: without it a new league rates players on 2026 alone.
-    import("@/data/game/franchise-proj.json")
+    const projLoad = import("@/data/game/franchise-proj.json")
       .then((m) => {
         if (!alive) return;
         proj.current = (m.default ?? m) as unknown as ProjectionFile;
@@ -58,11 +61,12 @@ export function SeasonApp() {
       })
       .catch(() => undefined);
     // Optional: without it every contract is estimated.
-    import("@/data/game/franchise-contracts.json")
+    const contractLoad = import("@/data/game/franchise-contracts.json")
       .then((m) => {
-        if (alive) contracts.current = (m.default ?? m) as unknown as ContractFile;
+        contracts.current = (m.default ?? m) as unknown as ContractFile;
       })
       .catch(() => undefined);
+    extras.current = Promise.all([projLoad, contractLoad]);
     listSlots()
       .then((s) => alive && setSlots(s))
       .catch(() => alive && setSlots(Array.from({ length: SLOT_COUNT }, () => null)));
@@ -211,6 +215,13 @@ export function SeasonApp() {
                 setToast("That save couldn't be read.");
                 return;
               }
+              await extras.current;
+              // Saves started before the real-contract snapshot get the actual deals now.
+              const upgraded = applyRealContracts(l, contracts.current);
+              if (upgraded) {
+                void saveLeague(l, s);
+                setToast(`Updated ${upgraded} players to their real MLB contracts.`);
+              }
               prepareDay(l);
               setSlot(s);
               setLeague(l);
@@ -219,7 +230,8 @@ export function SeasonApp() {
               await deleteSlot(s);
               setSlots(await listSlots());
             }}
-            onCreate={(s, opts) => {
+            onCreate={async (s, opts) => {
+              await extras.current;
               const l = createLeague(rosters, { ...opts, proj: proj.current, contracts: contracts.current });
               setSlot(s);
               setLeague(l);

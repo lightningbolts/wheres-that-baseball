@@ -331,6 +331,29 @@ export function createLeague(rosters: RosterFile, opts: NewLeagueOpts): League {
 }
 
 /**
+ * Upgrades a save made before the real-contract snapshot existed (or made before it loaded):
+ * real players still on a synthesized deal get their actual contract and service time.
+ * Only during the snapshot's own season — after that the save's contracts have moved on.
+ * Deals signed in-game (free agents, minor-league signings) are kept. Returns how many changed.
+ */
+export function applyRealContracts(league: League, file: ContractFile | undefined): number {
+  if (!file || file.season !== league.season) return 0;
+  let changed = 0;
+  for (const p of Object.values(league.players)) {
+    if (!p.real || !p.team || p.status === "fa" || p.contract.real) continue;
+    if (file.fa?.[String(p.id)]) continue;
+    const signedHere = !p.contract.est && (p.contract.kind === "fa" || p.contract.kind === "minor") && p.contract.signed === league.season;
+    if (signedHere) continue;
+    const e = file.players[String(p.id)];
+    if (!e) continue;
+    if (e.svc != null) p.service = e.svc;
+    p.contract = realContract(p, e, league.season);
+    changed += 1;
+  }
+  return changed;
+}
+
+/**
  * Real players who are free agents right now (elected free agency / released this winter)
  * leave their 2026 clubs for the open market. Clubs keep the budgets their payrolls earned.
  * Returns whether anyone was moved.

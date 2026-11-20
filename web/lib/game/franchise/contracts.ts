@@ -60,8 +60,8 @@ export function estimateService(p: Player): number {
 export interface ContractEntry {
   /** MLB club whose payroll lists him. */
   team: number;
-  /** guar = guaranteed MLB deal; arb / pre = arbitration-eligible / pre-arbitration. */
-  kind: "guar" | "arb" | "pre";
+  /** guar = guaranteed MLB deal; arb / pre = arbitration-eligible / pre-arbitration; minor = minor-league deal. */
+  kind: "guar" | "arb" | "pre" | "minor";
   /** MLB service time, years. */
   svc?: number;
   /** Guaranteed salary per season from the first franchise season, $M. */
@@ -110,6 +110,7 @@ export function realContract(p: Player, e: ContractEntry, season: number): Contr
       real: true,
     };
   }
+  if (e.kind === "minor") return { aav: MIN_SALARY, years: 1, kind: "minor", signed: season, real: true };
   if (e.kind === "arb") return { aav: e.arb ? r2(Math.max(MIN_SALARY, e.arb)) : arbSalary(p), years: 1, kind: "arb", signed: season, real: true };
   return { aav: preArbSalary(p.service), years: 1, kind: "pre", signed: season, real: true };
 }
