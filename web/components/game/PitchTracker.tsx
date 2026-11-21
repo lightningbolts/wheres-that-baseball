@@ -107,7 +107,7 @@ function SortTh({
   );
 }
 
-function ResultDot({ p, size = 22 }: { p: PitchRecord; size?: number }) {
+export function ResultDot({ p, size = 22 }: { p: PitchRecord; size?: number }) {
   return (
     <span className="flex shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ width: size, height: size, backgroundColor: MARK_COLOR[recordKind(p)] }}>
       {p.paPitch}
@@ -115,7 +115,7 @@ function ResultDot({ p, size = 22 }: { p: PitchRecord; size?: number }) {
   );
 }
 
-function TypeChip({ t }: { t: string }) {
+export function TypeChip({ t }: { t: string }) {
   return (
     <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
       <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: typeColor(t) }} />
@@ -675,6 +675,45 @@ export function PitchTracker({
           {tab === "arsenal" && <ArsenalTab log={log} currentPitcherId={currentPitcherId} />}
           {tab === "log" && <LogTab log={log} />}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A finished game's Statcast log outside the 3D view (franchise game pages): the game
+ * summary, each pitcher's arsenal and every pitch.
+ */
+export function StatcastPanel({ log, teams }: { log: PitchRecord[]; teams: Teams }) {
+  const [tab, setTab] = useState<"game" | "arsenal" | "log">("game");
+  const tabs = [
+    ["game", "Summary"],
+    ["arsenal", "Arsenal"],
+    ["log", "All pitches"],
+  ] as const;
+  return (
+    <div className="overflow-hidden rounded-xl border border-white/15 bg-[#10161d] text-white">
+      <div className="flex items-center justify-between gap-2 border-b border-white/10 px-2 py-2 sm:px-3">
+        <div className="-my-1 flex min-w-0 items-center gap-1 overflow-x-auto py-1" role="tablist">
+          {tabs.map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              role="tab"
+              aria-selected={tab === k}
+              onClick={() => setTab(k)}
+              className={`shrink-0 whitespace-nowrap rounded-md px-2 py-1.5 text-sm sm:px-3 ${tab === k ? "bg-white/15 font-semibold" : "text-white/70 hover:bg-white/10"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <span className="hidden shrink-0 text-xs text-white/45 sm:inline">{log.length} pitches tracked</span>
+      </div>
+      <div className="p-3 sm:p-4">
+        {tab === "game" && <GameStatcastSummary log={log} teams={teams} />}
+        {tab === "arsenal" && <ArsenalTab log={log} currentPitcherId={null} />}
+        {tab === "log" && <LogTab log={log} />}
       </div>
     </div>
   );

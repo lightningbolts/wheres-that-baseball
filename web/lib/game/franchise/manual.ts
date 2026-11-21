@@ -16,6 +16,7 @@ import { emptyBat, emptyPit, type BatLine, type League, type PitLine, type Playe
 import { ensureUmpires, plateUmp } from "./umpires";
 import type { UmpCard } from "@/lib/game/umpires/scorecard";
 import { buildGameLog, emitGameLog, type TextPlay } from "./gamelog";
+import type { PitchRecord } from "@/lib/game/stats/pitchLog";
 
 /** Physics templates by id (rosters.json), plus `own`: every real player's own entry, for who he is. */
 export class RosterIndex extends Map<number, RosterPlayer> {
@@ -183,6 +184,8 @@ export interface BoxInput {
   awayOrder?: Array<[number, string]>;
   homeOrder?: Array<[number, string]>;
   text?: TextPlay[];
+  /** Every tracked pitch (Statcast log). */
+  pitches?: PitchRecord[];
 }
 
 export function boxFromSession(session: GameSession, awayRuns: number, homeRuns: number): BoxInput {
@@ -202,6 +205,7 @@ export function boxFromSession(session: GameSession, awayRuns: number, homeRuns:
   const order = (side: typeof g.away) => side.slots.flatMap((chain) => chain.map((b) => [b.id, b.pos] as [number, string]));
   return {
     text,
+    pitches: [...session.pitchLog],
     awayOrder: order(g.away),
     homeOrder: order(g.home),
     awayRuns,
@@ -275,7 +279,7 @@ export function recordManualResult(league: League, gameId: number, box: BoxInput
   const rng = new FRng(league.rng);
   const out = outcomeFromBox(box);
   applyGameResult(league, g, out, rng, true);
-  const log = buildGameLog(g, league.season, out, (id) => league.players[id]?.name, box.text);
+  const log = buildGameLog(g, league.season, out, (id) => league.players[id]?.name, box.text, box.pitches);
   if (log) emitGameLog(log);
   league.rng = rng.s;
   league.pending = undefined;

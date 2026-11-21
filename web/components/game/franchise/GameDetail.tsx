@@ -1,9 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { pitchName } from "@/components/game/controller";
+import { PITCH_TYPE_COLOR, recordKind, recordText, StatcastPanel } from "@/components/game/PitchTracker";
+import { MARK_COLOR } from "@/components/game/scene/view";
 import { TeamLogo } from "@/components/ui/TeamLogo";
 import { getGameLog, type BoxSide, type GameLog, type Play, type TextPlay } from "@/lib/game/franchise/gamelog";
+import { rosterIndex } from "@/lib/game/franchise/manual";
+import { simPitchLog, type PitchLogPlayer } from "@/lib/game/franchise/pitchReplay";
 import { fmtDate } from "@/lib/game/franchise/schedule";
+import type { PitchRecord } from "@/lib/game/stats/pitchLog";
 import type { League } from "@/lib/game/franchise/types";
 import { umpById } from "@/lib/game/umpires/data";
 import { cn } from "@/lib/utils";
@@ -20,14 +26,14 @@ const OF = ["left field", "center field", "right field", "left-center", "right-c
 const IF = ["shortstop", "second base", "third base", "first base", "the pitcher"];
 
 /** Plain-English description of a simmed play. */
-function describe(p: Play, seed: number, name: (id: number) => string): string {
+function describe(p: Play, seed: number, name: (id: number) => string, last?: PitchRecord): string {
   const [, code, who, pit] = p;
   const b = name(who);
   const scored = p.slice(8) as number[];
   const runs = scored.length ? ` ${scored.map(name).join(", ")} ${scored.length > 1 ? "score" : "scores"}.` : "";
   switch (code) {
     case "K":
-      return `${b} strikes out ${pick(seed, ["swinging", "swinging", "looking"])}.`;
+      return `${b} strikes out ${last ? (last.called ? "looking" : last.result === "foul_tip" ? "on a foul tip" : "swinging") : pick(seed, ["swinging", "swinging", "looking"])}.`;
     case "BB":
       return `${b} walks.${runs}`;
     case "HBP":
@@ -39,7 +45,7 @@ function describe(p: Play, seed: number, name: (id: number) => string): string {
     case "3B":
       return `${b} triples to ${pick(seed, ["right-center", "the right-field corner", "left-center"])}.${runs}`;
     case "HR":
-      return `${b} homers to ${pick(seed, OF)}${scored.length === 4 ? " — a grand slam" : scored.length > 1 ? ` (${scored.length} runs)` : ""}.`;
+      return `${b} homers to ${pick(seed, OF)}${last?.dist ? `, ${last.dist} ft` : ""}${scored.length === 4 ? " — a grand slam" : scored.length > 1 ? ` (${scored.length} runs)` : ""}.`;
     case "E":
       return `${b} reaches on a ${pick(seed, ["fielding", "throwing"])} error by the ${pick(seed + 1, ["shortstop", "third baseman", "second baseman", "first baseman", "left fielder", "right fielder"])}.${runs}`;
     case "GO":
@@ -68,20 +74,23 @@ interface Row {
   hs: number;
   outs?: number;
   key: boolean;
+  /** Plate appearance number in the pitch log (simmed games). */
+  pa?: number;
 }
 
-function rows(log: GameLog, name: (id: number) => string): Row[] {
+function rows(log: GameLog, name: (id: number) => string, paOfPlay?: Array<number | null>, byPa?: Map<number, PitchRecord[]>): Row[] {
   if (log.text) return log.text.map((t: TextPlay, i) => ({ half: t[0], text: t[1], as: t[2], hs: t[3], key: i > 0 && (t[2] !== log.text![i - 1][2] || t[3] !== log.text![i - 1][3]) }));
   const plays = log.plays ?? [];
   return plays.map((p, i) => {
     const prev = plays[i - 1];
     return {
       half: p[0],
-      text: describe(p, log.id * 977 + i, name),
+      text: describe(p, log.id * 977 + i, name, paOfPlay?.[i] != null ? byPa?.get(paOfPlay[i]!)?.at(-1) : undefined),
       as: p[6],
       hs: p[7],
       outs: p[1] === "PC" ? undefined : p[4],
       key: !!prev ? p[6] !== prev[6] || p[7] !== prev[7] : p[6] + p[7] > 0,
+      pa: paOfPlay?.[i] ?? undefined,
     };
   });
 }
@@ -171,12 +180,77 @@ function BoxTables({ side, abbrev, teamId, log, dec }: { side: BoxSide; abbrev: 
   );
 }
 
-/** A finished franchise game: line score, box score and play-by-play. */
+/** One plate appearance, pitch by pitch (under its play-by-play line). */
+function PitchList({ ps }: { ps: PitchRecord[] }) {
+  return (
+    <ol className="mb-1.5 ml-1 mt-0.5 space-y-0.5 border-l border-border pl-3 text-xs tabular-nums">
+      {ps.map((p) => (
+        <li key={p.n} className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5">
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-white" style={{ backgroundColor: MARK_COLOR[recordKind(p)] }}>
+            {p.paPitch}
+          </span>
+          <span className="min-w-[9.5rem]">{recordText(p)}</span>
+          <span className="w-7 text-secondary">
+            {p.balls}-{p.strikes}
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: PITCH_TYPE_COLOR[p.type] ?? "#9ca3af" }} />
+            {p.mph.toFixed(1)} mph {pitchName(p.type)}
+          </span>
+          <span className="text-secondary">{Math.round(p.spinRpm)} rpm</span>
+          {p.ev != null && (
+            <span className="text-secondary">
+              EV {p.ev.toFixed(1)} · LA {p.la}° · {p.dist} ft{p.barrel ? " · barrel" : ""}
+            </span>
+          )}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/** A finished franchise game: line score, box score, play-by-play and pitch-by-pitch Statcast log. */
 export function GameDetail({ league, slot, id }: { league: League; slot: number; id: number }) {
   const g = league.schedule.find((x) => x.id === id);
   const [log, setLog] = useState<GameLog | null | undefined>(undefined);
-  const [tab, setTab] = useState<"plays" | "box">("plays");
-  const { openTeam } = useProfiles();
+  const [tab, setTab] = useState<"plays" | "box" | "statcast">("plays");
+  const [open, setOpen] = useState<Set<number>>(() => new Set());
+  const { openTeam, rosters } = useProfiles();
+  const idx = useMemo(() => (rosters ? rosterIndex(rosters) : null), [rosters]);
+  // Played games keep their own tracked pitches; simmed ones replay theirs (with the real
+  // arsenals once the rosters are in).
+  const replay = useMemo(() => {
+    if (!log) return null;
+    if (log.pitches) return { pitches: log.pitches, paOfPlay: undefined };
+    if (rosters === undefined) return null;
+    const who = (pid: number): PitchLogPlayer => {
+      const p = league.players[pid];
+      const t = p ? ((p.template != null ? idx?.get(p.template) : undefined) ?? idx?.get(p.id)) : idx?.get(pid);
+      return {
+        name: log.names[pid] ?? p?.name ?? t?.name ?? `#${pid}`,
+        throws: p?.throws ?? t?.throws ?? "R",
+        bats: p?.bats ?? t?.bats ?? "R",
+        arsenal: t?.pitch?.arsenal,
+        stamina: t?.pitch?.stamina,
+        zone: t?.zone,
+        evMean: t?.bat?.evMean,
+        laMean: t?.bat?.laMean,
+      };
+    };
+    return simPitchLog(log, who);
+  }, [log, rosters, idx, league.players]);
+  const byPa = useMemo(() => {
+    const m = new Map<number, PitchRecord[]>();
+    for (const p of replay?.pitches ?? []) m.set(p.pa, [...(m.get(p.pa) ?? []), p]);
+    return m;
+  }, [replay]);
+  const toggle = (pa: number) =>
+    setOpen((s) => {
+      const n = new Set(s);
+      if (n.has(pa)) n.delete(pa);
+      else n.add(pa);
+      return n;
+    });
   useEffect(() => {
     let alive = true;
     setLog(undefined);
@@ -198,7 +272,7 @@ export function GameDetail({ league, slot, id }: { league: League; slot: number;
   if (r?.sv) dec[r.sv] = "(S)";
   const inn = log ? Math.max(log.inn, log.line[0].length, log.line[1].length) : 9;
   const hits = (s: BoxSide) => s.bat.reduce((n, b) => n + b[4], 0);
-  const list = log ? rows(log, (pid) => log.names[pid] ?? league.players[pid]?.name ?? `#${pid}`) : [];
+  const list = log ? rows(log, (pid) => log.names[pid] ?? league.players[pid]?.name ?? `#${pid}`, replay?.paOfPlay, byPa) : [];
   const halves: Array<{ half: number; rows: Row[] }> = [];
   for (const row of list) {
     if (!halves.length || halves[halves.length - 1].half !== row.half) halves.push({ half: row.half, rows: [] });
@@ -232,7 +306,7 @@ export function GameDetail({ league, slot, id }: { league: League; slot: number;
       {log === undefined && <p className="text-sm text-secondary">Loading…</p>}
       {log === null && (
         <p className="rounded-lg border border-border px-3 py-2 text-sm text-secondary">
-          No box score or play-by-play for this game: it was played before game logs were recorded (or on another device). Every game from now on has one.
+          No box score, play-by-play or pitch log for this game: it was played before game logs were recorded (or on another device). Every game from now on has one.
         </p>
       )}
       {log && (
@@ -279,14 +353,14 @@ export function GameDetail({ league, slot, id }: { league: League; slot: number;
           </div>
 
           <div className="flex gap-1 text-sm">
-            {(["plays", "box"] as const).map((k) => (
+            {(["plays", "box", "statcast"] as const).map((k) => (
               <button
                 key={k}
                 type="button"
                 onClick={() => setTab(k)}
                 className={cn("rounded-md px-3 py-1", tab === k ? "bg-foreground text-background" : "text-secondary hover:text-foreground")}
               >
-                {k === "plays" ? "Play-by-play" : "Box score"}
+                {k === "plays" ? "Play-by-play" : k === "box" ? "Box score" : "Statcast"}
               </button>
             ))}
           </div>
@@ -298,8 +372,16 @@ export function GameDetail({ league, slot, id }: { league: League; slot: number;
             </div>
           )}
 
+          {tab === "statcast" &&
+            (replay?.pitches.length ? (
+              <StatcastPanel log={replay.pitches} teams={{ away: a.abbrev, home: h.abbrev }} />
+            ) : (
+              <p className="text-sm text-secondary">{replay === null && rosters === undefined ? "Loading…" : "No pitch log for this game."}</p>
+            ))}
+
           {tab === "plays" && (
             <div className="space-y-3">
+              {byPa.size > 0 && <p className="text-xs text-secondary">Click a plate appearance to see it pitch by pitch.</p>}
               {halves.map(({ half, rows: rs }) => {
                 const top = half % 2 === 0;
                 const t = top ? a : h;
@@ -318,17 +400,37 @@ export function GameDetail({ league, slot, id }: { league: League; slot: number;
                       </span>
                     </div>
                     <ul className="space-y-0.5 text-sm">
-                      {rs.map((row, i) => (
-                        <li key={i} className={cn("flex gap-2", row.key && "font-semibold")}>
-                          <span className="flex-1">{row.text}</span>
-                          {row.outs != null && <span className="shrink-0 text-xs text-muted">{row.outs} out</span>}
-                          {row.key && (
-                            <span className="shrink-0 text-xs tabular-nums text-secondary">
-                              {row.as}-{row.hs}
+                      {rs.map((row, i) => {
+                        const ps = row.pa != null ? byPa.get(row.pa) : undefined;
+                        const shown = row.pa != null && open.has(row.pa);
+                        const body = (
+                          <>
+                            <span className="flex-1">
+                              {ps && <span className="mr-1 inline-block w-2.5 text-[10px] text-muted">{shown ? "▾" : "▸"}</span>}
+                              {row.text}
+                              {ps && <span className="ml-1.5 text-xs font-normal text-muted">({ps.length})</span>}
                             </span>
-                          )}
-                        </li>
-                      ))}
+                            {row.outs != null && <span className="shrink-0 text-xs text-muted">{row.outs} out</span>}
+                            {row.key && (
+                              <span className="shrink-0 text-xs tabular-nums text-secondary">
+                                {row.as}-{row.hs}
+                              </span>
+                            )}
+                          </>
+                        );
+                        return (
+                          <li key={i} className={cn(row.key && "font-semibold")}>
+                            {ps ? (
+                              <button type="button" className="flex w-full gap-2 text-left hover:text-foreground/80" aria-expanded={shown} onClick={() => toggle(row.pa!)}>
+                                {body}
+                              </button>
+                            ) : (
+                              <div className="flex gap-2">{body}</div>
+                            )}
+                            {shown && ps && <PitchList ps={ps} />}
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
                 );
