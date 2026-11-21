@@ -7,7 +7,7 @@ import { MARK_COLOR } from "@/components/game/scene/view";
 import { TeamLogo } from "@/components/ui/TeamLogo";
 import { getGameLog, type BoxSide, type GameLog, type Play, type TextPlay } from "@/lib/game/franchise/gamelog";
 import { rosterIndex } from "@/lib/game/franchise/manual";
-import { simPitchLog, type PitchLogPlayer } from "@/lib/game/franchise/pitchReplay";
+import { pitchLogPlayers, simPitchLog } from "@/lib/game/franchise/pitchReplay";
 import { fmtDate } from "@/lib/game/franchise/schedule";
 import type { PitchRecord } from "@/lib/game/stats/pitchLog";
 import type { League } from "@/lib/game/franchise/types";
@@ -223,20 +223,7 @@ export function GameDetail({ league, slot, id }: { league: League; slot: number;
     if (!log) return null;
     if (log.pitches) return { pitches: log.pitches, paOfPlay: undefined };
     if (rosters === undefined) return null;
-    const who = (pid: number): PitchLogPlayer => {
-      const p = league.players[pid];
-      const t = p ? ((p.template != null ? idx?.get(p.template) : undefined) ?? idx?.get(p.id)) : idx?.get(pid);
-      return {
-        name: log.names[pid] ?? p?.name ?? t?.name ?? `#${pid}`,
-        throws: p?.throws ?? t?.throws ?? "R",
-        bats: p?.bats ?? t?.bats ?? "R",
-        arsenal: t?.pitch?.arsenal,
-        stamina: t?.pitch?.stamina,
-        zone: t?.zone,
-        evMean: t?.bat?.evMean,
-        laMean: t?.bat?.laMean,
-      };
-    };
+    const who = pitchLogPlayers(league.players, idx, log.names);
     return simPitchLog(log, who);
   }, [log, rosters, idx, league.players]);
   const byPa = useMemo(() => {

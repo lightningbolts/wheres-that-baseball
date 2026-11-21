@@ -21,6 +21,8 @@ interface Ctx {
   /** Multi-year + Steamer projection file and the real-roster snapshot, when loaded. */
   proj?: ProjectionFile;
   rosters?: RosterFile | null;
+  /** The franchise's save slot (its stored game logs live under it). */
+  slot?: number;
 }
 
 const ProfileCtx = createContext<Ctx>({
@@ -39,7 +41,7 @@ export function ProfilesProvider({ league, rosters, proj, slot, children }: { le
   const openPlayer = useCallback((id: number) => setStack((s) => [...s, { kind: "player", id }]), []);
   const openTeam = useCallback((id: number) => setStack((s) => [...s, { kind: "team", id }]), []);
   const openGame = useCallback((id: number) => setStack((s) => [...s, { kind: "game", id }]), []);
-  const ctx = useMemo(() => ({ openPlayer, openTeam, openGame, proj, rosters }), [openPlayer, openTeam, openGame, proj, rosters]);
+  const ctx = useMemo(() => ({ openPlayer, openTeam, openGame, proj, rosters, slot }), [openPlayer, openTeam, openGame, proj, rosters, slot]);
   const top = stack[stack.length - 1] ?? null;
   const back = () => setStack((s) => s.slice(0, -1));
   const close = () => setStack([]);
