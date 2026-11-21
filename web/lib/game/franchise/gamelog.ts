@@ -55,6 +55,8 @@ export interface GameLog {
   as: number;
   hs: number;
   inn: number;
+  /** Postseason game (absent on older logs: look the game up in the schedule). */
+  ps?: boolean;
   /** Runs per half-inning: [away[], home[]]. */
   line: [number[], number[]];
   box: [BoxSide, BoxSide];
@@ -158,6 +160,12 @@ export async function putGameLogs(slot: number, logs: GameLog[]): Promise<void> 
   });
 }
 
+/** Every stored game of a slot's season. */
+export async function getSeasonGameLogs(slot: number, season: number): Promise<GameLog[]> {
+  const r = (await tx("readonly", (s) => s.getAll(IDBKeyRange.bound(`${slot}:${season}:`, `${slot}:${season}:\uffff`)))) as GameLog[] | undefined;
+  return r ?? [];
+}
+
 export async function getGameLog(slot: number, season: number, id: number): Promise<GameLog | null> {
   const r = (await tx("readonly", (s) => s.get(key(slot, season, id)))) as GameLog | undefined;
   return r ?? null;
@@ -193,7 +201,7 @@ interface OutcomeLike {
 }
 
 export function buildGameLog(
-  g: { id: number; day: number; away: number; home: number },
+  g: { id: number; day: number; away: number; home: number; ps?: unknown },
   season: number,
   out: OutcomeLike,
   nameOf: (id: number) => string | undefined,
@@ -233,6 +241,7 @@ export function buildGameLog(
     as: out.awayRuns,
     hs: out.homeRuns,
     inn,
+    ps: g.ps ? true : undefined,
     line: lineFromPlays(text ?? out.plays ?? [], inn),
     box,
     plays: text ? undefined : out.plays,

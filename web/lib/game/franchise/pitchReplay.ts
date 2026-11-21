@@ -12,11 +12,12 @@
  * It is a pure function of the game log (its own seeded stream), so nothing is stored:
  * the same game always replays the same pitches, and the sim's dice never move.
  */
-import type { ArsenalPitch, StatcastKinematics } from "@/lib/game/types";
+import type { ArsenalPitch, RosterPlayer, StatcastKinematics } from "@/lib/game/types";
 import { isBarrel, type PitchRecord } from "@/lib/game/stats/pitchLog";
 import type { PitchResultKind } from "@/lib/game/engine/atBat";
 import type { GameLog, Play, PlayCode } from "./gamelog";
 import { FRng, hash32 } from "./rng";
+import type { Player } from "./types";
 
 /** What the replay needs to know about a player. */
 export interface PitchLogPlayer {
@@ -31,6 +32,32 @@ export interface PitchLogPlayer {
   zone?: [number | null, number | null];
   evMean?: number | null;
   laMean?: number | null;
+}
+
+/**
+ * Who's who for the replay: franchise players (current hand, physics template) with
+ * rosters.json data where there is any; `names` (the game's own) win for display.
+ */
+export function pitchLogPlayers(players: Record<number, Player>, idx: Map<number, RosterPlayer> | null, names?: Record<number, string>): (id: number) => PitchLogPlayer {
+  const cache = new Map<number, PitchLogPlayer>();
+  return (id) => {
+    let r = cache.get(id);
+    if (r) return r;
+    const p = players[id];
+    const t = p ? ((p.template != null ? idx?.get(p.template) : undefined) ?? idx?.get(p.id)) : idx?.get(id);
+    r = {
+      name: names?.[id] ?? p?.name ?? t?.name ?? `#${id}`,
+      throws: p?.throws ?? t?.throws ?? "R",
+      bats: p?.bats ?? t?.bats ?? "R",
+      arsenal: t?.pitch?.arsenal,
+      stamina: t?.pitch?.stamina,
+      zone: t?.zone,
+      evMean: t?.bat?.evMean,
+      laMean: t?.bat?.laMean,
+    };
+    cache.set(id, r);
+    return r;
+  };
 }
 
 export interface GamePitchLog {
@@ -247,11 +274,24 @@ function battedBall(code: PlayCode, bat: PitchLogPlayer, rng: FRng): Bip {
       else [ev, la] = [g(72, 8), g(58, 8)];
       hi = la > 40 ? 385 : 405;
   }
-  ev = Math.min(121, Math.max(40, ev));
+  // Soft ceiling: the hardest balls of a season land in the high 110s, not stacked at a cap.
+  if (ev > EV_KNEE) ev = EV_KNEE + EV_ROOM * (1 - Math.exp(-(ev - EV_KNEE) / EV_ROOM));
+  ev = Math.max(40, ev);
   la = Math.min(80, Math.max(-60, la));
-  const dist = Math.min(hi, Math.max(lo, distance(ev, la, rng)));
+  let d = distance(ev, la, rng);
+  // Long home runs taper off (median ~400 ft, a season's longest ~470-490) instead of stacking at the cap.
+  if (code === "HR" && d > HR_KNEE) d = HR_KNEE + HR_ROOM * (1 - Math.exp(-(d - HR_KNEE) / HR_ROOM));
+  const dist = Math.min(hi, Math.max(lo, d));
   return { ev: Math.round(ev * 10) / 10, la: Math.round(la), dist: Math.round(dist) };
 }
+
+/** Velocity noise (in SDs) with a soft top near +2.5: max-effort pitches, never 7 mph above his norm. */
+const veloZ = (z: number): number => (z > 1.5 ? 1.5 + (1 - Math.exp(-(z - 1.5))) : Math.max(-3.5, z));
+
+const EV_KNEE = 108;
+const HR_KNEE = 405;
+const HR_ROOM = 85;
+const EV_ROOM = 13;
 
 // ------------------------------------------------------------------ the replay
 
@@ -408,7 +448,8 @@ export function simPitchLog(log: GameLog, who: (id: number) => PitchLogPlayer): 
       const thrown = (thrownBy.get(pitcherId) ?? 0) + 1;
       thrownBy.set(pitcherId, thrown);
       const fade = Math.max(0, thrown - (pit.stamina ?? 95)) * 0.05;
-      const mph = Math.round((a.speed + rng.gauss(0, a.speedSd) - fade) * 10) / 10;
+      // Pitch-to-pitch spread, kept to the band a pitcher really shows (no 107 mph outliers).
+      const mph = Math.round((a.speed + veloZ(rng.gauss(0, 1)) * a.speedSd - fade) * 10) / 10;
       const inZone = Math.abs(px) <= ZONE_HALF && pz >= zone[0] && pz <= zone[1];
       const inPlay = result === "in_play";
       const bip = inPlay ? battedBall(code, bat, rng) : null;

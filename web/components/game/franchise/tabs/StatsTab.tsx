@@ -9,18 +9,19 @@ import { cn } from "@/lib/utils";
 import { useProfiles } from "../Profiles";
 import { f1, f2, f3, ipFmt, pct1, StatTable, type Col } from "../StatTable";
 import { Card, Segmented, TeamDot, type TabProps } from "../ui";
+import { StatcastLeaders } from "./StatcastLeaders";
 
-type View = "batting" | "pitching" | "teams" | "awards";
+type View = "batting" | "pitching" | "statcast" | "teams" | "awards";
 type Scope = "MLB" | MLBLeague;
 type Qual = "qual" | "50" | "100" | "250" | "all";
 
 const sel = "rounded-md border border-border bg-background px-2 py-1 text-xs";
 
-function Filters({ children }: { children: React.ReactNode }) {
+export function Filters({ children }: { children: React.ReactNode }) {
   return <div className="flex flex-wrap items-center gap-2">{children}</div>;
 }
 
-function Select<T extends string | number>({ value, onChange, options, label }: { value: T; onChange: (v: T) => void; options: Array<{ v: T; label: string }>; label: string }) {
+export function Select<T extends string | number>({ value, onChange, options, label }: { value: T; onChange: (v: T) => void; options: Array<{ v: T; label: string }>; label: string }) {
   return (
     <label className="flex items-center gap-1 text-xs text-secondary">
       {label}
@@ -35,7 +36,7 @@ function Select<T extends string | number>({ value, onChange, options, label }: 
   );
 }
 
-function NameCell({ id, name, tags, rookie }: { id: number; name: string; tags?: string; rookie?: boolean }) {
+export function NameCell({ id, name, tags, rookie }: { id: number; name: string; tags?: string; rookie?: boolean }) {
   const { openPlayer } = useProfiles();
   return (
     <span className="inline-flex items-center gap-1">
@@ -48,7 +49,7 @@ function NameCell({ id, name, tags, rookie }: { id: number; name: string; tags?:
   );
 }
 
-function TeamCell({ league, id }: { league: League; id: number }) {
+export function TeamCell({ league, id }: { league: League; id: number }) {
   const { openTeam } = useProfiles();
   const t = league.teams[id];
   if (!t) return <span className="text-muted">FA</span>;
@@ -59,7 +60,7 @@ function TeamCell({ league, id }: { league: League; id: number }) {
   );
 }
 
-function useCommonFilters(league: League) {
+export function useCommonFilters(league: League) {
   const seasons = statSeasons(league);
   const [season, setSeason] = useState(league.season);
   const [split, setSplit] = useState<StatSplit>("reg");
@@ -590,12 +591,14 @@ export function StatsTab({ league }: TabProps) {
         options={[
           { v: "batting", label: "Batting" },
           { v: "pitching", label: "Pitching" },
+          { v: "statcast", label: "Statcast" },
           { v: "teams", label: "Teams" },
           { v: "awards", label: "Awards & All-Stars" },
         ]}
       />
       {view === "batting" && <Batting league={league} />}
       {view === "pitching" && <Pitching league={league} />}
+      {view === "statcast" && <StatcastLeaders league={league} />}
       {view === "teams" && <Teams league={league} />}
       {view === "awards" && <AwardsView league={league} />}
     </div>
