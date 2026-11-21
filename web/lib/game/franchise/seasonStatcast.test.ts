@@ -5,7 +5,7 @@ import { setGameLogSink, type GameLog } from "./gamelog";
 import { createLeague } from "./league";
 import { rosterIndex } from "./manual";
 import { pitchLogPlayers } from "./pitchReplay";
-import { arsenalRates, batRates, logsSignature, pitRates, psLookup, REGULAR_SEASON_GAMES, seasonStatcastFromLogs } from "./seasonStatcast";
+import { arsenalRates, batRates, logsSignature, pitRates, psLookup, REGULAR_SEASON_GAMES, seasonPercentiles, seasonStatcastFromLogs } from "./seasonStatcast";
 import { startOffseason } from "./offseason";
 import { battingRows } from "./statline";
 import { simUntil } from "./season";
@@ -70,6 +70,21 @@ describe("season Statcast leaderboards", () => {
     expect(sc.fastest[0].p.mph).toBeLessThan(106);
     expect(sc.longestHr[0].p.dist!).toBeLessThan(490);
     expect(new Set(sc.longestHr.map((m) => m.p.dist)).size).toBeGreaterThan(10);
+  });
+
+  it("ranks players against the franchise's regulars", () => {
+    const bats = [...sc.bat.values()].sort((a, b) => batRates(b).ev! - batRates(a).ev!).filter((b) => b.bbe >= 15);
+    const top = seasonPercentiles(sc, bats[0].id, "bat")!;
+    expect(top.pool).toBeGreaterThan(100);
+    expect(top.metrics.find((m) => m.key === "ev")!.pct).toBeGreaterThanOrEqual(95);
+    const low = seasonPercentiles(sc, bats[bats.length - 1].id, "bat")!;
+    expect(low.metrics.find((m) => m.key === "ev")!.pct).toBeLessThanOrEqual(10);
+    // Lower-is-better stats flip: a pitcher allowing the softest contact ranks high.
+    const arms = [...sc.pit.values()].filter((p) => p.bbe >= 20).sort((a, b) => pitRates(a).evAgainst! - pitRates(b).evAgainst!);
+    const soft = seasonPercentiles(sc, arms[0].id, "pit")!;
+    expect(soft.metrics.find((m) => m.key === "ev")!.pct).toBeGreaterThanOrEqual(80);
+    for (const m of [...top.metrics, ...soft.metrics]) if (m.pct != null) expect(m.pct).toBeGreaterThanOrEqual(1);
+    expect(seasonPercentiles(sc, -1, "bat")).toBeNull();
   });
 
   it("keeps each club's own top plays, matching the league-wide lists", () => {

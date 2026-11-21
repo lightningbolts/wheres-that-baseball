@@ -8,6 +8,7 @@ import type { PitchRecord } from "@/lib/game/stats/pitchLog";
 import { isSweetSpot } from "@/lib/game/stats/gameSummary";
 import { getSeasonGameLogs, type GameLog } from "./gamelog";
 import { simPitchLog, type PitchLogPlayer } from "./pitchReplay";
+import { profile, type Def, type Metric } from "./statcast";
 import type { League } from "./types";
 
 const FASTBALL = new Set(["FF", "FA", "SI"]);
@@ -377,4 +378,68 @@ export async function buildSeasonStatcast(opts: {
   if (cache.size > 6) cache.clear();
   cache.set(key, sc);
   return sc;
+}
+
+// ------------------------------------------------------------------ percentile ranks
+
+/** Pool minimums per team game (Savant ranks regulars): 2 PA, 5 pitches. */
+export const POOL_PA_PER_G = 2;
+export const POOL_PITCHES_PER_G = 5;
+
+const p1 = (v: number) => `${(v * 100).toFixed(1)}%`;
+const d1 = (v: number) => v.toFixed(1);
+const d0 = (v: number) => v.toFixed(0);
+
+type BatR = ScBat & ReturnType<typeof batRates>;
+type PitR = ScPit & ReturnType<typeof pitRates>;
+
+const BAT_DEFS: Array<Def<BatR>> = [
+  { key: "ev", label: "Avg exit velocity", get: (b) => b.ev, fmt: d1 },
+  { key: "evMax", label: "Max exit velocity", get: (b) => (b.bbe ? b.evMax : null), fmt: d1 },
+  { key: "brl", label: "Barrel %", get: (b) => b.barrelPct, fmt: p1 },
+  { key: "hard", label: "Hard-hit %", get: (b) => b.hardHitPct, fmt: p1 },
+  { key: "sweet", label: "LA sweet-spot %", get: (b) => b.sweetSpotPct, fmt: p1 },
+  { key: "hrDist", label: "Longest home run (ft)", get: (b) => (b.hrDistMax || null), fmt: d0 },
+  { key: "chase", label: "Chase %", get: (b) => b.chasePct, low: true, fmt: p1 },
+  { key: "whiff", label: "Whiff %", get: (b) => b.whiffPct, low: true, fmt: p1 },
+];
+
+const PIT_DEFS: Array<Def<PitR>> = [
+  { key: "fb", label: "Fastball velo", get: (p) => p.fbVelo, fmt: d1 },
+  { key: "spin", label: "Four-seam spin", get: (p) => p.ffSpin, fmt: d0 },
+  { key: "whiff", label: "Whiff %", get: (p) => p.whiffPct, fmt: p1 },
+  { key: "csw", label: "CSW %", get: (p) => p.cswPct, fmt: p1 },
+  { key: "chase", label: "Chase %", get: (p) => p.chasePct, fmt: p1 },
+  { key: "ev", label: "Avg exit velocity", get: (p) => p.evAgainst, low: true, fmt: d1 },
+  { key: "hard", label: "Hard-hit %", get: (p) => p.hardHitPct, low: true, fmt: p1 },
+  { key: "brl", label: "Barrel %", get: (p) => p.barrelPct, low: true, fmt: p1 },
+];
+
+export interface SeasonPercentiles {
+  metrics: Metric[];
+  /** His sample (PA or pitches) and the pool's minimum. */
+  n: number;
+  min: number;
+  pool: number;
+}
+
+/**
+ * A player's season Statcast percentile ranks among the franchise's regulars (the pool:
+ * 2+ PA or 5+ pitches per team game). A player short of the minimum is still ranked
+ * against it, flagged by n < min.
+ */
+export function seasonPercentiles(sc: SeasonStatcast, id: number, side: "bat" | "pit"): SeasonPercentiles | null {
+  const teamGames = (sc.games * 2) / 30;
+  if (side === "bat") {
+    const me = sc.bat.get(id);
+    if (!me || !me.pa) return null;
+    const min = Math.max(10, Math.round(teamGames * POOL_PA_PER_G));
+    const pool = [...sc.bat.values()].filter((b) => b.pa >= min).map((b) => ({ ...b, ...batRates(b) }));
+    return { metrics: profile(BAT_DEFS, { ...me, ...batRates(me) }, pool), n: me.pa, min, pool: pool.length };
+  }
+  const me = sc.pit.get(id);
+  if (!me || !me.pitches) return null;
+  const min = Math.max(30, Math.round(teamGames * POOL_PITCHES_PER_G));
+  const pool = [...sc.pit.values()].filter((p) => p.pitches >= min).map((p) => ({ ...p, ...pitRates(p) }));
+  return { metrics: profile(PIT_DEFS, { ...me, ...pitRates(me) }, pool), n: me.pitches, min, pool: pool.length };
 }

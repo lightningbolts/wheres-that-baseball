@@ -1,14 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { pitchName } from "@/components/game/controller";
 import { TypeChip } from "@/components/game/PitchTracker";
-import { rosterIndex } from "@/lib/game/franchise/manual";
-import { pitchLogPlayers } from "@/lib/game/franchise/pitchReplay";
-import { arsenalRates, batRates, buildSeasonStatcast, pitRates, type ScMoment, type ScTops, type SeasonStatcast } from "@/lib/game/franchise/seasonStatcast";
+import { arsenalRates, batRates, pitRates, type ScMoment, type ScTops, type SeasonStatcast } from "@/lib/game/franchise/seasonStatcast";
 import { battingRows, pitchingRows, type BatRow, type PitRow } from "@/lib/game/franchise/statline";
 import type { League } from "@/lib/game/franchise/types";
 import { useProfiles } from "../Profiles";
+import { useSeasonStatcast } from "../useSeasonStatcast";
 import { f1, ipFmt, pct1, StatTable, type Col } from "../StatTable";
 import { Card, Segmented } from "../ui";
 import { Filters, NameCell, Select, TeamCell, useCommonFilters } from "./StatsTab";
@@ -73,42 +72,11 @@ type PitchRow = Pick<PitRow, "name" | "team" | "lg" | "rookie" | "tags"> & {
   hard: number | null;
 };
 
-/** Loads (or replays) the season's pitch logs; null while working. */
-function useSeasonStatcast(league: League, season: number, split: "reg" | "post") {
-  const { rosters, slot } = useProfiles();
-  const idx = useMemo(() => (rosters ? rosterIndex(rosters) : null), [rosters]);
-  const [state, setState] = useState<{ key: string; sc: SeasonStatcast | null; done: number; total: number; err?: boolean }>({ key: "", sc: null, done: 0, total: 0 });
-  // Re-read once more games are stored (a sim finished).
-  const played = useMemo(() => league.schedule.filter((g) => g.result).length, [league.schedule]);
-  const key = `${slot}:${season}:${split}:${played}`;
-  useEffect(() => {
-    if (slot == null) return;
-    let dead = false;
-    const who = pitchLogPlayers(league.players, idx);
-    buildSeasonStatcast({
-      slot,
-      season,
-      split,
-      league,
-      who,
-      onProgress: (done, total) => !dead && setState({ key, sc: null, done, total }),
-      cancelled: () => dead,
-    })
-      .then((sc) => !dead && sc && setState({ key, sc, done: 0, total: 0 }))
-      .catch(() => !dead && setState({ key, sc: null, done: 0, total: 0, err: true }));
-    return () => {
-      dead = true;
-    };
-    // league changes on every action; the key covers what matters.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, idx]);
-  return state.key === key ? state : { key, sc: null, done: 0, total: 0 };
-}
-
 export function StatcastLeaders({ league }: { league: League }) {
   const f = useCommonFilters(league);
   const [sub, setSub] = useState<Sub>("hitters");
-  const st = useSeasonStatcast(league, f.season, f.split);
+  const { rosters, slot } = useProfiles();
+  const st = useSeasonStatcast(league, f.season, f.split, rosters, slot);
   const sc = st.sc;
   const kept = f.season >= league.season - 1;
 
