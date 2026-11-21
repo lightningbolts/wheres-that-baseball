@@ -558,7 +558,15 @@ export function BreakoutsBrowser({
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <AppNav />
       <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-3 py-6 sm:px-4 sm:py-8">
-        <p className="text-xs font-medium uppercase tracking-wide text-subtle">Projections</p>
+        <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-subtle">
+          <span className="text-foreground">Projections</span>
+          <span className="text-faint">/</span>
+          <Link href="/projections" className="underline-offset-2 hover:text-foreground hover:underline">
+            Season sim
+          </Link>
+          <span className="text-faint">·</span>
+          <span className="text-foreground">Breakouts</span>
+        </p>
         <h1 className="mt-1 font-serif text-2xl font-medium tracking-tight text-foreground sm:text-3xl">
           {nextSeason} {view === "breakouts" ? "Breakout" : VIEW_LABELS[view]} Candidates
         </h1>

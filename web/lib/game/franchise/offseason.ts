@@ -11,7 +11,7 @@ import { resetLedger } from "./finances";
 import { addGenerated, assignStrategies, expectedWins } from "./league";
 import { clamp } from "./ratings";
 import { FRng } from "./rng";
-import { autoDepth, news, normalizeRoster, orgPlayers } from "./roster";
+import { autoDepth, isHuman, news, normalizeRoster, orgPlayers } from "./roster";
 import { buildSchedule } from "./schedule";
 import { sortTeams } from "./standings";
 import type { League, Player } from "./types";
@@ -165,7 +165,7 @@ export function finishFreeAgency(league: League): void {
   while (!faFinished(league) && guard++ < 20) faRound(league);
   // Leftover useful veterans take one-year deals with clubs that need them.
   const rng = new FRng(league.rng);
-  const teams = Object.values(league.teams).filter((t) => t.id !== league.userTeam);
+  const teams = Object.values(league.teams).filter((t) => !isHuman(league, t.id));
   for (const p of freeAgents(league).sort((a, b) => b.ovr - a.ovr)) {
     if (p.ovr < 47) break;
     const t = rng.pick(teams);
@@ -202,7 +202,7 @@ export function startNextSeason(league: League): void {
   }
   for (const t of Object.values(league.teams)) {
     normalizeRoster(league, t.id, { offseason: true });
-    if (t.id !== league.userTeam) autoDepth(league, t.id);
+    if (!isHuman(league, t.id)) autoDepth(league, t.id);
   }
   // Rookie eligibility for the new season.
   for (const p of Object.values(league.players)) if (p.service < 1 && p.status !== "retired") p.rookie = p.rookie ?? true;

@@ -15,7 +15,7 @@ const NAV_ITEMS = [
   { href: "/postseason", label: "Postseason", shortLabel: "Playoffs" },
   { href: "/ballparks", label: "Ballpark Hits", shortLabel: "Parks" },
   { href: "/players", label: "Players", shortLabel: "Players" },
-  { href: "/breakouts", label: "Projections", shortLabel: "Projections" },
+  { href: "/projections", label: "Projections", shortLabel: "Projections", also: ["/breakouts"] },
   { href: "/respect", label: "Respect+", shortLabel: "Respect+" },
   { href: "/nerd", label: "Nerd Standings", shortLabel: "Nerd" },
   { href: "/play", label: "Play Ball", shortLabel: "Play" },
@@ -95,7 +95,7 @@ function NavLinks({ pathname, short = false }: { pathname: string; short?: boole
         const isActive =
           item.href === "/"
             ? pathname === "/" || pathname.startsWith("/live/")
-            : pathname === item.href || pathname.startsWith(`${item.href}/`);
+            : [item.href, ...("also" in item ? item.also : [])].some((h) => pathname === h || pathname.startsWith(`${h}/`));
 
         return (
           <Link

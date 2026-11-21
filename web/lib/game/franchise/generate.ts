@@ -16,6 +16,11 @@ export interface GenOpts {
   pos?: Pos;
   template?: number;
   team: number;
+  /** Real identity (Pipeline prospects): name, handedness and tool-driven style. */
+  name?: string;
+  bats?: Player["bats"];
+  throws?: Player["throws"];
+  style?: number[];
 }
 
 const POS_WEIGHTS: Array<[Pos, number]> = [
@@ -74,12 +79,12 @@ function pitFrom(z: number, style: number[], sp: boolean): PitSkill {
 export function generatePlayer(rng: FRng, o: GenOpts): Player {
   const pitcher = o.role !== "bat";
   const pos: Pos = pitcher ? (o.role as Pos) : (o.pos ?? randomPos(rng));
-  const style = [rng.gauss(0, 1), rng.gauss(0, 1), rng.gauss(0, 1), rng.gauss(0, 1)];
-  const throws: "L" | "R" = rng.chance(pitcher ? 0.28 : 0.12) && pos !== "C" && pos !== "SS" && pos !== "2B" && pos !== "3B" ? "L" : "R";
-  const bats: "L" | "R" | "S" = pitcher ? throws : rng.chance(0.1) ? "S" : throws === "L" || rng.chance(0.3) ? "L" : "R";
+  const style = o.style ?? [rng.gauss(0, 1), rng.gauss(0, 1), rng.gauss(0, 1), rng.gauss(0, 1)];
+  const throws: "L" | "R" = o.throws ?? (rng.chance(pitcher ? 0.28 : 0.12) && pos !== "C" && pos !== "SS" && pos !== "2B" && pos !== "3B" ? "L" : "R");
+  const bats: "L" | "R" | "S" = o.bats ?? (pitcher ? throws : rng.chance(0.1) ? "S" : throws === "L" || rng.chance(0.3) ? "L" : "R");
   const p: Player = {
     id: o.id,
-    name: randomName(rng),
+    name: o.name ?? randomName(rng),
     age: o.age,
     bats,
     throws,

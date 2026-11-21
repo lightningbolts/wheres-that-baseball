@@ -9,8 +9,9 @@ import { freeAgents, initFreeAgency } from "./freeAgency";
 import { generatePlayer, prospectProfile, type GenRole } from "./generate";
 import { batSkillFrom, fieldPos, gradeScale, overall, pitSkillFrom, playerWar } from "./ratings";
 import { FRng, hashUnit } from "./rng";
+import { addRealProspects } from "./prospects";
 import { projectRosterPlayer, type ProjectionFile } from "./projections";
-import { autoDepth, news, normalizeRoster, orgPlayers } from "./roster";
+import { autoDepth, isHuman, news, normalizeRoster, orgPlayers } from "./roster";
 import { buildSchedule } from "./schedule";
 import type { League, Player, Strategy, TeamState } from "./types";
 import { ensureUmpires } from "./umpires";
@@ -251,6 +252,19 @@ export function createLeague(rosters: RosterFile, opts: NewLeagueOpts): League {
         if (kind === "rotation") t.rotation.push(p.id);
       }
     }
+    // Two-way players the snapshot lists only as hitters (Ohtani as "TWP" on the bench):
+    // give them their projected pitching role too.
+    for (const rp of [...rt.lineup, ...rt.bench]) {
+      const had = league.players[rp.id];
+      const pp = opts.proj?.players[String(rp.id)]?.pit;
+      if (!had || had.pit || had.team !== mt.id || rp.pos !== "TWP" || !pp || pp.bf < 100) continue;
+      const starter = (pp.gsShare ?? 0) >= 0.5;
+      const asPitcher = realPlayer(rp, starter ? "rotation" : "bullpen", mt.id, ageShift, season, opts.proj, opts.contracts);
+      had.pit = asPitcher.pit;
+      had.pit0 = asPitcher.pit0;
+      had.twoWay = true;
+      if (starter) t.rotation.push(had.id);
+    }
     // Current 40-man players the 2026 snapshot missed (stars hurt for much of the year).
     for (const xp of opts.proj?.extras[String(mt.id)] ?? []) {
       if (league.players[xp.id]) continue;
@@ -267,39 +281,43 @@ export function createLeague(rosters: RosterFile, opts: NewLeagueOpts): League {
       .sort((a, b) => b.ovr - a.ovr)
       .slice(0, 2)
       .map((p) => p.id);
-    // Organizational depth: 40-man depth and prospects, then non-roster minor leaguers.
+    // The real farm system: MLB Pipeline's top 30, the best upper-level arms and bats on the 40-man.
+    addRealProspects(league, rng, mt.id);
+    const farm = orgPlayers(league, mt.id)
+      .filter((x) => x.prospect && !x.on40 && x.status === "minors")
+      .sort((a, b) => (a.prospect!.rank - b.prospect!.rank));
+    for (const x of farm) {
+      if (orgPlayers(league, mt.id).filter((y) => y.on40).length >= 38) break;
+      const lvl = x.prospect!.level;
+      if (lvl === "MLB" || (lvl === "AAA" && x.prospect!.rank <= 15)) {
+        x.on40 = true;
+        x.contract = { aav: 0.8, years: 1, kind: "pre", signed: season };
+      }
+    }
+    // Organizational depth around them: 40-man filler, then non-roster minor leaguers.
     const fortyTiers: Array<[GenRole, Parameters<typeof prospectProfile>[1], Player["pos"]?]> = [
       ["SP", "depth"],
-      ["SP", "prospect"],
-      ["SP", "top"],
+      ["SP", "depth"],
       ["RP", "depth"],
       ["RP", "depth"],
-      ["RP", "prospect"],
+      ["RP", "depth"],
       ["bat", "depth", "C"],
       ["bat", "depth", "SS"],
       ["bat", "depth", "CF"],
-      ["bat", "prospect"],
-      ["bat", "prospect"],
-      ["bat", "top"],
       ["bat", "depth"],
       ["RP", "depth"],
     ];
     for (const [role, tier, pos] of fortyTiers) if (orgPlayers(league, mt.id).filter((x) => x.on40).length < 40) addGenerated(league, rng, pool, mt.id, role, tier, { on40: true, pos });
     const minorTiers: Array<[GenRole, Parameters<typeof prospectProfile>[1], Player["pos"]?]> = [
-      ["SP", "prospect"],
-      ["SP", "draft"],
       ["SP", "depth"],
       ["RP", "depth"],
-      ["RP", "draft"],
       ["RP", "depth"],
-      ["bat", "prospect"],
-      ["bat", "draft"],
-      ["bat", "draft"],
       ["bat", "depth", "C"],
       ["bat", "depth"],
       ["bat", "depth"],
     ];
     for (const [role, tier, pos] of minorTiers) addGenerated(league, rng, pool, mt.id, role, tier, { pos });
+    for (const x of orgPlayers(league, mt.id)) if (x.prospect && x.template == null) x.template = pickTemplate(pool, x);
   }
   // Unsigned veterans (in-season free-agent pool).
   for (let i = 0; i < 45; i += 1) {
@@ -357,7 +375,7 @@ export function migrateGrades(league: League): boolean {
     p.ovr = ovr;
   }
   for (const t of Object.values(league.teams)) {
-    if (t.id !== league.userTeam || league.settings.autoRoster) autoDepth(league, t.id);
+    if (!isHuman(league, t.id) || league.settings.autoRoster) autoDepth(league, t.id);
   }
   league.gradeV = GRADE_V;
   return true;
