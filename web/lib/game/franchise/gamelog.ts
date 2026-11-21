@@ -1,9 +1,11 @@
 /**
- * Per-game logs for franchise games: a box score and a play-by-play for every game,
- * simmed or played. They are kept out of the League object (a season is ~2,400 games,
+ * Per-game logs for franchise games: a box score, a play-by-play and a pitch-by-pitch
+ * (Statcast) log for every game, simmed or played. They are kept out of the League object (a season is ~2,400 games,
  * and the league is cloned on every action) in their own IndexedDB store, keyed by save
  * slot, season and game id. Only the current and previous season are kept.
  */
+
+import type { PitchRecord } from "@/lib/game/stats/pitchLog";
 
 /** What happened on a play (compact: a season of logs is several MB). */
 export type PlayCode =
@@ -57,7 +59,11 @@ export interface GameLog {
   line: [number[], number[]];
   box: [BoxSide, BoxSide];
   plays?: Play[];
+  /** Pitches thrown in each simmed play, aligned with `plays` (the pitch log replays them). */
+  pc?: number[];
   text?: TextPlay[];
+  /** A game played in Play Ball: its own tracked pitches (simmed games derive theirs from `plays`). */
+  pitches?: PitchRecord[];
   /** Player names at the time (anyone may later leave the league's records). */
   names: Record<number, string>;
 }
@@ -183,6 +189,7 @@ interface OutcomeLike {
   order?: [Array<[number, string]>, Array<[number, string]>];
   staff?: [number[], number[]];
   plays?: Play[];
+  pc?: number[];
 }
 
 export function buildGameLog(
@@ -191,6 +198,7 @@ export function buildGameLog(
   out: OutcomeLike,
   nameOf: (id: number) => string | undefined,
   text?: TextPlay[],
+  pitches?: PitchRecord[],
 ): GameLog | null {
   if (!out.order || !out.staff) return null;
   const names: Record<number, string> = {};
@@ -228,7 +236,9 @@ export function buildGameLog(
     line: lineFromPlays(text ?? out.plays ?? [], inn),
     box,
     plays: text ? undefined : out.plays,
+    pc: text ? undefined : out.pc,
     text,
+    pitches: pitches?.length ? pitches : undefined,
     names,
   };
 }

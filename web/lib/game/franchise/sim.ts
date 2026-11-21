@@ -79,6 +79,8 @@ export interface GameOutcome {
   staff?: [number[], number[]];
   /** Play-by-play (simmed games). */
   plays?: Play[];
+  /** Pitches thrown in each play, aligned with `plays` (0 for steals and pitching changes). */
+  pc?: number[];
 }
 
 // ---------------------------------------------------------------------------
@@ -220,10 +222,13 @@ export function simGame(input: SimInput): GameOutcome {
 
   // Play-by-play. Recording never touches the dice.
   const plays: Play[] = [];
+  const pcs: number[] = [];
   let curHalf = 2;
   const mask = (b: Array<Runner | null>) => (b[0] ? 1 : 0) | (b[1] ? 2 : 0) | (b[2] ? 4 : 0);
-  const note = (code: PlayCode, who: number, pid: number, outs: number, b: Array<Runner | null>, scored: number[] = []) =>
+  const note = (code: PlayCode, who: number, pid: number, outs: number, b: Array<Runner | null>, scored: number[] = [], thrown = 0) => {
     plays.push([curHalf, code, who, pid, Math.min(3, outs), mask(b), away.runs, home.runs, ...scored]);
+    pcs.push(thrown);
+  };
 
   const checkLead = (batting: SimSide, fielding: SimSide) => {
     const now: 0 | 1 | 2 = away.runs > home.runs ? 1 : home.runs > away.runs ? 2 : 0;
@@ -289,6 +294,7 @@ export function simGame(input: SimInput): GameOutcome {
     f.pitcher = sp;
     f.used.push(sp);
     plays.push([curHalf, "PC", next.id, cur.p.id, outs, 0, away.runs, home.runs]);
+    pcs.push(0);
     void opp;
   };
 
@@ -484,7 +490,8 @@ export function simGame(input: SimInput): GameOutcome {
         }
       }
     }
-    const thrown = Math.max(1, Math.round(pitches + rng.gauss(0, 1.3)));
+    // A strikeout takes at least three pitches and a walk four (the pitch log replays the count).
+    const thrown = Math.max(code === "K" ? 3 : code === "BB" ? 4 : 1, Math.round(pitches + rng.gauss(0, 1.3)));
     pit.pitches += thrown;
     pl.pit += thrown;
     if (outs > outsIn) {
@@ -494,7 +501,7 @@ export function simGame(input: SimInput): GameOutcome {
     }
     bat.runs += runs;
     if (bl.h && runs >= 0) bat.hits = bat.lineup.reduce((s, x) => s + x.line.h, 0);
-    note(code, b.p.id, pit.p.id, outs, nb, scored);
+    note(code, b.p.id, pit.p.id, outs, nb, scored, thrown);
     return { outs, runs, bases: nb };
   };
 
@@ -626,6 +633,7 @@ export function simGame(input: SimInput): GameOutcome {
     order: [away.lineup.map((b) => [b.p.id, b.pos] as [number, string]), home.lineup.map((b) => [b.p.id, b.pos] as [number, string])],
     staff: [away.used.map((x) => x.p.id), home.used.map((x) => x.p.id)],
     plays,
+    pc: pcs,
   };
 }
 
