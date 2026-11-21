@@ -5,7 +5,9 @@ import { setGameLogSink, type GameLog } from "./gamelog";
 import { createLeague } from "./league";
 import { rosterIndex } from "./manual";
 import { pitchLogPlayers } from "./pitchReplay";
-import { arsenalRates, batRates, pitRates, psLookup, seasonStatcastFromLogs } from "./seasonStatcast";
+import { arsenalRates, batRates, logsSignature, pitRates, psLookup, REGULAR_SEASON_GAMES, seasonStatcastFromLogs } from "./seasonStatcast";
+import { startOffseason } from "./offseason";
+import { battingRows } from "./statline";
 import { simUntil } from "./season";
 
 const file = rosters as unknown as RosterFile;
@@ -68,5 +70,48 @@ describe("season Statcast leaderboards", () => {
     expect(sc.fastest[0].p.mph).toBeLessThan(106);
     expect(sc.longestHr[0].p.dist!).toBeLessThan(490);
     expect(new Set(sc.longestHr.map((m) => m.p.dist)).size).toBeGreaterThan(10);
+  });
+
+  it("keeps each club's own top plays, matching the league-wide lists", () => {
+    const merged = [...sc.team.values()].flatMap((t) => t.hardestHit).sort((a, b) => b.p.ev! - a.p.ev!).slice(0, 25);
+    expect(merged.map((m) => m.p.ev)).toEqual(sc.hardestHit.map((m) => m.p.ev));
+    for (const [tid, t] of sc.team) {
+      for (const m of t.hardestHit) expect(m.p.top ? m.away : m.home).toBe(tid);
+      for (const m of t.fastest) expect(m.p.top ? m.home : m.away).toBe(tid);
+    }
+  });
+
+  it("tells franchises apart even when they played the same scheduled games", () => {
+    const other = createLeague(file, { userTeam: 147, seed: 6 });
+    const logs2: GameLog[] = [];
+    setGameLogSink((l) => logs2.push(l));
+    simUntil(other, "season", { maxDays: 2 });
+    setGameLogSink(null);
+    const mine = logs.filter((l) => logs2.some((x) => x.id === l.id));
+    const theirs = logs2.filter((l) => mine.some((x) => x.id === l.id));
+    expect(mine.length).toBeGreaterThan(10);
+    expect(logsSignature(mine)).not.toBe(logsSignature(theirs));
+    expect(logsSignature(mine)).toBe(logsSignature([...mine]));
+  });
+
+  it("splits older logs without a postseason flag by game number", () => {
+    const past = psLookup(league, league.season - 1);
+    const base = logs[0];
+    expect(past({ ...base, ps: undefined, id: REGULAR_SEASON_GAMES })).toBe(false);
+    expect(past({ ...base, ps: undefined, id: REGULAR_SEASON_GAMES + 1 })).toBe(true);
+    expect(past({ ...base, ps: false, id: REGULAR_SEASON_GAMES + 1 })).toBe(false);
+    expect(psLookup(league, league.season)({ ...base, ps: undefined })).toBe(false);
+  });
+});
+
+describe("season stat lines after the offseason begins", () => {
+  it("reads the finished season from the archive", () => {
+    const league = createLeague(file, { userTeam: 147, seed: 9 });
+    simUntil(league, "season", { maxDays: 3 });
+    const before = battingRows(league, league.season).length;
+    expect(before).toBeGreaterThan(100);
+    league.phase = "offseason";
+    startOffseason(league);
+    expect(battingRows(league, league.season).length).toBe(before);
   });
 });
