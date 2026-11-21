@@ -281,6 +281,36 @@ function location(rng: FRng, type: string, inZone: boolean, zone: [number, numbe
   return inZone ? { px: rng.range(-0.6, 0.6), pz: rng.range(bot + 0.15, top - 0.15) } : { px: (rng.chance(0.5) ? 1 : -1) * rng.range(0.95, 1.3), pz: mid };
 }
 
+const minPitches = (code: PlayCode) => (code === "K" ? 3 : code === "BB" ? 4 : 1);
+
+/**
+ * Pitches per play for logs saved before the sim recorded them: typical counts, then
+ * nudged one pitch at a time so each pitcher's total matches his box-score pitch count.
+ */
+function fitCounts(log: GameLog, plays: Play[], rng: FRng): number[] {
+  const counts = plays.map((p) => (isPa(p[1]) ? Math.max(minPitches(p[1]), Math.round((TYPICAL_PITCHES[p[1]] ?? 3.3) + rng.gauss(0, 1.3))) : 0));
+  const target = new Map<number, number>();
+  for (const side of log.box) for (const pit of side.pit) target.set(pit[0], pit[8]);
+  const mine = new Map<number, number[]>();
+  plays.forEach((p, i) => {
+    if (isPa(p[1])) mine.set(p[3], [...(mine.get(p[3]) ?? []), i]);
+  });
+  for (const [pid, idxs] of mine) {
+    const want = target.get(pid);
+    if (want == null) continue;
+    let diff = want - idxs.reduce((a, i) => a + counts[i], 0);
+    // Every plate appearance can take more; only those above their minimum can give one back.
+    for (let guard = 0; diff !== 0 && guard < 2000; guard += 1) {
+      const pool = diff > 0 ? idxs : idxs.filter((i) => counts[i] > minPitches(plays[i][1]));
+      if (!pool.length) break;
+      const i = pool[rng.int(pool.length)];
+      counts[i] += diff > 0 ? 1 : -1;
+      diff += diff > 0 ? -1 : 1;
+    }
+  }
+  return counts;
+}
+
 /** Replay a simmed game pitch by pitch. Returns null for games without plays (e.g. played in Play Ball). */
 export function simPitchLog(log: GameLog, who: (id: number) => PitchLogPlayer): GamePitchLog | null {
   const plays = log.plays;
@@ -296,6 +326,7 @@ export function simPitchLog(log: GameLog, who: (id: number) => PitchLogPlayer): 
     }
     return a;
   };
+  const counts = log.pc ?? fitCounts(log, plays, rng);
   const thrownBy = new Map<number, number>();
   const pitches: PitchRecord[] = [];
   const paOfPlay: Array<number | null> = [];
@@ -321,7 +352,7 @@ export function simPitchLog(log: GameLog, who: (id: number) => PitchLogPlayer): 
     const stand: "L" | "R" = bat.bats === "S" ? (pit.throws === "L" ? "R" : "L") : bat.bats;
     const zone: [number, number] = [bat.zone?.[0] ?? 1.6, bat.zone?.[1] ?? 3.4];
     const ars = arsenalOf(pitcherId, pit);
-    const n = Math.max(code === "K" ? 3 : code === "BB" ? 4 : 1, log.pc?.[i] || Math.max(1, Math.round((TYPICAL_PITCHES[code] ?? 3.3) + rng.gauss(0, 1.3))));
+    const n = Math.max(minPitches(code), counts[i] || 1);
     const path = countPath(code, n, rng);
     let balls = 0;
     let strikes = 0;

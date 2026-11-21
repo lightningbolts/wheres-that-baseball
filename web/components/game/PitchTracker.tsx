@@ -377,10 +377,13 @@ const LOG_COLS: Array<{ k: string; label: string; title?: string; text?: boolean
 function LogTab({ log }: { log: PitchRecord[] }) {
   // Newest pitch first by default, as before.
   const { sort, toggle } = useSort({ key: "n", asc: false });
-  const rows = useMemo(() => {
+  // The first 400 in the chosen order (long games can show the rest on request).
+  const [all, setAll] = useState(false);
+  const sorted = useMemo(() => {
     const c = LOG_COLS.find((x) => x.k === sort.key) ?? LOG_COLS[0];
-    return sortRows(log, c.s, sort.asc).slice(0, 400);
+    return sortRows(log, c.s, sort.asc);
   }, [log, sort]);
+  const rows = all ? sorted : sorted.slice(0, 400);
   if (!rows.length) return <Empty />;
   return (
     <div className="overflow-x-auto">
@@ -404,6 +407,11 @@ function LogTab({ log }: { log: PitchRecord[] }) {
           ))}
         </tbody>
       </table>
+      {sorted.length > rows.length && (
+        <button type="button" onClick={() => setAll(true)} className="mt-2 rounded-md bg-white/10 px-3 py-1.5 text-xs hover:bg-white/20">
+          Show all {sorted.length} pitches
+        </button>
+      )}
     </div>
   );
 }

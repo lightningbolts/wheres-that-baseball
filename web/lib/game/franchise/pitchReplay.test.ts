@@ -70,6 +70,15 @@ describe("simmed games' pitch-by-pitch logs", () => {
     }
   });
 
+  it("matches the box's pitch counts for older logs without per-play counts", () => {
+    for (const log of logs.slice(0, 10)) {
+      const r = simPitchLog({ ...log, pc: undefined }, who)!;
+      const thrown = new Map<number, number>();
+      for (const p of r.pitches) thrown.set(p.pitcherId, (thrown.get(p.pitcherId) ?? 0) + 1);
+      for (const side of log.box) for (const pit of side.pit) expect(thrown.get(pit[0]) ?? 0).toBe(pit[8]);
+    }
+  });
+
   it("is deterministic and looks like Statcast in aggregate", () => {
     const a = simPitchLog(logs[0], who)!;
     const b = simPitchLog(logs[0], who)!;
