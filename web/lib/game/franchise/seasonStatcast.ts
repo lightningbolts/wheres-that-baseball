@@ -83,21 +83,26 @@ export interface ScMoment {
   home: number;
 }
 
-export interface SeasonStatcast {
-  games: number;
-  pitches: number;
-  bat: Map<number, ScBat>;
-  pit: Map<number, ScPit>;
-  arsenal: Map<string, ScArsenal>;
+export interface ScTops {
   hardestHit: ScMoment[];
   longestHr: ScMoment[];
   fastest: ScMoment[];
 }
 
+export interface SeasonStatcast extends ScTops {
+  games: number;
+  pitches: number;
+  bat: Map<number, ScBat>;
+  pit: Map<number, ScPit>;
+  arsenal: Map<string, ScArsenal>;
+  /** Each club's own top plays (its hitters' batted balls, its pitchers' pitches). */
+  team: Map<number, ScTops>;
+}
+
 const TOP = 25;
 
 export function emptySeasonStatcast(): SeasonStatcast {
-  return { games: 0, pitches: 0, bat: new Map(), pit: new Map(), arsenal: new Map(), hardestHit: [], longestHr: [], fastest: [] };
+  return { games: 0, pitches: 0, bat: new Map(), pit: new Map(), arsenal: new Map(), hardestHit: [], longestHr: [], fastest: [], team: new Map() };
 }
 
 /** Keep the top `TOP` by score; cheap while lists are short and inserts rare. */
@@ -109,6 +114,19 @@ function keepTop(list: ScMoment[], m: ScMoment, score: (p: PitchRecord) => numbe
   list.splice(i, 0, m);
   if (list.length > TOP) list.pop();
 }
+
+function topsOf(sc: SeasonStatcast, team: number): ScTops {
+  let t = sc.team.get(team);
+  if (!t) {
+    t = { hardestHit: [], longestHr: [], fastest: [] };
+    sc.team.set(team, t);
+  }
+  return t;
+}
+
+const evOf = (x: PitchRecord) => x.ev ?? 0;
+const distOf = (x: PitchRecord) => x.dist ?? 0;
+const mphOf = (x: PitchRecord) => x.mph;
 
 function batOf(sc: SeasonStatcast, id: number): ScBat {
   let b = sc.bat.get(id);
@@ -146,6 +164,8 @@ export function addGamePitches(sc: SeasonStatcast, pitches: PitchRecord[], game:
     const b = batOf(sc, p.batterId);
     const t = pitOf(sc, p.pitcherId);
     const a = arsOf(sc, p.pitcherId, p.type);
+    const m: ScMoment = { p, gameId: game.id, day: game.day, away: game.away, home: game.home };
+    const batTops = topsOf(sc, p.top ? game.away : game.home);
     b.pitches += 1;
     t.pitches += 1;
     a.n += 1;
@@ -214,11 +234,14 @@ export function addGamePitches(sc: SeasonStatcast, pitches: PitchRecord[], game:
       if (p.hit === 4) b.hrs += 1;
       if (p.hit === 4 && p.dist != null) {
         b.hrDistMax = Math.max(b.hrDistMax, p.dist);
-        keepTop(sc.longestHr, { p, gameId: game.id, day: game.day, away: game.away, home: game.home }, (x) => x.dist ?? 0);
+        keepTop(sc.longestHr, m, distOf);
+        keepTop(batTops.longestHr, m, distOf);
       }
-      keepTop(sc.hardestHit, { p, gameId: game.id, day: game.day, away: game.away, home: game.home }, (x) => x.ev ?? 0);
+      keepTop(sc.hardestHit, m, evOf);
+      keepTop(batTops.hardestHit, m, evOf);
     }
-    keepTop(sc.fastest, { p, gameId: game.id, day: game.day, away: game.away, home: game.home }, (x) => x.mph);
+    keepTop(sc.fastest, m, mphOf);
+    keepTop(topsOf(sc, p.top ? game.home : game.away).fastest, m, mphOf);
   }
 }
 
@@ -270,10 +293,16 @@ export const arsenalRates = (a: ScArsenal) => ({
 
 export type ScSplit = "reg" | "post";
 
-/** Postseason game? Older logs don't say, so ask the schedule (the current season's only). */
+/** Every regular season has 2,430 games, numbered from 1; postseason games are numbered after them. */
+export const REGULAR_SEASON_GAMES = 2430;
+
+/**
+ * Postseason game? Logs from before the flag don't say, but game numbers do: postseason
+ * games come after the regular schedule's (the current schedule's own count, else 2,430).
+ */
 export function psLookup(league: League, season: number): (log: GameLog) => boolean {
-  const ps = new Set(season === league.season ? league.schedule.filter((g) => g.ps).map((g) => g.id) : []);
-  return (log) => log.ps ?? ps.has(log.id);
+  const regular = season === league.season ? league.schedule.filter((g) => !g.ps).length || REGULAR_SEASON_GAMES : REGULAR_SEASON_GAMES;
+  return (log) => log.ps ?? log.id > regular;
 }
 
 /** One game's pitches: its own tracked ones, else the replay. */
@@ -289,6 +318,31 @@ export function seasonStatcastFromLogs(logs: GameLog[], who: (id: number) => Pit
 }
 
 const cache = new Map<string, SeasonStatcast>();
+
+/** Forget every built season (a save slot was replaced or deleted). */
+export function clearSeasonStatcastCache(): void {
+  cache.clear();
+}
+
+/**
+ * Fingerprint of a set of logs' contents, so two franchises that played the same
+ * scheduled games (same ids) never share a cached season.
+ */
+export function logsSignature(logs: GameLog[]): string {
+  let h = 2166136261;
+  const mix = (v: number) => {
+    h = Math.imul(h ^ (v | 0), 16777619);
+  };
+  for (const l of logs) {
+    mix(l.id);
+    mix(l.as);
+    mix(l.hs);
+    mix(l.inn);
+    mix(l.plays?.length ?? 0);
+    for (const side of l.box) for (const x of side.pit) mix(x[0] * 31 + x[8]);
+  }
+  return `${logs.length}:${(h >>> 0).toString(36)}`;
+}
 
 /**
  * Read a season's stored games and fold their pitch logs together, yielding to the page
@@ -307,7 +361,7 @@ export async function buildSeasonStatcast(opts: {
   const logs = await getSeasonGameLogs(opts.slot, opts.season);
   const isPs = psLookup(opts.league, opts.season);
   const mine = logs.filter((l) => isPs(l) === (opts.split === "post"));
-  const key = `${opts.slot}:${opts.season}:${opts.split}:${mine.length}:${mine.reduce((a, l) => a + l.id, 0)}`;
+  const key = `${opts.league.seed}:${opts.slot}:${opts.season}:${opts.split}:${logsSignature(mine)}`;
   const hit = cache.get(key);
   if (hit) return hit;
   const sc = emptySeasonStatcast();

@@ -10,6 +10,7 @@ import { applyRealContracts, createLeague, migrateGrades } from "@/lib/game/fran
 import type { ProjectionFile } from "@/lib/game/franchise/projections";
 import { boxFromSession, buildManualGame, recordManualResult, rosterIndex, type ManualGame } from "@/lib/game/franchise/manual";
 import { pruneGameLogs, putGameLogs, setGameLogSink, type GameLog } from "@/lib/game/franchise/gamelog";
+import { clearSeasonStatcastCache } from "@/lib/game/franchise/seasonStatcast";
 import { deleteSlot, listSlots, loadLeague, saveLeague, SLOT_COUNT, type SlotMeta } from "@/lib/game/franchise/save";
 import { advanceDay, prepareDay, simDone, userGameToday, type SimTarget } from "@/lib/game/franchise/season";
 import type { League } from "@/lib/game/franchise/types";
@@ -239,6 +240,7 @@ export function SeasonApp() {
             onDelete={async (s) => {
               await deleteSlot(s);
               await pruneGameLogs(s);
+              clearSeasonStatcastCache();
               setSlots(await listSlots());
             }}
             onCreate={async (s, opts) => {
@@ -246,6 +248,7 @@ export function SeasonApp() {
               const l = createLeague(rosters, { ...opts, proj: proj.current, contracts: contracts.current });
               // A new franchise in this slot: the old one's game logs go.
               void pruneGameLogs(s);
+              clearSeasonStatcastCache();
               setSlot(s);
               setLeague(l);
               void saveLeague(l, s);
