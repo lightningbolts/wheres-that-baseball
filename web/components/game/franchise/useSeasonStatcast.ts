@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { gameLogsVersion, onGameLogsStored } from "@/lib/game/franchise/gamelog";
 import { rosterIndex } from "@/lib/game/franchise/manual";
 import { pitchLogPlayers } from "@/lib/game/franchise/pitchReplay";
 import { buildSeasonStatcast, type SeasonStatcast } from "@/lib/game/franchise/seasonStatcast";
@@ -19,9 +20,11 @@ export interface SeasonStatcastState {
 export function useSeasonStatcast(league: League, season: number, split: "reg" | "post", rosters: RosterFile | null | undefined, slot: number | undefined) {
   const idx = useMemo(() => (rosters ? rosterIndex(rosters) : null), [rosters]);
   const [state, setState] = useState<SeasonStatcastState>({ key: "", sc: null, done: 0, total: 0 });
-  // Re-read once more games are stored (a sim finished).
+  // Re-read once more games are played or their logs finish storing (a manual game saves
+  // the league first and its log a moment later).
   const played = useMemo(() => league.schedule.filter((g) => g.result).length, [league.schedule]);
-  const key = `${slot}:${season}:${split}:${played}`;
+  const stored = useSyncExternalStore(onGameLogsStored, gameLogsVersion, () => 0);
+  const key = `${slot}:${season}:${split}:${played}:${stored}`;
   useEffect(() => {
     if (slot == null) return;
     let dead = false;

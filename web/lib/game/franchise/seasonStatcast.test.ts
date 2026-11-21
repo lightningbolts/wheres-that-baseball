@@ -5,7 +5,7 @@ import { setGameLogSink, type GameLog } from "./gamelog";
 import { createLeague } from "./league";
 import { rosterIndex } from "./manual";
 import { pitchLogPlayers } from "./pitchReplay";
-import { arsenalRates, batRates, logsSignature, pitRates, psLookup, REGULAR_SEASON_GAMES, seasonPercentiles, seasonStatcastFromLogs } from "./seasonStatcast";
+import { arsenalRates, batRates, committedLookup, logsSignature, pitRates, psLookup, REGULAR_SEASON_GAMES, seasonPercentiles, seasonStatcastFromLogs } from "./seasonStatcast";
 import { startOffseason } from "./offseason";
 import { battingRows } from "./statline";
 import { simUntil } from "./season";
@@ -128,5 +128,39 @@ describe("season stat lines after the offseason begins", () => {
     league.phase = "offseason";
     startOffseason(league);
     expect(battingRows(league, league.season).length).toBe(before);
+  });
+});
+
+describe("season Statcast reads only the saved league's games", () => {
+  it("skips stored logs for current-season games the league hasn't played", () => {
+    const league = createLeague(file, { userTeam: 147, seed: 11 });
+    const logs: GameLog[] = [];
+    setGameLogSink((l) => logs.push(l));
+    simUntil(league, "season", { maxDays: 2 });
+    setGameLogSink(null);
+    const committed = committedLookup(league, league.season);
+    expect(logs.every(committed)).toBe(true);
+    // An abandoned sim's game: logged, but the saved schedule has no result for it.
+    const unplayed = league.schedule.find((g) => !g.result)!;
+    expect(committed({ ...logs[0], id: unplayed.id })).toBe(false);
+    expect(committed({ ...logs[0], id: 99999 })).toBe(false);
+    expect(committedLookup(league, league.season - 1)({ ...logs[0], id: unplayed.id })).toBe(true);
+  });
+
+  it("files each player under the club he played for in the logged games", () => {
+    const league = createLeague(file, { userTeam: 147, seed: 12 });
+    const logs: GameLog[] = [];
+    setGameLogSink((l) => logs.push(l));
+    simUntil(league, "season", { maxDays: 2 });
+    setGameLogSink(null);
+    const who = pitchLogPlayers(league.players, rosterIndex(file));
+    const sc = seasonStatcastFromLogs(logs, who);
+    const b = [...sc.bat.values()].find((x) => x.pa > 3)!;
+    const p = [...sc.pit.values()].find((x) => x.pitches > 30)!;
+    expect(b.team).toBe(league.players[b.id].team);
+    expect(p.team).toBe(league.players[p.id].team);
+    // Moves afterwards (free agency) don't change where those games were played.
+    league.players[b.id].team = 0;
+    expect(seasonStatcastFromLogs(logs, who).bat.get(b.id)!.team).not.toBe(0);
   });
 });

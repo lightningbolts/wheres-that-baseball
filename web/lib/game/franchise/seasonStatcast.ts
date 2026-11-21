@@ -15,6 +15,8 @@ const FASTBALL = new Set(["FF", "FA", "SI"]);
 
 export interface ScBat {
   id: number;
+  /** Club he batted for in his latest tracked game (postseason rows outlive offseason moves). */
+  team: number;
   pitches: number;
   pa: number;
   swings: number;
@@ -34,6 +36,8 @@ export interface ScBat {
 
 export interface ScPit {
   id: number;
+  /** Club he pitched for in his latest tracked game. */
+  team: number;
   pitches: number;
   swings: number;
   whiffs: number;
@@ -132,7 +136,7 @@ const mphOf = (x: PitchRecord) => x.mph;
 function batOf(sc: SeasonStatcast, id: number): ScBat {
   let b = sc.bat.get(id);
   if (!b) {
-    b = { id, pitches: 0, pa: 0, swings: 0, whiffs: 0, outZone: 0, chases: 0, bbe: 0, evSum: 0, evMax: 0, laSum: 0, hardHit: 0, barrels: 0, sweetSpot: 0, hrs: 0, hrDistMax: 0 };
+    b = { id, team: 0, pitches: 0, pa: 0, swings: 0, whiffs: 0, outZone: 0, chases: 0, bbe: 0, evSum: 0, evMax: 0, laSum: 0, hardHit: 0, barrels: 0, sweetSpot: 0, hrs: 0, hrDistMax: 0 };
     sc.bat.set(id, b);
   }
   return b;
@@ -141,7 +145,7 @@ function batOf(sc: SeasonStatcast, id: number): ScBat {
 function pitOf(sc: SeasonStatcast, id: number): ScPit {
   let p = sc.pit.get(id);
   if (!p) {
-    p = { id, pitches: 0, swings: 0, whiffs: 0, called: 0, inZone: 0, outZone: 0, chases: 0, ks: 0, bbe: 0, evSum: 0, hardHit: 0, barrels: 0, fbN: 0, fbVeloSum: 0, veloMax: 0, ffN: 0, ffSpinSum: 0 };
+    p = { id, team: 0, pitches: 0, swings: 0, whiffs: 0, called: 0, inZone: 0, outZone: 0, chases: 0, ks: 0, bbe: 0, evSum: 0, hardHit: 0, barrels: 0, fbN: 0, fbVeloSum: 0, veloMax: 0, ffN: 0, ffSpinSum: 0 };
     sc.pit.set(id, p);
   }
   return p;
@@ -166,7 +170,10 @@ export function addGamePitches(sc: SeasonStatcast, pitches: PitchRecord[], game:
     const t = pitOf(sc, p.pitcherId);
     const a = arsOf(sc, p.pitcherId, p.type);
     const m: ScMoment = { p, gameId: game.id, day: game.day, away: game.away, home: game.home };
-    const batTops = topsOf(sc, p.top ? game.away : game.home);
+    const batTeam = p.top ? game.away : game.home;
+    const batTops = topsOf(sc, batTeam);
+    b.team = batTeam;
+    t.team = p.top ? game.home : game.away;
     b.pitches += 1;
     t.pitches += 1;
     a.n += 1;
@@ -306,6 +313,18 @@ export function psLookup(league: League, season: number): (log: GameLog) => bool
   return (log) => log.ps ?? log.id > regular;
 }
 
+/**
+ * Whether a stored game is part of the saved league. Logs are written before the league
+ * is saved, so an abandoned sim can leave logs for games the save never played; those
+ * are skipped for the current season (earlier seasons are always complete).
+ */
+export function committedLookup(league: League, season: number): (log: GameLog) => boolean {
+  if (season !== league.season) return () => true;
+  const played = new Set<number>();
+  for (const g of league.schedule) if (g.result) played.add(g.id);
+  return (log) => played.has(log.id);
+}
+
 /** One game's pitches: its own tracked ones, else the replay. */
 export function gamePitches(log: GameLog, who: (id: number) => PitchLogPlayer): PitchRecord[] {
   return log.pitches ?? simPitchLog(log, who)?.pitches ?? [];
@@ -361,7 +380,9 @@ export async function buildSeasonStatcast(opts: {
 }): Promise<SeasonStatcast | null> {
   const logs = await getSeasonGameLogs(opts.slot, opts.season);
   const isPs = psLookup(opts.league, opts.season);
-  const mine = logs.filter((l) => isPs(l) === (opts.split === "post"));
+  const committed = committedLookup(opts.league, opts.season);
+  // Calendar order, so each player's club is the one from his latest game.
+  const mine = logs.filter((l) => committed(l) && isPs(l) === (opts.split === "post")).sort((a, b) => a.day - b.day || a.id - b.id);
   const key = `${opts.league.seed}:${opts.slot}:${opts.season}:${opts.split}:${logsSignature(mine)}`;
   const hit = cache.get(key);
   if (hit) return hit;

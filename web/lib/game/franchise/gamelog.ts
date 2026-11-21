@@ -152,12 +152,24 @@ async function tx(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBReques
   });
 }
 
+let storedVersion = 0;
+const storedListeners = new Set<() => void>();
+
+/** Bumps each time a write of logs finishes, so readers can pick up games saved after the league was. */
+export const gameLogsVersion = (): number => storedVersion;
+export function onGameLogsStored(fn: () => void): () => void {
+  storedListeners.add(fn);
+  return () => storedListeners.delete(fn);
+}
+
 /** Store finished games' logs for a save slot. */
 export async function putGameLogs(slot: number, logs: GameLog[]): Promise<void> {
   if (!logs.length) return;
   await tx("readwrite", (s) => {
     for (const l of logs) s.put(l, key(slot, l.season, l.id));
   });
+  storedVersion += 1;
+  for (const fn of storedListeners) fn();
 }
 
 /** Every stored game of a slot's season. */

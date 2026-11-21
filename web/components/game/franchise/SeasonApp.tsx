@@ -150,14 +150,15 @@ export function SeasonApp() {
       }
       setGameLogSink(null);
       if (token !== simToken.current) return;
-      // Store the logs first so views that read them (season Statcast) see the new games.
-      await putGameLogs(slot, logs).catch(() => undefined);
-      if (token !== simToken.current) return;
-      void pruneGameLogs(slot, l.season - 1);
       prepareDay(l);
       setSim(null);
       setLeague(l);
       persist(l);
+      // Logs follow the league save. Readers skip games the saved league hasn't played, so
+      // an interrupted write never shows phantom games, and they re-read when this lands.
+      void putGameLogs(slot, logs)
+        .catch(() => undefined)
+        .then(() => pruneGameLogs(slot, l.season - 1));
       if (stopAtUserGame && userGameToday(l) && !simDone(l, target, start)) setToast("Stopped: your club plays today.");
     },
     [league, sim, persist, slot],
@@ -202,12 +203,11 @@ export function SeasonApp() {
             const ok = recordManualResult(l, manual.game.id, boxFromSession(session, awayRuns, homeRuns));
             setGameLogSink(null);
             if (ok) {
-              void putGameLogs(slot, logs)
-                .catch(() => undefined)
-                .then(() => {
-                  setLeague(l);
-                  persist(l);
-                });
+              // Save the result right away; the pitch log follows in its own write, and
+              // Statcast views re-read when it lands (until then the game is skipped).
+              setLeague(l);
+              persist(l);
+              void putGameLogs(slot, logs).catch(() => undefined);
               clearSave();
             }
           }}

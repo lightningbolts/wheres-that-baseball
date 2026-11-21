@@ -136,10 +136,10 @@ type F = ReturnType<typeof useCommonFilters>;
 /** Games per club in the logs. */
 const teamGames = (sc: SeasonStatcast) => Math.max(1, (sc.games * 2) / 30);
 
-/** Row basics for a player with pitch-log data but no stat line. */
-function fallback(league: League, id: number) {
+/** Row basics for a player with pitch-log data but no stat line, under the club he played for in those games. */
+function fallback(league: League, id: number, playedFor: number) {
   const p = league.players[id];
-  const team = p?.team ?? 0;
+  const team = playedFor || (p?.team ?? 0);
   return { id, name: p?.name ?? `#${id}`, team, lg: league.teams[team]?.league ?? null, rookie: false, tags: "" };
 }
 
@@ -149,7 +149,7 @@ function Hitters({ league, sc, f }: { league: League; sc: SeasonStatcast; f: F }
     const rows = battingRows(league, f.season, f.split);
     const have = new Set(rows.map((r) => r.id));
     // Players whose stat lines are gone (postseason lines clear when the offseason begins): the pitch logs still have them.
-    for (const b of sc.bat.values()) if (b.pa && !have.has(b.id)) rows.push({ ...fallback(league, b.id), pa: b.pa, qual: b.pa >= (f.split === "post" ? 10 : 3.1 * teamGames(sc)) } as BatRow);
+    for (const b of sc.bat.values()) if (b.pa && !have.has(b.id)) rows.push({ ...fallback(league, b.id, b.team), pa: b.pa, qual: b.pa >= (f.split === "post" ? 10 : 3.1 * teamGames(sc)) } as BatRow);
     for (const r of rows) {
       const b = sc.bat.get(r.id);
       if (!b) continue;
@@ -187,7 +187,7 @@ function Pitchers({ league, sc, f }: { league: League; sc: SeasonStatcast; f: F 
     const out: ArmRow[] = [];
     const rows = pitchingRows(league, f.season, f.split);
     const have = new Set(rows.map((r) => r.id));
-    for (const p of sc.pit.values()) if (p.pitches && !have.has(p.id)) rows.push({ ...fallback(league, p.id), ip: NaN, so: p.ks, role: "RP", qual: p.pitches >= (f.split === "post" ? 45 : 16 * teamGames(sc)) } as PitRow);
+    for (const p of sc.pit.values()) if (p.pitches && !have.has(p.id)) rows.push({ ...fallback(league, p.id, p.team), ip: NaN, so: p.ks, role: "RP", qual: p.pitches >= (f.split === "post" ? 45 : 16 * teamGames(sc)) } as PitRow);
     for (const r of rows) {
       const p = sc.pit.get(r.id);
       if (!p) continue;
@@ -244,7 +244,7 @@ function Arsenals({ league, sc, f }: { league: League; sc: SeasonStatcast; f: F 
     const out: PitchRow[] = [];
     let i = 0;
     for (const a of sc.arsenal.values()) {
-      const r = byId.get(a.id) ?? fallback(league, a.id);
+      const r = byId.get(a.id) ?? fallback(league, a.id, sc.pit.get(a.id)?.team ?? 0);
       const x = arsenalRates(a);
       out.push({ id: (i += 1), pid: a.id, name: r.name, team: r.team, lg: r.lg, rookie: r.rookie, tags: r.tags, qual: a.n >= ARSENAL_QUAL, type: a.type, n: a.n, usage: a.usage, velo: x.velo, max: a.veloMax, spin: x.spin, ivb: x.ivb, hb: x.hb, whiff: x.whiffPct, csw: x.cswPct, ev: x.evAgainst, hard: x.hardHitPct });
     }
