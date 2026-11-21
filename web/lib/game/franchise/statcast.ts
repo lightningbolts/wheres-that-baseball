@@ -20,7 +20,7 @@ export interface Metric {
   fmt: (v: number) => string;
 }
 
-interface Def<T> {
+export interface Def<T> {
   key: string;
   label: string;
   get: (x: T) => number | null | undefined;
@@ -47,7 +47,7 @@ function rank(pool: number[], v: number, low?: boolean): number {
   return Math.round(Math.max(1, Math.min(100, low ? 100 - p : p)));
 }
 
-function profile<T>(defs: Array<Def<T>>, me: T, pool: T[]): Metric[] {
+export function profile<T>(defs: Array<Def<T>>, me: T, pool: T[]): Metric[] {
   return defs.map((d) => {
     const v = d.get(me);
     if (v == null || !Number.isFinite(v)) return { key: d.key, label: d.label, value: null, pct: null, fmt: d.fmt };

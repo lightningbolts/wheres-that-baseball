@@ -103,7 +103,11 @@ interface Env {
 function lines(league: League, season: StatSeason, split: StatSplit): Array<{ p: Player; team: number; bat?: BatLine; pit?: PitLine }> {
   const out: Array<{ p: Player; team: number; bat?: BatLine; pit?: PitLine }> = [];
   for (const p of Object.values(league.players)) {
-    if (season === league.season) {
+    // Once the offseason begins, the finished season's lines move into the history.
+    const archived = season === league.season && split === "reg" ? p.history?.find((x) => x.season === season) : undefined;
+    if (archived) {
+      if (archived.bat?.pa || archived.pit?.bf) out.push({ p, team: archived.team, bat: archived.bat, pit: archived.pit });
+    } else if (season === league.season) {
       const s = split === "post" ? p.post : p.stats;
       if (s?.bat?.pa || s?.pit?.outs || s?.pit?.bf) out.push({ p, team: p.team, bat: s?.bat, pit: s?.pit });
     } else if (split === "reg") {

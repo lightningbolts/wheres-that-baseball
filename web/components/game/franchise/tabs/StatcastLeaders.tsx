@@ -1,14 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { pitchName } from "@/components/game/controller";
 import { TypeChip } from "@/components/game/PitchTracker";
-import { rosterIndex } from "@/lib/game/franchise/manual";
-import { pitchLogPlayers } from "@/lib/game/franchise/pitchReplay";
-import { arsenalRates, batRates, buildSeasonStatcast, pitRates, type ScMoment, type SeasonStatcast } from "@/lib/game/franchise/seasonStatcast";
+import { arsenalRates, batRates, pitRates, type ScMoment, type ScTops, type SeasonStatcast } from "@/lib/game/franchise/seasonStatcast";
 import { battingRows, pitchingRows, type BatRow, type PitRow } from "@/lib/game/franchise/statline";
 import type { League } from "@/lib/game/franchise/types";
 import { useProfiles } from "../Profiles";
+import { useSeasonStatcast } from "../useSeasonStatcast";
 import { f1, ipFmt, pct1, StatTable, type Col } from "../StatTable";
 import { Card, Segmented } from "../ui";
 import { Filters, NameCell, Select, TeamCell, useCommonFilters } from "./StatsTab";
@@ -73,42 +72,11 @@ type PitchRow = Pick<PitRow, "name" | "team" | "lg" | "rookie" | "tags"> & {
   hard: number | null;
 };
 
-/** Loads (or replays) the season's pitch logs; null while working. */
-function useSeasonStatcast(league: League, season: number, split: "reg" | "post") {
-  const { rosters, slot } = useProfiles();
-  const idx = useMemo(() => (rosters ? rosterIndex(rosters) : null), [rosters]);
-  const [state, setState] = useState<{ key: string; sc: SeasonStatcast | null; done: number; total: number; err?: boolean }>({ key: "", sc: null, done: 0, total: 0 });
-  // Re-read once more games are stored (a sim finished).
-  const played = useMemo(() => league.schedule.filter((g) => g.result).length, [league.schedule]);
-  const key = `${slot}:${season}:${split}:${played}`;
-  useEffect(() => {
-    if (slot == null) return;
-    let dead = false;
-    const who = pitchLogPlayers(league.players, idx);
-    buildSeasonStatcast({
-      slot,
-      season,
-      split,
-      league,
-      who,
-      onProgress: (done, total) => !dead && setState({ key, sc: null, done, total }),
-      cancelled: () => dead,
-    })
-      .then((sc) => !dead && sc && setState({ key, sc, done: 0, total: 0 }))
-      .catch(() => !dead && setState({ key, sc: null, done: 0, total: 0, err: true }));
-    return () => {
-      dead = true;
-    };
-    // league changes on every action; the key covers what matters.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, idx]);
-  return state.key === key ? state : { key, sc: null, done: 0, total: 0 };
-}
-
 export function StatcastLeaders({ league }: { league: League }) {
   const f = useCommonFilters(league);
   const [sub, setSub] = useState<Sub>("hitters");
-  const st = useSeasonStatcast(league, f.season, f.split);
+  const { rosters, slot } = useProfiles();
+  const st = useSeasonStatcast(league, f.season, f.split, rosters, slot);
   const sc = st.sc;
   const kept = f.season >= league.season - 1;
 
@@ -128,7 +96,7 @@ export function StatcastLeaders({ league }: { league: League }) {
   else if (sub === "hitters") body = <Hitters league={league} sc={sc} f={f} />;
   else if (sub === "pitchers") body = <Pitchers league={league} sc={sc} f={f} />;
   else if (sub === "arsenal") body = <Arsenals league={league} sc={sc} f={f} />;
-  else body = <TopPlays league={league} sc={sc} linkGames={f.season === league.season} />;
+  else body = <TopPlays league={league} sc={sc} f={f} linkGames={f.season === league.season} />;
 
   return (
     <Card
@@ -165,10 +133,24 @@ function Empty({ children }: { children: ReactNode }) {
 
 type F = ReturnType<typeof useCommonFilters>;
 
+/** Games per club in the logs. */
+const teamGames = (sc: SeasonStatcast) => Math.max(1, (sc.games * 2) / 30);
+
+/** Row basics for a player with pitch-log data but no stat line. */
+function fallback(league: League, id: number) {
+  const p = league.players[id];
+  const team = p?.team ?? 0;
+  return { id, name: p?.name ?? `#${id}`, team, lg: league.teams[team]?.league ?? null, rookie: false, tags: "" };
+}
+
 function Hitters({ league, sc, f }: { league: League; sc: SeasonStatcast; f: F }) {
   const all = useMemo(() => {
     const out: HitRow[] = [];
-    for (const r of battingRows(league, f.season, f.split)) {
+    const rows = battingRows(league, f.season, f.split);
+    const have = new Set(rows.map((r) => r.id));
+    // Players whose stat lines are gone (postseason lines clear when the offseason begins): the pitch logs still have them.
+    for (const b of sc.bat.values()) if (b.pa && !have.has(b.id)) rows.push({ ...fallback(league, b.id), pa: b.pa, qual: b.pa >= (f.split === "post" ? 10 : 3.1 * teamGames(sc)) } as BatRow);
+    for (const r of rows) {
       const b = sc.bat.get(r.id);
       if (!b) continue;
       const x = batRates(b);
@@ -203,7 +185,10 @@ function Pitchers({ league, sc, f }: { league: League; sc: SeasonStatcast; f: F 
   const [role, setRole] = useState<"All" | "SP" | "RP">("All");
   const all = useMemo(() => {
     const out: ArmRow[] = [];
-    for (const r of pitchingRows(league, f.season, f.split)) {
+    const rows = pitchingRows(league, f.season, f.split);
+    const have = new Set(rows.map((r) => r.id));
+    for (const p of sc.pit.values()) if (p.pitches && !have.has(p.id)) rows.push({ ...fallback(league, p.id), ip: NaN, so: p.ks, role: "RP", qual: p.pitches >= (f.split === "post" ? 45 : 16 * teamGames(sc)) } as PitRow);
+    for (const r of rows) {
       const p = sc.pit.get(r.id);
       if (!p) continue;
       const x = pitRates(p);
@@ -211,12 +196,13 @@ function Pitchers({ league, sc, f }: { league: League; sc: SeasonStatcast; f: F 
     }
     return out;
   }, [league, sc, f.season, f.split]);
-  const rows = all.filter((r) => f.keep(r, r.ip) && (role === "All" || r.role === role));
+  // No stat line: rank by pitches (≈16 an inning) for the minimum.
+  const rows = all.filter((r) => f.keep(r, Number.isNaN(r.ip) ? r.pitches / 16 : r.ip) && (role === "All" || r.role === role));
   const cols: Array<Col<ArmRow>> = [
     { key: "name", label: "Name", text: true, sticky: true, get: (r) => r.name, render: (r) => <NameCell id={r.id} name={r.name} tags={r.tags} rookie={r.rookie} /> },
     { key: "team", label: "Tm", text: true, get: (r) => league.teams[r.team]?.abbrev ?? "", render: (r) => <TeamCell league={league} id={r.team} /> },
     { key: "role", label: "Role", text: true, get: (r) => r.role },
-    { key: "ip", label: "IP", get: (r) => r.ip, fmt: ipFmt },
+    { key: "ip", label: "IP", get: (r) => (Number.isNaN(r.ip) ? 0 : r.ip), fmt: (v, r) => (Number.isNaN(r.ip) ? dash : ipFmt(v)) },
     { key: "pitches", label: "Pitches", get: (r) => r.pitches },
     rate("fb", "FB velo", (r) => r.fb, f1, { title: "Average fastball (four-seam, sinker) mph" }),
     { key: "max", label: "Max", title: "Fastest pitch (mph)", get: (r) => r.max, fmt: f1 },
@@ -254,12 +240,11 @@ const ARSENAL_QUAL = 150;
 function Arsenals({ league, sc, f }: { league: League; sc: SeasonStatcast; f: F }) {
   const [type, setType] = useState("All");
   const all = useMemo(() => {
-    const byId = new Map(pitchingRows(league, f.season, f.split).map((r) => [r.id, r]));
+    const byId = new Map<number, Pick<PitRow, "name" | "team" | "lg" | "rookie" | "tags">>(pitchingRows(league, f.season, f.split).map((r) => [r.id, r]));
     const out: PitchRow[] = [];
     let i = 0;
     for (const a of sc.arsenal.values()) {
-      const r = byId.get(a.id);
-      if (!r) continue;
+      const r = byId.get(a.id) ?? fallback(league, a.id);
       const x = arsenalRates(a);
       out.push({ id: (i += 1), pid: a.id, name: r.name, team: r.team, lg: r.lg, rookie: r.rookie, tags: r.tags, qual: a.n >= ARSENAL_QUAL, type: a.type, n: a.n, usage: a.usage, velo: x.velo, max: a.veloMax, spin: x.spin, ivb: x.ivb, hb: x.hb, whiff: x.whiffPct, csw: x.cswPct, ev: x.evAgainst, hard: x.hardHitPct });
     }
@@ -298,13 +283,35 @@ function Arsenals({ league, sc, f }: { league: League; sc: SeasonStatcast; f: F 
   );
 }
 
-function TopPlays({ league, sc, linkGames }: { league: League; sc: SeasonStatcast; linkGames: boolean }) {
+const TOP_N = 25;
+
+function TopPlays({ league, sc, f, linkGames }: { league: League; sc: SeasonStatcast; f: F; linkGames: boolean }) {
+  // Each club keeps its own top 25, so a team or league filter is exact; a name search finds
+  // a player's plays when they're among his club's best.
+  const pick = (k: keyof ScTops, who: "bat" | "pit", score: (m: ScMoment) => number): ScMoment[] => {
+    const out: ScMoment[] = [];
+    for (const [tid, tops] of sc.team) {
+      for (const m of tops[k]) {
+        const id = who === "bat" ? m.p.batterId : m.p.pitcherId;
+        const p = league.players[id];
+        const name = p?.name ?? (who === "bat" ? m.p.batterName : m.p.pitcherName);
+        if (f.keep({ lg: league.teams[tid]?.league ?? null, team: tid, name, rookie: !!p?.rookie && f.season === league.season, qual: true }, Infinity)) out.push(m);
+      }
+    }
+    return out.sort((a, b) => score(b) - score(a)).slice(0, TOP_N);
+  };
+  const ev = (m: ScMoment) => m.p.ev ?? 0;
+  const dist = (m: ScMoment) => m.p.dist ?? 0;
+  const mph = (m: ScMoment) => m.p.mph;
   return (
-    <div className="grid gap-3 lg:grid-cols-3">
-      <MomentList league={league} title="Hardest-hit balls" list={sc.hardestHit} value={(m) => `${f1(m.p.ev ?? 0)} mph`} who="bat" linkGames={linkGames} />
-      <MomentList league={league} title="Longest home runs" list={sc.longestHr} value={(m) => `${f0(m.p.dist ?? 0)} ft`} who="bat" linkGames={linkGames} />
-      <MomentList league={league} title="Fastest pitches" list={sc.fastest} value={(m) => `${f1(m.p.mph)} mph`} who="pit" linkGames={linkGames} />
-    </div>
+    <>
+      <div className="grid gap-3 lg:grid-cols-3">
+        <MomentList league={league} title="Hardest-hit balls" list={pick("hardestHit", "bat", ev)} value={(m) => `${f1(ev(m))} mph`} who="bat" linkGames={linkGames} />
+        <MomentList league={league} title="Longest home runs" list={pick("longestHr", "bat", dist)} value={(m) => `${f0(dist(m))} ft`} who="bat" linkGames={linkGames} />
+        <MomentList league={league} title="Fastest pitches" list={pick("fastest", "pit", mph)} value={(m) => `${f1(mph(m))} mph`} who="pit" linkGames={linkGames} />
+      </div>
+      <p className="mt-2 text-[11px] text-muted">Batted balls count for the hitter&apos;s club, pitches for the pitcher&apos;s. The minimum filter doesn&apos;t apply here.</p>
+    </>
   );
 }
 

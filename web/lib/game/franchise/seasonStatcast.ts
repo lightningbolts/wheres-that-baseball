@@ -8,6 +8,7 @@ import type { PitchRecord } from "@/lib/game/stats/pitchLog";
 import { isSweetSpot } from "@/lib/game/stats/gameSummary";
 import { getSeasonGameLogs, type GameLog } from "./gamelog";
 import { simPitchLog, type PitchLogPlayer } from "./pitchReplay";
+import { profile, type Def, type Metric } from "./statcast";
 import type { League } from "./types";
 
 const FASTBALL = new Set(["FF", "FA", "SI"]);
@@ -83,21 +84,26 @@ export interface ScMoment {
   home: number;
 }
 
-export interface SeasonStatcast {
-  games: number;
-  pitches: number;
-  bat: Map<number, ScBat>;
-  pit: Map<number, ScPit>;
-  arsenal: Map<string, ScArsenal>;
+export interface ScTops {
   hardestHit: ScMoment[];
   longestHr: ScMoment[];
   fastest: ScMoment[];
 }
 
+export interface SeasonStatcast extends ScTops {
+  games: number;
+  pitches: number;
+  bat: Map<number, ScBat>;
+  pit: Map<number, ScPit>;
+  arsenal: Map<string, ScArsenal>;
+  /** Each club's own top plays (its hitters' batted balls, its pitchers' pitches). */
+  team: Map<number, ScTops>;
+}
+
 const TOP = 25;
 
 export function emptySeasonStatcast(): SeasonStatcast {
-  return { games: 0, pitches: 0, bat: new Map(), pit: new Map(), arsenal: new Map(), hardestHit: [], longestHr: [], fastest: [] };
+  return { games: 0, pitches: 0, bat: new Map(), pit: new Map(), arsenal: new Map(), hardestHit: [], longestHr: [], fastest: [], team: new Map() };
 }
 
 /** Keep the top `TOP` by score; cheap while lists are short and inserts rare. */
@@ -109,6 +115,19 @@ function keepTop(list: ScMoment[], m: ScMoment, score: (p: PitchRecord) => numbe
   list.splice(i, 0, m);
   if (list.length > TOP) list.pop();
 }
+
+function topsOf(sc: SeasonStatcast, team: number): ScTops {
+  let t = sc.team.get(team);
+  if (!t) {
+    t = { hardestHit: [], longestHr: [], fastest: [] };
+    sc.team.set(team, t);
+  }
+  return t;
+}
+
+const evOf = (x: PitchRecord) => x.ev ?? 0;
+const distOf = (x: PitchRecord) => x.dist ?? 0;
+const mphOf = (x: PitchRecord) => x.mph;
 
 function batOf(sc: SeasonStatcast, id: number): ScBat {
   let b = sc.bat.get(id);
@@ -146,6 +165,8 @@ export function addGamePitches(sc: SeasonStatcast, pitches: PitchRecord[], game:
     const b = batOf(sc, p.batterId);
     const t = pitOf(sc, p.pitcherId);
     const a = arsOf(sc, p.pitcherId, p.type);
+    const m: ScMoment = { p, gameId: game.id, day: game.day, away: game.away, home: game.home };
+    const batTops = topsOf(sc, p.top ? game.away : game.home);
     b.pitches += 1;
     t.pitches += 1;
     a.n += 1;
@@ -214,11 +235,14 @@ export function addGamePitches(sc: SeasonStatcast, pitches: PitchRecord[], game:
       if (p.hit === 4) b.hrs += 1;
       if (p.hit === 4 && p.dist != null) {
         b.hrDistMax = Math.max(b.hrDistMax, p.dist);
-        keepTop(sc.longestHr, { p, gameId: game.id, day: game.day, away: game.away, home: game.home }, (x) => x.dist ?? 0);
+        keepTop(sc.longestHr, m, distOf);
+        keepTop(batTops.longestHr, m, distOf);
       }
-      keepTop(sc.hardestHit, { p, gameId: game.id, day: game.day, away: game.away, home: game.home }, (x) => x.ev ?? 0);
+      keepTop(sc.hardestHit, m, evOf);
+      keepTop(batTops.hardestHit, m, evOf);
     }
-    keepTop(sc.fastest, { p, gameId: game.id, day: game.day, away: game.away, home: game.home }, (x) => x.mph);
+    keepTop(sc.fastest, m, mphOf);
+    keepTop(topsOf(sc, p.top ? game.home : game.away).fastest, m, mphOf);
   }
 }
 
@@ -270,10 +294,16 @@ export const arsenalRates = (a: ScArsenal) => ({
 
 export type ScSplit = "reg" | "post";
 
-/** Postseason game? Older logs don't say, so ask the schedule (the current season's only). */
+/** Every regular season has 2,430 games, numbered from 1; postseason games are numbered after them. */
+export const REGULAR_SEASON_GAMES = 2430;
+
+/**
+ * Postseason game? Logs from before the flag don't say, but game numbers do: postseason
+ * games come after the regular schedule's (the current schedule's own count, else 2,430).
+ */
 export function psLookup(league: League, season: number): (log: GameLog) => boolean {
-  const ps = new Set(season === league.season ? league.schedule.filter((g) => g.ps).map((g) => g.id) : []);
-  return (log) => log.ps ?? ps.has(log.id);
+  const regular = season === league.season ? league.schedule.filter((g) => !g.ps).length || REGULAR_SEASON_GAMES : REGULAR_SEASON_GAMES;
+  return (log) => log.ps ?? log.id > regular;
 }
 
 /** One game's pitches: its own tracked ones, else the replay. */
@@ -289,6 +319,31 @@ export function seasonStatcastFromLogs(logs: GameLog[], who: (id: number) => Pit
 }
 
 const cache = new Map<string, SeasonStatcast>();
+
+/** Forget every built season (a save slot was replaced or deleted). */
+export function clearSeasonStatcastCache(): void {
+  cache.clear();
+}
+
+/**
+ * Fingerprint of a set of logs' contents, so two franchises that played the same
+ * scheduled games (same ids) never share a cached season.
+ */
+export function logsSignature(logs: GameLog[]): string {
+  let h = 2166136261;
+  const mix = (v: number) => {
+    h = Math.imul(h ^ (v | 0), 16777619);
+  };
+  for (const l of logs) {
+    mix(l.id);
+    mix(l.as);
+    mix(l.hs);
+    mix(l.inn);
+    mix(l.plays?.length ?? 0);
+    for (const side of l.box) for (const x of side.pit) mix(x[0] * 31 + x[8]);
+  }
+  return `${logs.length}:${(h >>> 0).toString(36)}`;
+}
 
 /**
  * Read a season's stored games and fold their pitch logs together, yielding to the page
@@ -307,7 +362,7 @@ export async function buildSeasonStatcast(opts: {
   const logs = await getSeasonGameLogs(opts.slot, opts.season);
   const isPs = psLookup(opts.league, opts.season);
   const mine = logs.filter((l) => isPs(l) === (opts.split === "post"));
-  const key = `${opts.slot}:${opts.season}:${opts.split}:${mine.length}:${mine.reduce((a, l) => a + l.id, 0)}`;
+  const key = `${opts.league.seed}:${opts.slot}:${opts.season}:${opts.split}:${logsSignature(mine)}`;
   const hit = cache.get(key);
   if (hit) return hit;
   const sc = emptySeasonStatcast();
@@ -323,4 +378,68 @@ export async function buildSeasonStatcast(opts: {
   if (cache.size > 6) cache.clear();
   cache.set(key, sc);
   return sc;
+}
+
+// ------------------------------------------------------------------ percentile ranks
+
+/** Pool minimums per team game (Savant ranks regulars): 2 PA, 5 pitches. */
+export const POOL_PA_PER_G = 2;
+export const POOL_PITCHES_PER_G = 5;
+
+const p1 = (v: number) => `${(v * 100).toFixed(1)}%`;
+const d1 = (v: number) => v.toFixed(1);
+const d0 = (v: number) => v.toFixed(0);
+
+type BatR = ScBat & ReturnType<typeof batRates>;
+type PitR = ScPit & ReturnType<typeof pitRates>;
+
+const BAT_DEFS: Array<Def<BatR>> = [
+  { key: "ev", label: "Avg exit velocity", get: (b) => b.ev, fmt: d1 },
+  { key: "evMax", label: "Max exit velocity", get: (b) => (b.bbe ? b.evMax : null), fmt: d1 },
+  { key: "brl", label: "Barrel %", get: (b) => b.barrelPct, fmt: p1 },
+  { key: "hard", label: "Hard-hit %", get: (b) => b.hardHitPct, fmt: p1 },
+  { key: "sweet", label: "LA sweet-spot %", get: (b) => b.sweetSpotPct, fmt: p1 },
+  { key: "hrDist", label: "Longest home run (ft)", get: (b) => (b.hrDistMax || null), fmt: d0 },
+  { key: "chase", label: "Chase %", get: (b) => b.chasePct, low: true, fmt: p1 },
+  { key: "whiff", label: "Whiff %", get: (b) => b.whiffPct, low: true, fmt: p1 },
+];
+
+const PIT_DEFS: Array<Def<PitR>> = [
+  { key: "fb", label: "Fastball velo", get: (p) => p.fbVelo, fmt: d1 },
+  { key: "spin", label: "Four-seam spin", get: (p) => p.ffSpin, fmt: d0 },
+  { key: "whiff", label: "Whiff %", get: (p) => p.whiffPct, fmt: p1 },
+  { key: "csw", label: "CSW %", get: (p) => p.cswPct, fmt: p1 },
+  { key: "chase", label: "Chase %", get: (p) => p.chasePct, fmt: p1 },
+  { key: "ev", label: "Avg exit velocity", get: (p) => p.evAgainst, low: true, fmt: d1 },
+  { key: "hard", label: "Hard-hit %", get: (p) => p.hardHitPct, low: true, fmt: p1 },
+  { key: "brl", label: "Barrel %", get: (p) => p.barrelPct, low: true, fmt: p1 },
+];
+
+export interface SeasonPercentiles {
+  metrics: Metric[];
+  /** His sample (PA or pitches) and the pool's minimum. */
+  n: number;
+  min: number;
+  pool: number;
+}
+
+/**
+ * A player's season Statcast percentile ranks among the franchise's regulars (the pool:
+ * 2+ PA or 5+ pitches per team game). A player short of the minimum is still ranked
+ * against it, flagged by n < min.
+ */
+export function seasonPercentiles(sc: SeasonStatcast, id: number, side: "bat" | "pit"): SeasonPercentiles | null {
+  const teamGames = (sc.games * 2) / 30;
+  if (side === "bat") {
+    const me = sc.bat.get(id);
+    if (!me || !me.pa) return null;
+    const min = Math.max(10, Math.round(teamGames * POOL_PA_PER_G));
+    const pool = [...sc.bat.values()].filter((b) => b.pa >= min).map((b) => ({ ...b, ...batRates(b) }));
+    return { metrics: profile(BAT_DEFS, { ...me, ...batRates(me) }, pool), n: me.pa, min, pool: pool.length };
+  }
+  const me = sc.pit.get(id);
+  if (!me || !me.pitches) return null;
+  const min = Math.max(30, Math.round(teamGames * POOL_PITCHES_PER_G));
+  const pool = [...sc.pit.values()].filter((p) => p.pitches >= min).map((p) => ({ ...p, ...pitRates(p) }));
+  return { metrics: profile(PIT_DEFS, { ...me, ...pitRates(me) }, pool), n: me.pitches, min, pool: pool.length };
 }

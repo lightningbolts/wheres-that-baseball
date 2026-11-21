@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils";
 import { contractDetail, injuryStr, Ovr, Segmented } from "./ui";
 import { f1, f2, f3, ipFmt } from "./StatTable";
 import { GameDetail } from "./GameDetail";
+import { seasonPercentiles, type SeasonStatcast } from "@/lib/game/franchise/seasonStatcast";
+import { useSeasonStatcast } from "./useSeasonStatcast";
 
 interface Ctx {
   openPlayer: (id: number) => void;
@@ -156,9 +158,10 @@ const pctStr = (v: number) => `${(v * 100).toFixed(1)}%`;
 
 function PlayerProfile({ league, id, rosters, proj }: { league: League; id: number; rosters?: RosterFile; proj?: ProjectionFile }) {
   const p = league.players[id];
-  const { openTeam } = useProfiles();
+  const { openTeam, slot } = useProfiles();
   const twoWay = !!p?.twoWay && !!p.bat && !!p.pit;
   const [side, setSide] = useState<"bat" | "pit">(p?.pitcher && !twoWay ? "pit" : "bat");
+  const season = useSeasonStatcast(league, league.season, "reg", rosters, slot);
   if (!p) return <p className="text-sm text-secondary">Player not found.</p>;
   const pitcher = side === "pit";
   const team = league.teams[p.team];
@@ -236,6 +239,8 @@ function PlayerProfile({ league, id, rosters, proj }: { league: League; id: numb
         />
       )}
 
+      <SeasonStatcastSection league={league} id={p.id} side={side} sc={season.sc} loading={!season.sc && !season.err} />
+
       <div className="grid gap-3 md:grid-cols-2">
         {real ? (
           <Section title={`MLB Statcast · ${rosters?.season ?? lastYear}`} sub="Percentile ranks among MLB regulars (100+ PA / BF). Red = elite, blue = poor.">
@@ -303,6 +308,31 @@ function PlayerProfile({ league, id, rosters, proj }: { league: League; id: numb
 
       <CareerTable league={league} p={p} pitcher={pitcher} />
     </div>
+  );
+}
+
+/** This franchise season's Statcast percentiles, from the pitch logs. */
+function SeasonStatcastSection({ league, id, side, sc, loading }: { league: League; id: number; side: "bat" | "pit"; sc: SeasonStatcast | null; loading: boolean }) {
+  const r = sc ? seasonPercentiles(sc, id, side) : null;
+  const unit = side === "bat" ? "PA" : "pitches";
+  const title = `${league.season} Statcast`;
+  if (loading || !r)
+    return (
+      <Section title={title}>
+        <p className="text-xs text-muted">{loading ? "Reading this season's pitch logs…" : `No ${league.season} regular-season ${side === "bat" ? "plate appearances" : "pitches"} yet.`}</p>
+      </Section>
+    );
+  const half = Math.ceil(r.metrics.length / 2);
+  return (
+    <Section
+      title={title}
+      sub={`Percentile ranks among ${r.pool} franchise regulars (${r.min}+ ${unit}), from this season's pitch logs. ${r.n.toLocaleString()} ${unit}${r.n < r.min ? " (below the minimum: small sample)" : ""}.`}
+    >
+      <div className="grid gap-x-6 md:grid-cols-2">
+        <MetricBars metrics={r.metrics.slice(0, half)} />
+        <MetricBars metrics={r.metrics.slice(half)} />
+      </div>
+    </Section>
   );
 }
 

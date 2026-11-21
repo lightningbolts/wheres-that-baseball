@@ -10,6 +10,7 @@ import { applyRealContracts, createLeague, migrateGrades } from "@/lib/game/fran
 import type { ProjectionFile } from "@/lib/game/franchise/projections";
 import { boxFromSession, buildManualGame, recordManualResult, rosterIndex, type ManualGame } from "@/lib/game/franchise/manual";
 import { pruneGameLogs, putGameLogs, setGameLogSink, type GameLog } from "@/lib/game/franchise/gamelog";
+import { clearSeasonStatcastCache } from "@/lib/game/franchise/seasonStatcast";
 import { deleteSlot, listSlots, loadLeague, saveLeague, SLOT_COUNT, type SlotMeta } from "@/lib/game/franchise/save";
 import { advanceDay, prepareDay, simDone, userGameToday, type SimTarget } from "@/lib/game/franchise/season";
 import type { League } from "@/lib/game/franchise/types";
@@ -149,11 +150,14 @@ export function SeasonApp() {
       }
       setGameLogSink(null);
       if (token !== simToken.current) return;
+      // Store the logs first so views that read them (season Statcast) see the new games.
+      await putGameLogs(slot, logs).catch(() => undefined);
+      if (token !== simToken.current) return;
+      void pruneGameLogs(slot, l.season - 1);
       prepareDay(l);
       setSim(null);
       setLeague(l);
       persist(l);
-      void putGameLogs(slot, logs).then(() => pruneGameLogs(slot, l.season - 1));
       if (stopAtUserGame && userGameToday(l) && !simDone(l, target, start)) setToast("Stopped: your club plays today.");
     },
     [league, sim, persist, slot],
@@ -198,9 +202,12 @@ export function SeasonApp() {
             const ok = recordManualResult(l, manual.game.id, boxFromSession(session, awayRuns, homeRuns));
             setGameLogSink(null);
             if (ok) {
-              setLeague(l);
-              persist(l);
-              void putGameLogs(slot, logs);
+              void putGameLogs(slot, logs)
+                .catch(() => undefined)
+                .then(() => {
+                  setLeague(l);
+                  persist(l);
+                });
               clearSave();
             }
           }}
@@ -239,6 +246,7 @@ export function SeasonApp() {
             onDelete={async (s) => {
               await deleteSlot(s);
               await pruneGameLogs(s);
+              clearSeasonStatcastCache();
               setSlots(await listSlots());
             }}
             onCreate={async (s, opts) => {
@@ -246,6 +254,7 @@ export function SeasonApp() {
               const l = createLeague(rosters, { ...opts, proj: proj.current, contracts: contracts.current });
               // A new franchise in this slot: the old one's game logs go.
               void pruneGameLogs(s);
+              clearSeasonStatcastCache();
               setSlot(s);
               setLeague(l);
               void saveLeague(l, s);
