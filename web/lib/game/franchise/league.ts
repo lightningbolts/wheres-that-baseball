@@ -9,6 +9,7 @@ import { freeAgents, initFreeAgency } from "./freeAgency";
 import { generatePlayer, prospectProfile, type GenRole } from "./generate";
 import { batSkillFrom, fieldPos, gradeScale, overall, pitSkillFrom, playerWar } from "./ratings";
 import { FRng, hashUnit } from "./rng";
+import { addRealProspects } from "./prospects";
 import { projectRosterPlayer, type ProjectionFile } from "./projections";
 import { autoDepth, news, normalizeRoster, orgPlayers } from "./roster";
 import { buildSchedule } from "./schedule";
@@ -267,39 +268,43 @@ export function createLeague(rosters: RosterFile, opts: NewLeagueOpts): League {
       .sort((a, b) => b.ovr - a.ovr)
       .slice(0, 2)
       .map((p) => p.id);
-    // Organizational depth: 40-man depth and prospects, then non-roster minor leaguers.
+    // The real farm system: MLB Pipeline's top 30, the best upper-level arms and bats on the 40-man.
+    addRealProspects(league, rng, mt.id);
+    const farm = orgPlayers(league, mt.id)
+      .filter((x) => x.prospect && !x.on40 && x.status === "minors")
+      .sort((a, b) => (a.prospect!.rank - b.prospect!.rank));
+    for (const x of farm) {
+      if (orgPlayers(league, mt.id).filter((y) => y.on40).length >= 38) break;
+      const lvl = x.prospect!.level;
+      if (lvl === "MLB" || (lvl === "AAA" && x.prospect!.rank <= 15)) {
+        x.on40 = true;
+        x.contract = { aav: 0.8, years: 1, kind: "pre", signed: season };
+      }
+    }
+    // Organizational depth around them: 40-man filler, then non-roster minor leaguers.
     const fortyTiers: Array<[GenRole, Parameters<typeof prospectProfile>[1], Player["pos"]?]> = [
       ["SP", "depth"],
-      ["SP", "prospect"],
-      ["SP", "top"],
+      ["SP", "depth"],
       ["RP", "depth"],
       ["RP", "depth"],
-      ["RP", "prospect"],
+      ["RP", "depth"],
       ["bat", "depth", "C"],
       ["bat", "depth", "SS"],
       ["bat", "depth", "CF"],
-      ["bat", "prospect"],
-      ["bat", "prospect"],
-      ["bat", "top"],
       ["bat", "depth"],
       ["RP", "depth"],
     ];
     for (const [role, tier, pos] of fortyTiers) if (orgPlayers(league, mt.id).filter((x) => x.on40).length < 40) addGenerated(league, rng, pool, mt.id, role, tier, { on40: true, pos });
     const minorTiers: Array<[GenRole, Parameters<typeof prospectProfile>[1], Player["pos"]?]> = [
-      ["SP", "prospect"],
-      ["SP", "draft"],
       ["SP", "depth"],
       ["RP", "depth"],
-      ["RP", "draft"],
       ["RP", "depth"],
-      ["bat", "prospect"],
-      ["bat", "draft"],
-      ["bat", "draft"],
       ["bat", "depth", "C"],
       ["bat", "depth"],
       ["bat", "depth"],
     ];
     for (const [role, tier, pos] of minorTiers) addGenerated(league, rng, pool, mt.id, role, tier, { pos });
+    for (const x of orgPlayers(league, mt.id)) if (x.prospect && x.template == null) x.template = pickTemplate(pool, x);
   }
   // Unsigned veterans (in-season free-agent pool).
   for (let i = 0; i < 45; i += 1) {

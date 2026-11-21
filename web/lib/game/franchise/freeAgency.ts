@@ -8,7 +8,7 @@ import { askingTerms, committed, projectedWar } from "./contracts";
 import { MIN_SALARY } from "./data";
 import { clamp } from "./ratings";
 import { FRng } from "./rng";
-import { FORTY_MAX, fortyMan, news, normalizeRoster, orgPlayers } from "./roster";
+import { FORTY_MAX, fortyMan, isHuman, news, normalizeRoster, orgPlayers } from "./roster";
 import type { FaOffer, League, Player } from "./types";
 
 export const FA_ROUNDS = 10;
@@ -94,7 +94,7 @@ function upgrade(league: League, teamId: number, p: Player): number {
 function aiBids(league: League, rng: FRng): void {
   const fa = league.fa!;
   const pool = freeAgents(league).sort((a, b) => projectedWar(b, 0) - projectedWar(a, 0));
-  const teams = rng.shuffle(Object.values(league.teams).filter((t) => t.id !== league.userTeam));
+  const teams = rng.shuffle(Object.values(league.teams).filter((t) => !isHuman(league, t.id)));
   for (const t of teams) {
     let room = t.fin.budget - committed(league, t.id, 0);
     // Pending bids count against the budget.

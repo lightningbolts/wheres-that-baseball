@@ -8,7 +8,7 @@ import { arbSalary, contractSalary, projectedWar } from "./contracts";
 import { DOLLARS_PER_WAR, MIN_SALARY } from "./data";
 import { clamp } from "./ratings";
 import type { FRng } from "./rng";
-import { autoDepth, news, normalizeRoster, orgPlayers } from "./roster";
+import { autoDepth, isHuman, news, normalizeRoster, orgPlayers } from "./roster";
 import { leaveTeam } from "./splits";
 import type { League, Player } from "./types";
 
@@ -125,7 +125,7 @@ export function executeTrade(league: League, a: number, b: number, aGives: numbe
     t.setup = t.setup.filter(mine);
     if (t.closer != null && !mine(t.closer)) t.closer = null;
     normalizeRoster(league, tid, { offseason: league.phase !== "regular" });
-    if (tid !== league.userTeam) autoDepth(league, tid);
+    if (!isHuman(league, tid)) autoDepth(league, tid);
   }
 }
 
@@ -155,7 +155,7 @@ export function suggestPackage(league: League, ai: number, user: number, want: n
 /** AI-to-AI deals: contenders buy veterans from rebuilders with prospects. */
 export function aiTradeTick(league: League, rng: FRng): void {
   if (!rng.chance(0.55)) return;
-  const teams = Object.values(league.teams).filter((t) => t.id !== league.userTeam);
+  const teams = Object.values(league.teams).filter((t) => !isHuman(league, t.id));
   const buyers = teams.filter((t) => t.strategy === "contend");
   const sellers = teams.filter((t) => t.strategy === "rebuild" || (t.strategy === "neutral" && t.w < t.l - 6));
   if (!buyers.length || !sellers.length) return;

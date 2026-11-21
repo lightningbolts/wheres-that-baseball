@@ -24,6 +24,8 @@
     "brand:monogram": "node scripts/generate-wtbb-logo.mjs --png",
     "build-game-rosters": "cd ../ml-engine && ./venv/bin/python scripts/build_game_rosters.py",
     "sim-season": "tsx scripts/sim-season.ts",
+    "project-season": "NODE_OPTIONS=--max-old-space-size=12288 tsx scripts/project-season.ts",
+    "fetch-franchise-prospects": "node ../scripts/fetch-franchise-prospects.mjs",
     "test:sim": "GAME_SIM=1 vitest run lib/game/engine/season.test.ts"
   },
   "dependencies": {

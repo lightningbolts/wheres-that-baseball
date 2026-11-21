@@ -14,6 +14,9 @@ export const PITCHER_MAX = 13;
 
 export const isHealthy = (p: Player): boolean => !p.injury || p.injury.days <= 0;
 
+/** The club a human runs (none in a neutral projection league). */
+export const isHuman = (league: League, teamId: number): boolean => !league.settings.neutral && teamId === league.userTeam;
+
 export function orgPlayers(league: League, teamId: number): Player[] {
   const out: Player[] = [];
   for (const p of Object.values(league.players)) if (p.team === teamId && p.status !== "fa" && p.status !== "retired") out.push(p);

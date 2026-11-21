@@ -163,6 +163,8 @@ export interface Player {
   prevTeam?: number;
   rookie?: boolean;
   draft?: { season: number; round: number };
+  /** MLB Pipeline ranking within his organization (real prospects). */
+  prospect?: { rank: number; year: number; fv: number; eta?: number; level?: string };
 }
 
 export interface SeasonRecord {
@@ -360,6 +362,8 @@ export interface Settings {
   difficulty: "rookie" | "pro" | "allstar";
   /** Fill injuries / IL returns for the user automatically. */
   autoRoster: boolean;
+  /** No human GM (projection sims): every club, the nominal user club too, is run by the AI. */
+  neutral?: boolean;
 }
 
 export interface League {
