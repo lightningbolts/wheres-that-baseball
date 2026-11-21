@@ -165,6 +165,10 @@ export interface Player {
   draft?: { season: number; round: number };
   /** MLB Pipeline ranking within his organization (real prospects). */
   prospect?: { rank: number; year: number; fv: number; eta?: number; level?: string };
+  /** Projection runs: the projected skills clubs see while the hidden true talent plays. */
+  seen?: { bat?: BatSkill; pit?: PitSkill };
+  /** Projection runs: an unsigned free agent placed by the simulated winter market. */
+  marketSigned?: boolean;
 }
 
 export interface SeasonRecord {

@@ -152,7 +152,7 @@ export function prepareDay(league: League): void {
   if (league.phase === "postseason") schedulePostseasonDay(league);
   // Plate umpires for any game without one (new postseason games, older saves).
   ensureUmpires(league);
-  if (league.settings.autoRoster && (league.phase === "regular" || league.phase === "postseason")) repairDepth(league, league.userTeam);
+  if (league.settings.autoRoster && !league.settings.neutral && (league.phase === "regular" || league.phase === "postseason")) repairDepth(league, league.userTeam);
 }
 
 function endRegularSeason(league: League): void {
@@ -182,7 +182,7 @@ function endOfDay(league: League, rng: FRng): void {
   }
   for (const tid of touched) normalizeRoster(league, tid);
   // An auto-managed club re-checks its lineup and rotation daily (regulars back, nobody out of position).
-  if (league.settings.autoRoster && !touched.has(league.userTeam)) repairDepth(league, league.userTeam);
+  if (league.settings.autoRoster && !league.settings.neutral && !touched.has(league.userTeam)) repairDepth(league, league.userTeam);
   if (league.phase === "regular") {
     accrueDay(league);
     if (league.day >= 14 && league.day <= league.calendar.deadlineDay && league.day % 6 === 3) aiTradeTick(league, rng);

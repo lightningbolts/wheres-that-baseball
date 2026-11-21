@@ -44,7 +44,11 @@ const name = (league: League, id: number) => league.players[id]?.name ?? `#${id}
 // Depth chart
 
 /** Value of a hitter at a spot; anyone forced out of position pays heavily for it. */
-const spotValue = (p: Player, pos: LineupPos): number => {
+/** What a club sees: the projected bat when the true talent is hidden (projection runs). */
+const scouted = (p: Player): Player => (p.seen?.bat ? { ...p, bat: p.seen.bat } : p);
+
+const spotValue = (p0: Player, pos: LineupPos): number => {
+  const p = scouted(p0);
   if (!p.bat) return -999;
   if (pos === "DH") return batRuns600(p.bat) + POS_ADJ.DH;
   return defAt(p, pos) == null ? batRuns600(p.bat) - 60 : slotValue(p, pos);
@@ -120,7 +124,7 @@ export function bestLineup(hitters: Player[]): LineupSlot[] {
 
 /** Classic order: on-base leadoff, best hitters 2–4, then descending. */
 export function battingOrder(slots: LineupSlot[], players: Player[]): LineupSlot[] {
-  const byId = new Map(players.map((p) => [p.id, p]));
+  const byId = new Map(players.map((p) => [p.id, scouted(p)]));
   const val = (s: LineupSlot) => (byId.get(s.id)?.bat ? batRuns600(byId.get(s.id)!.bat!) : -99);
   const obp = (s: LineupSlot) => {
     const b = byId.get(s.id)?.bat;
@@ -154,7 +158,7 @@ export function autoDepth(league: League, teamId: number): void {
   t.rotIdx = i >= 0 ? i : t.rotIdx % Math.max(1, t.rotation.length);
 }
 
-const starterScore = (p: Player) => (p.pos === "SP" ? 100 : 0) + (p.pit?.stam ?? 0) * 0.3 + p.ovr;
+const starterScore = (p: Player) => (p.pos === "SP" || (p.twoWay && (p.pit?.stam ?? 0) >= 60) ? 100 : 0) + (p.pit?.stam ?? 0) * 0.3 + p.ovr;
 
 /** Keep the user's choices where still valid; fill holes with the best available. */
 export function repairDepth(league: League, teamId: number): void {
@@ -263,7 +267,7 @@ export function dfa(league: League, id: number): TxResult {
   const fromAbbrev = league.teams[from].abbrev;
   p.on40 = false;
   const claimants = Object.values(league.teams)
-    .filter((t) => t.id !== from && t.id !== league.userTeam)
+    .filter((t) => t.id !== from && !isHuman(league, t.id))
     .sort((a, b) => a.w - a.l - (b.w - b.l));
   const war = projectedWar(p, 0);
   const surplus = war * 9.5 - p.contract.aav;
@@ -337,7 +341,7 @@ export function placeOnIL(league: League, id: number): TxResult {
 export function normalizeRoster(league: League, teamId: number, opts: { offseason?: boolean } = {}): void {
   const t: TeamState | undefined = league.teams[teamId];
   if (!t) return;
-  const isUser = teamId === league.userTeam;
+  const isUser = isHuman(league, teamId);
   const auto = !isUser || league.settings.autoRoster;
   const org = orgPlayers(league, teamId);
   for (const p of org) {

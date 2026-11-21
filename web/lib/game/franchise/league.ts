@@ -11,7 +11,7 @@ import { batSkillFrom, fieldPos, gradeScale, overall, pitSkillFrom, playerWar } 
 import { FRng, hashUnit } from "./rng";
 import { addRealProspects } from "./prospects";
 import { projectRosterPlayer, type ProjectionFile } from "./projections";
-import { autoDepth, news, normalizeRoster, orgPlayers } from "./roster";
+import { autoDepth, isHuman, news, normalizeRoster, orgPlayers } from "./roster";
 import { buildSchedule } from "./schedule";
 import type { League, Player, Strategy, TeamState } from "./types";
 import { ensureUmpires } from "./umpires";
@@ -252,6 +252,19 @@ export function createLeague(rosters: RosterFile, opts: NewLeagueOpts): League {
         if (kind === "rotation") t.rotation.push(p.id);
       }
     }
+    // Two-way players the snapshot lists only as hitters (Ohtani as "TWP" on the bench):
+    // give them their projected pitching role too.
+    for (const rp of [...rt.lineup, ...rt.bench]) {
+      const had = league.players[rp.id];
+      const pp = opts.proj?.players[String(rp.id)]?.pit;
+      if (!had || had.pit || had.team !== mt.id || rp.pos !== "TWP" || !pp || pp.bf < 100) continue;
+      const starter = (pp.gsShare ?? 0) >= 0.5;
+      const asPitcher = realPlayer(rp, starter ? "rotation" : "bullpen", mt.id, ageShift, season, opts.proj, opts.contracts);
+      had.pit = asPitcher.pit;
+      had.pit0 = asPitcher.pit0;
+      had.twoWay = true;
+      if (starter) t.rotation.push(had.id);
+    }
     // Current 40-man players the 2026 snapshot missed (stars hurt for much of the year).
     for (const xp of opts.proj?.extras[String(mt.id)] ?? []) {
       if (league.players[xp.id]) continue;
@@ -362,7 +375,7 @@ export function migrateGrades(league: League): boolean {
     p.ovr = ovr;
   }
   for (const t of Object.values(league.teams)) {
-    if (t.id !== league.userTeam || league.settings.autoRoster) autoDepth(league, t.id);
+    if (!isHuman(league, t.id) || league.settings.autoRoster) autoDepth(league, t.id);
   }
   league.gradeV = GRADE_V;
   return true;

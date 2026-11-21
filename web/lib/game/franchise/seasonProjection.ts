@@ -16,6 +16,7 @@ import { startNextSeason } from "./offseason";
 import type { ProjectionFile } from "./projections";
 import { FRng } from "./rng";
 import { simUntil } from "./season";
+import { seasonSegments } from "./splits";
 import { avg, era, fip, obp, seasonWar, slg, whip, woba } from "./stats";
 import type { MLBLeague } from "@/lib/mlb/teams";
 import type { BatLine, League, PitLine, Player } from "./types";
@@ -27,7 +28,9 @@ export function openingDayLeague(rosters: RosterFile, opts: { proj?: ProjectionF
   const league = createLeague(rosters, { userTeam: 147, seed: opts.seed ?? 2027, proj: opts.proj, contracts: opts.contracts });
   league.settings.neutral = true;
   league.settings.autoRoster = true;
+  const unsigned = Object.values(league.players).filter((p) => p.real && p.status === "fa");
   if (league.opening) startNextSeason(league);
+  for (const p of unsigned) if (p.status !== "fa" && p.team) p.marketSigned = true;
   return league;
 }
 
@@ -53,6 +56,7 @@ export function drawTalent(league: League, rng: FRng): void {
   for (const p of Object.values(league.players)) {
     if (p.status === "retired") continue;
     const sd = talentSd(p);
+    p.seen = { bat: p.bat, pit: p.pit };
     if (p.bat) p.bat = shiftBat(p.bat, rng.gauss(0, sd));
     if (p.pit) p.pit = shiftPit(p.pit, rng.gauss(0, sd));
   }
@@ -84,6 +88,8 @@ export interface SimResult {
   teams: SimTeam[];
   players: SimPlayer[];
   awards: Record<AwardKey, Partial<Record<MLBLeague, number>>>;
+  /** Stat leader per "stat:LG" (only what was done for that league's clubs). */
+  leaders: Record<string, number>;
   league: { rpg: number; hrPa: number; avg: number; era: number };
 }
 
@@ -141,6 +147,7 @@ export function simulateOnce(base: League, seed: number): SimResult {
     }
   }
   const standings = Object.values(league.teams).map((t) => ({ id: t.id, w: t.w, l: t.l, rs: t.rs, ra: t.ra }));
+  const leaders = seasonLeaders(league);
 
   simUntil(league, "postseason");
   const reach = new Map<number, number>();
@@ -155,6 +162,7 @@ export function simulateOnce(base: League, seed: number): SimResult {
     teams: standings.map((t) => ({ ...t, seed: seedOf.get(t.id) ?? 0, reach: reach.get(t.id) ?? 0 })),
     players,
     awards,
+    leaders,
     league: {
       rpg: games ? runs / games : 0,
       hrPa: tot.pa ? tot.hr / tot.pa : 0,
@@ -162,6 +170,63 @@ export function simulateOnce(base: League, seed: number): SimResult {
       era: tot.outs ? (tot.er * 27) / tot.outs : 0,
     },
   };
+}
+
+/** Plate appearances / innings that qualify for a rate title (162 games). */
+const QUAL_PA = 502;
+const QUAL_OUTS = 486;
+
+function addInto<T extends BatLine | PitLine>(into: T | undefined, line: T | undefined): T | undefined {
+  if (!line) return into;
+  if (!into) return { ...line };
+  for (const k of Object.keys(line) as Array<keyof T>) (into[k] as number) += line[k] as number;
+  return into;
+}
+
+/**
+ * League leaders for one season. A player traded across leagues only counts what he did for
+ * clubs in that league (WAR is prorated by playing time), as MLB's league titles do.
+ */
+export function seasonLeaders(league: League): Record<string, number> {
+  const best: Record<string, { id: number; v: number }> = {};
+  const offer = (key: string, id: number, v: number, higher = true) => {
+    const cur = best[key];
+    if (!cur || (higher ? v > cur.v : v < cur.v)) best[key] = { id, v };
+  };
+  for (const p of Object.values(league.players)) {
+    if (!p.stats.bat?.pa && !p.stats.pit?.bf) continue;
+    const byLg: Partial<Record<MLBLeague, { bat?: BatLine; pit?: PitLine }>> = {};
+    for (const seg of seasonSegments(p)) {
+      const lg = league.teams[seg.team]?.league;
+      if (!lg) continue;
+      const e = (byLg[lg] ??= {});
+      e.bat = addInto(e.bat, seg.bat);
+      e.pit = addInto(e.pit, seg.pit);
+    }
+    const war = seasonWar(p);
+    for (const [lg, e] of Object.entries(byLg) as Array<[MLBLeague, { bat?: BatLine; pit?: PitLine }]>) {
+      const b = e.bat;
+      if (b?.pa) {
+        offer(`hr:${lg}`, p.id, b.hr);
+        offer(`rbi:${lg}`, p.id, b.rbi);
+        offer(`sb:${lg}`, p.id, b.sb);
+        offer(`war_b:${lg}`, p.id, war * (b.pa / (p.stats.bat?.pa || b.pa)));
+        if (b.pa >= QUAL_PA) {
+          offer(`avg:${lg}`, p.id, avg(b));
+          offer(`ops:${lg}`, p.id, obp(b) + slg(b));
+        }
+      }
+      const q = e.pit;
+      if (q?.bf) {
+        offer(`w:${lg}`, p.id, q.w);
+        offer(`k:${lg}`, p.id, q.k);
+        offer(`sv:${lg}`, p.id, q.sv);
+        if (!p.stats.bat?.pa) offer(`war_p:${lg}`, p.id, war * (q.bf / (p.stats.pit?.bf || q.bf)));
+        if (q.outs >= QUAL_OUTS) offer(`era:${lg}`, p.id, era(q), false);
+      }
+    }
+  }
+  return Object.fromEntries(Object.entries(best).map(([k, v]) => [k, v.id]));
 }
 
 // ─── Aggregation ─────────────────────────────────────────────────────────────
@@ -184,11 +249,12 @@ export interface RawRuns {
   teams: Record<number, { w: number[]; rs: number[]; ra: number[]; seed: number[]; reach: number[] }>;
   players: Record<number, RawPlayerRuns>;
   awards: Record<string, Record<number, number>>;
+  leaders: Record<string, Record<number, number>>;
   league: { rpg: number[]; hrPa: number[]; avg: number[]; era: number[] };
 }
 
 export function emptyRuns(): RawRuns {
-  return { sims: 0, teams: {}, players: {}, awards: {}, league: { rpg: [], hrPa: [], avg: [], era: [] } };
+  return { sims: 0, teams: {}, players: {}, awards: {}, leaders: {}, league: { rpg: [], hrPa: [], avg: [], era: [] } };
 }
 
 /** Adds one simulation. Players who didn't play that run get zero lines (padded at summary time). */
@@ -230,6 +296,10 @@ export function addRun(runs: RawRuns, r: SimResult): void {
       const m = (runs.awards[key] ??= {});
       m[id] = (m[id] ?? 0) + 1;
     }
+  }
+  for (const [key, id] of Object.entries(r.leaders)) {
+    const m = (runs.leaders[key] ??= {});
+    m[id] = (m[id] ?? 0) + 1;
   }
   runs.league.rpg.push(r.league.rpg);
   runs.league.hrPa.push(r.league.hrPa);
@@ -283,6 +353,10 @@ export function mergeRuns(parts: RawRuns[]): RawRuns {
     }
     for (const [k, m] of Object.entries(part.awards)) {
       const o = (out.awards[k] ??= {});
+      for (const [id, n] of Object.entries(m)) o[+id] = (o[+id] ?? 0) + n;
+    }
+    for (const [k, m] of Object.entries(part.leaders ?? {})) {
+      const o = (out.leaders[k] ??= {});
       for (const [id, n] of Object.entries(m)) o[+id] = (o[+id] ?? 0) + n;
     }
     out.league.rpg.push(...part.league.rpg);
@@ -467,10 +541,6 @@ const pitLine = (row: number[]): PitLine => {
   return o;
 };
 
-/** Plate appearances / innings that qualify for a rate title (162 games). */
-const QUAL_PA = 502;
-const QUAL_OUTS = 486;
-
 export function summarize(runs: RawRuns, league: League, opts: { minPa?: number; minOuts?: number } = {}): SeasonProjection {
   padAll(runs);
   const n = runs.sims;
@@ -500,15 +570,6 @@ export function summarize(runs: RawRuns, league: League, opts: { minPa?: number;
     };
   });
 
-  // Rate-title leaders per sim, by league: [statKey, higher-is-better, qualifies, value].
-  const leaderCounts: Record<string, Record<number, number>> = {};
-  const best: Record<string, Array<{ id: number; v: number }>> = {};
-  const offer = (key: string, sim: number, id: number, v: number, higher: boolean) => {
-    const arr = (best[key] ??= []);
-    const cur = arr[sim];
-    if (!cur || (higher ? v > cur.v : v < cur.v)) arr[sim] = { id, v };
-  };
-
   const hitters: HitterProjection[] = [];
   const pitchers: PitcherProjection[] = [];
   const minPa = opts.minPa ?? 60;
@@ -518,22 +579,10 @@ export function summarize(runs: RawRuns, league: League, opts: { minPa?: number;
     const p = league.players[e.id];
     if (!p) continue;
     const team = mode(e.team) || p.team;
-    const signing = p.real && p.contract.kind === "fa" && p.contract.signed === league.season ? true : undefined;
+    const signing = p.marketSigned || undefined;
     if (e.bat) {
       const lines = e.bat.map(batLine);
       const pa = lines.map((l) => l.pa);
-      lines.forEach((l, sim) => {
-        const lg = lgOf(e.team[sim]);
-        if (!lg || !l.pa) return;
-        offer(`hr:${lg}`, sim, e.id, l.hr, true);
-        offer(`rbi:${lg}`, sim, e.id, l.rbi, true);
-        offer(`sb:${lg}`, sim, e.id, l.sb, true);
-        offer(`war_b:${lg}`, sim, e.id, e.war[sim], true);
-        if (l.pa >= QUAL_PA) {
-          offer(`avg:${lg}`, sim, e.id, avg(l), true);
-          offer(`ops:${lg}`, sim, e.id, obp(l) + slg(l), true);
-        }
-      });
       if (meanOf(pa) >= minPa) {
         const played = lines.filter((l) => l.pa >= 30);
         const rate = (f: (l: BatLine) => number, digits = 3, bins?: number) => dist(played.map(f), { digits, bins });
@@ -576,15 +625,6 @@ export function summarize(runs: RawRuns, league: League, opts: { minPa?: number;
     if (e.pit) {
       const lines = e.pit.map(pitLine);
       const outs = lines.map((l) => l.outs);
-      lines.forEach((l, sim) => {
-        const lg = lgOf(e.team[sim]);
-        if (!lg || !l.bf) return;
-        offer(`w:${lg}`, sim, e.id, l.w, true);
-        offer(`k:${lg}`, sim, e.id, l.k, true);
-        offer(`sv:${lg}`, sim, e.id, l.sv, true);
-        if (!e.bat) offer(`war_p:${lg}`, sim, e.id, e.war[sim], true);
-        if (l.outs >= QUAL_OUTS) offer(`era:${lg}`, sim, e.id, era(l), false);
-      });
       if (meanOf(outs) >= minOuts) {
         const played = lines.filter((l) => l.outs >= 30);
         const rate = (f: (l: PitLine) => number, digits = 2, bins?: number) => dist(played.map(f), { digits, bins });
@@ -626,10 +666,6 @@ export function summarize(runs: RawRuns, league: League, opts: { minPa?: number;
     }
   }
 
-  for (const [key, arr] of Object.entries(best)) {
-    const m = (leaderCounts[key] ??= {});
-    for (const x of arr) if (x) m[x.id] = (m[x.id] ?? 0) + 1;
-  }
   const top = (m: Record<number, number> | undefined, k = 12): AwardOdds[] =>
     Object.entries(m ?? {})
       .map(([id, c]) => ({ id: +id, p: round(c / n, 4) }))
@@ -653,6 +689,6 @@ export function summarize(runs: RawRuns, league: League, opts: { minPa?: number;
     hitters,
     pitchers,
     awards: Object.fromEntries(Object.entries(runs.awards).map(([k, m]) => [k, top(m)])),
-    leaders: Object.fromEntries(Object.entries(leaderCounts).map(([k, m]) => [k, top(m, 8)])),
+    leaders: Object.fromEntries(Object.entries(runs.leaders ?? {}).map(([k, m]) => [k, top(m, 8)])),
   };
 }

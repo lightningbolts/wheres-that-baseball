@@ -5,6 +5,7 @@ import rosters from "@/data/game/rosters.json";
 import type { RosterFile } from "@/lib/game/types";
 import type { ContractFile } from "./contracts";
 import type { ProjectionFile } from "./projections";
+import { isHuman } from "./roster";
 import { addRun, dist, emptyRuns, mergeRuns, openingDayLeague, simulateOnce, summarize } from "./seasonProjection";
 
 describe("dist", () => {
@@ -27,6 +28,17 @@ describe("season projection", () => {
     proj: projFile as unknown as ProjectionFile,
     contracts: contracts as unknown as ContractFile,
     seed: 2027,
+  });
+
+  it("is neutral: real two-way usage, honest FA flags, no club treated as human", () => {
+    const ohtani = base.players[660271];
+    expect(ohtani.twoWay).toBe(true);
+    expect(ohtani.pit).toBeDefined();
+    expect(base.teams[119].rotation).toContain(660271);
+    const hoerner = Object.values(base.players).find((p) => p.name === "Nico Hoerner");
+    expect(hoerner?.marketSigned).toBeUndefined();
+    expect(Object.values(base.players).some((p) => p.marketSigned)).toBe(true);
+    expect(isHuman(base, 147)).toBe(false);
   });
 
   it("simulates whole seasons, and merged parts equal one combined run", { timeout: 120_000 }, () => {
@@ -55,5 +67,7 @@ describe("season projection", () => {
     const judge = s1.hitters.find((h) => h.name === "Aaron Judge");
     expect(judge?.team).toBe(147);
     expect(judge!.pa.mean).toBeGreaterThan(400);
+    // One league leader per stat and league in every run.
+    for (const [k, list] of Object.entries(s1.leaders)) expect(list.reduce((a, x) => a + x.p, 0), k).toBeCloseTo(1, 5);
   });
 });

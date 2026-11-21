@@ -158,6 +158,24 @@ function LeagueStrip({ data }: { data: SeasonProjection }) {
   );
 }
 
+/** The keyboard-reachable control that opens a row's details (the row itself also toggles on click). */
+function RowToggle({ open, onToggle, label, children }: { open: boolean; onToggle: () => void; label: string; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-expanded={open}
+      title={label}
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
+      className="flex min-w-0 items-center gap-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
+    >
+      {children}
+    </button>
+  );
+}
+
 // ─── Teams ───────────────────────────────────────────────────────────────────
 
 function TeamDetail({ t, wide = false }: { t: TeamProjection; wide?: boolean }) {
@@ -241,12 +259,12 @@ function Standings({ data }: { data: SeasonProjection }) {
             <tbody>
               {g.teams.map((t) => (
                 <Fragment key={t.id}>
-                  <tr className="cursor-pointer border-t border-border hover:bg-hover" onClick={() => setOpen(open === t.id ? null : t.id)} aria-expanded={open === t.id}>
+                  <tr className="cursor-pointer border-t border-border hover:bg-hover" onClick={() => setOpen(open === t.id ? null : t.id)}>
                     <td className="px-3 py-1.5">
-                      <span className="flex items-center gap-2">
+                      <RowToggle open={open === t.id} onToggle={() => setOpen(open === t.id ? null : t.id)} label={`${abbr(t.id)} details`}>
                         <TeamLogo teamId={t.id} size={20} />
                         <span className="font-medium">{abbr(t.id)}</span>
-                      </span>
+                      </RowToggle>
                     </td>
                     <td className="px-1.5 text-right font-mono tabular-nums">{fmt1(t.wins.mean)}</td>
                     <td className="px-1.5 text-right font-mono tabular-nums text-muted">{fmt1(162 - t.wins.mean)}</td>
@@ -308,12 +326,12 @@ function PlayoffOdds({ data }: { data: SeasonProjection }) {
             <Fragment key={t.id}>
               <tr className="cursor-pointer border-t border-border hover:bg-hover" onClick={() => setOpen(open === t.id ? null : t.id)}>
                 <td className="px-3 py-1.5">
-                  <span className="flex items-center gap-2">
+                  <RowToggle open={open === t.id} onToggle={() => setOpen(open === t.id ? null : t.id)} label={`${abbr(t.id)} details`}>
                     <span className="w-4 text-right font-mono text-[10px] text-subtle">{i + 1}</span>
                     <TeamLogo teamId={t.id} size={20} />
                     <span className="font-medium">{abbr(t.id)}</span>
                     <span className="hidden text-xs text-subtle md:inline">{getTeamById(t.id)?.league}</span>
-                  </span>
+                  </RowToggle>
                 </td>
                 <td className="px-1.5 text-right font-mono tabular-nums">{fmt1(t.wins.mean)}</td>
                 {cols.map(([k]) => (
@@ -480,9 +498,9 @@ function Hitters({ data }: { data: SeasonProjection }) {
           <tbody>
             {rows.slice(0, limit).map((h) => (
               <Fragment key={h.id}>
-                <tr className="cursor-pointer border-t border-border hover:bg-hover" onClick={() => setOpen(open === h.id ? null : h.id)} aria-expanded={open === h.id}>
+                <tr className="cursor-pointer border-t border-border hover:bg-hover" onClick={() => setOpen(open === h.id ? null : h.id)}>
                   <td className="px-3 py-1.5">
-                    <span className="flex min-w-0 items-center gap-2">
+                    <RowToggle open={open === h.id} onToggle={() => setOpen(open === h.id ? null : h.id)} label={`${h.name} details`}>
                       <Headshot id={h.id} name={h.name} />
                       <span className="min-w-0">
                         <span className="flex items-center gap-1">
@@ -493,7 +511,7 @@ function Hitters({ data }: { data: SeasonProjection }) {
                           {abbr(h.team)} · {h.pos} · {h.age}
                         </span>
                       </span>
-                    </span>
+                    </RowToggle>
                   </td>
                   {HIT_COLS.map(([k, , f]) => (
                     <td key={k} className={cn("px-1.5 text-right font-mono tabular-nums", k === sort ? "text-foreground" : "text-secondary", k === "war" && "font-medium")}>
@@ -657,9 +675,9 @@ function Pitchers({ data }: { data: SeasonProjection }) {
           <tbody>
             {rows.slice(0, limit).map((p) => (
               <Fragment key={p.id}>
-                <tr className="cursor-pointer border-t border-border hover:bg-hover" onClick={() => setOpen(open === p.id ? null : p.id)} aria-expanded={open === p.id}>
+                <tr className="cursor-pointer border-t border-border hover:bg-hover" onClick={() => setOpen(open === p.id ? null : p.id)}>
                   <td className="px-3 py-1.5">
-                    <span className="flex min-w-0 items-center gap-2">
+                    <RowToggle open={open === p.id} onToggle={() => setOpen(open === p.id ? null : p.id)} label={`${p.name} details`}>
                       <Headshot id={p.id} name={p.name} />
                       <span className="min-w-0">
                         <span className="flex items-center gap-1">
@@ -670,7 +688,7 @@ function Pitchers({ data }: { data: SeasonProjection }) {
                           {abbr(p.team)} · {p.role} · {p.age}
                         </span>
                       </span>
-                    </span>
+                    </RowToggle>
                   </td>
                   {PIT_COLS.map(([k, , f]) => (
                     <td key={k} className={cn("px-1.5 text-right font-mono tabular-nums", k === sort ? "text-foreground" : "text-secondary", k === "war" && "font-medium")}>
