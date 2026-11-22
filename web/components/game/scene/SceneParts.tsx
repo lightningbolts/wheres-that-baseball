@@ -9,6 +9,7 @@ import { MAX_FRAME_DT, advancePlayback, fielderKey, type Playback } from "@/comp
 import { MARK_COLOR, MAX_MARKS, plateCam, plateHud, zoneBox } from "@/components/game/scene/view";
 import { BALL_RADIUS_FT } from "@/lib/game/physics/ballFlight";
 import { newCamState, stepCamera } from "@/components/game/scene/camera";
+import { useModelOn } from "@/components/game/scene/assets/models";
 
 /** Advances playback time and fires cues. Mount first so it runs before readers. */
 export function Director({ pb }: { pb: Playback }) {
@@ -56,6 +57,16 @@ export function Ball({ pb }: { pb: Playback }) {
   const trail = useRef<THREE.InstancedMesh>(null);
   const dot = useRef<THREE.Group>(null);
   const { camera, size } = useThree();
+  // The Blender-built ball (stitched cover) replaces the plain sphere once it loads. The
+  // cover glows a little (emissive, through its own texture) so it reads against the sky.
+  useModelOn("baseball", () => ball.current, {
+    material: (m) => {
+      const c = m.clone();
+      c.emissive.set("#55554e");
+      c.emissiveMap = c.map;
+      return c;
+    },
+  });
   const st = useMemo(
     () => ({
       hist: Array.from({ length: TRAIL }, () => new THREE.Vector3()),

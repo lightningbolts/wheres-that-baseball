@@ -8,6 +8,7 @@ import { OrbitControls } from "@react-three/drei";
 import { BONE_COUNT, REST } from "@/components/game/scene/character/skeleton";
 import { Person, Wardrobe } from "@/components/game/scene/character/person";
 import { BAT_COLORS, batGeometry, batMaterial } from "@/components/game/scene/character/bat";
+import { useModelOn } from "@/components/game/scene/assets/models";
 import { identity, loadRoster, rosterVersion } from "@/components/game/scene/character/roster";
 import { loadScriptFont } from "@/components/game/scene/character/scriptFont";
 import { uniformFor } from "@/components/game/scene/character/uniforms";
@@ -148,6 +149,7 @@ function Cast({ s }: { s: Settings }) {
       kit.bats.dispose();
     };
   }, [kit]);
+  useModelOn("bat", () => kit.bats);
   const turn = useRef(0);
   const { camera } = useThree();
 

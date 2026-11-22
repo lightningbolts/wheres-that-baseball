@@ -1,0 +1,151 @@
+{
+  "assets": {
+    "baseball": {
+      "url": "/models/baseball.e83a238347.glb",
+      "bytes": 49628,
+      "sourceHash": "cadfe362ad4c6aae",
+      "description": "Baseball, radius 0.121 ft, centred on the origin",
+      "blender": "5.3.0",
+      "lods": [
+        {
+          "name": "baseball_LOD0",
+          "triangles": 1680,
+          "budget": 1800,
+          "vertices": 863,
+          "bounds": {
+            "min": [
+              -0.121,
+              -0.121,
+              -0.121
+            ],
+            "max": [
+              0.121,
+              0.121,
+              0.121
+            ]
+          },
+          "images": [
+            {
+              "name": "baseball_cover",
+              "size": [
+                1024,
+                512
+              ],
+              "colorspace": "sRGB"
+            }
+          ]
+        },
+        {
+          "name": "baseball_LOD1",
+          "triangles": 288,
+          "budget": 300,
+          "vertices": 155,
+          "bounds": {
+            "min": [
+              -0.121,
+              -0.121,
+              -0.121
+            ],
+            "max": [
+              0.121,
+              0.121,
+              0.121
+            ]
+          },
+          "images": [
+            {
+              "name": "baseball_cover",
+              "size": [
+                1024,
+                512
+              ],
+              "colorspace": "sRGB"
+            }
+          ]
+        }
+      ]
+    },
+    "bat": {
+      "url": "/models/bat.86f0384345.glb",
+      "bytes": 52712,
+      "sourceHash": "64fa1fe1793fd2b1",
+      "description": "34-inch wood bat: handle at origin, barrel along +Y, feet",
+      "blender": "5.3.0",
+      "lods": [
+        {
+          "name": "bat_LOD0",
+          "triangles": 2064,
+          "budget": 2400,
+          "vertices": 1077,
+          "bounds": {
+            "min": [
+              -0.1081,
+              -0.2005,
+              -0.1081
+            ],
+            "max": [
+              0.1081,
+              2.6206,
+              0.1081
+            ]
+          },
+          "images": [
+            {
+              "name": "bat_grain",
+              "size": [
+                128,
+                1024
+              ],
+              "colorspace": "sRGB"
+            },
+            {
+              "name": "bat_orm",
+              "size": [
+                128,
+                1024
+              ],
+              "colorspace": "Non-Color"
+            }
+          ]
+        },
+        {
+          "name": "bat_LOD1",
+          "triangles": 504,
+          "budget": 600,
+          "vertices": 275,
+          "bounds": {
+            "min": [
+              -0.108,
+              -0.2,
+              -0.108
+            ],
+            "max": [
+              0.108,
+              2.62,
+              0.108
+            ]
+          },
+          "images": [
+            {
+              "name": "bat_grain",
+              "size": [
+                128,
+                1024
+              ],
+              "colorspace": "sRGB"
+            },
+            {
+              "name": "bat_orm",
+              "size": [
+                128,
+                1024
+              ],
+              "colorspace": "Non-Color"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "pipelineVersion": 1
+}

@@ -17,3 +17,8 @@
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+# Blender-built models (npm run assets) are content-hashed: cache them forever.
+[[headers]]
+  for = "/models/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

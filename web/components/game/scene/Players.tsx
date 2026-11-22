@@ -13,6 +13,7 @@ import { BAT_COLORS, batGeometry, batMaterial } from "@/components/game/scene/ch
 import { loadRoster } from "@/components/game/scene/character/roster";
 import { loadScriptFont } from "@/components/game/scene/character/scriptFont";
 import { getQuality } from "@/components/game/scene/quality";
+import { useModelOn } from "@/components/game/scene/assets/models";
 
 const MAX = 24;
 const env: AnimEnv = { tl: null, ball: null, T: 0, dA: 0, now: 0, frame: 0, cut: false, callAge: -1 };
@@ -112,6 +113,10 @@ export function Players({ pb }: { pb: Playback }) {
       kit.blobs.dispose();
     };
   }, [kit]);
+
+  // The Blender-built bat (wood grain, roughness map) replaces the lathe once it loads;
+  // the instance colours still pick ash / maple / black per player.
+  useModelOn("bat", () => kit.bats, { lod: getQuality().boot.tier === "low" ? 1 : 0 });
 
   const slots = useRef(new Map<string, number>());
   const rigs = useMemo(() => Array.from({ length: MAX }, () => newRigOut()), []);
