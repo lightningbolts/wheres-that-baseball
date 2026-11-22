@@ -66,7 +66,22 @@ A build that breaks any of these fails with the reason and writes nothing to `pu
 3. In the scene: `const model = useModel("<name>")`, then swap `modelLod(model, lod)`'s
    `geometry` / `material` into your mesh when it arrives. Keep a procedural stand-in for
    the moment before it loads (and in case it fails).
+   Park props go through `parks/placements.ts` instead: in the prop builder, draw the
+   procedural version into `c.models.proxy("<name>")` and record each instance with
+   `c.models.place(...)`; `PlacedModels` draws the proxy until the GLB loads, then one
+   InstancedMesh (add the name to `PLACED_MODELS`).
 4. Commit the asset module, `manifest.json`, `manifest.generated.ts` and the new GLB.
+
+## Surface sets
+
+`turf` and `dirt` are *material* assets: `wtbb3d/surface.py` models real detail over one
+square tile (grass blades over thatch; clay with drag streaks, cleat prints and pebbles),
+wrapped at the edges so it tiles, and Cycles bakes it onto a flat plane — albedo (as
+brightness variation around 0.5, so the park keeps its own grass and dirt colour), a
+tangent-space normal map and roughness. `parks/surfaces.ts` samples the maps in world
+space at two scales (the second rotated and larger, so the repeat never shows) in the
+grass and marks shaders; on the marks layer only warm (dirt) vertex colours take it, so
+chalk and rubber stay clean.
 
 ## Current assets
 
@@ -74,3 +89,9 @@ A build that breaks any of these fails with the reason and writes nothing to `pu
 | --- | --- | --- |
 | `bat` | 2064 / 504 | the lathe in `character/bat.ts` (instanced; LOD1 on the Low tier) |
 | `baseball` | 1680 / 288 | the plain sphere in `SceneParts.tsx`'s `Ball` |
+| `turf` | surface set, 3 ft tile | procedural detail noise on the grass (`parks/surfaces.ts`) |
+| `dirt` | surface set, 6 ft tile | procedural detail noise on infield / track dirt |
+| `light_mast` | see manifest | the beam lattice in `props.ts` `lightBanks` (scaled in height per tower) |
+| `luminaire` | see manifest | the flat LED lamp quads on every lamp rack (lenses glow at night) |
+| `foul_pole` | see manifest | the cylinder-and-box poles in `props.ts` `foulPoles` (park paint as instance colour) |
+| `tree_round`, `tree_pine`, `tree_palm` | see manifest | the sphere / cone / quad trees in park features (cherry blossoms stay procedural) |

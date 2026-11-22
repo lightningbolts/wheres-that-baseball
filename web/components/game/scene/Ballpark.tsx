@@ -46,6 +46,9 @@ import { AWAY_FAN_SHARE } from "@/lib/game/crowd/reaction";
 import { CLUBS } from "@/components/game/scene/character/uniforms";
 import { dressFan, type FanColors } from "@/components/game/scene/parks/fans";
 import { useQuality } from "@/components/game/scene/quality";
+import { applySurface, useSurfaceSet } from "@/components/game/scene/parks/surfaces";
+import { ModelPlacer } from "@/components/game/scene/parks/placements";
+import { PlacedModels } from "@/components/game/scene/parks/PlacedModels";
 
 /**
  * Shared excitement (0..1) the crowd reacts to; set by the game view. `excite` is the home
@@ -152,7 +155,9 @@ export function Ballpark({ park, homeColor, awayColor, homeTeam, awayTeam }: { p
   const tod = useMemo(() => timeOfDay(park.venueId), [park.venueId]);
   const lit = tod !== "day";
   // Boot setting: the 3D view is rebuilt when it changes, so it is fixed for this mount.
-  const mowSize = useQuality().boot.mow;
+  const quality = useQuality();
+  const mowSize = quality.boot.mow;
+  const modelLodLevel = quality.boot.tier === "high" ? 0 : 1;
 
   const built = useMemo(() => {
     const layout = layoutFor(park.venueId);
@@ -171,7 +176,8 @@ export function Ballpark({ park, homeColor, awayColor, homeTeam, awayTeam }: { p
       lit,
       skip: (beta, off) => Math.abs(beta) > DUGOUT.from - 1.5 && Math.abs(beta) < DUGOUT.to + 1.5 && off < DUGOUT.depth + 1,
     });
-    const ctx: PropCtx = { park, layout, loop, st, glow, led, city, flares, reach: stands.reach, homeColor, lit, veil };
+    const models = new ModelPlacer();
+    const ctx: PropCtx = { park, layout, loop, st, glow, led, city, flares, reach: stands.reach, homeColor, lit, veil, models };
     wallCaps(loop, st, layout.trim);
     foulPoles(ctx);
     dugouts(ctx);
@@ -190,6 +196,7 @@ export function Ballpark({ park, homeColor, awayColor, homeTeam, awayTeam }: { p
       ctx,
       layout,
       board,
+      placed: models.build(),
       slots: stands.slots,
       yaws: stands.yaws,
       meta: stands.meta,
@@ -208,7 +215,16 @@ export function Ballpark({ park, homeColor, awayColor, homeTeam, awayTeam }: { p
       },
     };
   }, [park, homeColor, lit]);
-  useEffect(() => () => Object.values(built.geo).forEach((g) => g.dispose()), [built]);
+  useEffect(
+    () => () => {
+      Object.values(built.geo).forEach((g) => g.dispose());
+      Object.values(built.placed).forEach((p) => {
+        p.proxy?.dispose();
+        p.proxyLed?.dispose();
+      });
+    },
+    [built],
+  );
 
   const mats = useMemo(() => {
     if (typeof document === "undefined") return null;
@@ -282,6 +298,16 @@ export function Ballpark({ park, homeColor, awayColor, homeTeam, awayTeam }: { p
     },
     [mats],
   );
+  // Blender-baked grass and clay detail (parks/surfaces.ts) once their sets load; until
+  // then the procedural detail noise set up above stays.
+  const turf = useSurfaceSet("turf");
+  const dirt = useSurfaceSet("dirt");
+  useEffect(() => {
+    if (!mats) return;
+    const detail = mats.textures[0];
+    applySurface(mats.materials.grass, turf, { detail, detailScale: 0.33, albedo: 0.85, normal: 0.55, roughness: 0.6 });
+    applySurface(mats.materials.marks, dirt, { detail, detailScale: 0.21, albedo: 0.9, normal: 0.8, roughness: 0.7, warmMask: true });
+  }, [mats, turf, dirt]);
   useFrame((state) => {
     if (mats) mats.flareUniforms.uScale.value = state.gl.domElement.height * 0.5;
   });
@@ -299,6 +325,7 @@ export function Ballpark({ park, homeColor, awayColor, homeTeam, awayTeam }: { p
       <mesh geometry={geo.wall} material={m.wall} castShadow receiveShadow />
       <mesh geometry={mats.decalGeo} material={m.decal} />
       <mesh geometry={geo.structure} material={m.structure} castShadow />
+      <PlacedModels sets={built.placed} structure={m.structure} led={m.led} lit={lit} lod={modelLodLevel} />
       <mesh geometry={geo.seats} material={m.seats} />
       <mesh geometry={geo.glow} material={m.glow} />
       <mesh geometry={geo.led} material={m.led} />
