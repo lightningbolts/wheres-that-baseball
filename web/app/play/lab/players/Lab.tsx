@@ -11,7 +11,7 @@ import { BAT_COLORS, batGeometry, batMaterial } from "@/components/game/scene/ch
 import { useModel, useModelOn } from "@/components/game/scene/assets/models";
 import { identity, loadRoster, rosterVersion } from "@/components/game/scene/character/roster";
 import { loadScriptFont } from "@/components/game/scene/character/scriptFont";
-import { uniformFor } from "@/components/game/scene/character/uniforms";
+import { clubSets, setVenue, uniformFor, type Uniform } from "@/components/game/scene/character/uniforms";
 import type { Lod } from "@/components/game/scene/character/body";
 import { newPose, newPoseCtx, newRigOut, poseClass, poseInto, solveRig, type ActorDraw, type ActorKind } from "@/components/game/scene/rig";
 import type { Action } from "@/lib/game/anim/timeline";
@@ -24,6 +24,8 @@ interface Spec {
   teamId: number;
   home: boolean;
   pos?: ActorDraw["pos"];
+  /** A particular set (`clubSets` id) instead of plain home / road. */
+  set?: string;
 }
 
 /** A cast covering the roles, builds, skin tones and home / road uniforms. */
@@ -42,15 +44,26 @@ const DEFAULT_CAST: Spec[] = [
 /** Two real players per club, for the uniform contact sheet. */
 const SHEET_IDS: Record<number, [number, number]> = {108: [687263, 545361], 109: [663457, 606466], 110: [624413, 702616], 111: [701350, 678882], 112: [691718, 673548], 113: [682829, 667472], 114: [680757, 608070], 115: [664983, 696100], 116: [650402, 805808], 117: [665161, 670541], 118: [695600, 677951], 119: [605141, 518692], 120: [694673, 682928], 121: [596019, 665742], 133: [703607, 643446], 134: [804606, 664040], 135: [665487, 592518], 136: [668227, 686527], 137: [687551, 646240], 138: [802139, 671056], 139: [650490, 666018], 140: [608369, 679822], 141: [703520, 665489], 142: [807712, 686797], 143: [656941, 607208], 144: [686948, 660670], 145: [803011, 678246], 146: [669065, 681715], 147: [700250, 641355], 158: [694192, 668930]};
 
-/** `?clubs=108,109,...` swaps the cast for those clubs: a home fielder in a cap beside a road hitter in a helmet. */
+/**
+ * `?clubs=108,109,...` swaps the cast for those clubs: a home fielder in a cap beside a road
+ * hitter in a helmet. With `&sets=1`, every set each club wears instead, alternates and City
+ * Connect included, alternating fielders and hitters.
+ */
 function sheetCast(): Spec[] | null {
   if (typeof window === "undefined") return null;
-  const q = new URLSearchParams(window.location.search).get("clubs");
+  const params = new URLSearchParams(window.location.search);
+  const q = params.get("clubs");
   if (!q) return null;
   const out: Spec[] = [];
   for (const t of q === "all" ? Object.keys(SHEET_IDS).map(Number) : q.split(",").map(Number)) {
     const ids = SHEET_IDS[t];
     if (!ids) continue;
+    if (params.get("sets")) {
+      clubSets(t).forEach((s, i) =>
+        out.push({ label: `${t} ${s.id}`, kind: i % 2 ? "batter" : "fielder", hand: "R", id: ids[i % 2], teamId: t, home: setVenue(s) !== "road", pos: "SS", set: s.id }),
+      );
+      continue;
+    }
     out.push({ label: `${t} home`, kind: "fielder", hand: "R", id: ids[0], teamId: t, home: true, pos: "SS" });
     out.push({ label: `${t} road`, kind: "batter", hand: "R", id: ids[1], teamId: t, home: false });
   }
@@ -124,7 +137,12 @@ function Cast({ s }: { s: Settings }) {
     // `?player=<MLB id>` puts that player in every batter's shoes (his stance and swing).
     const swap = typeof window === "undefined" ? 0 : Number(new URLSearchParams(window.location.search).get("player") ?? 0);
     const actors: ActorDraw[] = CAST.map((c, i) => {
-      const uni = c.teamId ? uniformFor(c.teamId, c.home, 0x223344) : null;
+      const set = c.set ? clubSets(c.teamId).find((s) => s.id === c.set)?.kit : undefined;
+      const uni: Uniform | null = set
+        ? { teamId: c.teamId, home: c.home, jersey: set.jersey, cap: set.cap, letter: set.ink, trim: set.accent, stripe: set.stripe, kit: set }
+        : c.teamId
+          ? uniformFor(c.teamId, c.home, 0x223344)
+          : null;
       return {
         key: `lab-${i}`,
         state: { p: { x: 0, y: 0, z: 0 }, yaw: 0, speed: 0, action: "idle", actionT: 0 },

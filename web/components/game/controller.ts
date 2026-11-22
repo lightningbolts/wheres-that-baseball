@@ -1811,8 +1811,13 @@ export class GameController {
     const fieldTeam = g.fielding.team.teamId;
     const batTeam = g.batting.team.teamId;
     const homeId = g.home.team.teamId;
+    // Each club's set for this game (alternates and City Connect on their days), fixed by the game's seed.
+    const seed = this.session.setup.seed;
+    const color = (teamId: number) => new THREE.Color(getTeamColor(teamId)).getHex();
+    const homeJersey = uniformFor(homeId, true, color(homeId), { seed }).jersey;
     const uni = (teamId: number) => {
-      const u = uniformFor(teamId, teamId === homeId, new THREE.Color(getTeamColor(teamId)).getHex());
+      const home = teamId === homeId;
+      const u = uniformFor(teamId, home, color(teamId), { seed, against: home ? undefined : homeJersey });
       return { jersey: new THREE.Color(u.jersey), accent: new THREE.Color(u.cap), uni: u };
     };
     const ctx = this.session.currentContext ?? g.pitchContext();
