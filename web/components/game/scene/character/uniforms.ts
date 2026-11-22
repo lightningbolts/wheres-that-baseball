@@ -3752,10 +3752,57 @@ export interface Uniform {
   kit: Kit | null;
 }
 
+/** Where a set is worn: City Connects and white/cream alternates at home, "road" sets away. */
+export function setVenue(s: KitSet): "home" | "road" | "both" {
+  if (s.id === "home" || s.id.startsWith("cc")) return "home";
+  if (s.id === "road" || /\broad\b/i.test(s.name)) return "road";
+  const [r, g, b] = [(s.kit.jersey >> 16) & 255, (s.kit.jersey >> 8) & 255, s.kit.jersey & 255];
+  if (/\bhome\b/i.test(s.name) || Math.min(r, g, b) > 200) return "home";
+  return "both";
+}
+
+const unit = (seed: number, salt: number) => {
+  let h = (Math.imul(seed | 0, 0x9e3779b1) ^ Math.imul(salt, 0x85ebca77)) >>> 0;
+  h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d) >>> 0;
+  h = Math.imul(h ^ (h >>> 12), 0x297a2d39) >>> 0;
+  return ((h ^ (h >>> 15)) >>> 0) / 4294967296;
+};
+
+/** How far apart two cloths read on the field (0 the same, ~442 black against white). */
+export function clothDistance(a: number, b: number): number {
+  const d = [16, 8, 0].map((sh) => ((a >> sh) & 255) - ((b >> sh) & 255));
+  return Math.hypot(d[0] * 0.9, d[1] * 1.2, d[2] * 0.8);
+}
+
+/**
+ * The set a club wears in one game, the same every time for that game's seed. At home it's
+ * mostly the home whites, with the City Connect and home alternates on their nights; away
+ * it's mostly the road greys or a road alternate, never the City Connect, and the greys
+ * whenever the alternate would be hard to tell from the home side's jersey (`against`).
+ */
+export function gameSet(teamId: number, home: boolean, seed: number, against?: number): KitSet | null {
+  const sets = clubSets(teamId);
+  if (!sets.length) return null;
+  const base = sets[home ? 0 : 1];
+  const extras = sets.slice(2).filter((s) => setVenue(s) === (home ? "home" : "road") || setVenue(s) === "both");
+  const cc = extras.filter((s) => s.id.startsWith("cc"));
+  const alts = extras.filter((s) => !s.id.startsWith("cc"));
+  const u = unit(seed, teamId * 2 + (home ? 1 : 0));
+  // Shares of games: home 55 %, City Connect 20 %, home alternates 25 %; road 62 %, road alternates 38 %.
+  const ccShare = home && cc.length ? 0.2 : 0;
+  const altShare = alts.length ? (home ? 0.25 : 0.38) : 0;
+  let pick = base;
+  if (u < ccShare) pick = cc[Math.floor((u / ccShare) * cc.length)];
+  else if (u < ccShare + altShare) pick = alts[Math.floor(((u - ccShare) / altShare) * alts.length)];
+  if (!home && against !== undefined && pick !== base && clothDistance(pick.kit.jersey, against) < 120) pick = base;
+  return pick;
+}
+
 export function uniformFor(
   teamId: number,
   home: boolean,
   fallbackColor: number,
+  game?: { seed: number; against?: number },
 ): Uniform {
   const pair = KITS[teamId];
   if (!pair)
@@ -3769,7 +3816,7 @@ export function uniformFor(
       stripe: -1,
       kit: null,
     };
-  const k = pair[home ? 0 : 1];
+  const k = (game ? gameSet(teamId, home, game.seed, game.against)?.kit : null) ?? pair[home ? 0 : 1];
   return {
     teamId,
     home,
