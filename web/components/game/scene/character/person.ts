@@ -6,7 +6,7 @@
 import * as THREE from "three";
 import type { ActorDraw, ActorKind, RigOut } from "@/components/game/scene/rig";
 import { ATLAS } from "@/components/game/scene/character/atlas";
-import { buildBody, outfitFor, outfitKey, styleOf, type Lod, type Outfit } from "@/components/game/scene/character/body";
+import { buildBody, outfitFor, outfitKey, styleOf, type GloveShape, type GloveShapes, type Lod, type Outfit } from "@/components/game/scene/character/body";
 import type { MeshData } from "@/components/game/scene/character/mesh";
 import { hash01, paintFinish, paintLook, type Look } from "@/components/game/scene/character/paint";
 import { identity, rosterVersion } from "@/components/game/scene/character/roster";
@@ -84,14 +84,28 @@ export class Wardrobe {
     this.finish.colorSpace = THREE.NoColorSpace;
   }
 
+  private gloves: GloveShapes | undefined;
+  /** Bumped whenever the bodies change (the modelled gloves arriving), so people re-dress. */
+  version = 0;
+
   body(o: Outfit, lod: Lod): THREE.BufferGeometry {
     const key = `${outfitKey(o)}/${lod}`;
     let g = this.geos.get(key);
     if (!g) {
-      g = toGeometry(buildBody(o, lod));
+      g = toGeometry(buildBody(o, lod, this.gloves));
       this.geos.set(key, g);
     }
     return g;
+  }
+
+  /** Swap the Blender-built gloves in (or back out, with undefined): the gloved bodies are rebuilt as people next dress. */
+  setGloves(gloves: GloveShapes | undefined): void {
+    if (gloves === this.gloves) return;
+    this.gloves = gloves;
+    // A one-off: drop every cached body (only the gloved ones change, but the rest rebuild in moments).
+    for (const g of this.geos.values()) g.dispose();
+    this.geos.clear();
+    this.version += 1;
   }
 
   dispose(): void {
@@ -122,6 +136,7 @@ export class Person {
   private painted = false;
   private version = -1;
   private outfit = "";
+  private dressed = -1;
   private hand: "L" | "R" = "R";
   private kind: ActorKind | "" = "";
   private shownLod = -1;
@@ -206,12 +221,13 @@ export class Person {
   /** Pick the mesh for the actor's role and the level of detail. */
   dress(a: ActorDraw, lod: Lod): void {
     const who = a.id ?? 0;
-    if (a.kind !== this.kind || a.hand !== this.hand || lod !== this.shownLod || who !== this.who) {
+    if (a.kind !== this.kind || a.hand !== this.hand || lod !== this.shownLod || who !== this.who || this.dressed !== this.wardrobe.version) {
       // Players wear their trousers and helmets their own way; umpires and coaches by the book.
       const o = outfitFor(a.kind, a.hand, who ? styleOf(who) : undefined);
       this.who = who;
       const k = outfitKey(o);
-      if (k !== this.outfit || lod !== this.shownLod) this.mesh.geometry = this.wardrobe.body(o, lod);
+      if (k !== this.outfit || lod !== this.shownLod || this.dressed !== this.wardrobe.version) this.mesh.geometry = this.wardrobe.body(o, lod);
+      this.dressed = this.wardrobe.version;
       this.outfit = k;
       this.kind = a.kind;
       this.hand = a.hand;
@@ -237,4 +253,49 @@ export class Person {
     this.material.dispose();
     this.skeleton.dispose();
   }
+}
+
+/**
+ * The Blender glove model (assets3d/blender/assets/glove.py) as glove shapes for the body
+ * builder: each level of detail holds both gloves, told apart by vertex colour (B = 1 for
+ * the catcher's mitt); R is the baked occlusion and G marks the dark trim.
+ */
+export function gloveShapes(lods: readonly THREE.BufferGeometry[]): GloveShapes {
+  const out: GloveShapes = { glove: [], mitt: [] };
+  for (const geo of lods) {
+    const pos = geo.getAttribute("position");
+    const uv = geo.getAttribute("uv");
+    const col = geo.getAttribute("color");
+    const idx = geo.index;
+    if (!pos || !uv || !col || !idx) return { glove: [], mitt: [] };
+    for (const mitt of [false, true]) {
+      const remap = new Int32Array(pos.count).fill(-1);
+      let n = 0;
+      for (let i = 0; i < pos.count; i += 1) if (col.getZ(i) > 0.5 === mitt) remap[i] = n++;
+      const shape: GloveShape = {
+        position: new Float32Array(n * 3),
+        uv: new Float32Array(n * 2),
+        shade: new Float32Array(n),
+        dark: new Uint8Array(n),
+        index: new Uint32Array(0),
+      };
+      for (let i = 0; i < pos.count; i += 1) {
+        const j = remap[i];
+        if (j < 0) continue;
+        shape.position.set([pos.getX(i), pos.getY(i), pos.getZ(i)], j * 3);
+        shape.uv.set([uv.getX(i), uv.getY(i)], j * 2);
+        shape.shade[j] = col.getX(i);
+        shape.dark[j] = col.getY(i) > 0.5 ? 1 : 0;
+      }
+      const tris: number[] = [];
+      for (let k = 0; k + 2 < idx.count; k += 3) {
+        const a = remap[idx.getX(k)];
+        if (a < 0) continue;
+        tris.push(a, remap[idx.getX(k + 1)], remap[idx.getX(k + 2)]);
+      }
+      shape.index = new Uint32Array(tris);
+      (mitt ? out.mitt : out.glove).push(shape);
+    }
+  }
+  return out;
 }

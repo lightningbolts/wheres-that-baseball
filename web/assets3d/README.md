@@ -96,3 +96,4 @@ chalk and rubber stay clean.
 | `foul_pole` | see manifest | the cylinder-and-box poles in `props.ts` `foulPoles` (park paint as instance colour) |
 | `tree_round`, `tree_pine`, `tree_palm` | see manifest | the sphere / cone / quad trees in park features (cherry blossoms stay procedural) |
 | `crowd` | 1 quad + 1024² atlas | the canvas-painted fan sprites in `parks/textures.ts` `crowdAtlas` (48 modelled fans rendered in Cycles, same cell layout and grey-cloth / magenta-trim conventions; the painted atlas shows until it loads) |
+| `glove` | 5152 / 1832 tris, no texture | the procedural glove and catcher's mitt in `character/body.ts` (metaball-sculpted leather, laced webs and rawhide, ray-traced occlusion in the vertices; skinned into the body at LOD 0–1 by `Wardrobe.setGloves`, painted from the player's atlas glove panel) |

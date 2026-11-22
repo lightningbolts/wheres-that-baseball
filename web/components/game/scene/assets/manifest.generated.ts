@@ -58,6 +58,15 @@ export const MODELS = {
       { name: "foul_pole_LOD1", triangles: 250, bounds: {"min":[-1.7,-0.9,-1.7],"max":[4.52,100.6,1.7]} },
     ],
   },
+  glove: {
+    url: "/models/glove.1675ae9175.glb",
+    bytes: 79880,
+    description: "Fielder's glove + catcher's mitt (split by vertex colour B), hand-centred, feet",
+    lods: [
+      { name: "glove_LOD0", triangles: 5152, bounds: {"min":[-0.3631,-0.6985,-0.1279],"max":[0.4028,0.2832,0.211]} },
+      { name: "glove_LOD1", triangles: 1832, bounds: {"min":[-0.3611,-0.6979,-0.1269],"max":[0.3995,0.2843,0.5011]} },
+    ],
+  },
   light_mast: {
     url: "/models/light_mast.093963f35c.glb",
     bytes: 55136,

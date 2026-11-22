@@ -283,6 +283,71 @@
         }
       ]
     },
+    "glove": {
+      "url": "/models/glove.1675ae9175.glb",
+      "bytes": 79880,
+      "sourceHash": "02ad5d2599404fa3",
+      "description": "Fielder's glove + catcher's mitt (split by vertex colour B), hand-centred, feet",
+      "blender": "5.3.0",
+      "lods": [
+        {
+          "name": "glove_LOD0",
+          "triangles": 5152,
+          "budget": 5400,
+          "vertices": 3060,
+          "bounds": {
+            "min": [
+              -0.3631,
+              -0.6985,
+              -0.1279
+            ],
+            "max": [
+              0.4028,
+              0.2832,
+              0.211
+            ]
+          },
+          "images": [
+            {
+              "name": "glove_uv",
+              "size": [
+                4,
+                4
+              ],
+              "colorspace": "sRGB"
+            }
+          ]
+        },
+        {
+          "name": "glove_LOD1",
+          "triangles": 1832,
+          "budget": 2000,
+          "vertices": 1267,
+          "bounds": {
+            "min": [
+              -0.3611,
+              -0.6979,
+              -0.1269
+            ],
+            "max": [
+              0.3995,
+              0.2843,
+              0.5011
+            ]
+          },
+          "images": [
+            {
+              "name": "glove_uv",
+              "size": [
+                4,
+                4
+              ],
+              "colorspace": "sRGB"
+            }
+          ]
+        }
+      ]
+    },
     "light_mast": {
       "url": "/models/light_mast.093963f35c.glb",
       "bytes": 55136,

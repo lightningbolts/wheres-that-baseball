@@ -6,9 +6,9 @@ import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { BONE_COUNT, REST } from "@/components/game/scene/character/skeleton";
-import { Person, Wardrobe } from "@/components/game/scene/character/person";
+import { Person, Wardrobe, gloveShapes } from "@/components/game/scene/character/person";
 import { BAT_COLORS, batGeometry, batMaterial } from "@/components/game/scene/character/bat";
-import { useModelOn } from "@/components/game/scene/assets/models";
+import { useModel, useModelOn } from "@/components/game/scene/assets/models";
 import { identity, loadRoster, rosterVersion } from "@/components/game/scene/character/roster";
 import { loadScriptFont } from "@/components/game/scene/character/scriptFont";
 import { uniformFor } from "@/components/game/scene/character/uniforms";
@@ -150,6 +150,12 @@ function Cast({ s }: { s: Settings }) {
     };
   }, [kit]);
   useModelOn("bat", () => kit.bats);
+  const gloveModel = useModel("glove");
+  useEffect(() => {
+    if (!gloveModel) return;
+    kit.wardrobe.setGloves(gloveShapes(gloveModel.lods.map((l) => l.geometry)));
+    return () => kit.wardrobe.setGloves(undefined);
+  }, [gloveModel, kit]);
   const turn = useRef(0);
   const { camera } = useThree();
 
