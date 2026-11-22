@@ -100,7 +100,7 @@ export const LG = {
   hbp: 0.011,
   hr: 0.03,
   babip: 0.291,
-  xbh: 0.27,
+  xbh: 0.243,
   woba: 0.312,
   wobaScale: 1.25,
   runsPerPa: 0.118,

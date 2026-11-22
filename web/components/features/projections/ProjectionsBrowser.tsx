@@ -130,7 +130,10 @@ export function ProjectionsBrowser({ initialTab = "standings" }: { initialTab?: 
             How it works: Opening Day rosters come from the real 40-man rosters, multi-year Statcast projections and real contracts.
             Players who are still unsigned free agents this winter (marked <span className="font-medium">FA</span>) are placed by the
             engine&apos;s simulated free-agent market. True-talent draws are about ±.016 wOBA for established regulars and wider for young
-            players, rookies and prospects. WAR uses the engine&apos;s linear-weights model. Percentiles are taken across all simulated
+            players, rookies and prospects, plus a shared draw for each club (injury clusters, roster churn) worth about ±4 wins. Both
+            were tuned on a 2026 backtest: the model was rebuilt from data through 2025, played from Opening Day 2026 and scored against
+            what happened. That test also set how far hitters are pulled toward average, because hitters separated more in the
+            projection than in real seasons. WAR uses the engine&apos;s linear-weights model. Percentiles are taken across all simulated
             seasons, and rate stats only count seasons with at least 30 PA (or 10 IP).
           </p>
         ) : null}

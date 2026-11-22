@@ -28,6 +28,10 @@ export interface NewLeagueOpts {
   proj?: ProjectionFile;
   /** Real contracts and service time; without them every deal is estimated. */
   contracts?: ContractFile;
+  /** First season (default FIRST_SEASON); backtests start an earlier one. */
+  season?: number;
+  /** Seed each farm with its real MLB Pipeline top 30 (default true). */
+  realProspects?: boolean;
 }
 
 /** Minor-league options left for a real player entering the franchise, from his service time. */
@@ -171,7 +175,7 @@ export function addGenerated(league: League, rng: FRng, pool: Record<string, num
 }
 
 export function createLeague(rosters: RosterFile, opts: NewLeagueOpts): League {
-  const season = FIRST_SEASON;
+  const season = opts.season ?? FIRST_SEASON;
   const rng = new FRng(opts.seed);
   const sched = buildSchedule(season, opts.seed);
   const league: League = {
@@ -282,7 +286,7 @@ export function createLeague(rosters: RosterFile, opts: NewLeagueOpts): League {
       .slice(0, 2)
       .map((p) => p.id);
     // The real farm system: MLB Pipeline's top 30, the best upper-level arms and bats on the 40-man.
-    addRealProspects(league, rng, mt.id);
+    if (opts.realProspects !== false) addRealProspects(league, rng, mt.id);
     const farm = orgPlayers(league, mt.id)
       .filter((x) => x.prospect && !x.on40 && x.status === "minors")
       .sort((a, b) => (a.prospect!.rank - b.prospect!.rank));

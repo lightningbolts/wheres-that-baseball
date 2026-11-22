@@ -153,7 +153,9 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--season", type=int, default=2026)
     ap.add_argument("--recent-games", type=int, default=30)
+    ap.add_argument("--out", type=Path, default=OUT, help="output file (backtests write elsewhere)")
     args = ap.parse_args()
+    out = args.out
 
     df = pd.read_parquet(DATA / f"newstats_pitches_{args.season}.parquet")
     games = set(int(g) for g in df["game_pk"].unique())
@@ -280,15 +282,17 @@ def main() -> None:
             "bullpen": [player(pid, "P", "P") for pid in bullpen],
         }
 
-    OUT.parent.mkdir(parents=True, exist_ok=True)
+    out.parent.mkdir(parents=True, exist_ok=True)
     payload = {"season": args.season, "generatedFrom": "statcast-local", "teams": teams_out}
-    OUT.write_text(json.dumps(payload, separators=(",", ":")))
-    print(f"wrote {OUT} ({os.path.getsize(OUT) / 1024:.0f} KB, {len(teams_out)} teams)", file=sys.stderr)
+    out.write_text(json.dumps(payload, separators=(",", ":")))
+    print(f"wrote {out} ({os.path.getsize(out) / 1024:.0f} KB, {len(teams_out)} teams)", file=sys.stderr)
     # Savant player metrics: sprint speed, arm, OAA, pop time, bat tracking, expected stats.
     import subprocess
-    subprocess.run([sys.executable, str(Path(__file__).with_name("enrich_game_rosters.py")), "--season", str(args.season)], check=False)
-    # Skin tones for the 3D players, read from each player's MLB headshot.
-    subprocess.run([sys.executable, str(Path(__file__).with_name("sample_skin_tones.py"))], check=False)
+    subprocess.run([sys.executable, str(Path(__file__).with_name("enrich_game_rosters.py")), "--season", str(args.season),
+                    "--out", str(out)], check=False)
+    # Skin tones for the 3D players, read from each player's MLB headshot (the game's own file only).
+    if out == OUT:
+        subprocess.run([sys.executable, str(Path(__file__).with_name("sample_skin_tones.py"))], check=False)
 
 
 if __name__ == "__main__":

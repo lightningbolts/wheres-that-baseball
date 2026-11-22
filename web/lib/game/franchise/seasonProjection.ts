@@ -11,6 +11,7 @@
 import type { RosterFile } from "@/lib/game/types";
 import type { ContractFile } from "./contracts";
 import { shiftBat, shiftPit } from "./development";
+import { LG } from "./data";
 import { createLeague } from "./league";
 import { startNextSeason } from "./offseason";
 import type { ProjectionFile } from "./projections";
@@ -24,14 +25,55 @@ import type { BatLine, League, PitLine, Player } from "./types";
 // ─── One simulation ──────────────────────────────────────────────────────────
 
 /** Opening Day of the real season: rosters, contracts, prospects, the winter market closed by the AI. */
-export function openingDayLeague(rosters: RosterFile, opts: { proj?: ProjectionFile; contracts?: ContractFile; seed?: number }): League {
-  const league = createLeague(rosters, { userTeam: 147, seed: opts.seed ?? 2027, proj: opts.proj, contracts: opts.contracts });
+export function openingDayLeague(
+  rosters: RosterFile,
+  opts: { proj?: ProjectionFile; contracts?: ContractFile; seed?: number; season?: number; realProspects?: boolean },
+): League {
+  const league = createLeague(rosters, {
+    userTeam: 147,
+    seed: opts.seed ?? 2027,
+    proj: opts.proj,
+    contracts: opts.contracts,
+    season: opts.season,
+    realProspects: opts.realProspects,
+  });
   league.settings.neutral = true;
   league.settings.autoRoster = true;
   const unsigned = Object.values(league.players).filter((p) => p.real && p.status === "fa");
   if (league.opening) startNextSeason(league);
   for (const p of unsigned) if (p.status !== "fa" && p.team) p.marketSigned = true;
+  regressHitters(league, opts.proj);
   return league;
+}
+
+/**
+ * Share of a hitter's distance from league average the forecast keeps. The game's own ratings
+ * (multi-year Statcast, no outside projection) separate hitters more than real seasons do: in
+ * the 2026 backtest (built from 2025 and earlier, scored on 2026) actual wOBA moved only ~0.55
+ * per point of projected wOBA, every rate about equally; scaling them all keeps the ranking and
+ * fixes the spread. Pitchers came out calibrated, so only hitters are pulled in.
+ */
+export const FORECAST_BAT_SPREAD = 0.65;
+
+/** Typical share of a hitter's rates taken from Steamer when it has a line (see build_franchise_projections.py). */
+const STEAMER_SHARE = 0.6;
+
+const BAT_RATES = ["k", "bb", "hr", "babip", "xbh"] as const;
+
+/**
+ * Pulls real hitters toward league average by FORECAST_BAT_SPREAD. Steamer is already
+ * regressed, so hitters with a Steamer line only get the correction on the share of their
+ * rates that is ours.
+ */
+export function regressHitters(league: League, proj?: ProjectionFile, keep = FORECAST_BAT_SPREAD): void {
+  for (const p of Object.values(league.players)) {
+    if (!p.real) continue;
+    const k = proj?.players[String(p.id)]?.fg?.bwar != null ? 1 - (1 - keep) * (1 - STEAMER_SHARE) : keep;
+    for (const b of [p.bat, p.bat0]) {
+      if (!b) continue;
+      for (const r of BAT_RATES) b[r] = LG[r] + k * (b[r] - LG[r]);
+    }
+  }
 }
 
 /**
@@ -52,15 +94,27 @@ export function talentSd(p: Player): number {
  * Re-draws every player's true talent around his projection (directly in skill space, so the
  * 20–80 grade cap never distorts the tails). Managers still see and play the projected grade.
  */
-export function drawTalent(league: League, rng: FRng): void {
+export function drawTalent(league: League, rng: FRng, teamSd = TEAM_TALENT_SD): void {
+  // One shared shift per organization: what player-by-player projections miss together
+  // (injury clusters, roster churn, coaching, the depth chart).
+  const club = new Map<number, number>();
+  for (const id of Object.keys(league.teams)) club.set(Number(id), rng.gauss(0, teamSd));
   for (const p of Object.values(league.players)) {
     if (p.status === "retired") continue;
     const sd = talentSd(p);
+    const shared = club.get(p.team) ?? 0;
     p.seen = { bat: p.bat, pit: p.pit };
-    if (p.bat) p.bat = shiftBat(p.bat, rng.gauss(0, sd));
-    if (p.pit) p.pit = shiftPit(p.pit, rng.gauss(0, sd));
+    if (p.bat) p.bat = shiftBat(p.bat, rng.gauss(0, sd) + shared);
+    if (p.pit) p.pit = shiftPit(p.pit, rng.gauss(0, sd) + shared);
   }
 }
+
+/**
+ * Organization-wide talent uncertainty in skill z (≈ ±4 wins on its own). Sized on the 2026
+ * backtest so a club's win range matches the typical miss (~9.5 wins): without it only ~63% of
+ * clubs finished inside their 80% band; at 0.2 73%, at 0.3 90%.
+ */
+export const TEAM_TALENT_SD = 0.22;
 
 export interface SimTeam {
   id: number;
