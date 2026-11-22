@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { CLUBS } from "@/components/game/scene/character/uniforms";
-import { dressFan } from "@/components/game/scene/parks/fans";
+import { clubSets, CLUBS } from "@/components/game/scene/character/uniforms";
+import { dressFan, lineup, MAX_CAPS, MAX_GARMENTS } from "@/components/game/scene/parks/fans";
 import { CROWD, FAN_STYLE } from "@/components/game/scene/parks/textures";
 
 const palette = [0xf2f0ea, 0x20283a, 0x8c9299, 0xb32a33, 0x1f4f9a, 0x2f6a43];
@@ -37,6 +37,19 @@ describe("fan merch", () => {
     }
   });
 
+  it("puts the club's colours on nearly every fan at the share the stands use", () => {
+    for (const id of ids) {
+      const { kit, fits } = crowd(id, 0.86);
+      const club = [kit.home, kit.road, kit.cap, kit.letter];
+      // Club colour on the body: merch tops in the cap or lettering colour, not plain white or grey.
+      const coloured = fits.filter((f) => f.body === kit.cap || f.body === kit.letter);
+      expect(coloured.length / fits.length, `${id}`).toBeGreaterThan(0.45);
+      // Everyone else at least shows the club on their cap, logo or lettering, bar a few.
+      const shows = fits.filter((f) => club.includes(f.body) || f.trim === kit.cap || f.trim === kit.letter);
+      expect(shows.length / fits.length, `${id}`).toBeGreaterThan(0.88);
+    }
+  });
+
   it("keeps lettering and logos legible against the cloth", () => {
     for (const id of ids) {
       for (const f of crowd(id, 1).fits) {
@@ -52,5 +65,54 @@ describe("fan merch", () => {
     }
     expect(CROWD.seated % FAN_STYLE.count).toBe(0);
     expect((CROWD.cols * CROWD.rows - CROWD.seated) % FAN_STYLE.count).toBe(0);
+  });
+});
+
+describe("fan wardrobe", () => {
+  const ids = Object.keys(CLUBS).map(Number);
+  const colors = (id: number) => {
+    const u = CLUBS[id];
+    return { home: u.home, road: u.road, cap: u.cap, letter: u.letter };
+  };
+
+  it("fits both clubs' gear in the design atlas for every pairing", () => {
+    for (const h of ids)
+      for (const a of ids) {
+        if (a === h) continue;
+        const l = lineup({ teamId: h, colors: colors(h) }, { teamId: a, colors: colors(a) }, palette);
+        expect(l.garments.length).toBeLessThanOrEqual(MAX_GARMENTS);
+        expect(l.caps.length).toBeLessThanOrEqual(MAX_CAPS);
+        for (const side of [l.home, l.away!]) {
+          for (const s of [...side.jersey, ...side.tee, ...side.hoodie]) expect(s).toBeLessThan(l.garments.length);
+          for (const s of side.cap) expect(s).toBeLessThan(l.caps.length);
+        }
+      }
+  });
+
+  it("puts a replica of every set a club wears, City Connect included, in its fans' wardrobe", () => {
+    for (const id of ids) {
+      const l = lineup({ teamId: id, colors: colors(id) }, null, palette);
+      const worn = new Set(l.home.jersey.map((i) => l.garments[i].kit));
+      for (const s of clubSets(id)) expect(worn.has(s.kit)).toBe(true);
+      expect(l.home.jersey.every((i) => l.garments[i].kind === "jersey" && l.garments[i].teamId === id)).toBe(true);
+    }
+    expect(clubSets(136).some((s) => s.id === "cc")).toBe(true);
+  });
+
+  it("gives each fan a garment and cap from his side's wardrobe", () => {
+    const l = lineup({ teamId: 136, colors: colors(136) }, { teamId: 110, colors: colors(110) }, palette);
+    let s = 11;
+    const r = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+    let orioles = 0;
+    for (let i = 0; i < 3000; i += 1) {
+      const f = dressFan(colors(110), palette, 0.9, r(), r(), r(), r(), { side: l.away!, own: l.own });
+      expect(f.garment).toBeGreaterThanOrEqual(0);
+      if (f.merch) {
+        const d = l.garments[f.garment];
+        expect(d.teamId).toBe(110);
+        if (d.kind === "jersey") orioles += 1;
+      }
+    }
+    expect(orioles).toBeGreaterThan(300);
   });
 });

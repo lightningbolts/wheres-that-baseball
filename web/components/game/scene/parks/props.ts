@@ -10,6 +10,7 @@ import { dirXZ, GROUND_Y, type WallLoop } from "@/components/game/scene/fieldGeo
 import { GeoBuilder, hash, mix, rgb, type P3, type RGB } from "@/components/game/scene/parks/geo";
 import type { StandReach } from "@/components/game/scene/parks/stands";
 import { LED_ROW, type DecalAtlas } from "@/components/game/scene/parks/textures";
+import type { ModelPlacer, PlacedModel } from "@/components/game/scene/parks/placements";
 import { cnTower, far, frameYaw, loc, obelisk, peak, skyline, spaceNeedle, type Frame } from "@/components/game/scene/parks/skyline";
 
 export interface PropCtx {
@@ -32,7 +33,12 @@ export interface PropCtx {
   lit: boolean;
   /** Translucent fabric (Tropicana Field's roof); casts no shadow. */
   veil?: GeoBuilder;
+  /** Blender models placed as instances (parks/placements.ts); without it, all procedural. */
+  models?: ModelPlacer;
 }
+
+/** The builder for a part a model replaces: its proxy when models are on, else `fallback`. */
+const proxyOf = (c: PropCtx, name: PlacedModel, fallback: GeoBuilder): GeoBuilder => c.models?.proxy(name) ?? fallback;
 
 const clampDeg = (b: number) => Math.min(45, Math.max(-45, b));
 
@@ -63,17 +69,20 @@ const WINDOW: RGB = [1, 0.82, 0.48];
 
 export function foulPoles(c: PropCtx): void {
   const color = c.layout.pole ?? "#f2d23a";
+  const b = proxyOf(c, "foul_pole", c.st);
   for (const a of [-45, 45]) {
     const [dx, dz] = dirXZ(a);
     const f = c.park.fence(a);
     const h = c.park.wallHeight(a) + 68;
-    c.st.cyl(dx * f, 0, dz * f, 0.55, 0.45, h, color, 6);
+    b.cyl(dx * f, 0, dz * f, 0.55, 0.45, h, color, 6);
     // Screen on the fair side.
     const [ix, iz] = dirXZ(a - Math.sign(a) * 90);
     const yaw = Math.atan2(ix, iz);
-    c.st.box(dx * f + ix * 2.2, h - 24, dz * f + iz * 2.2, 0.2, 44, 4, yaw, color, 0.86);
-    for (let k = 0; k <= 4; k += 1) c.st.box(dx * f + ix * 2.2, h - 46 + k * 11, dz * f + iz * 2.2, 0.32, 0.5, 4.3, yaw, color, 0.7);
-    c.st.box(dx * f + ix * 4.3, h - 24, dz * f + iz * 4.3, 0.34, 44.5, 0.4, yaw, color, 0.74);
+    b.box(dx * f + ix * 2.2, h - 24, dz * f + iz * 2.2, 0.2, 44, 4, yaw, color, 0.86);
+    for (let k = 0; k <= 4; k += 1) b.box(dx * f + ix * 2.2, h - 46 + k * 11, dz * f + iz * 2.2, 0.32, 0.5, 4.3, yaw, color, 0.7);
+    b.box(dx * f + ix * 4.3, h - 24, dz * f + iz * 4.3, 0.34, 44.5, 0.4, yaw, color, 0.74);
+    // The model is 100 ft tall with its screen along local +X: turn +X toward fair ground.
+    c.models?.place("foul_pole", dx * f, 0, dz * f, Math.atan2(-iz, ix), 1, h / 100, 1, color);
   }
 }
 
@@ -260,9 +269,18 @@ function lampRack(c: PropCtx, f: Frame, lx: number, y: number, lz: number, w: nu
   const rh = h / rows;
   const r = LED_ROW.lamps;
   const lamps = Math.max(1, Math.round(w / rh));
+  const led = c.models?.proxyLed("luminaire") ?? c.led;
+  // Luminaire model: 2.9 ft across on a 3.4 ft pitch; aimed at the field (+lz).
+  const s = Math.min(w / lamps, rh) / 3.4;
   for (let k = 0; k < rows; k += 1) {
     const y0 = y - h / 2 + k * rh;
-    c.led.quadUv(loc(f, lx - w / 2, y0, lz), loc(f, lx + w / 2, y0, lz), loc(f, lx + w / 2, y0 + rh, lz), loc(f, lx - w / 2, y0 + rh, lz), [0, r.v[0]], [lamps / 16, r.v[0]], [lamps / 16, r.v[1]], [0, r.v[1]], "#ffffff");
+    led.quadUv(loc(f, lx - w / 2, y0, lz), loc(f, lx + w / 2, y0, lz), loc(f, lx + w / 2, y0 + rh, lz), loc(f, lx - w / 2, y0 + rh, lz), [0, r.v[0]], [lamps / 16, r.v[0]], [lamps / 16, r.v[1]], [0, r.v[1]], "#ffffff");
+    if (c.models) {
+      for (let i = 0; i < lamps; i += 1) {
+        const p = loc(f, lx - w / 2 + ((i + 0.5) * w) / lamps, y0 + rh / 2, lz + 0.3 * s);
+        c.models.place("luminaire", p[0], p[1], p[2], f.yaw, s);
+      }
+    }
   }
   if (c.lit) {
     const p = loc(f, lx, y, lz + 1.5);
@@ -308,15 +326,18 @@ export function lightBanks(c: PropCtx): void {
         return loc(f, legs[k][0] * w, GROUND_Y + (h - GROUND_Y) * t, -4 + legs[k][1] * w * 0.7);
       };
       const levels = 6;
+      const mast = proxyOf(c, "light_mast", c.st);
       for (let k = 0; k < 4; k += 1) {
-        c.st.beam(leg(k, 0), leg(k, 1), 1.3, steel);
+        mast.beam(leg(k, 0), leg(k, 1), 1.3, steel);
         for (let j = 0; j < levels; j += 1) {
           const t0 = j / levels;
           const t1 = (j + 1) / levels;
-          c.st.beam(leg(k, t0), leg((k + 1) % 4, t1), 0.55, steel, 0.9);
-          c.st.beam(leg(k, t1), leg((k + 1) % 4, t1), 0.55, steel, 0.85);
+          mast.beam(leg(k, t0), leg((k + 1) % 4, t1), 0.55, steel, 0.9);
+          mast.beam(leg(k, t1), leg((k + 1) % 4, t1), 0.55, steel, 0.85);
         }
       }
+      // The model is authored 160 ft tall with the same leg footprint.
+      c.models?.place("light_mast", f.x, GROUND_Y, f.z, f.yaw, 1, (h - GROUND_Y) / 160, 1);
       fbox(c.st, f, 0, h - 9, -3, 26, 0.8, 9, "#4a4f55");
       lampRack(c, f, 0, h + 5, 0.6, 40, 17, 5);
     }
@@ -665,6 +686,23 @@ export function decalGeometry(c: PropCtx, atlas: DecalAtlas): THREE.BufferGeomet
     }
   }
   return b.build();
+}
+
+const TREE_MODEL = { pine: "tree_pine", palm: "tree_palm", round: "tree_round" } as const;
+
+/**
+ * A tree: the Blender model where there is one (cherry blossom stays procedural — its
+ * pink canopy is not a tint of the broadleaf model's), sized as the procedural tree is.
+ */
+function placeTree(c: PropCtx, x: number, z: number, kind: "pine" | "palm" | "round" | "cherry", k: number): void {
+  if (kind === "cherry" || !c.models) return tree(c.st, x, z, kind, k);
+  const name = TREE_MODEL[kind];
+  tree(c.models.proxy(name), x, z, kind, k);
+  const s = 0.8 + hash(k * 3.3) * 0.5;
+  const size = kind === "palm" ? ((38 + hash(k) * 16) * s) / 46 : s;
+  const v = hash(k * 7.7);
+  const tint: RGB = [0.82 + 0.3 * v, 0.88 + 0.22 * hash(k * 2.9), 0.8 + 0.25 * (1 - v)];
+  c.models.place(name, x, GROUND_Y, z, hash(k * 5.1) * Math.PI * 2, size, size, size, tint);
 }
 
 function tree(b: GeoBuilder, x: number, z: number, kind: "pine" | "palm" | "round" | "cherry", k: number): void {
@@ -1085,7 +1123,7 @@ function feature(c: PropCtx, f: Feature, fi: number): void {
         const deg = f.from + ((f.to - f.from) * (i + 0.5 + (hash(i * 3.7 + fi) - 0.5) * 0.7)) / f.n;
         const r = fenceAt(deg) + f.back + hash(i * 9.1 + fi * 3) * Math.min(40, f.back * 0.4);
         const [dx, dz] = dirXZ(deg);
-        tree(st, dx * r, dz * r, f.kind, i + fi * 50);
+        placeTree(c, dx * r, dz * r, f.kind, i + fi * 50);
       }
       break;
     }

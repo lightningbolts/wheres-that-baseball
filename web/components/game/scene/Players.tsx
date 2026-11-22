@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { newRigOut, type RigOut } from "@/components/game/scene/rig";
 import { MAX_FRAME_DT, actorsAt, type Playback } from "@/components/game/scene/playback";
-import { Person, Wardrobe } from "@/components/game/scene/character/person";
+import { Person, Wardrobe, gloveShapes } from "@/components/game/scene/character/person";
 import { Animator, type AnimEnv } from "@/components/game/scene/character/animator";
 import { hash01 } from "@/components/game/scene/character/paint";
 import { identity } from "@/components/game/scene/character/roster";
@@ -13,6 +13,7 @@ import { BAT_COLORS, batGeometry, batMaterial } from "@/components/game/scene/ch
 import { loadRoster } from "@/components/game/scene/character/roster";
 import { loadScriptFont } from "@/components/game/scene/character/scriptFont";
 import { getQuality } from "@/components/game/scene/quality";
+import { useModel, useModelOn } from "@/components/game/scene/assets/models";
 
 const MAX = 24;
 const env: AnimEnv = { tl: null, ball: null, T: 0, dA: 0, now: 0, frame: 0, cut: false, callAge: -1 };
@@ -112,6 +113,17 @@ export function Players({ pb }: { pb: Playback }) {
       kit.blobs.dispose();
     };
   }, [kit]);
+
+  // The Blender-built bat (wood grain, roughness map) replaces the lathe once it loads;
+  // the instance colours still pick ash / maple / black per player.
+  useModelOn("bat", () => kit.bats, { lod: getQuality().boot.tier === "low" ? 1 : 0 });
+  // ...and the Blender-built glove and catcher's mitt replace the procedural ones in the bodies.
+  const gloveModel = useModel("glove");
+  useEffect(() => {
+    if (!gloveModel) return;
+    kit.wardrobe.setGloves(gloveShapes(gloveModel.lods.map((l) => l.geometry)));
+    return () => kit.wardrobe.setGloves(undefined);
+  }, [gloveModel, kit]);
 
   const slots = useRef(new Map<string, number>());
   const rigs = useMemo(() => Array.from({ length: MAX }, () => newRigOut()), []);

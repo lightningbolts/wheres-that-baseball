@@ -1021,14 +1021,16 @@ function fist(b: MeshBuilder, side: number, at: (x: number, y: number, z: number
   tube(b, [at(side * 0.125, 0.09, -0.04), at(side * 0.158, 0.095, 0.025), at(side * 0.11, 0.085, 0.082), at(side * 0.03, 0.06, 0.108), at(-side * 0.03, 0.04, 0.11)], [0.044, 0.043, 0.04, 0.035, 0.03], 6, U.hand, skin);
 }
 
-function hand(b: MeshBuilder, side: number, o: Outfit, lod: Lod) {
+function hand(b: MeshBuilder, side: number, o: Outfit, lod: Lod, gloves?: GloveShapes) {
   const bone = side > 0 ? BONE.handL : BONE.handR;
   const skin = rigid(bone);
   const hx = side * DIM.shoulderX;
   const hy = Y0 + DIM.shoulderY - DIM.upperArm - DIM.foreArm;
   const at = (x: number, y: number, z: number): V3 => [hx + x, hy + y, z];
   if (o.glove === side) {
-    glove(b, side, hx, hy, o.mitt, lod, skin);
+    const modelled = (o.mitt ? gloves?.mitt : gloves?.glove)?.[lod];
+    if (modelled) modelledGlove(b, side, hx, hy, modelled, skin);
+    else glove(b, side, hx, hy, o.mitt, lod, skin);
     return;
   }
   if (o.fists) {
@@ -1093,6 +1095,44 @@ function hand(b: MeshBuilder, side: number, o: Outfit, lod: Lod) {
     );
   }
   tube(b, [at(side * 0.09, 0.1, 0.02), at(side * 0.155, 0.015, 0.045), at(side * 0.19, -0.075, 0.064), at(side * 0.2, -0.15, 0.08)], [0.046, 0.042, 0.035, 0.028], 6, U.hand, skin);
+}
+
+/**
+ * A glove modelled in Blender (assets3d/blender/assets/glove.py): hand-centred, feet,
+ * fingers along −Y, pocket facing +Z, thumb on +X (a left-hand glove; mirrored for the
+ * right hand). `uv` is (s, t) in the atlas's glove panel, `shade` baked occlusion, and
+ * `dark` marks the trim (web, laces) that takes the darker leather swatch.
+ */
+export interface GloveShape {
+  position: Float32Array;
+  uv: Float32Array;
+  shade: Float32Array;
+  dark: Uint8Array;
+  index: Uint32Array;
+}
+
+/** Modelled gloves by the body's level of detail (a missing level keeps the procedural glove). */
+export interface GloveShapes {
+  glove: GloveShape[];
+  mitt: GloveShape[];
+}
+
+function modelledGlove(b: MeshBuilder, side: number, hx: number, hy: number, g: GloveShape, skin: SkinFn) {
+  const G = PANEL.glove;
+  b.raw(
+    g.shade.length,
+    g.index,
+    (i, v) => {
+      v.x = hx + side * g.position[i * 3];
+      v.y = hy + g.position[i * 3 + 1];
+      v.z = g.position[i * 3 + 2];
+      if (g.dark[i]) U.gloveDark(v);
+      else panelUV(v, G, g.uv[i * 2], g.uv[i * 2 + 1]);
+      v.ao = g.shade[i];
+      skin(v);
+    },
+    side < 0,
+  );
 }
 
 function glove(b: MeshBuilder, side: number, hx: number, hy: number, mitt: boolean, lod: Lod, skin: SkinFn) {
@@ -1283,13 +1323,13 @@ function gear(b: MeshBuilder, o: Outfit, lod: Lod) {
 }
 
 /** Build the mesh for an outfit. `lod` 0 is the close-up model, 1 the mid-field one, 2 the distant one. */
-export function buildBody(o: Outfit, lod: Lod): MeshData {
+export function buildBody(o: Outfit, lod: Lod, gloves?: GloveShapes): MeshData {
   const b = new MeshBuilder();
   trunk(b, o, lod);
   head(b, o, lod);
   for (const side of [1, -1]) {
     arm(b, side, o, lod);
-    hand(b, side, o, lod);
+    hand(b, side, o, lod, gloves);
     leg(b, side, o, lod);
     shoe(b, side, lod);
   }

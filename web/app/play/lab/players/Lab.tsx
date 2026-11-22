@@ -6,8 +6,9 @@ import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { BONE_COUNT, REST } from "@/components/game/scene/character/skeleton";
-import { Person, Wardrobe } from "@/components/game/scene/character/person";
+import { Person, Wardrobe, gloveShapes } from "@/components/game/scene/character/person";
 import { BAT_COLORS, batGeometry, batMaterial } from "@/components/game/scene/character/bat";
+import { useModel, useModelOn } from "@/components/game/scene/assets/models";
 import { identity, loadRoster, rosterVersion } from "@/components/game/scene/character/roster";
 import { loadScriptFont } from "@/components/game/scene/character/scriptFont";
 import { uniformFor } from "@/components/game/scene/character/uniforms";
@@ -66,7 +67,8 @@ function actionFor(kind: ActorKind, pose: PoseName, t: number): { action: Action
   const p = pose === "auto" ? auto[kind] : pose;
   switch (p) {
     case "stance":
-      return { action: "stance", actionT: 1, speed: 0 };
+      // t 0 → waiting for the pitch (no load) … 0.5 → release … 1 → ball past him.
+      return { action: "stance", actionT: t <= 0.02 ? -10 : t * 2 - 1, speed: 0 };
     case "swing":
       return { action: "swing", actionT: t, speed: 0 };
     case "set":
@@ -119,6 +121,8 @@ function Cast({ s }: { s: Settings }) {
     bats.count = 0;
     bats.setColorAt(0, BAT_COLORS[0]);
     group.add(bats);
+    // `?player=<MLB id>` puts that player in every batter's shoes (his stance and swing).
+    const swap = typeof window === "undefined" ? 0 : Number(new URLSearchParams(window.location.search).get("player") ?? 0);
     const actors: ActorDraw[] = CAST.map((c, i) => {
       const uni = c.teamId ? uniformFor(c.teamId, c.home, 0x223344) : null;
       return {
@@ -131,7 +135,7 @@ function Cast({ s }: { s: Settings }) {
         hand: c.hand,
         helmet: c.kind === "batter" || c.kind === "runner",
         pos: c.pos ?? null,
-        id: c.id,
+        id: swap && c.kind === "batter" ? swap : c.id,
         uni: c.kind === "umpire" ? null : uni,
       } as ActorDraw;
     });
@@ -148,6 +152,13 @@ function Cast({ s }: { s: Settings }) {
       kit.bats.dispose();
     };
   }, [kit]);
+  useModelOn("bat", () => kit.bats);
+  const gloveModel = useModel("glove");
+  useEffect(() => {
+    if (!gloveModel) return;
+    kit.wardrobe.setGloves(gloveShapes(gloveModel.lods.map((l) => l.geometry)));
+    return () => kit.wardrobe.setGloves(undefined);
+  }, [gloveModel, kit]);
   const turn = useRef(0);
   const { camera } = useThree();
 

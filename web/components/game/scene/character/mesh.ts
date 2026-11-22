@@ -125,6 +125,32 @@ export class MeshBuilder {
     }
   }
 
+  /**
+   * Triangles given outright (a modelled part): `fn(i, out)` fills vertex i of `count`, and
+   * `index` lists the triangles, wound counter-clockwise seen from outside (`flip` reverses
+   * them, for a mirrored copy).
+   */
+  raw(count: number, index: ArrayLike<number>, fn: (i: number, o: VOut) => void, flip = false): void {
+    const v0 = this.vertexCount;
+    const o = this.o;
+    for (let i = 0; i < count; i += 1) {
+      o.ao = 1;
+      o.b1 = 0;
+      o.w = 0;
+      fn(i, o);
+      this.pos.push(o.x, o.y, o.z);
+      this.uv.push(o.u, o.v);
+      this.ao.push(o.ao);
+      const w = Math.min(1, Math.max(0, o.w));
+      this.bi.push(o.b0, w > 0 ? o.b1 : o.b0);
+      this.bw.push(1 - w, w);
+    }
+    for (let k = 0; k + 2 < index.length; k += 3) {
+      if (flip) this.idx.push(v0 + index[k], v0 + index[k + 2], v0 + index[k + 1]);
+      else this.idx.push(v0 + index[k], v0 + index[k + 1], v0 + index[k + 2]);
+    }
+  }
+
   build(): MeshData {
     const n = this.vertexCount;
     const position = new Float32Array(this.pos);
