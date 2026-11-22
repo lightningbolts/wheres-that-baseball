@@ -3768,6 +3768,9 @@ const unit = (seed: number, salt: number) => {
   return ((h ^ (h >>> 15)) >>> 0) / 4294967296;
 };
 
+/** Below this the two sides' jerseys are hard to tell apart. */
+export const CLASH = 120;
+
 /** How far apart two cloths read on the field (0 the same, ~442 black against white). */
 export function clothDistance(a: number, b: number): number {
   const d = [16, 8, 0].map((sh) => ((a >> sh) & 255) - ((b >> sh) & 255));
@@ -3777,8 +3780,8 @@ export function clothDistance(a: number, b: number): number {
 /**
  * The set a club wears in one game, the same every time for that game's seed. At home it's
  * mostly the home whites, with the City Connect and home alternates on their nights; away
- * it's mostly the road greys or a road alternate, never the City Connect, and the greys
- * whenever the alternate would be hard to tell from the home side's jersey (`against`).
+ * it's mostly the road greys or a road alternate, never the City Connect, and whichever road
+ * set stands apart when the pick would be hard to tell from the home side's jersey (`against`).
  */
 export function gameSet(teamId: number, home: boolean, seed: number, against?: number): KitSet | null {
   const sets = clubSets(teamId);
@@ -3794,7 +3797,12 @@ export function gameSet(teamId: number, home: boolean, seed: number, against?: n
   let pick = base;
   if (u < ccShare) pick = cc[Math.floor((u / ccShare) * cc.length)];
   else if (u < ccShare + altShare) pick = alts[Math.floor(((u - ccShare) / altShare) * alts.length)];
-  if (!home && against !== undefined && pick !== base && clothDistance(pick.kit.jersey, against) < 120) pick = base;
+  if (!home && against !== undefined && clothDistance(pick.kit.jersey, against) < CLASH) {
+    // Too close to the home side: the road set if it stands apart, else the road-worthy set
+    // that stands apart most (a grey City Connect at home sends the visitors to a coloured top).
+    const options = [base, ...alts];
+    pick = options.find((s) => clothDistance(s.kit.jersey, against) >= CLASH) ?? options.reduce((a, b) => (clothDistance(b.kit.jersey, against) > clothDistance(a.kit.jersey, against) ? b : a));
+  }
   return pick;
 }
 

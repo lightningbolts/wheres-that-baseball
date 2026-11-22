@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clothDistance, clubSets, gameSet, KITS, setVenue, uniformFor } from "@/components/game/scene/character/uniforms";
+import { CLASH, clothDistance, clubSets, gameSet, KITS, setVenue, uniformFor } from "@/components/game/scene/character/uniforms";
 
 const ids = Object.keys(KITS).map(Number);
 
@@ -32,9 +32,11 @@ describe("a club's set for a game", () => {
         const s = gameSet(id, false, seed)!;
         expect(s.id.startsWith("cc")).toBe(false);
         expect(setVenue(s)).not.toBe("home");
-        for (const against of [0xf4f2ec, 0x0c2c56, 0xc6011f]) {
+        for (const against of [0xf4f2ec, 0x0c2c56, 0xc6011f, 0xa2aaad, 0x8c8f91]) {
           const t = gameSet(id, false, seed, against)!;
-          if (t.id !== "road") expect(clothDistance(t.kit.jersey, against)).toBeGreaterThanOrEqual(120);
+          // Apart from the home side, or as far apart as any road-worthy set gets.
+          const best = Math.max(...clubSets(id).filter((x) => setVenue(x) !== "home").map((x) => clothDistance(x.kit.jersey, against)));
+          expect(clothDistance(t.kit.jersey, against)).toBeGreaterThanOrEqual(Math.min(CLASH, best));
         }
       }
   });
