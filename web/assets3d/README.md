@@ -95,3 +95,4 @@ chalk and rubber stay clean.
 | `luminaire` | see manifest | the flat LED lamp quads on every lamp rack (lenses glow at night) |
 | `foul_pole` | see manifest | the cylinder-and-box poles in `props.ts` `foulPoles` (park paint as instance colour) |
 | `tree_round`, `tree_pine`, `tree_palm` | see manifest | the sphere / cone / quad trees in park features (cherry blossoms stay procedural) |
+| `crowd` | 1 quad + 1024² atlas | the canvas-painted fan sprites in `parks/textures.ts` `crowdAtlas` (48 modelled fans rendered in Cycles, same cell layout and grey-cloth / magenta-trim conventions; the painted atlas shows until it loads) |

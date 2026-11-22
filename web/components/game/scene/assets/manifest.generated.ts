@@ -33,6 +33,14 @@ export const MODELS = {
       { name: "bat_LOD1", triangles: 504, bounds: {"min":[-0.108,-0.2,-0.108],"max":[0.108,2.62,0.108]} },
     ],
   },
+  crowd: {
+    url: "/models/crowd.2a2d0129d2.glb",
+    bytes: 125560,
+    description: "Crowd sprite atlas (48 Cycles-rendered fans, 8 × 6 cells of 128 × 170) on a quad",
+    lods: [
+      { name: "crowd_LOD0", triangles: 2, bounds: {"min":[-0.5,0,0],"max":[0.5,1,0]} },
+    ],
+  },
   dirt: {
     url: "/models/dirt.91fc27c50a.glb",
     bytes: 365992,

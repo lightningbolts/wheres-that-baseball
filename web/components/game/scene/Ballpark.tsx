@@ -49,6 +49,7 @@ import { useQuality } from "@/components/game/scene/quality";
 import { applySurface, useSurfaceSet } from "@/components/game/scene/parks/surfaces";
 import { ModelPlacer } from "@/components/game/scene/parks/placements";
 import { PlacedModels } from "@/components/game/scene/parks/PlacedModels";
+import { useModel } from "@/components/game/scene/assets/models";
 
 /**
  * Shared excitement (0..1) the crowd reacts to; set by the game view. `excite` is the home
@@ -357,9 +358,19 @@ function Crowd({ seats, yaws, meta, accent, awayAccent, homeTeam, awayTeam, capa
     () => ({ uTime: { value: 0 }, uExcite: { value: 0 }, uAwayExcite: { value: 0 }, uLight: { value: CROWD_LIGHT[tod] }, uSun: { value: new THREE.Vector3(...CROWD_SUN[tod]).normalize() } }),
     [tod],
   );
-  const atlas = useMemo(() => (typeof document === "undefined" ? null : crowdAtlas()), []);
+  // The Blender-rendered atlas (assets3d/blender/assets/crowd.py) once it loads; the
+  // canvas-painted one, same layout, until then. glTF images are stored top row first, so
+  // that atlas samples with v flipped.
+  const crowdModel = useModel("crowd");
+  const rendered = crowdModel?.lods[0].material.map ?? null;
+  const painted = useMemo(() => (rendered || typeof document === "undefined" ? null : crowdAtlas()), [rendered]);
+  const atlas = rendered ?? painted;
+  useEffect(() => () => painted?.dispose(), [painted]);
   const material = useMemo(() => {
+    if (rendered) rendered.anisotropy = 4;
+    const flip = rendered ? 1 : 0;
     const m = new THREE.MeshBasicMaterial({ map: atlas });
+    m.customProgramCacheKey = () => `crowd${flip}`;
     m.onBeforeCompile = (shader) => {
       shader.uniforms.uTime = uniforms.uTime;
       shader.uniforms.uExcite = uniforms.uExcite;
@@ -392,7 +403,7 @@ function Crowd({ seats, yaws, meta, accent, awayAccent, homeTeam, awayTeam, capa
           float cell = mix(aInfo.x, ${CROWD.seated.toFixed(1)} + mod(aInfo.x, ${FAN_STYLE.count.toFixed(1)}) + ${FAN_STYLE.count.toFixed(1)} * floor(fract(sd * 3.7) * ${((CROWD.cols * CROWD.rows - CROWD.seated) / FAN_STYLE.count).toFixed(1)}), cheer);
           vec2 cr = vec2(mod(cell, ${CROWD.cols.toFixed(1)}), floor(cell / ${CROWD.cols.toFixed(1)}));
           float fu = mix(uv.x, 1.0 - uv.x, step(0.5, fract(sd * 5.37)));
-          vMapUv = vec2((cr.x + 0.025 + 0.95 * fu) / ${CROWD.cols.toFixed(1)}, 1.0 - (cr.y * ${CROWD.ch.toFixed(1)} + 2.5 + (1.0 - uv.y) * ${(CROWD.ch - 4).toFixed(1)}) / ${CROWD.size.toFixed(1)});
+          vMapUv = vec2((cr.x + 0.025 + 0.95 * fu) / ${CROWD.cols.toFixed(1)}, ${flip ? "" : "1.0 - "}(cr.y * ${CROWD.ch.toFixed(1)} + 2.5 + (1.0 - uv.y) * ${(CROWD.ch - 4).toFixed(1)}) / ${CROWD.size.toFixed(1)});
           vCard = uv;
           vSun = vec3(dot(uSun, rgt), uSun.y, dot(uSun, fwd));
           vTint = aTint;
@@ -423,7 +434,7 @@ function Crowd({ seats, yaws, meta, accent, awayAccent, homeTeam, awayTeam, capa
         );
     };
     return m;
-  }, [uniforms, atlas]);
+  }, [uniforms, atlas, rendered]);
 
   const geom = useMemo(() => {
     const total = seats.length / 3;
