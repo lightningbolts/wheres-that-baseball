@@ -5,8 +5,12 @@
  * distributions for the projections page (web/data/projections/<season>.json).
  *
  *   npm run project-season -- [sims=3000] [workers=<cores-1>]
+ *
+ * Backtests swap in an earlier Opening Day and write elsewhere:
+ *   --rosters <file> --proj <file> --season 2026 --no-contracts --no-prospects --out <file>
  */
 import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { cpus, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -22,11 +26,42 @@ import type { RosterFile } from "../lib/game/types";
 const BASE_SEED = 2027;
 const here = dirname(fileURLToPath(import.meta.url));
 
+const flag = (name: string): string | undefined => {
+  const i = process.argv.indexOf(name);
+  return i >= 0 ? process.argv[i + 1] : undefined;
+};
+
+/** Which Opening Day to project (workers inherit it through the environment). */
+interface Cfg {
+  rosters?: string;
+  proj?: string;
+  season?: number;
+  contracts: boolean;
+  prospects: boolean;
+  out?: string;
+}
+
+const cfg: Cfg = process.env.PROJ_CFG
+  ? (JSON.parse(process.env.PROJ_CFG) as Cfg)
+  : {
+      rosters: flag("--rosters"),
+      proj: flag("--proj"),
+      season: flag("--season") ? Number(flag("--season")) : undefined,
+      contracts: !process.argv.includes("--no-contracts"),
+      prospects: !process.argv.includes("--no-prospects"),
+      out: flag("--out"),
+    };
+process.env.PROJ_CFG = JSON.stringify(cfg);
+
+const readJson = <T>(file: string | undefined, fallback: unknown): T => (file ? JSON.parse(readFileSync(file, "utf8")) : fallback) as T;
+
 function base() {
-  return openingDayLeague(rosters as unknown as RosterFile, {
-    proj: proj as unknown as ProjectionFile,
-    contracts: contracts as unknown as ContractFile,
+  return openingDayLeague(readJson<RosterFile>(cfg.rosters, rosters), {
+    proj: readJson<ProjectionFile>(cfg.proj, proj),
+    contracts: cfg.contracts ? (contracts as unknown as ContractFile) : undefined,
     seed: BASE_SEED,
+    season: cfg.season,
+    realProspects: cfg.prospects,
   });
 }
 
@@ -42,14 +77,9 @@ async function child(from: number, count: number, out: string): Promise<void> {
   if (process.send) process.send({ done: count, ms: Date.now() - t0 });
 }
 
-const flag = (name: string): string | undefined => {
-  const i = process.argv.indexOf(name);
-  return i >= 0 ? process.argv[i + 1] : undefined;
-};
-
 async function writeSummary(runs: RawRuns, t0: number): Promise<void> {
   const summary = summarize(runs, base());
-  const outFile = join(here, "..", "data", "projections", `${summary.season}.json`);
+  const outFile = cfg.out ?? join(here, "..", "data", "projections", `${summary.season}.json`);
   await mkdir(dirname(outFile), { recursive: true });
   await writeFile(outFile, JSON.stringify(summary));
   const secs = (Date.now() - t0) / 1000;
@@ -71,7 +101,8 @@ async function main(): Promise<void> {
   }
   // Keep the worker runs in this directory (else a temp dir that's removed afterwards).
   const keep = flag("--keep");
-  const args = process.argv.slice(2).filter((a, i, all) => !a.startsWith("--") && !all[i - 1]?.startsWith("--"));
+  const valued = new Set(["--keep", "--from-raw", "--rosters", "--proj", "--season", "--out"]);
+  const args = process.argv.slice(2).filter((a, i, all) => !a.startsWith("--") && !valued.has(all[i - 1]));
   const sims = Number(args[0] ?? 3000);
   const workers = Math.max(1, Math.min(sims, Number(args[1] ?? Math.max(1, cpus().length - 1))));
   const dir = keep ?? (await mkdtemp(join(tmpdir(), "proj-")));

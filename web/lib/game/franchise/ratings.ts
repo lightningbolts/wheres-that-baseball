@@ -69,14 +69,15 @@ export function pitSkillFrom(p: RosterPlayer): PitSkill {
   const sv = p.sav ?? {};
   const bf = pr?.bf ?? 0;
   const k = shrink(pr?.k, LG.k, bf, 200);
-  const bb = shrink(pr?.bb, LG.bb, bf, 200);
+  const bb = shrink(pr?.bb, LG.bb, bf, 300);
   // Barrels allowed per batted ball track home runs (league ≈ 7.5% barrels ≈ 3.0% HR/PA).
+  // Priors from the 2026 backtest: walks regress a little more, home runs and contact less.
   const hrRaw = sv.barrel != null ? LG.hr * (sv.barrel / 7.5) : LG.hr;
-  const hr = clamp(shrink(hrRaw, LG.hr, bf, 300), 0.012, 0.055);
+  const hr = clamp(shrink(hrRaw, LG.hr, bf, 150), 0.012, 0.055);
   // Contact quality beyond K/BB/HR: compare xwOBA allowed with what those rates imply.
   const implied = wobaOf({ k, bb, hr, babip: LG.babip, xbh: LG.xbh, spd: 27 });
   const resid = sv.xwoba != null ? sv.xwoba - implied : 0;
-  const babip = clamp(LG.babip + shrink(resid, 0, bf, 400) * 0.5, 0.265, 0.315);
+  const babip = clamp(LG.babip + shrink(resid, 0, bf, 200), 0.265, 0.315);
   const stam = clamp(pr?.stamina ?? 25, 15, 110);
   return { k, bb, hr, babip, stam };
 }

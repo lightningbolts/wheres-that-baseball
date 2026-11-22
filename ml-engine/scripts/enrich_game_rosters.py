@@ -79,8 +79,10 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--season", type=int, default=2026)
     ap.add_argument("--refresh", action="store_true")
+    ap.add_argument("--out", type=Path, default=OUT, help="roster file to enrich in place")
     args = ap.parse_args()
     y = args.season
+    out = args.out
 
     sprint = by_id(fetch(f"sprint_{y}.csv", f"{SAVANT}/sprint_speed?min_season={y}&max_season={y}&position=&team=&min=10&csv=true", args.refresh), "player_id")
     arm = by_id(fetch(f"arm_{y}.csv", f"{SAVANT}/arm-strength?type=player&year={y}&minThrows=50&pos=&team=&csv=true", args.refresh), "player_id")
@@ -93,7 +95,7 @@ def main() -> None:
     pv2 = by_id(fetch(f"pitcher_{y}_v2.csv", "", False), "player_id")
     print(f"savant: sprint {len(sprint)}, arm {len(arm)}, pop {len(pop)}, oaa {len(oaa)}, bat-tracking {len(bt)}, batters {len(bv2)}, pitchers {len(pv2)}", file=sys.stderr)
 
-    payload = json.loads(OUT.read_text())
+    payload = json.loads(out.read_text())
     hits = {"steal": 0, "sprint": 0, "arm": 0, "oaa": 0, "bt": 0, "bat": 0, "pit": 0, "pop": 0}
     for team in payload["teams"].values():
         for group in ("lineup", "bench", "rotation", "bullpen"):
@@ -176,8 +178,8 @@ def main() -> None:
                     p.pop("sav", None)
 
     payload["savant"] = y
-    OUT.write_text(json.dumps(payload, separators=(",", ":")))
-    print(f"enriched {OUT.name}: {hits}", file=sys.stderr)
+    out.write_text(json.dumps(payload, separators=(",", ":")))
+    print(f"enriched {out.name}: {hits}", file=sys.stderr)
 
 
 if __name__ == "__main__":

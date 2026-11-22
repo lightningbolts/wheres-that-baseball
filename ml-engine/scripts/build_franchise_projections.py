@@ -17,12 +17,16 @@ rosters.json (typically stars hurt for much of 2026) so the franchise can add th
 Writes web/data/game/franchise-proj.json.
 
 Usage:  python3 scripts/build_franchise_projections.py [--proj-season 2027] [--refresh]
+
+Backtests rebuild an earlier season's inputs: --last-year 2025 --proj-season 2026 with
+--rosters / --forty-file / --out pointing at the backtest's own files.
 """
 
 from __future__ import annotations
 
 import argparse
 import csv
+import zlib
 import io
 import json
 import math
@@ -40,9 +44,9 @@ OUT = WEB / "franchise-proj.json"
 
 FIRST_YEAR = 2015
 LAST_YEAR = 2026
-# Recency weights (2020 was 60 games; the PA weighting already handles that).
-YEAR_W = {2026: 5, 2025: 4, 2024: 3, 2023: 2, 2022: 1.3, 2021: 0.9, 2020: 0.6, 2019: 0.5,
-          2018: 0.35, 2017: 0.25, 2016: 0.18, 2015: 0.12}
+# Recency weights by seasons back from LAST_YEAR (2020 was 60 games; the PA weighting already handles that).
+RECENCY_W = [5, 4, 3, 2, 1.3, 0.9, 0.6, 0.5, 0.35, 0.25, 0.18, 0.12]
+YEAR_W = {LAST_YEAR - i: w for i, w in enumerate(RECENCY_W)}
 TEAM_IDS = [108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 133, 134,
             135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 158]
 POS_SPRINT = {"C": 25.3, "1B": 25.9, "2B": 27.4, "3B": 26.8, "SS": 27.8, "LF": 27.3,
@@ -226,13 +230,20 @@ def pit_curve(age: float) -> float:
 
 
 def main() -> None:
+    global LAST_YEAR, YEAR_W
     ap = argparse.ArgumentParser()
     ap.add_argument("--proj-season", type=int, default=2027)
     ap.add_argument("--refresh", action="store_true", help="re-download the latest seasons and rosters")
+    ap.add_argument("--last-year", type=int, default=LAST_YEAR, help="last season of data used (backtests: an earlier one)")
+    ap.add_argument("--rosters", type=Path, default=ROSTERS)
+    ap.add_argument("--forty-file", type=Path, help="JSON {teamId: [playerId, ...]} of 40-man players to add, instead of today's rosters")
+    ap.add_argument("--out", type=Path, default=OUT)
     args = ap.parse_args()
     proj_year = args.proj_season
+    LAST_YEAR = args.last_year
+    YEAR_W = {LAST_YEAR - i: w for i, w in enumerate(RECENCY_W)}
 
-    rosters = json.loads(ROSTERS.read_text())
+    rosters = json.loads(args.rosters.read_text())
     have: dict[int, str] = {}
     for t in rosters["teams"].values():
         for kind in ("lineup", "bench", "rotation", "bullpen"):
@@ -241,10 +252,14 @@ def main() -> None:
 
     # Current 40-man rosters: who is missing from the 2026 snapshot?
     forty: dict[int, list[dict]] = {}
-    for tid in TEAM_IDS:
-        d = json.loads(fetch(f"https://statsapi.mlb.com/api/v1/teams/{tid}/roster?rosterType=40Man",
-                             f"forty_{tid}.json", args.refresh))
-        forty[tid] = d.get("roster", [])
+    if args.forty_file:
+        for tid, pids in json.loads(args.forty_file.read_text()).items():
+            forty[int(tid)] = [{"person": {"id": pid}} for pid in pids]
+    else:
+        for tid in TEAM_IDS:
+            d = json.loads(fetch(f"https://statsapi.mlb.com/api/v1/teams/{tid}/roster?rosterType=40Man",
+                                 f"forty_{tid}.json", args.refresh))
+            forty[tid] = d.get("roster", [])
     missing = {r["person"]["id"]: tid for tid, rs in forty.items() for r in rs if r["person"]["id"] not in have}
     ids = sorted(set(have) | set(missing))
     print(f"{len(have)} roster players, {len(missing)} more on current 40-man rosters")
@@ -255,12 +270,12 @@ def main() -> None:
         chunk = ids[i:i + 80]
         url = ("https://statsapi.mlb.com/api/v1/people?personIds=" + ",".join(map(str, chunk)) +
                "&hydrate=stats(group=[hitting,pitching],type=[yearByYear],sportId=1)")
-        d = json.loads(fetch(url, f"people_{chunk[0]}_{len(chunk)}.json", args.refresh))
+        d = json.loads(fetch(url, f"people_{chunk[0]}_{len(chunk)}_{zlib.crc32(','.join(map(str, chunk)).encode()):08x}.json", args.refresh))
         for p in d.get("people", []):
             people[p["id"]] = p
 
     st_bat, st_pit = load_steamer()
-    sav = {k: {y: savant_csv(k, y, args.refresh) for y in range(FIRST_YEAR, LAST_YEAR + 1)}
+    sav = {k: {y: savant_csv(k, y, args.refresh) for y in range(max(FIRST_YEAR, LAST_YEAR - len(RECENCY_W) + 1), LAST_YEAR + 1)}
            for k in ("xbat", "xpit", "brlbat", "brlpit", "sprint")}
 
     out_players: dict[str, dict] = {}
@@ -279,7 +294,7 @@ def main() -> None:
                 continue
             for sp in s.get("splits", []):
                 y = int(sp.get("season", 0))
-                if y < FIRST_YEAR or y > LAST_YEAR or sp.get("sport", {}).get("id", 1) != 1 or "team" not in sp:
+                if y < max(FIRST_YEAR, LAST_YEAR - len(RECENCY_W) + 1) or y > LAST_YEAR or sp.get("sport", {}).get("id", 1) != 1 or "team" not in sp:
                     continue
                 st = sp["stat"]
                 acc = seasons[grp][y]
@@ -451,11 +466,14 @@ def main() -> None:
         extras[str(tid)].append(rp)
 
     sc = statcast_extras(set(out_players), args.refresh)
-    payload = {"projSeason": proj_year, "years": [FIRST_YEAR, LAST_YEAR], "built": date.today().isoformat(),
-               "players": out_players, "extras": extras, "sc": sc}
-    OUT.write_text(json.dumps(payload, separators=(",", ":")))
+    payload = {"projSeason": proj_year, "years": [max(FIRST_YEAR, LAST_YEAR - len(RECENCY_W) + 1), LAST_YEAR],
+               "built": date.today().isoformat(), "players": out_players, "extras": extras, "sc": sc}
+    out = args.out
+    out.write_text(json.dumps(payload, separators=(",", ":")))
     n_extra = sum(len(v) for v in extras.values())
-    print(f"wrote {len(out_players)} projections + {n_extra} added 40-man players to {OUT} ({OUT.stat().st_size // 1024} KB)")
+    print(f"wrote {len(out_players)} projections + {n_extra} added 40-man players to {out} ({out.stat().st_size // 1024} KB)")
+    if out != OUT:
+        return
     # Skin tones for the added players (they are not in rosters.json), read from their MLB headshots.
     import subprocess
     import sys
