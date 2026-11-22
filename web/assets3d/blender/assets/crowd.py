@@ -6,10 +6,18 @@ parks/textures.ts CROWD: 8 × 6 cells, the first 40 seated, the last 8 cheering.
 itself is a single quad carrying the atlas as its base-colour image; the web crowd reads
 the image off it.
 
-The atlas follows the shader's conventions (Ballpark.tsx Crowd):
-* clothes are neutral greys (each fan's tint multiplies them);
-* team trim — jersey wordmark, number, placket and piping, tee logos, stripes, caps — is
-  the magenta marker (R = B, G = 0), which the shader swaps for the fan's second colour;
+A second atlas, the garment map, is rendered from the same cameras with every surface
+emitting data instead of colour: for each texel of clothing, where on the garment it is.
+RG = the point's position on a front-projected design panel (0…0.94, clamped), B = which
+garment: 1 the shirt (torso, sleeves, hood), 0.75 its trim (jersey collar and cuffs),
+0.5 a cap's crown, 0.25 its bill (or a bucket hat's brim); 0 anything else (skin, hair,
+props). The game paints each club's real jerseys and caps into design panels and the crowd
+shader wraps them on through this map, so fans wear actual replica shirts and caps. It
+ships as the quad material's normal texture (the one slot glTF keeps as linear data).
+
+The colour atlas follows the shader's conventions (Ballpark.tsx Crowd):
+* clothes are neutral greys: garments carry only their shading, normalised per cell so
+  0.6 is the cloth's typical lit value (the design colour multiplies it);
 * skin and hair keep their colour;
 * a cell's outfit style is its index mod 4 (0 jersey, 1 tee, 2 hoodie, 3 plain/striped);
 * transparent texels carry the cell's mean colour, so mipmapped fans blur into soft
@@ -27,7 +35,7 @@ from wtbb3d import kit, materials, scene
 
 SPEC = {
     "name": "crowd",
-    "description": "Crowd sprite atlas (48 Cycles-rendered fans, 8 × 6 cells of 128 × 170) on a quad",
+    "description": "Crowd sprite atlas and garment map (48 Cycles-rendered fans, 8 × 6 cells of 128 × 170) on a quad",
     "lods": [2],
     "max_texture": 1024,
     "closed": False,
@@ -52,6 +60,11 @@ def srgb_lin(v: float) -> float:
 SKINS = [lin(h) for h in ("#f1cdb0", "#e6bb98", "#d4a27a", "#b98257", "#8f5e3c", "#6a4329", "#4e301d")]
 HAIRS = [lin(h) for h in ("#1f1712", "#2b1e16", "#45301f", "#6a472a", "#9a7442", "#cfae6c", "#7f4126", "#bdb5a6", "#352820")]
 MARK = np.array([0.56, 0.0, 0.56])  # magenta marker, ≈ sRGB 0.77 when lit face-on
+CLOTH = np.full(3, 0.42)  # every garment renders in this grey; the design supplies the colour
+SHADE_REF = 0.6  # garment shading in the colour atlas is normalised to this lit value
+# Garment-map regions (B channel) and the design-panel span (RG) they address.
+R_SHIRT, R_TRIM, R_CROWN, R_BILL = 1.0, 0.75, 0.5, 0.25
+UV_SPAN = 0.94  # projected coordinates fill [0, 0.94]; 0.97 addresses a panel's swatch column
 EYE = np.array([0.025, 0.02, 0.018])
 LIPS = np.array([0.30, 0.10, 0.09])
 
@@ -242,7 +255,8 @@ def fan_params(i: int, rng) -> dict:
         "grey": min(0.92, srgb_lin(L) * 1.12),
         "skin": SKINS[rng.integers(len(SKINS))] * rng.uniform(0.94, 1.05),
         "hair": HAIRS[rng.integers(len(HAIRS))],
-        "cap": rng.random() < 0.36,
+        "cap": rng.random() < 0.55,
+        "cap_kind": ("curve", "curve", "curve", "flat", "flat", "bucket")[int(rng.integers(6))],
         "shades": rng.random() < 0.26,
         "long_sleeve": rng.random() < 0.3,
         "beard": (not female) and rng.random() < 0.3,
@@ -333,7 +347,7 @@ def paint_mask(p: dict, box, n: int = 512) -> np.ndarray:
 def build_fan(p: dict, mats: dict) -> list:
     rng = np.random.default_rng(p["seed"])
     skin, hair = p["skin"], p["hair"]
-    grey = np.full(3, p["grey"])
+    grey = CLOTH.copy()
     fem, heavy = p["female"], p["heavy"]
     wid = (0.88 if fem else 1.0) * (1.12 if heavy else 1.0)
     dep = (1.0 if not fem else 0.94) * (1.3 if heavy else 1.0)
@@ -366,12 +380,17 @@ def build_fan(p: dict, mats: dict) -> list:
         tk.blob((dx, 0.2, 1.62), 0.3, lambda q, n: grey * 0.85, rng, subdiv=3, rough=0.08, squash=(1.1, 0.6, 0.55))
     torso = tk.object(f"fan_torso_{p['i']}", smooth=True)
     box = (-1.2, -0.7, 2.4)
-    mask = materials.image_from_array(f"fan_mask_{p['i']}", paint_mask(p, box), non_color=True)
+    m = paint_mask(p, box)
+    m[..., 0] = 0.0  # lettering and trim come from the design panel through the garment map
+    mask = materials.image_from_array(f"fan_mask_{p['i']}", m, non_color=True)
     tmat = torso_material(f"fan_cloth_{p['i']}", mask, (box[0] + dx, box[1], box[2]))
     # The mask is painted around the fan's own centre: shift its frame by dx.
     materials.assign(torso, tmat)
 
     ck = kit.Kit()  # other cloth (sleeves, collar): vertex colour only
+    trk = kit.Kit()  # jersey trim: collar band and sleeve cuffs
+    capk = kit.Kit()  # cap crown and button
+    billk = kit.Kit()  # cap bill / hat brim
     sk = kit.Kit()  # skin
     hk = kit.Kit()  # hair
     mk = kit.Kit()  # marker (caps), shiny bits
@@ -382,7 +401,7 @@ def build_fan(p: dict, mats: dict) -> list:
     if p["style"] in (1, 3):
         ck.tube([(dx, 0.02, 1.58), (dx, 0.02, 1.64)], [0.205, 0.2], 28, lambda i, a, q: grey * 0.9, cap=False)
     elif p["style"] == 0:
-        ck.tube([(dx, 0.02, 1.57), (dx, 0.0, 1.63)], [0.21, 0.205], 28, lambda i, a, q: MARK if i == 1 else grey, cap=False)
+        trk.tube([(dx, 0.02, 1.57), (dx, 0.0, 1.63)], [0.21, 0.205], 28, lambda i, a, q: grey * 0.95, cap=False)
 
     # -- head ----------------------------------------------------------------------------
     s = 0.95 if fem else 1.0
@@ -462,31 +481,50 @@ def build_fan(p: dict, mats: dict) -> list:
             hk.add(to_world(lv), keepf, lc)
         elif hs < 0.9 and not p["cap"]:
             hk.blob(to_world((0, ry * 0.95, 0.12)), 0.12, lambda q, n: hair * 0.9, rng, subdiv=2, rough=0.15, squash=(1, 0.8, 1))  # bun
-    # Cap: crown, button and brim in the marker.
+    # Cap: crown and button, and a bill (curved or flat) or a bucket hat's brim all round.
     if p["cap"]:
-        crown = []
+        kind_ = p["cap_kind"]
         bm = bmesh.new()
         bmesh.ops.create_icosphere(bm, subdivisions=4, radius=1.0)
         CV = np.array([vv.co[:] for vv in bm.verts])
         CF = [[vv.index for vv in fc.verts] for fc in bm.faces]
         bm.free()
-        CP = CV * np.array([rx + 0.04, ry + 0.04, rz + 0.03])
+        tall = {"curve": 0.03, "flat": 0.06, "bucket": 0.0}[kind_]
+        CP = CV * np.array([rx + 0.04, ry + 0.04, rz + tall])
         CP[:, 2] += 0.02
-        keep = [fc for fc in CF if CP[fc].mean(axis=0)[2] > 0.13 - 0.06 * (CP[fc].mean(axis=0)[1] > 0)]
+        cut = 0.13 if kind_ != "bucket" else 0.08
+        keep = [fc for fc in CF if CP[fc].mean(axis=0)[2] > cut - 0.06 * (CP[fc].mean(axis=0)[1] > 0)]
         used = sorted({ii for fc in keep for ii in fc})
         remap = {o: n for n, o in enumerate(used)}
-        crown = [MARK * (0.82 + 0.18 * (CP[ii][2] / rz)) * (0.93 + 0.07 * math.cos(6 * math.atan2(CP[ii][0], CP[ii][1]))) for ii in used]  # panel seams
-        mk.add(to_world(CP[used]), [[remap[ii] for ii in fc] for fc in keep], crown)
-        mk.blob(to_world((0, 0, rz + 0.05)), 0.03, lambda q, n: MARK, rng, subdiv=1, rough=0.0)
-        brim = []
-        bz = 0.15
-        for u in np.linspace(-1, 1, 9):
-            a = u * 1.15
-            inner = (math.sin(a) * (rx + 0.04), -math.cos(a) * (ry + 0.03), bz)
-            outer = (math.sin(a) * (rx + 0.06) * 1.05, -math.cos(a) * (ry + 0.03) - 0.24 * math.cos(u * math.pi / 2) ** 0.7, bz - 0.04 - 0.02 * (1 - abs(u)))
-            brim.append((inner, outer))
-        for (i0, o0), (i1, o1) in zip(brim[:-1], brim[1:]):
-            mk.plate([to_world(i0), to_world(i1), to_world(o1), to_world(o0)], MARK * 0.8)
+        crown = [grey * (0.82 + 0.18 * (CP[ii][2] / rz)) * (0.93 + 0.07 * math.cos(6 * math.atan2(CP[ii][0], CP[ii][1]))) for ii in used]  # panel seams
+        capk.add(to_world(CP[used]), [[remap[ii] for ii in fc] for fc in keep], crown)
+        if kind_ != "bucket":
+            capk.blob(to_world((0, 0, rz + tall + 0.02)), 0.03, lambda q, n: grey, rng, subdiv=1, rough=0.0)
+        if kind_ == "bucket":
+            # A soft brim right round, sloping down and out.
+            n_b = 24
+            ring = []
+            for j in range(n_b + 1):
+                a = 2 * math.pi * j / n_b
+                inner = (math.sin(a) * (rx + 0.04), -math.cos(a) * (ry + 0.04), cut - 0.02)
+                outer = (math.sin(a) * (rx + 0.19), -math.cos(a) * (ry + 0.19), cut - 0.13)
+                ring.append((inner, outer))
+            for (i0, o0), (i1, o1) in zip(ring[:-1], ring[1:]):
+                billk.plate([to_world(i0), to_world(i1), to_world(o1), to_world(o0)], grey * 0.85)
+        else:
+            brim = []
+            bz = 0.15
+            flat = kind_ == "flat"
+            for u in np.linspace(-1, 1, 9):
+                a = u * 1.15
+                inner = (math.sin(a) * (rx + 0.04), -math.cos(a) * (ry + 0.03), bz)
+                if flat:
+                    outer = (math.sin(a) * (rx + 0.06) * 1.08, -math.cos(a) * (ry + 0.03) - 0.27 * math.cos(u * math.pi / 2) ** 0.45, bz - 0.015)
+                else:
+                    outer = (math.sin(a) * (rx + 0.06) * 1.05, -math.cos(a) * (ry + 0.03) - 0.24 * math.cos(u * math.pi / 2) ** 0.7, bz - 0.04 - 0.02 * (1 - abs(u)))
+                brim.append((inner, outer))
+            for (i0, o0), (i1, o1) in zip(brim[:-1], brim[1:]):
+                billk.plate([to_world(i0), to_world(i1), to_world(o1), to_world(o0)], grey * 0.8)
 
     # -- arms ------------------------------------------------------------------------------
     sh_x = 0.6 * wid
@@ -528,8 +566,11 @@ def build_fan(p: dict, mats: dict) -> list:
         radii = np.concatenate([np.linspace(0.19, 0.135, 7), np.linspace(0.13, 0.09, 7)[1:]]) * (1.1 if heavy else 1.0) * (0.92 if fem else 1.0)
         n_sl = int(round(sleeve_len * (len(arm) - 1))) + 1
         n_sl = max(3, min(len(arm), n_sl))
-        sleeve_col = lambda i, a, q, n=n_sl: (MARK if (p["style"] == 0 and i >= n - 2 and not p["long_sleeve"]) else grey * (0.9 + 0.08 * math.cos(a)))  # noqa: E731
+        sleeve_col = lambda i, a, q: grey * (0.9 + 0.08 * math.cos(a))  # noqa: E731
         ck.tube(arm[:n_sl], radii[:n_sl] + 0.025, 16, sleeve_col, cap=True)
+        if p["style"] == 0 and not p["long_sleeve"]:
+            # Jersey sleeve braid: a band round the sleeve end.
+            trk.tube(arm[n_sl - 2 : n_sl], radii[n_sl - 2 : n_sl] + 0.034, 16, lambda i, a, q: grey * (0.9 + 0.08 * math.cos(a)), cap=False)
         if n_sl < len(arm):
             sk.tube(arm[n_sl - 2 :], radii[n_sl - 2 :], 14, lambda i, a, q: skin * 0.92, cap=True)
         # Hand.
@@ -541,13 +582,67 @@ def build_fan(p: dict, mats: dict) -> list:
             cup = np.array([0.72, 0.1, 0.08]) if p["seed"] % 3 else np.array([0.85, 0.82, 0.72])
             mk.beam(hand + np.array([0, -0.05, -0.12]), hand + np.array([0, -0.05, 0.3]), 0.2, cup, sides=12, w1=0.24)
 
-    objs = [torso]
-    for name, kk, mat in (("cloth", ck, mats["cloth"]), ("skin", sk, mats["skin"]), ("hair", hk, mats["hair"]), ("mark", mk, mats["mark"])):
+    # Each object with its garment role: (region, projection box (x0, z0, xspan, zspan) or None).
+    shirt_box = (box[0] + dx, box[1], box[2], box[2])
+    objs = [(torso, (R_SHIRT, shirt_box))]
+    parts = (
+        ("cloth", ck, mats["cloth"], (R_SHIRT, shirt_box)),
+        ("trim", trk, mats["cloth"], (R_TRIM, None)),
+        ("crown", capk, mats["cloth"], (R_CROWN, "fit")),
+        ("bill", billk, mats["cloth"], (R_BILL, None)),
+        ("skin", sk, mats["skin"], None),
+        ("hair", hk, mats["hair"], None),
+        ("mark", mk, mats["mark"], None),
+    )
+    for name, kk, mat, role in parts:
         if kk.v:
+            if role and role[1] == "fit":
+                # The crown's own front projection: its width and height fill the cap panel.
+                V = np.asarray(kk.v, float)
+                role = (role[0], (V[:, 0].min(), V[:, 2].min(), V[:, 0].max() - V[:, 0].min(), V[:, 2].max() - V[:, 2].min()))
             ob = kk.object(f"fan_{name}_{p['i']}", smooth=True)
             materials.assign(ob, mat)
-            objs.append(ob)
+            objs.append((ob, role))
     return objs
+
+
+def garment_material(name: str, role) -> bpy.types.Material:
+    """Emits garment-map data: (u, v, region) for a projected garment, (0.97, 0.5, region) for a flat one, black otherwise."""
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    nt = mat.node_tree
+    nt.nodes.clear()
+    out = nt.nodes.new("ShaderNodeOutputMaterial")
+    em = nt.nodes.new("ShaderNodeEmission")
+    em.inputs["Strength"].default_value = 1.0
+    nt.links.new(em.outputs["Emission"], out.inputs["Surface"])
+    if role is None:
+        em.inputs["Color"].default_value = (0.0, 0.0, 0.0, 1.0)
+        return mat
+    region, bx = role
+    if bx is None:
+        em.inputs["Color"].default_value = (0.97, 0.5, region, 1.0)
+        return mat
+    x0, z0, xs, zs = bx
+    tc = nt.nodes.new("ShaderNodeTexCoord")
+    sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+    nt.links.new(tc.outputs["Object"], sep.inputs["Vector"])
+    comb = nt.nodes.new("ShaderNodeCombineColor")
+    for axis, lo, span, slot in (("X", x0, xs, "Red"), ("Z", z0, zs, "Green")):
+        ma = nt.nodes.new("ShaderNodeMath")
+        ma.operation = "MULTIPLY_ADD"
+        ma.inputs[1].default_value = 1 / max(span, 1e-3)
+        ma.inputs[2].default_value = -lo / max(span, 1e-3)
+        ma.use_clamp = True
+        nt.links.new(sep.outputs[axis], ma.inputs[0])
+        sc_ = nt.nodes.new("ShaderNodeMath")
+        sc_.operation = "MULTIPLY"
+        sc_.inputs[1].default_value = UV_SPAN
+        nt.links.new(ma.outputs[0], sc_.inputs[0])
+        nt.links.new(sc_.outputs[0], comb.inputs[slot])
+    comb.inputs["Blue"].default_value = region
+    nt.links.new(comb.outputs["Color"], em.inputs["Color"])
+    return mat
 
 
 # ---------------------------------------------------------------------------------------
@@ -602,14 +697,51 @@ def setup_render() -> bpy.types.Object:
     return cam
 
 
-def render_cell(path_: str) -> np.ndarray:
+def render_cell(path_: str, data: bool = False) -> np.ndarray:
+    """Render the cell: shaded colour, or (``data``) the garment map — raw emission, unfiltered, no denoising."""
     sc = bpy.context.scene
     sc.render.filepath = path_
+    sc.view_settings.view_transform = "Raw" if data else "Standard"
+    sc.cycles.samples = 4 if data else 96
+    sc.cycles.use_denoising = not data
+    sc.render.filter_size = 0.3 if data else 1.2
     bpy.ops.render.render(write_still=True)
     img = bpy.data.images.load(path_)
+    if data:
+        img.colorspace_settings.name = "Non-Color"
     px = np.array(img.pixels[:], np.float32).reshape(CH, CW, 4)  # row 0 = bottom
     bpy.data.images.remove(img)
     return px[::-1]  # top-down
+
+
+def shade_garments(cell: np.ndarray, gmap: np.ndarray) -> np.ndarray:
+    """Garment texels of a colour cell become grey shading: their lightness over the region's median, times SHADE_REF."""
+    c = cell.copy()
+    region = np.round(gmap[..., 2] * 4)
+    solid = (c[..., 3] > 0.5) & (gmap[..., 3] > 0.5)
+    lum_ = 0.2126 * c[..., 0] + 0.7152 * c[..., 1] + 0.0722 * c[..., 2]
+    for r in (1, 2, 3, 4):
+        m = solid & (region == r)
+        if m.sum() < 4:
+            continue
+        s = np.clip(lum_[m] / max(np.median(lum_[m]), 1e-3) * SHADE_REF, 0, 1)
+        c[m, 0] = c[m, 1] = c[m, 2] = s
+    return c
+
+
+def compose_data(cells: list[np.ndarray]) -> np.ndarray:
+    """The garment map atlas: same layout, empty texels zero."""
+    A = np.zeros((SIZE, SIZE, 4), np.float32)
+    for i, cell in enumerate(cells):
+        x0, y0 = (i % COLS) * CW, (i // COLS) * CH
+        c = cell.copy()
+        clip = np.zeros((CH, CW), bool)
+        clip[2 : CH - 1, 2 : CW - 2] = True
+        c[~clip] = 0
+        c[c[..., 3] < 0.5] = 0
+        c[..., 3] = np.where(c[..., 3] > 0, 1.0, 0.0)
+        A[y0 : y0 + CH, x0 : x0 + CW] = c
+    return A
 
 
 def compose(cells: list[np.ndarray]) -> np.ndarray:
@@ -642,16 +774,27 @@ def build():
     setup_render()
     rng = np.random.default_rng(1906)
     tmp = tempfile.mkdtemp(prefix="crowd_")
-    cells = []
+    cells, gcells = [], []
     for i in range(COLS * ROWS):
         p = fan_params(i, rng)
         objs = build_fan(p, mats)
-        cells.append(render_cell(os.path.join(tmp, f"cell_{i:02d}.png")))
-        for o in objs:
+        colour = render_cell(os.path.join(tmp, f"cell_{i:02d}.png"))
+        # Garment pass: swap every material for its data emitter and render again.
+        gmats = [garment_material(f"fan_g{i}_{j}", role) for j, (_, role) in enumerate(objs)]
+        for (o, _), gm in zip(objs, gmats):
+            o.data.materials.clear()
+            o.data.materials.append(gm)
+        gmap = render_cell(os.path.join(tmp, f"garm_{i:02d}.png"), data=True)
+        cells.append(shade_garments(colour, gmap))
+        gcells.append(gmap)
+        for o, _ in objs:
             me = o.data
             bpy.data.objects.remove(o)
             bpy.data.meshes.remove(me)
+        for gm in gmats:
+            bpy.data.materials.remove(gm)
     atlas = compose(cells)
+    garments = compose_data(gcells)
     for o in list(bpy.data.objects):
         if o.type in ("LIGHT", "CAMERA"):
             bpy.data.objects.remove(o)
@@ -660,7 +803,12 @@ def build():
         img.filepath_raw = os.environ["CROWD_DEBUG"]
         img.file_format = "PNG"
         img.save()
-    mat = materials.pbr("crowd", base_image=img, roughness=1.0)
+    gimg = materials.image_from_array("crowd_garments", garments[::-1].copy(), non_color=True)
+    if os.environ.get("CROWD_DEBUG"):
+        gimg.filepath_raw = os.environ["CROWD_DEBUG"].replace(".png", "_garments.png")
+        gimg.file_format = "PNG"
+        gimg.save()
+    mat = materials.pbr("crowd", base_image=img, roughness=1.0, normal_image=gimg)
     nt = mat.node_tree
     tex = next(n for n in nt.nodes if n.type == "TEX_IMAGE")
     bsdf = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")

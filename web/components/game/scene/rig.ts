@@ -12,6 +12,7 @@ import type { Uniform } from "@/components/game/scene/character/uniforms";
 import * as THREE from "three";
 import type { ActorState } from "@/lib/game/anim/timeline";
 import type { FieldPos } from "@/lib/game/types";
+import { batStyle, pitchStyle, type BatStyle } from "@/components/game/scene/character/style";
 import { BONE, BONE_COUNT, DIM, PELVIS_LEAN, PELVIS_TWIST, SPINE_LEAN, SPINE_TWIST } from "@/components/game/scene/character/skeleton";
 
 export type ActorKind = "fielder" | "catcher" | "pitcher" | "batter" | "runner" | "umpire" | "coach";
@@ -561,27 +562,73 @@ function locoPose(p: Pose, a: ActorDraw, c: PoseCtx) {
   p.gloveUp = lerp(p.gloveUp, 0.1, w);
 }
 
-function stanceInto(p: Pose, tau: number, time: number) {
-  // Load as the pitch is delivered, relax again if the ball goes by.
-  const L = smooth((tau + 0.2) / 0.45) * (1 - smooth((tau - 0.85) / 0.5));
-  const still = 1 - L;
+/** Where a shoulder sits in the root frame for the trunk the pose describes (side 1 left, −1 right; roll ignored). */
+export function shoulderAt(out: THREE.Vector3, p: Pose, side: number): THREE.Vector3 {
+  const x = side * DIM.shoulderX;
+  const y = DIM.shoulderY * Math.cos(p.lean);
+  const z = DIM.shoulderY * Math.sin(p.lean);
+  const c = Math.cos(p.twist);
+  const s = Math.sin(p.twist);
+  return out.set(p.sway + x * c + z * s, p.hipH + y, -x * s + z * c);
+}
+
+/** The bat's handle and direction for a stance at load `L` (0 waiting … 1 fully loaded). */
+function stanceBat(p: Pose, st: BatStyle, L: number, wag: number, outHandle: THREE.Vector3, outDir: THREE.Vector3) {
+  // Hands just in front of the back shoulder and in toward the chest, at about its height;
+  // the load takes them back toward the catcher and a touch up.
+  shoulderAt(outHandle, p, -1);
+  outHandle.x += 0.42 - 0.3 * L + 0.04 * wag;
+  outHandle.y += -0.02 + st.hands + 0.06 * L + 0.03 * wag;
+  outHandle.z += 0.62 + st.depth - 0.15 * L;
+  // Tip back over the shoulder toward the catcher, at his own angle; loading lays it a little flatter and wraps it.
+  const az = -2.0 + st.tip - 0.35 * L + wag * 0.6;
+  const el = lerp(st.angle, Math.min(st.angle, 0.95), L) + wag * 0.25;
+  batDir(outDir, az, el);
+}
+
+function stanceInto(p: Pose, tau: number, time: number, st: BatStyle) {
+  // The load starts as the pitcher delivers (a leg kick earlier than a toe tap) and is
+  // done just after release; it relaxes again if the ball goes by.
+  const start = st.stride === "kick" ? 0.5 : st.stride === "tap" ? 0.32 : 0.22;
+  const L = smooth((tau + start) / (start + 0.22)) * (1 - smooth((tau - 0.85) / 0.5));
+  const still = 1 - smooth((tau + start + 0.4) / 0.4) * (1 - smooth((tau - 1.0) / 0.5));
+  // The front foot comes up through the load and is back down, striding, by its end.
+  const up = Math.sin(Math.PI * smooth(L / 0.85));
+  const bob = Math.sin(time * st.tempo * 0.5) * still;
   standing(p);
-  p.hipH = 2.7 - 0.04 * L + Math.sin(time * 1.7) * 0.02 * still;
-  p.lean = 0.3;
-  p.twist = -0.3 - 0.15 * L;
-  p.sway = -0.04 - 0.1 * L + Math.sin(time * 0.9) * 0.05 * still;
-  // Chin on the front shoulder, eyes on the pitcher.
-  p.headYaw = 1.3;
-  p.footL.set(1.15 + 0.35 * L, GROUND + 0.3 * Math.sin(Math.PI * L), 0.05 * L);
-  p.footR.set(-1.05, GROUND, 0);
-  const waggle = Math.sin(time * 2.4) * 0.12 * still;
-  sample3(_h, SWING.handle, 0);
-  _h.lerpVectors(_t.set(-0.55, 4.4, 0.45), _h, L);
-  batDir(_dir, lerp(-2.5 + waggle, sample1(SWING.az, 0), L), lerp(1.05 + waggle * 0.3, sample1(SWING.el, 0), L));
+  p.hipH = 2.8 - 0.3 * st.crouch - 0.04 * L + 0.02 * st.bounce * bob;
+  p.lean = 0.2 + 0.12 * st.crouch;
+  // Shoulders a touch closed; an open stance starts open and closes up as he loads.
+  p.twist = lerp(-0.22 + 0.2 * Math.min(0, st.open) - 0.08 * Math.max(0, st.open), -0.45, L);
+  // Weight on the back side, more so in the load; a small rock while he waits.
+  p.sway = -0.08 - 0.12 * L + 0.04 * bob;
+  p.roll = 0.03 + 0.05 * L;
+  // Both eyes on the pitcher.
+  p.headYaw = 1.5;
+  p.headPitch = 0.08;
+  const fx = st.width * 0.52;
+  const fz = 0.45 * Math.min(0, st.open) + 0.2 * Math.max(0, st.open);
+  const land = landing(st);
+  // Leg kick: the knee comes up and in toward the back leg before the stride; a tap barely leaves the ground.
+  const tuck = st.stride === "kick" ? 0.45 * up : 0.08 * up;
+  const sL = smooth((L - 0.45) / 0.55);
+  p.footL.set(lerp(fx, land.x, sL) - tuck, GROUND + st.lift * up, lerp(fz, land.z, sL));
+  p.toeL = st.stride === "kick" ? 0.35 * up : 0;
+  p.footR.set(-st.width * 0.48, GROUND, 0);
+  p.elbowR = st.elbow * (1 - 0.3 * L);
+  const wag = Math.sin(time * st.tempo) * (st.waggle / 0.12) * still;
+  stanceBat(p, st, L, wag, _h, _dir);
   gripBat(p, _h, _dir);
 }
 
-function swingInto(p: Pose, t: number, c: PoseCtx, flip: number, time: number) {
+/** Where the front foot lands at the end of the stride (RHB root frame). */
+function landing(st: BatStyle): { x: number; z: number } {
+  return { x: st.width * 0.52 + st.reach, z: 0.05 + 0.15 * Math.min(0, st.open) };
+}
+
+const _load = newPose();
+
+function swingInto(p: Pose, t: number, c: PoseCtx, flip: number, time: number, st: BatStyle) {
   const D = Math.max(0.04, c.swingDur);
   const F = SWING_FOLLOW_S;
   let prog: number;
@@ -592,19 +639,21 @@ function swingInto(p: Pose, t: number, c: PoseCtx, flip: number, time: number) {
     prog = 0.5 + 0.5 * (1 - Math.pow(1 - Math.min(1, (t - D) / F), k));
   }
   standing(p);
-  p.hipH = sample1(SWING.hipH, prog);
+  p.hipH = sample1(SWING.hipH, prog) - 0.2 * st.crouch * (1 - prog);
   p.lean = sample1(SWING.lean, prog);
   p.twist = sample1(SWING.twist, prog);
   p.sway = sample1(SWING.sway, prog);
   p.roll = sample1(SWING.roll, prog);
   p.toeR = sample1(SWING.toeR, prog);
   // Head stays on the ball through contact, then follows the swing round.
-  p.headYaw = prog < 0.5 ? lerp(1.3, 0.95, prog * 2) : lerp(0.95, 0.7, prog * 2 - 1);
-  p.headPitch = 0.3 * Math.sin(Math.PI * prog);
-  p.footL.set(1.5, GROUND, 0.05);
+  p.headYaw = prog < 0.5 ? lerp(1.5, 1.0, prog * 2) : lerp(1.0, 0.7, prog * 2 - 1);
+  p.headPitch = 0.08 + 0.25 * Math.sin(Math.PI * prog);
+  const land = landing(st);
+  p.footL.set(land.x, GROUND, land.z);
   sample3(p.footR, SWING.footR, prog);
+  p.footR.x += (1.05 - st.width * 0.48) * (1 - prog);
   sample3(_h, SWING.handle, prog);
-  batDir(_dir, sample1(SWING.az, prog), sample1(SWING.el, prog));
+  batDir(_dir, sample1(SWING.az, prog), sample1(SWING.el, prog) + 0.25 * st.finish * smooth((prog - 0.6) / 0.4));
   if (c.hasTarget) {
     // Bend the swing plane so the sweet spot passes exactly through the aim point at contact.
     localTarget(_t, c, 0, flip);
@@ -623,9 +672,20 @@ function swingInto(p: Pose, t: number, c: PoseCtx, flip: number, time: number) {
     p.lean += 0.12 * w * Math.max(-1, Math.min(1.5, _t.z));
   }
   gripBat(p, _h, _dir);
+  // Launch from his own loaded stance: it hands over to the swing by the time the barrel turns.
+  const fade = 1 - smooth(prog / 0.32);
+  if (fade > 0) {
+    stanceInto(_load, 0.5, time, st);
+    lerpPose(p, p, _load, fade);
+  }
+  if (st.oneHand) {
+    // The top hand lets go in the finish and comes down across the chest.
+    const w = smooth((prog - 0.68) / 0.2);
+    if (w > 0) p.handR.lerp(_t.set(0.25, 3.75, 1.15), w);
+  }
   const rec = smooth((t - D - F - 0.15) / 0.45);
   if (rec > 0) {
-    stanceInto(_stance, -10, time);
+    stanceInto(_stance, -10, time, st);
     lerpPose(p, p, _stance, rec);
   }
 }
@@ -635,10 +695,10 @@ function swingInto(p: Pose, t: number, c: PoseCtx, flip: number, time: number) {
  * knees bent, the bat level out in front with the barrel over the plate, then catches
  * the ball on it — the sweet spot is set on the aim point.
  */
-function buntInto(p: Pose, t: number, c: PoseCtx, flip: number, time: number) {
+function buntInto(p: Pose, t: number, c: PoseCtx, flip: number, time: number, st: BatStyle) {
   const D = Math.max(0.2, c.swingDur);
   const sq = smooth(t / 0.35);
-  stanceInto(_stance, -10, time);
+  stanceInto(_stance, -10, time, st);
   standing(p);
   p.hipH = lerp(2.95, 2.55, sq);
   p.lean = lerp(0.04, 0.22, sq);
@@ -755,6 +815,19 @@ export function poseInto(p: Pose, a: ActorDraw, cls: PoseClass, c: PoseCtx): Pos
       sample3(p.footR, PITCH.footR, t).z -= z;
       sample3(p.handR, PITCH.handR, t);
       sample3(p.handL, PITCH.handL, t);
+      {
+        // His own windup: how high the knee comes, how far he coils it back, where the hands set.
+        const ps = pitchStyle(a.id);
+        const kick = Math.sin(Math.PI * clamp01((t - 0.15) / 0.75));
+        if (kick > 0) {
+          p.footL.y = GROUND + (p.footL.y - GROUND) * lerp(1, ps.lift, kick);
+          p.footL.x -= 0.35 * ps.coil * kick;
+          p.twist -= 0.25 * ps.coil * kick;
+        }
+        const setW = 1 - smooth((t - 0.5) / 0.3);
+        p.handR.y += ps.set * setW;
+        p.handL.y += ps.set * setW;
+      }
       // Arm cocked with the elbow up through foot strike; he falls off toward the glove side after release.
       p.elbowR = smooth((t - 0.7) / 0.2) * (1 - smooth((t - 1.12) / 0.14));
       p.roll = 0.28 * smooth((t - 1.08) / 0.25) * (1 - smooth((t - 1.5) / 0.5));
@@ -904,12 +977,12 @@ export function poseInto(p: Pose, a: ActorDraw, cls: PoseClass, c: PoseCtx): Pos
       break;
     }
     case "bat":
-      stanceInto(p, t, c.time + sd * 5);
+      stanceInto(p, t, c.time + sd * 5, batStyle(a.id));
       look = t < 0.6 ? 0.85 : 0;
       break;
     case "swing":
-      if (c.bunt) buntInto(p, t, c, flip, c.time + sd * 5);
-      else swingInto(p, t, c, flip, c.time + sd * 5);
+      if (c.bunt) buntInto(p, t, c, flip, c.time + sd * 5, batStyle(a.id));
+      else swingInto(p, t, c, flip, c.time + sd * 5, batStyle(a.id));
       break;
     case "idle":
     default: {
@@ -1069,7 +1142,7 @@ const SIDES = [1, -1];
 const ARM = [BONE.armL, BONE.armR];
 const LEG = [BONE.thighL, BONE.thighR];
 /** The head turns at most this far (rad) from where the chest points. */
-const NECK_LIMIT = 1.25;
+const NECK_LIMIT = 1.45;
 
 /** The glove's pocket, from the wrist: along the fingers and out of the palm (ft). */
 export const GLOVE_POCKET_Y = 0.34;
@@ -1127,6 +1200,8 @@ export function solveRig(a: ActorDraw, pose: Pose, x: number, z: number, yaw: nu
   // Arms (index 0 = left, 1 = right).
   const gloved = a.kind === "fielder" || a.kind === "pitcher" || a.kind === "catcher";
   const gloveSide = a.hand === "R" ? 0 : 1;
+  // A righty's back (top) hand on the bat is his right.
+  const batBack = a.hand === "R" ? 1 : 0;
   if (pose.hasBat) tmp.dir.copy(pose.batDir).transformDirection(R);
   for (let i = 0; i < 2; i += 1) {
     const side = SIDES[i];
@@ -1134,7 +1209,13 @@ export function solveRig(a: ActorDraw, pose: Pose, x: number, z: number, yaw: nu
     tmp.target.copy(i === 0 ? pose.handL : pose.handR).applyMatrix4(R);
     // Elbows point down, out and back; a cocked arm carries its elbow up and out.
     const up = i === 0 ? pose.elbowL : pose.elbowR;
-    tmp.pole.set(side * (0.6 + 0.5 * up), -1 + 2.1 * up, -0.8).transformDirection(T);
+    if (pose.hasBat && !gloved) {
+      // On the bat: the back elbow hangs down and a little back (higher for a high-elbow
+      // hitter); the front elbow points down in front of the chest, the arm across it.
+      if (i === batBack) tmp.pole.set(side * (0.45 + 0.35 * up), -1 + 0.9 * up, -0.45);
+      else tmp.pole.set(side * 0.2, -1, 0.5);
+      tmp.pole.transformDirection(T);
+    } else tmp.pole.set(side * (0.6 + 0.5 * up), -1 + 2.1 * up, -0.8).transformDirection(T);
     ik(sh, tmp.target, DIM.upperArm, DIM.foreArm, tmp.pole, -1, tmp.mid, tmp.end, tmp.axis);
     limbFrame(B[ARM[i]], sh, tmp.mid, tmp.axis);
     limbFrame(B[ARM[i] + 1], tmp.mid, tmp.end, tmp.axis);

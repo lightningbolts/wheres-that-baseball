@@ -67,7 +67,8 @@ function actionFor(kind: ActorKind, pose: PoseName, t: number): { action: Action
   const p = pose === "auto" ? auto[kind] : pose;
   switch (p) {
     case "stance":
-      return { action: "stance", actionT: 1, speed: 0 };
+      // t 0 → waiting for the pitch (no load) … 0.5 → release … 1 → ball past him.
+      return { action: "stance", actionT: t <= 0.02 ? -10 : t * 2 - 1, speed: 0 };
     case "swing":
       return { action: "swing", actionT: t, speed: 0 };
     case "set":
@@ -120,6 +121,8 @@ function Cast({ s }: { s: Settings }) {
     bats.count = 0;
     bats.setColorAt(0, BAT_COLORS[0]);
     group.add(bats);
+    // `?player=<MLB id>` puts that player in every batter's shoes (his stance and swing).
+    const swap = typeof window === "undefined" ? 0 : Number(new URLSearchParams(window.location.search).get("player") ?? 0);
     const actors: ActorDraw[] = CAST.map((c, i) => {
       const uni = c.teamId ? uniformFor(c.teamId, c.home, 0x223344) : null;
       return {
@@ -132,7 +135,7 @@ function Cast({ s }: { s: Settings }) {
         hand: c.hand,
         helmet: c.kind === "batter" || c.kind === "runner",
         pos: c.pos ?? null,
-        id: c.id,
+        id: swap && c.kind === "batter" ? swap : c.id,
         uni: c.kind === "umpire" ? null : uni,
       } as ActorDraw;
     });

@@ -147,10 +147,10 @@
       ]
     },
     "crowd": {
-      "url": "/models/crowd.2a2d0129d2.glb",
-      "bytes": 125560,
-      "sourceHash": "35137f4a780c160a",
-      "description": "Crowd sprite atlas (48 Cycles-rendered fans, 8 × 6 cells of 128 × 170) on a quad",
+      "url": "/models/crowd.3e37eb4678.glb",
+      "bytes": 177444,
+      "sourceHash": "06bff901d9e15b78",
+      "description": "Crowd sprite atlas and garment map (48 Cycles-rendered fans, 8 × 6 cells of 128 × 170) on a quad",
       "blender": "5.3.0",
       "lods": [
         {
@@ -178,6 +178,14 @@
                 1024
               ],
               "colorspace": "sRGB"
+            },
+            {
+              "name": "crowd_garments",
+              "size": [
+                1024,
+                1024
+              ],
+              "colorspace": "Non-Color"
             }
           ]
         }

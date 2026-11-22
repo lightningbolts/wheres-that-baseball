@@ -43,8 +43,9 @@ import {
 } from "@/components/game/scene/parks/textures";
 import { timeOfDay, type TimeOfDay } from "@/components/game/scene/parks/tod";
 import { AWAY_FAN_SHARE } from "@/lib/game/crowd/reaction";
-import { CLUBS } from "@/components/game/scene/character/uniforms";
-import { dressFan, type FanColors } from "@/components/game/scene/parks/fans";
+import { capLogoVersion, CLUBS } from "@/components/game/scene/character/uniforms";
+import { dressFan, lineup, type FanColors } from "@/components/game/scene/parks/fans";
+import { CAP_PX, CAP_TOP, MERCH_SIZE, paintMerch, SHIRT_PX } from "@/components/game/scene/parks/merch";
 import { useQuality } from "@/components/game/scene/quality";
 import { applySurface, useSurfaceSet } from "@/components/game/scene/parks/surfaces";
 import { ModelPlacer } from "@/components/game/scene/parks/placements";
@@ -367,12 +368,54 @@ function Crowd({ seats, yaws, meta, accent, awayAccent, homeTeam, awayTeam, capa
   const painted = useMemo(() => (rendered || typeof document === "undefined" ? null : crowdAtlas()), [rendered]);
   const atlas = rendered ?? painted;
   useEffect(() => () => painted?.dispose(), [painted]);
+  // The garment map rendered alongside it (crowd.py): where on a shirt or cap each texel is.
+  // Read texel by texel — filtering would blend coordinates across garments.
+  const garmentMap = (rendered && crowdModel?.lods[0].material.normalMap) || null;
+  useMemo(() => {
+    if (!garmentMap) return;
+    garmentMap.magFilter = THREE.NearestFilter;
+    garmentMap.minFilter = THREE.NearestFilter;
+    garmentMap.generateMipmaps = false;
+    garmentMap.needsUpdate = true;
+  }, [garmentMap]);
+
+  // Both clubs' gear and everyday clothes, painted into the design atlas the garment map addresses.
+  const wear = useMemo(() => {
+    const kit = (id: number | undefined, color: string | undefined): FanColors | null => {
+      if (!color && id == null) return null;
+      const u = id != null ? CLUBS[id] : undefined;
+      const c0 = color ? new THREE.Color(color).getHex() : 0x1f2a44;
+      return u ? { home: u.home, road: u.road, cap: u.cap, letter: u.letter } : { home: 0xf4f2ec, road: 0x9a9ea4, cap: c0, letter: c0 };
+    };
+    const homeKit = kit(homeTeam, accent)!;
+    const roadKit = awayAccent ? kit(awayTeam, awayAccent) : null;
+    const palette = SHIRTS.map((x) => new THREE.Color(x).getHex());
+    const designs = lineup({ teamId: homeTeam, colors: homeKit }, roadKit ? { teamId: awayTeam, colors: roadKit } : null, palette);
+    return { homeKit, roadKit, palette, designs };
+  }, [accent, awayAccent, homeTeam, awayTeam]);
+  const merch = useMemo(() => {
+    if (typeof document === "undefined") return null;
+    const canvas = document.createElement("canvas");
+    paintMerch(canvas, wear.designs);
+    const t = new THREE.CanvasTexture(canvas);
+    t.flipY = false;
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 4;
+    return { canvas, texture: t, version: capLogoVersion(), since: 0 };
+  }, [wear]);
+  useEffect(() => () => merch?.texture.dispose(), [merch]);
+
   const material = useMemo(() => {
     if (rendered) rendered.anisotropy = 4;
     const flip = rendered ? 1 : 0;
+    const dressed = garmentMap && merch ? 1 : 0;
     const m = new THREE.MeshBasicMaterial({ map: atlas });
-    m.customProgramCacheKey = () => `crowd${flip}`;
+    m.customProgramCacheKey = () => `crowd${flip}${dressed}`;
     m.onBeforeCompile = (shader) => {
+      if (dressed) {
+        shader.uniforms.uGarments = { value: garmentMap };
+        shader.uniforms.uMerch = { value: merch!.texture };
+      }
       shader.uniforms.uTime = uniforms.uTime;
       shader.uniforms.uExcite = uniforms.uExcite;
       shader.uniforms.uAwayExcite = uniforms.uAwayExcite;
@@ -381,7 +424,7 @@ function Crowd({ seats, yaws, meta, accent, awayAccent, homeTeam, awayTeam, capa
       shader.vertexShader = shader.vertexShader
         .replace(
           "#include <common>",
-          "#include <common>\nuniform float uTime;\nuniform float uExcite;\nuniform float uAwayExcite;\nuniform vec3 uSun;\nattribute vec3 aPos;\nattribute float aTeam;\nattribute vec3 aTint;\nattribute vec3 aTint2;\nattribute vec4 aInfo;\nattribute vec3 aMove;\nvarying vec3 vTint;\nvarying vec3 vTint2;\nvarying float vShade;\nvarying vec2 vCard;\nvarying vec3 vSun;",
+          "#include <common>\nuniform float uTime;\nuniform float uExcite;\nuniform float uAwayExcite;\nuniform vec3 uSun;\nattribute vec3 aPos;\nattribute float aTeam;\nattribute vec3 aTint;\nattribute vec3 aTint2;\nattribute vec4 aInfo;\nattribute vec3 aMove;\nattribute vec2 aDesign;\nvarying vec3 vTint;\nvarying vec3 vTint2;\nvarying float vShade;\nvarying vec2 vCard;\nvarying vec3 vSun;\nvarying vec2 vDesign;\nvarying float vFlip;",
         )
         .replace(
           "#include <project_vertex>",
@@ -403,7 +446,9 @@ function Crowd({ seats, yaws, meta, accent, awayAccent, homeTeam, awayTeam, capa
           // Standing up he swaps to a cheering cell of the same outfit style (style = cell mod ${FAN_STYLE.count}).
           float cell = mix(aInfo.x, ${CROWD.seated.toFixed(1)} + mod(aInfo.x, ${FAN_STYLE.count.toFixed(1)}) + ${FAN_STYLE.count.toFixed(1)} * floor(fract(sd * 3.7) * ${((CROWD.cols * CROWD.rows - CROWD.seated) / FAN_STYLE.count).toFixed(1)}), cheer);
           vec2 cr = vec2(mod(cell, ${CROWD.cols.toFixed(1)}), floor(cell / ${CROWD.cols.toFixed(1)}));
-          float fu = mix(uv.x, 1.0 - uv.x, step(0.5, fract(sd * 5.37)));
+          vFlip = step(0.5, fract(sd * 5.37));
+          vDesign = aDesign;
+          float fu = mix(uv.x, 1.0 - uv.x, vFlip);
           vMapUv = vec2((cr.x + 0.025 + 0.95 * fu) / ${CROWD.cols.toFixed(1)}, ${flip ? "" : "1.0 - "}(cr.y * ${CROWD.ch.toFixed(1)} + 2.5 + (1.0 - uv.y) * ${(CROWD.ch - 4).toFixed(1)}) / ${CROWD.size.toFixed(1)});
           vCard = uv;
           vSun = vec3(dot(uSun, rgt), uSun.y, dot(uSun, fwd));
@@ -412,7 +457,10 @@ function Crowd({ seats, yaws, meta, accent, awayAccent, homeTeam, awayTeam, capa
           vShade = aInfo.y;`,
         );
       shader.fragmentShader = shader.fragmentShader
-        .replace("#include <common>", "#include <common>\nuniform float uLight;\nvarying vec3 vTint;\nvarying vec3 vTint2;\nvarying float vShade;\nvarying vec2 vCard;\nvarying vec3 vSun;")
+        .replace(
+          "#include <common>",
+          `#include <common>\nuniform float uLight;\nvarying vec3 vTint;\nvarying vec3 vTint2;\nvarying float vShade;\nvarying vec2 vCard;\nvarying vec3 vSun;\nvarying vec2 vDesign;\nvarying float vFlip;${dressed ? "\nuniform sampler2D uGarments;\nuniform sampler2D uMerch;" : ""}`,
+        )
         .replace(
           "#include <map_fragment>",
           `vec4 tx = texture2D(map, vMapUv);
@@ -431,11 +479,32 @@ function Crowd({ seats, yaws, meta, accent, awayAccent, homeTeam, awayTeam, capa
           float trim = smoothstep(0.45, 0.85, mk);
           vec3 cl = mix(tx.rgb, tx.rgb * vTint, cloth);
           cl = mix(cl, vTint2 * max(tx.r, tx.b) * 1.28, trim);
+          ${
+            dressed
+              ? `// Real gear: the garment map says which garment this texel is and where on it; the
+          // design atlas has the club's shirt or cap there. The colour atlas keeps the shading
+          // (garments render grey, normalised so 0.6 sRGB ≈ 0.318 linear is the lit cloth).
+          vec4 gm = texture2D(uGarments, vMapUv);
+          float region = floor(gm.b * 4.0 + 0.5);
+          if (gm.a > 0.5 && region > 0.5) {
+            bool isCap = region < 2.5;
+            bool swatch = region == 1.0 || region == 3.0;
+            float slot = isCap ? vDesign.y : vDesign.x;
+            float px = isCap ? ${CAP_PX.toFixed(1)} : ${SHIRT_PX.toFixed(1)};
+            vec2 origin = isCap ? vec2(mod(slot, ${(MERCH_SIZE / CAP_PX).toFixed(1)}), floor(slot / ${(MERCH_SIZE / CAP_PX).toFixed(1)})) * px + vec2(0.0, ${CAP_TOP.toFixed(1)}) : vec2(mod(slot, ${(MERCH_SIZE / SHIRT_PX).toFixed(1)}), floor(slot / ${(MERCH_SIZE / SHIRT_PX).toFixed(1)})) * px;
+            vec2 q = swatch ? vec2(0.97, 0.5) : vec2(mix(gm.r, 0.94 - gm.r, vFlip), 1.0 - gm.g);
+            // Mip level: design texels per screen pixel (a fan atlas texel spans ~0.93 shirt or ~1.9 cap texels).
+            float lod = log2(max(1.0, tpp * (isCap ? 1.9 : 0.93)));
+            vec3 design = textureLod(uMerch, (origin + q * px) / ${MERCH_SIZE.toFixed(1)}, lod).rgb;
+            if (slot >= 0.0) cl = design * (tx.r / 0.318);
+          }`
+              : ""
+          }
           diffuseColor.rgb = cl * vShade * uLight * lit;`,
         );
     };
     return m;
-  }, [uniforms, atlas, rendered]);
+  }, [uniforms, atlas, rendered, garmentMap, merch]);
 
   const geom = useMemo(() => {
     const total = seats.length / 3;
@@ -452,16 +521,9 @@ function Crowd({ seats, yaws, meta, accent, awayAccent, homeTeam, awayTeam, capa
     const info: number[] = [];
     const move: number[] = [];
     const team: number[] = [];
-    // Each side's merch: its real uniform colours, or its scoreboard colour when the club has no kit.
-    const kit = (id: number | undefined, color: string | undefined): FanColors | null => {
-      if (!color && id == null) return null;
-      const u = id != null ? CLUBS[id] : undefined;
-      const c0 = color ? new THREE.Color(color).getHex() : 0x1f2a44;
-      return u ? { home: u.home, road: u.road, cap: u.cap, letter: u.letter } : { home: 0xf4f2ec, road: 0x9a9ea4, cap: c0, letter: c0 };
-    };
-    const homeKit = kit(homeTeam, accent)!;
-    const roadKit = awayAccent ? kit(awayTeam, awayAccent) : null;
-    const palette = SHIRTS.map((x) => new THREE.Color(x).getHex());
+    // Each side's merch: its real uniforms, or its scoreboard colour when the club has no kit.
+    const { homeKit, roadKit, palette, designs } = wear;
+    const design: number[] = [];
     const c = new THREE.Color();
     let s = 12345;
     const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
@@ -485,7 +547,8 @@ function Crowd({ seats, yaws, meta, accent, awayAccent, homeTeam, awayTeam, capa
       const awayFan = !!roadKit && !walker && awayBlock(i);
       team.push(awayFan ? 1 : 0);
       // Nearly the whole building is in home merch, the visiting blocks in theirs; the rest in their own clothes.
-      const fit = dressFan(awayFan ? roadKit! : homeKit, palette, awayFan ? 0.92 : 0.86, k[2], k[3], k[4], k[0]);
+      const fit = dressFan(awayFan ? roadKit! : homeKit, palette, awayFan ? 0.92 : 0.86, k[2], k[3], k[4], k[0], { side: awayFan ? designs.away! : designs.home, own: designs.own });
+      design.push(fit.garment, fit.cap);
       c.setHex(fit.body).multiplyScalar(0.86 + k[3] * 0.24);
       tint.push(c.r, c.g, c.b);
       c.setHex(fit.trim).multiplyScalar(0.9 + k[4] * 0.15);
@@ -527,9 +590,10 @@ function Crowd({ seats, yaws, meta, accent, awayAccent, homeTeam, awayTeam, capa
     g.setAttribute("aInfo", new THREE.InstancedBufferAttribute(shuffled(info, 4), 4));
     g.setAttribute("aMove", new THREE.InstancedBufferAttribute(shuffled(move, 3), 3));
     g.setAttribute("aTeam", new THREE.InstancedBufferAttribute(shuffled(team, 1), 1));
+    g.setAttribute("aDesign", new THREE.InstancedBufferAttribute(shuffled(design, 2), 2));
     g.instanceCount = n;
     return { g, n };
-  }, [seats, yaws, meta, accent, awayAccent, homeTeam, awayTeam, capacity]);
+  }, [seats, yaws, meta, wear, capacity]);
   useEffect(() => () => geom.g.dispose(), [geom]);
   useEffect(() => {
     geom.g.instanceCount = Math.round(geom.n * density);
@@ -539,6 +603,13 @@ function Crowd({ seats, yaws, meta, accent, awayAccent, homeTeam, awayTeam, capa
 
   useFrame((state, dt) => {
     uniforms.uTime.value = state.clock.elapsedTime;
+    // Club wordmarks and cap marks arrive over the network: repaint the gear as they do (at most twice a second).
+    if (merch && merch.version !== capLogoVersion() && state.clock.elapsedTime - merch.since > 0.5) {
+      merch.version = capLogoVersion();
+      merch.since = state.clock.elapsedTime;
+      paintMerch(merch.canvas, wear.designs);
+      merch.texture.needsUpdate = true;
+    }
     const target = crowdState.excite;
     uniforms.uExcite.value += (target - uniforms.uExcite.value) * Math.min(1, dt * 3);
     crowdState.excite = Math.max(0, crowdState.excite - dt * 0.12);

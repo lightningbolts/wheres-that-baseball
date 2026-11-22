@@ -34,9 +34,9 @@ export const MODELS = {
     ],
   },
   crowd: {
-    url: "/models/crowd.2a2d0129d2.glb",
-    bytes: 125560,
-    description: "Crowd sprite atlas (48 Cycles-rendered fans, 8 × 6 cells of 128 × 170) on a quad",
+    url: "/models/crowd.3e37eb4678.glb",
+    bytes: 177444,
+    description: "Crowd sprite atlas and garment map (48 Cycles-rendered fans, 8 × 6 cells of 128 × 170) on a quad",
     lods: [
       { name: "crowd_LOD0", triangles: 2, bounds: {"min":[-0.5,0,0],"max":[0.5,1,0]} },
     ],
