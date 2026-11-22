@@ -44,30 +44,32 @@ const against = (body: number, want: number, ...alts: number[]) => {
 
 /**
  * Dress one fan. `merchShare` is the chance he is in his club's gear at all; `a`..`d` are
- * uniform randoms in [0, 1).
+ * uniform randoms in [0, 1). `palette` is everyday clothes (whites, greys, navy, denim,
+ * khaki), kept neutral so the club colours are what the stands read as.
  */
 export function dressFan(kit: FanColors, palette: number[], merchShare: number, a: number, b: number, c: number, d: number): FanFit {
   const pick = (u: number) => palette[Math.floor(u * palette.length) % palette.length];
   if (a < merchShare) {
-    if (b < 0.36) {
-      // Replica jersey: mostly home whites, some road greys, some alternates in the cap colour.
-      if (c < 0.58) return { body: kit.home, trim: against(kit.home, kit.cap, kit.letter), style: FAN_STYLE.jersey, merch: true };
-      if (c < 0.8) return { body: kit.road, trim: against(kit.road, kit.letter, kit.cap), style: FAN_STYLE.jersey, merch: true };
+    if (b < 0.4) {
+      // Replica jersey: home whites, road greys, and alternates in the cap colour.
+      if (c < 0.5) return { body: kit.home, trim: against(kit.home, kit.cap, kit.letter), style: FAN_STYLE.jersey, merch: true };
+      if (c < 0.68) return { body: kit.road, trim: against(kit.road, kit.letter, kit.cap), style: FAN_STYLE.jersey, merch: true };
       return { body: kit.cap, trim: against(kit.cap, kit.letter, WHITE), style: FAN_STYLE.jersey, merch: true };
     }
-    if (b < 0.74) {
-      // Team tee: club colour with a white or lettering logo, or a white/grey/black tee with a club logo.
-      const body = c < 0.6 ? kit.cap : c < 0.75 ? WHITE : c < 0.88 ? HEATHER : BLACK;
-      const trim = body === kit.cap ? against(body, d < 0.5 ? WHITE : kit.letter, WHITE) : against(body, kit.cap, kit.letter);
+    if (b < 0.76) {
+      // Team tee: mostly the club colour with a white or lettering logo; some white or grey
+      // tees with the club logo across the chest.
+      const body = c < 0.72 ? kit.cap : c < 0.86 ? kit.letter : c < 0.94 ? WHITE : HEATHER;
+      const trim = body === kit.cap || body === kit.letter ? against(body, d < 0.5 ? WHITE : kit.letter, kit.cap, WHITE) : against(body, kit.cap, kit.letter);
       return { body, trim, style: FAN_STYLE.tee, merch: true };
     }
     // Team hoodie or jacket.
-    const body = c < 0.55 ? kit.cap : c < 0.8 ? kit.letter : HEATHER;
+    const body = c < 0.62 ? kit.cap : c < 0.9 ? kit.letter : HEATHER;
     return { body, trim: against(body, kit.cap, kit.letter, WHITE), style: FAN_STYLE.hoodie, merch: true };
   }
-  // His own clothes; about one in three still has the club's cap on.
+  // His own clothes; about half still have the club's cap or colours on.
   const style = b < 0.55 ? FAN_STYLE.plain : b < 0.8 ? FAN_STYLE.tee : FAN_STYLE.hoodie;
   const body = pick(c);
-  const trim = d < 0.33 ? against(body, kit.cap, kit.letter) : against(body, pick((d * 7.31) % 1), pick((d * 3.17) % 1));
+  const trim = d < 0.5 ? against(body, kit.cap, kit.letter) : against(body, pick((d * 7.31) % 1), pick((d * 3.17) % 1));
   return { body, trim, style, merch: false };
 }

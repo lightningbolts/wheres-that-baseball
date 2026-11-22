@@ -37,6 +37,19 @@ describe("fan merch", () => {
     }
   });
 
+  it("puts the club's colours on nearly every fan at the share the stands use", () => {
+    for (const id of ids) {
+      const { kit, fits } = crowd(id, 0.86);
+      const club = [kit.home, kit.road, kit.cap, kit.letter];
+      // Club colour on the body: merch tops in the cap or lettering colour, not plain white or grey.
+      const coloured = fits.filter((f) => f.body === kit.cap || f.body === kit.letter);
+      expect(coloured.length / fits.length, `${id}`).toBeGreaterThan(0.45);
+      // Everyone else at least shows the club on their cap, logo or lettering, bar a few.
+      const shows = fits.filter((f) => club.includes(f.body) || f.trim === kit.cap || f.trim === kit.letter);
+      expect(shows.length / fits.length, `${id}`).toBeGreaterThan(0.88);
+    }
+  });
+
   it("keeps lettering and logos legible against the cloth", () => {
     for (const id of ids) {
       for (const f of crowd(id, 1).fits) {

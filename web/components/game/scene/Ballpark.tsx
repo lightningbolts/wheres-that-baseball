@@ -342,7 +342,8 @@ export function Ballpark({ park, homeColor, awayColor, homeTeam, awayTeam }: { p
 
 const CROWD_LIGHT: Record<TimeOfDay, number> = { day: 1, dusk: 0.92, night: 0.86 };
 const CROWD_SUN: Record<TimeOfDay, [number, number, number]> = { day: [170, 320, -90], dusk: [250, 175, -150], night: [60, 340, -200] };
-const SHIRTS = ["#f2f0ea", "#e9e4d6", "#20283a", "#8c9299", "#b32a33", "#1f4f9a", "#2f6a43", "#d9792b", "#c9b26b", "#23252a", "#7fb2d9", "#f2f0ea"];
+/** Everyday clothes for fans not in merch: neutrals only, so the stands read in the clubs' colours. */
+const SHIRTS = ["#f2f0ea", "#e9e4d6", "#20283a", "#8c9299", "#5b6470", "#3c4a63", "#c9b98f", "#23252a", "#6f7f96", "#b7b2a6"];
 
 /**
  * Instanced crowd: one draw call of camera-facing sprites cut from a painted atlas of fans.
@@ -483,8 +484,8 @@ function Crowd({ seats, yaws, meta, accent, awayAccent, homeTeam, awayTeam, capa
       // Visiting fans sit together in a few blocks (about one seat in eight), in road colours.
       const awayFan = !!roadKit && !walker && awayBlock(i);
       team.push(awayFan ? 1 : 0);
-      // Most of the building wears home merch, the visiting blocks road merch; the rest their own clothes.
-      const fit = dressFan(awayFan ? roadKit! : homeKit, palette, awayFan ? 0.82 : 0.66, k[2], k[3], k[4], k[0]);
+      // Nearly the whole building is in home merch, the visiting blocks in theirs; the rest in their own clothes.
+      const fit = dressFan(awayFan ? roadKit! : homeKit, palette, awayFan ? 0.92 : 0.86, k[2], k[3], k[4], k[0]);
       c.setHex(fit.body).multiplyScalar(0.86 + k[3] * 0.24);
       tint.push(c.r, c.g, c.b);
       c.setHex(fit.trim).multiplyScalar(0.9 + k[4] * 0.15);

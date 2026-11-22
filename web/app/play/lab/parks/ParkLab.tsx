@@ -87,6 +87,7 @@ export function ParkLab() {
   const [venueId, setVenueId] = useState(3);
   const [view, setView] = useState("home");
   const [tod, setTod] = useState("day");
+  const [away, setAway] = useState("");
   const [nonce, setNonce] = useState(0);
   const stats = useRef<HTMLSpanElement | null>(null);
   const report = useCallback((text: string) => {
@@ -99,6 +100,7 @@ export function ParkLab() {
     setVenueId(byTeam?.venueId ?? Number(param("venue", "3")));
     setView(param("view", "home"));
     setTod(param("tod", "day"));
+    setAway(param("away", "").toUpperCase());
     setReady(true);
   }, []);
 
@@ -106,9 +108,9 @@ export function ParkLab() {
   useEffect(() => {
     if (!ready) return;
     const v = VENUES.find((x) => x.venueId === venueId);
-    const q = new URLSearchParams({ team: v?.teamAbbrev ?? "", view, tod });
+    const q = new URLSearchParams({ team: v?.teamAbbrev ?? "", view, tod, ...(away ? { away } : {}) });
     window.history.replaceState(null, "", `${window.location.pathname}?${q.toString()}`);
-  }, [ready, venueId, view, tod]);
+  }, [ready, venueId, view, tod, away]);
 
   // Scripting hook for screenshots: `__lab({ team: "LAD", view: "cf", tod: "night" })`.
   useEffect(() => {
@@ -127,6 +129,8 @@ export function ParkLab() {
 
   const park = useMemo(() => buildPark(venueId), [venueId]);
   const color = getTeamColor(park.teamId ?? 0);
+  // Visitors in the stands: `?away=XXX`, else a fixed opponent.
+  const awayId = venueForTeam(away || (park.teamId === 147 ? "BOS" : "NYY"))?.teamId ?? 147;
   if (!ready) return null;
 
   const btn = (on: boolean): React.CSSProperties => ({
@@ -153,7 +157,7 @@ export function ParkLab() {
         }}
       >
         <Environment park={park} />
-        <Ballpark park={park} homeColor={color} awayColor="#c4ced4" />
+        <Ballpark park={park} homeColor={color} awayColor={getTeamColor(awayId)} homeTeam={park.teamId ?? undefined} awayTeam={awayId} />
         <Rig view={view} nonce={nonce} />
         <Stats report={report} />
       </Canvas>
